@@ -1,0 +1,1074 @@
+{
+  "label": "DEMO DATA — fictional dining-hall menus with hand-assigned manual_area reference portions for the Scrap prototype. Not real hall data; not measured portions.",
+  "demo": true,
+  "provenance": "Generated deterministically by data/src/seed/generate.ts (scrap-data). Regenerate with `npm run seed` in data/.",
+  "hallId": "hall-main",
+  "hallTimezone": "America/Detroit",
+  "coordinateSpace": "topdown-normalized-v1",
+  "menus": [
+    {
+      "service": {
+        "serviceId": "svc_hall-main_2026-10-01_breakfast",
+        "hallId": "hall-main",
+        "hallTimezone": "America/Detroit",
+        "serviceDate": "2026-10-01",
+        "mealLabel": "breakfast",
+        "menuId": "menu_hall-main_2026-10-01_breakfast",
+        "menuVersion": 1
+      },
+      "items": [
+        {
+          "itemId": "item_hall-main_2026-10-01_breakfast_scrambled-eggs",
+          "menuId": "menu_hall-main_2026-10-01_breakfast",
+          "displayName": "Scrambled Eggs",
+          "category": "entree",
+          "description": "Plain scrambled eggs, standard scoop serving"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_breakfast_buttermilk-pancakes",
+          "menuId": "menu_hall-main_2026-10-01_breakfast",
+          "displayName": "Buttermilk Pancakes",
+          "category": "entree",
+          "description": "Two pancakes with syrup on the side"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_breakfast_hash-browns",
+          "menuId": "menu_hall-main_2026-10-01_breakfast",
+          "displayName": "Hash Browns",
+          "category": "side",
+          "description": "Shredded potato hash browns"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_breakfast_turkey-sausage",
+          "menuId": "menu_hall-main_2026-10-01_breakfast",
+          "displayName": "Turkey Sausage",
+          "category": "side",
+          "description": "Two turkey sausage links"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_breakfast_fresh-fruit-cup",
+          "menuId": "menu_hall-main_2026-10-01_breakfast",
+          "displayName": "Fresh Fruit Cup",
+          "category": "fruit",
+          "description": "Seasonal melon and berries"
+        }
+      ]
+    },
+    {
+      "service": {
+        "serviceId": "svc_hall-main_2026-10-01_lunch",
+        "hallId": "hall-main",
+        "hallTimezone": "America/Detroit",
+        "serviceDate": "2026-10-01",
+        "mealLabel": "lunch",
+        "menuId": "menu_hall-main_2026-10-01_lunch",
+        "menuVersion": 1
+      },
+      "items": [
+        {
+          "itemId": "item_hall-main_2026-10-01_lunch_grilled-chicken-sandwich",
+          "menuId": "menu_hall-main_2026-10-01_lunch",
+          "displayName": "Grilled Chicken Sandwich",
+          "category": "entree",
+          "description": "Grilled chicken breast on a brioche bun"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_lunch_tomato-basil-soup",
+          "menuId": "menu_hall-main_2026-10-01_lunch",
+          "displayName": "Tomato Basil Soup",
+          "category": "soup",
+          "description": "Creamy tomato soup, bowl serving"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_lunch_french-fries",
+          "menuId": "menu_hall-main_2026-10-01_lunch",
+          "displayName": "French Fries",
+          "category": "side",
+          "description": "Crinkle-cut fries, standard basket"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_lunch_garden-salad",
+          "menuId": "menu_hall-main_2026-10-01_lunch",
+          "displayName": "Garden Salad",
+          "category": "salad",
+          "description": "Mixed greens, cucumber, tomato"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_lunch_fudge-brownie",
+          "menuId": "menu_hall-main_2026-10-01_lunch",
+          "displayName": "Fudge Brownie",
+          "category": "dessert",
+          "description": "Single square brownie"
+        }
+      ]
+    },
+    {
+      "service": {
+        "serviceId": "svc_hall-main_2026-10-01_dinner",
+        "hallId": "hall-main",
+        "hallTimezone": "America/Detroit",
+        "serviceDate": "2026-10-01",
+        "mealLabel": "dinner",
+        "menuId": "menu_hall-main_2026-10-01_dinner",
+        "menuVersion": 1
+      },
+      "items": [
+        {
+          "itemId": "item_hall-main_2026-10-01_dinner_baked-ziti",
+          "menuId": "menu_hall-main_2026-10-01_dinner",
+          "displayName": "Baked Ziti",
+          "category": "entree",
+          "description": "Ziti with marinara and mozzarella"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_dinner_garlic-breadstick",
+          "menuId": "menu_hall-main_2026-10-01_dinner",
+          "displayName": "Garlic Breadstick",
+          "category": "bread",
+          "description": "One herbed garlic breadstick"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_dinner_steamed-broccoli",
+          "menuId": "menu_hall-main_2026-10-01_dinner",
+          "displayName": "Steamed Broccoli",
+          "category": "side",
+          "description": "Steamed broccoli florets"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_dinner_caesar-salad",
+          "menuId": "menu_hall-main_2026-10-01_dinner",
+          "displayName": "Caesar Salad",
+          "category": "salad",
+          "description": "Romaine, croutons, caesar dressing"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_dinner_vanilla-pudding",
+          "menuId": "menu_hall-main_2026-10-01_dinner",
+          "displayName": "Vanilla Pudding",
+          "category": "dessert",
+          "description": "Single pudding cup serving"
+        }
+      ]
+    },
+    {
+      "service": {
+        "serviceId": "svc_hall-main_2026-10-02_breakfast",
+        "hallId": "hall-main",
+        "hallTimezone": "America/Detroit",
+        "serviceDate": "2026-10-02",
+        "mealLabel": "breakfast",
+        "menuId": "menu_hall-main_2026-10-02_breakfast",
+        "menuVersion": 1
+      },
+      "items": [
+        {
+          "itemId": "item_hall-main_2026-10-02_breakfast_veggie-omelet",
+          "menuId": "menu_hall-main_2026-10-02_breakfast",
+          "displayName": "Veggie Omelet",
+          "category": "entree",
+          "description": "Three-egg omelet with peppers and onion"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_breakfast_french-toast-sticks",
+          "menuId": "menu_hall-main_2026-10-02_breakfast",
+          "displayName": "French Toast Sticks",
+          "category": "entree",
+          "description": "Five sticks with syrup on the side"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_breakfast_breakfast-potatoes",
+          "menuId": "menu_hall-main_2026-10-02_breakfast",
+          "displayName": "Breakfast Potatoes",
+          "category": "side",
+          "description": "Roasted seasoned potato cubes"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_breakfast_bacon",
+          "menuId": "menu_hall-main_2026-10-02_breakfast",
+          "displayName": "Bacon",
+          "category": "side",
+          "description": "Three strips of bacon"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_breakfast_greek-yogurt-parfait",
+          "menuId": "menu_hall-main_2026-10-02_breakfast",
+          "displayName": "Greek Yogurt Parfait",
+          "category": "fruit",
+          "description": "Yogurt with granola and berries"
+        }
+      ]
+    },
+    {
+      "service": {
+        "serviceId": "svc_hall-main_2026-10-02_lunch",
+        "hallId": "hall-main",
+        "hallTimezone": "America/Detroit",
+        "serviceDate": "2026-10-02",
+        "mealLabel": "lunch",
+        "menuId": "menu_hall-main_2026-10-02_lunch",
+        "menuVersion": 1
+      },
+      "items": [
+        {
+          "itemId": "item_hall-main_2026-10-02_lunch_beef-tacos",
+          "menuId": "menu_hall-main_2026-10-02_lunch",
+          "displayName": "Beef Tacos",
+          "category": "entree",
+          "description": "Two seasoned ground beef tacos"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_lunch_spanish-rice",
+          "menuId": "menu_hall-main_2026-10-02_lunch",
+          "displayName": "Spanish Rice",
+          "category": "side",
+          "description": "Tomato rice, standard scoop"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_lunch_black-beans",
+          "menuId": "menu_hall-main_2026-10-02_lunch",
+          "displayName": "Black Beans",
+          "category": "side",
+          "description": "Seasoned black beans, standard ladle"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_lunch_street-corn-salad",
+          "menuId": "menu_hall-main_2026-10-02_lunch",
+          "displayName": "Street Corn Salad",
+          "category": "salad",
+          "description": "Roasted corn, cotija, lime"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_lunch_cinnamon-churro",
+          "menuId": "menu_hall-main_2026-10-02_lunch",
+          "displayName": "Cinnamon Churro",
+          "category": "dessert",
+          "description": "One cinnamon sugar churro"
+        }
+      ]
+    },
+    {
+      "service": {
+        "serviceId": "svc_hall-main_2026-10-02_dinner",
+        "hallId": "hall-main",
+        "hallTimezone": "America/Detroit",
+        "serviceDate": "2026-10-02",
+        "mealLabel": "dinner",
+        "menuId": "menu_hall-main_2026-10-02_dinner",
+        "menuVersion": 1
+      },
+      "items": [
+        {
+          "itemId": "item_hall-main_2026-10-02_dinner_herb-roasted-chicken",
+          "menuId": "menu_hall-main_2026-10-02_dinner",
+          "displayName": "Herb Roasted Chicken",
+          "category": "entree",
+          "description": "Quarter chicken with herb rub"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_dinner_mashed-potatoes",
+          "menuId": "menu_hall-main_2026-10-02_dinner",
+          "displayName": "Mashed Potatoes",
+          "category": "side",
+          "description": "Mashed potatoes with gravy, standard scoop"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_dinner_green-beans",
+          "menuId": "menu_hall-main_2026-10-02_dinner",
+          "displayName": "Green Beans",
+          "category": "side",
+          "description": "Sauteed green beans"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_dinner_dinner-roll",
+          "menuId": "menu_hall-main_2026-10-02_dinner",
+          "displayName": "Dinner Roll",
+          "category": "bread",
+          "description": "One buttered dinner roll"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_dinner_apple-crisp",
+          "menuId": "menu_hall-main_2026-10-02_dinner",
+          "displayName": "Apple Crisp",
+          "category": "dessert",
+          "description": "Baked apple crisp, single serving"
+        }
+      ]
+    },
+    {
+      "service": {
+        "serviceId": "svc_hall-main_2026-10-03_breakfast",
+        "hallId": "hall-main",
+        "hallTimezone": "America/Detroit",
+        "serviceDate": "2026-10-03",
+        "mealLabel": "breakfast",
+        "menuId": "menu_hall-main_2026-10-03_breakfast",
+        "menuVersion": 1
+      },
+      "items": [
+        {
+          "itemId": "item_hall-main_2026-10-03_breakfast_belgian-waffles",
+          "menuId": "menu_hall-main_2026-10-03_breakfast",
+          "displayName": "Belgian Waffles",
+          "category": "entree",
+          "description": "One waffle with syrup on the side"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_breakfast_cheese-omelet",
+          "menuId": "menu_hall-main_2026-10-03_breakfast",
+          "displayName": "Cheese Omelet",
+          "category": "entree",
+          "description": "Three-egg omelet with cheddar"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_breakfast_home-fries",
+          "menuId": "menu_hall-main_2026-10-03_breakfast",
+          "displayName": "Home Fries",
+          "category": "side",
+          "description": "Pan-fried potato wedges"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_breakfast_chicken-sausage-links",
+          "menuId": "menu_hall-main_2026-10-03_breakfast",
+          "displayName": "Chicken Sausage Links",
+          "category": "side",
+          "description": "Two chicken sausage links"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_breakfast_oatmeal-with-berries",
+          "menuId": "menu_hall-main_2026-10-03_breakfast",
+          "displayName": "Oatmeal with Berries",
+          "category": "fruit",
+          "description": "Steel-cut oats with mixed berries"
+        }
+      ]
+    },
+    {
+      "service": {
+        "serviceId": "svc_hall-main_2026-10-03_lunch",
+        "hallId": "hall-main",
+        "hallTimezone": "America/Detroit",
+        "serviceDate": "2026-10-03",
+        "mealLabel": "lunch",
+        "menuId": "menu_hall-main_2026-10-03_lunch",
+        "menuVersion": 1
+      },
+      "items": [
+        {
+          "itemId": "item_hall-main_2026-10-03_lunch_margherita-flatbread",
+          "menuId": "menu_hall-main_2026-10-03_lunch",
+          "displayName": "Margherita Flatbread",
+          "category": "entree",
+          "description": "Personal flatbread, tomato and mozzarella"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_lunch_chicken-caesar-wrap",
+          "menuId": "menu_hall-main_2026-10-03_lunch",
+          "displayName": "Chicken Caesar Wrap",
+          "category": "entree",
+          "description": "Grilled chicken caesar wrap, halved"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_lunch_sweet-potato-fries",
+          "menuId": "menu_hall-main_2026-10-03_lunch",
+          "displayName": "Sweet Potato Fries",
+          "category": "side",
+          "description": "Sweet potato fries, standard basket"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_lunch_minestrone-soup",
+          "menuId": "menu_hall-main_2026-10-03_lunch",
+          "displayName": "Minestrone Soup",
+          "category": "soup",
+          "description": "Vegetable minestrone, bowl serving"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_lunch_chocolate-chip-cookie",
+          "menuId": "menu_hall-main_2026-10-03_lunch",
+          "displayName": "Chocolate Chip Cookie",
+          "category": "dessert",
+          "description": "One bakery cookie"
+        }
+      ]
+    },
+    {
+      "service": {
+        "serviceId": "svc_hall-main_2026-10-03_dinner",
+        "hallId": "hall-main",
+        "hallTimezone": "America/Detroit",
+        "serviceDate": "2026-10-03",
+        "mealLabel": "dinner",
+        "menuId": "menu_hall-main_2026-10-03_dinner",
+        "menuVersion": 1
+      },
+      "items": [
+        {
+          "itemId": "item_hall-main_2026-10-03_dinner_teriyaki-salmon",
+          "menuId": "menu_hall-main_2026-10-03_dinner",
+          "displayName": "Teriyaki Salmon",
+          "category": "entree",
+          "description": "Glazed salmon fillet"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_dinner_jasmine-rice",
+          "menuId": "menu_hall-main_2026-10-03_dinner",
+          "displayName": "Jasmine Rice",
+          "category": "side",
+          "description": "Steamed jasmine rice, standard scoop"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_dinner_roasted-zucchini",
+          "menuId": "menu_hall-main_2026-10-03_dinner",
+          "displayName": "Roasted Zucchini",
+          "category": "side",
+          "description": "Roasted zucchini and squash"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_dinner_miso-soup",
+          "menuId": "menu_hall-main_2026-10-03_dinner",
+          "displayName": "Miso Soup",
+          "category": "soup",
+          "description": "Miso broth with tofu and scallion"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_dinner_mango-sorbet",
+          "menuId": "menu_hall-main_2026-10-03_dinner",
+          "displayName": "Mango Sorbet",
+          "category": "dessert",
+          "description": "Single scoop of sorbet"
+        }
+      ]
+    }
+  ],
+  "referencePortions": [
+    {
+      "baselineId": "base_hall-main_2026-10-01_breakfast_scrambled-eggs_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_breakfast_scrambled-eggs",
+      "expectedAreaPx": 49606,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_breakfast_buttermilk-pancakes_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_breakfast_buttermilk-pancakes",
+      "expectedAreaPx": 49387,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_breakfast_hash-browns_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_breakfast_hash-browns",
+      "expectedAreaPx": 27745,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_breakfast_turkey-sausage_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_breakfast_turkey-sausage",
+      "expectedAreaPx": 26373,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_breakfast_fresh-fruit-cup_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_breakfast_fresh-fruit-cup",
+      "expectedAreaPx": 18385,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_lunch_grilled-chicken-sandwich_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_lunch_grilled-chicken-sandwich",
+      "expectedAreaPx": 50305,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_lunch_tomato-basil-soup_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_lunch_tomato-basil-soup",
+      "expectedAreaPx": 47103,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_lunch_french-fries_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_lunch_french-fries",
+      "expectedAreaPx": 23431,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_lunch_garden-salad_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_lunch_garden-salad",
+      "expectedAreaPx": 35420,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_lunch_fudge-brownie_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_lunch_fudge-brownie",
+      "expectedAreaPx": 15944,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_dinner_baked-ziti_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_baked-ziti",
+      "expectedAreaPx": 49272,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_dinner_garlic-breadstick_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_garlic-breadstick",
+      "expectedAreaPx": 14308,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_dinner_steamed-broccoli_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_steamed-broccoli",
+      "expectedAreaPx": 28517,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_dinner_caesar-salad_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_caesar-salad",
+      "expectedAreaPx": 39429,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_dinner_vanilla-pudding_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_vanilla-pudding",
+      "expectedAreaPx": 15029,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_breakfast_veggie-omelet_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_breakfast_veggie-omelet",
+      "expectedAreaPx": 52516,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_breakfast_french-toast-sticks_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_breakfast_french-toast-sticks",
+      "expectedAreaPx": 55187,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_breakfast_breakfast-potatoes_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_breakfast_breakfast-potatoes",
+      "expectedAreaPx": 28417,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_breakfast_bacon_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_breakfast_bacon",
+      "expectedAreaPx": 24454,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_breakfast_greek-yogurt-parfait_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_breakfast_greek-yogurt-parfait",
+      "expectedAreaPx": 21631,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_lunch_beef-tacos_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_lunch_beef-tacos",
+      "expectedAreaPx": 56073,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_lunch_spanish-rice_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_lunch_spanish-rice",
+      "expectedAreaPx": 25971,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_lunch_black-beans_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_lunch_black-beans",
+      "expectedAreaPx": 24339,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_lunch_street-corn-salad_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_lunch_street-corn-salad",
+      "expectedAreaPx": 36052,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_lunch_cinnamon-churro_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_lunch_cinnamon-churro",
+      "expectedAreaPx": 14596,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_dinner_herb-roasted-chicken_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_herb-roasted-chicken",
+      "expectedAreaPx": 53434,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_dinner_mashed-potatoes_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_mashed-potatoes",
+      "expectedAreaPx": 25001,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_dinner_green-beans_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_green-beans",
+      "expectedAreaPx": 24000,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_dinner_dinner-roll_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_dinner-roll",
+      "expectedAreaPx": 13692,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_dinner_apple-crisp_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_apple-crisp",
+      "expectedAreaPx": 16416,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_breakfast_belgian-waffles_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_breakfast_belgian-waffles",
+      "expectedAreaPx": 47989,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_breakfast_cheese-omelet_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_breakfast_cheese-omelet",
+      "expectedAreaPx": 51265,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_breakfast_home-fries_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_breakfast_home-fries",
+      "expectedAreaPx": 27301,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_breakfast_chicken-sausage-links_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_breakfast_chicken-sausage-links",
+      "expectedAreaPx": 25544,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_breakfast_oatmeal-with-berries_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_breakfast_oatmeal-with-berries",
+      "expectedAreaPx": 19553,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_lunch_margherita-flatbread_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_lunch_margherita-flatbread",
+      "expectedAreaPx": 51901,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_lunch_chicken-caesar-wrap_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_lunch_chicken-caesar-wrap",
+      "expectedAreaPx": 54728,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_lunch_sweet-potato-fries_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_lunch_sweet-potato-fries",
+      "expectedAreaPx": 24469,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_lunch_minestrone-soup_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_lunch_minestrone-soup",
+      "expectedAreaPx": 47994,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_lunch_chocolate-chip-cookie_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_lunch_chocolate-chip-cookie",
+      "expectedAreaPx": 15183,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_dinner_teriyaki-salmon_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_teriyaki-salmon",
+      "expectedAreaPx": 50973,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_dinner_jasmine-rice_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_jasmine-rice",
+      "expectedAreaPx": 24271,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_dinner_roasted-zucchini_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_roasted-zucchini",
+      "expectedAreaPx": 25225,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_dinner_miso-soup_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_miso-soup",
+      "expectedAreaPx": 40889,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_dinner_mango-sorbet_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_mango-sorbet",
+      "expectedAreaPx": 17443,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "name": "scrap-spacetimedb-module",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Scrap SpacetimeDB module: table definitions and seeds owned by Agent 2; reducers to be added by Agent 5",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "spacetimedb": "^2.10.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}

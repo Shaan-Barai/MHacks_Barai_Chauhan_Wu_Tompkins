@@ -20,6 +20,7 @@
  */
 
 import { badRequest, notFound, apiError } from '../errors.js';
+import { validMaskCount } from '@scrap/analytics';
 import { newId } from '../ids.js';
 import type { Analyzer } from '../analysis/analyzer.js';
 import type { Repository } from '../repo/repository.js';
@@ -129,7 +130,7 @@ export class IngestionService {
         getImage: () => this.images.readImageBytes(event.imageObjectId),
       });
       attempt = result.attempt;
-      measurements = this.validateMeasurements(result.measurements, menu, attemptId, event.eventId);
+      measurements = this.validateMeasurements(result.measurements, menu, attemptId, event);
     } catch (err) {
       // Infrastructure failure: record an explicit failed attempt, never
       // silence it and never leave the event stuck in `processing`.
@@ -200,11 +201,12 @@ export class IngestionService {
     measurements: FoodMeasurement[],
     menu: MenuBundle,
     attemptId: string,
-    eventId: string,
+    event: CaptureEvent,
   ): FoodMeasurement[] {
     const menuItemIds = new Set(menu.items.map((i) => i.itemId));
+    let maskPixels = 0;
     for (const m of measurements) {
-      if (m.eventId !== eventId || m.attemptId !== attemptId) {
+      if (m.eventId !== event.eventId || m.attemptId !== attemptId) {
         throw new Error(`Analyzer returned a measurement for the wrong event/attempt (${m.measurementId}).`);
       }
       if (m.itemId !== null && !menuItemIds.has(m.itemId)) {
@@ -213,10 +215,17 @@ export class IngestionService {
       if (!Number.isFinite(m.remainingAreaPx) || m.remainingAreaPx < 0) {
         throw new Error(`Analyzer returned an invalid remaining area for ${m.measurementId}.`);
       }
+      if (m.method === 'mask_pixel_count') {
+        if (!validMaskCount(m, event, menu.service) || m.maskCount!.pixelsWasted !== m.remainingAreaPx) {
+          throw new Error(`Invalid mask count/provenance for ${m.measurementId}.`);
+        }
+        maskPixels += m.maskCount!.pixelsWasted;
+        if (maskPixels > event.geometry.widthPx * event.geometry.heightPx) throw new Error('Mask assignments exceed image bounds.');
+      }
       if (m.baselineAreaPx !== undefined && (!Number.isFinite(m.baselineAreaPx) || m.baselineAreaPx <= 0)) {
         throw new Error(`Analyzer returned an invalid baseline area for ${m.measurementId}.`);
       }
-      if (m.displayWastePercent === undefined && m.unavailableReason === undefined) {
+      if (m.method !== 'mask_pixel_count' && m.displayWastePercent === undefined && m.unavailableReason === undefined) {
         throw new Error(`Measurement ${m.measurementId} has neither a percentage nor an unavailableReason.`);
       }
       if (

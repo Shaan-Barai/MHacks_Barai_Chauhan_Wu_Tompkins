@@ -7,7 +7,7 @@
  */
 
 import express, { type NextFunction, type Request, type Response } from 'express';
-import { parseMenuCsv, parseMenuUpload, planMenuRevision } from 'scrap-data';
+import { parseMenuCsv, parseMenuUpload, planMenuRevision, parsePortionsServed, parsePortionsCsv } from 'scrap-data';
 import { HttpError, notFound, badRequest, toHttpError, apiError } from '../errors.js';
 import type { BackendConfig } from '../config.js';
 import type { Repository } from '../repo/repository.js';
@@ -162,6 +162,37 @@ export function createApp(deps: AppDeps): express.Express {
       res.json({ services: await repo.listServices(hallId) });
     }),
   );
+
+  // ---- reference portions (CRUD-lite) ----
+  async function portionsMenu(req: Request): Promise<MenuBundle> {
+    const serviceId = requireQuery(req, 'serviceId');
+    const hallId = requireQuery(req, 'hallId');
+    const menu = await repo.getMenuByService(serviceId);
+    if (!menu || menu.service.hallId !== hallId) throw notFound('MENU_NOT_FOUND', 'No menu is saved for this hall and meal.');
+    return menu;
+  }
+
+  app.get('/api/portions-served', wrap(async (req, res) => {
+    const menu = await portionsMenu(req);
+    res.json({ menu, portions: await repo.listPortionsServed(menu.service.serviceId, menu.service.menuVersion) });
+  }));
+  app.put('/api/portions-served', wrap(async (req, res) => {
+    const menu = await portionsMenu(req);
+    const portions = parsePortionsServed(req.body, menu, 'manual', new Date().toISOString());
+    await repo.replacePortionsServed(menu.service.serviceId, menu.service.menuVersion, portions);
+    res.json({ portions });
+  }));
+  app.post('/api/portions-served/csv', express.text({ type: ['text/csv', 'text/plain'], limit: '1mb' }), wrap(async (req, res) => {
+    const menu = await portionsMenu(req);
+    if (typeof req.body !== 'string') throw badRequest('INVALID_PORTIONS_CSV', 'Send the file as text/csv.');
+    const portions = parsePortionsCsv(req.body, menu, new Date().toISOString());
+    await repo.replacePortionsServed(menu.service.serviceId, menu.service.menuVersion, portions);
+    res.json({ portions });
+  }));
+  app.get('/api/portions-served/benchmark', wrap(async (req, res) => {
+    const menu = await portionsMenu(req);
+    res.json(await dashboard.portionBenchmark(menu));
+  }));
 
   // ---- reference portions (CRUD-lite) ----
   app.post(

@@ -117,7 +117,35 @@ export interface AnalysisAttempt {
 }
 
 /** Only method in prototype scope; always an AI estimate, never a measured mask. */
-export type MeasurementMethod = 'gemini_area_estimate';
+export type MeasurementMethod = 'gemini_area_estimate' | 'mask_pixel_count';
+
+/** Internal output of validated, mutually exclusive food masks; never user-entered. */
+export interface MaskPixelCount {
+  pixelsWasted: number;
+  maskObjectId: string;
+  geometry: ImageGeometry;
+  menuId: string;
+  menuVersion: number;
+  classificationVersion: string;
+  segmentationVersion: string;
+  processingVersion: string;
+  assignment: 'exclusive';
+  validated: true;
+}
+
+/** Full-service count, keyed by service + menu version + stable menu item ID. */
+export interface PortionsServed {
+  recordId: string;
+  hallId: string;
+  serviceId: string;
+  serviceDate: string;
+  menuId: string;
+  menuVersion: number;
+  itemId: string;
+  count: number;
+  source: 'manual' | 'csv' | 'demo';
+  updatedAt: string;
+}
 
 export interface FoodMeasurement {
   measurementId: string;
@@ -137,6 +165,8 @@ export interface FoodMeasurement {
   /** Required whenever displayWastePercent is absent. */
   unavailableReason?: string;
   method: MeasurementMethod;
+  /** Only available after mask validation/counting. Legacy area estimates cannot supply it. */
+  maskCount?: MaskPixelCount;
   qualityFlags: QualityFlag[];
 }
 

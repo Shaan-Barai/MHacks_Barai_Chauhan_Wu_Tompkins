@@ -15,6 +15,9 @@ import type {
   MenuItemLite,
   PeriodSummary,
   SummaryCards,
+  PortionService,
+  PortionEntry,
+  PortionBenchmark,
 } from './types'
 import { MEALS } from './types'
 
@@ -113,7 +116,71 @@ function dailyTotal(date: IsoDate, today: IsoDate): number | null {
 export async function getMealDetail(date: IsoDate, meal: MealLabel): Promise<MealDetail | null> {
   await wait()
   const today = todayIso()
-  return mockMealDetail(date, meal, menuFor(date, today), today)
+  const detail = mockMealDetail(date, meal, menuFor(date, today), today)
+  if (!detail) return null
+  const service = await getPortionService(date, meal)
+  if (!service) return detail
+  return { ...detail, portionBenchmark: await getPortionBenchmark(service.serviceId),
+    tip: { source: 'fallback_rules', recommendation: 'Demo area estimates cannot establish pixels wasted per portion. Save portions served and connect validated mask counts before acting on this benchmark.' } }
+}
+
+const PORTIONS_KEY = 'scrap.portions.demo.v1'
+function storedPortions(): Record<string, PortionService['portions']> {
+  try { return JSON.parse(localStorage.getItem(PORTIONS_KEY) ?? '{}') } catch { return {} }
+}
+
+export async function getPortionService(date: IsoDate, meal: MealLabel): Promise<PortionService | null> {
+  await wait()
+  const menu = menuFor(date, todayIso())
+  if (!menu || menu.meals[meal].length === 0) return null
+  const serviceId = `mock|${date}|${meal}`
+  const items = menu.meals[meal]
+  const portions = (storedPortions()[serviceId] ?? []).filter(p => items.some(i => i.itemId === p.itemId))
+  return { serviceId, menuVersion: 1, items, portions }
+}
+
+export async function savePortions(service: PortionService, entries: PortionEntry[]): Promise<void> {
+  await wait()
+  const seen = new Set<string>()
+  for (const e of entries) {
+    if (!service.items.some(i => i.itemId === e.itemId) || seen.has(e.itemId)) throw new Error('Unknown or duplicate menu item.')
+    if (e.count !== null && (!Number.isInteger(e.count) || e.count < 0 || e.count > 4_294_967_295)) throw new Error('Use a nonnegative whole number for portions served.')
+    seen.add(e.itemId)
+  }
+  const all = storedPortions()
+  all[service.serviceId] = entries.filter((e): e is { itemId: string; count: number } => e.count !== null)
+    .map(e => ({ ...e, source: 'demo' as const }))
+  localStorage.setItem(PORTIONS_KEY, JSON.stringify(all))
+}
+
+export async function importPortionsCsv(service: PortionService, csv: string): Promise<void> {
+  // Offline demo imports the generated, unquoted template. Live CSV parsing is server-side.
+  const rows = csv.replace(/^\uFEFF/, '').trim().split(/\r?\n/).map(row => row.split(','))
+  const header = rows.shift()?.map(c => c.trim()) ?? []
+  if (header.join(',') !== 'service_id,menu_version,item_id,portions_served') throw new Error('Use the downloaded portions template.')
+  const entries = rows.map(row => {
+    const [serviceId, version, itemId, count] = row.map(c => c.trim())
+    if (row.length !== 4 || serviceId !== service.serviceId || version !== String(service.menuVersion)) throw new Error('The CSV service or menu version differs.')
+    if (count !== '' && !/^\d+$/.test(count)) throw new Error('Use nonnegative whole-number counts.')
+    return { itemId, count: count === '' ? null : Number(count) }
+  })
+  await savePortions(service, entries)
+}
+
+export async function getPortionBenchmark(serviceId: string): Promise<PortionBenchmark> {
+  const [, date, meal] = serviceId.split('|')
+  const service = await getPortionService(date, meal as MealLabel)
+  if (!service) throw new Error('No menu for this meal.')
+  return {
+    hallId: 'demo', serviceId, serviceDate: date, menuVersion: service.menuVersion,
+    items: service.items.map(i => ({ ...i, portionsServed: service.portions.find(p => p.itemId === i.itemId)?.count ?? null,
+      portionsSource: service.portions.some(p => p.itemId === i.itemId) ? 'demo' : null,
+      pixelsWasted: null, pixelsWastedPerPortion: null, measuredCaptures: 0,
+      unavailableReason: 'Demo area estimates are not validated mask counts.' })),
+    capturedDishes: 0, measuredDishes: 0, excludedMeasurements: 0,
+    label: 'Pixels wasted per portion', unit: 'pixels/portion',
+    coverageNote: 'Demo data. Validated masks are not connected; no per-portion values are available.',
+  }
 }
 
 /** The three summary cards. Each compares to the same-length window before it. */

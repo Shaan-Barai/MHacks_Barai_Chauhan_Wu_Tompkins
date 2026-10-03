@@ -65,6 +65,7 @@ export interface MealTip {
 
 /** Right-panel data per meal (GET /api/dashboard/summary per service). */
 export interface MealDetail {
+  portionBenchmark?: PortionBenchmark;
   serviceId: string
   date: IsoDate
   meal: MealLabel
@@ -83,6 +84,40 @@ export interface MealDetail {
   /** Null when no item counted yet (nothing to ground a tip in). */
   tip: MealTip | null
 }
+
+export interface PortionBenchmarkItem {
+  itemId: string
+  displayName: string
+  portionsServed: number | null
+  portionsSource: 'manual' | 'csv' | 'demo' | null
+  pixelsWasted: number | null
+  pixelsWastedPerPortion: number | null
+  measuredCaptures: number
+  unavailableReason: string | null
+}
+
+export interface PortionBenchmark {
+  hallId: string
+  serviceId: string
+  serviceDate: string
+  menuVersion: number
+  items: PortionBenchmarkItem[]
+  capturedDishes: number
+  measuredDishes: number
+  excludedMeasurements: number
+  label: 'Pixels wasted per portion'
+  unit: 'pixels/portion'
+  coverageNote: string
+}
+
+export interface PortionService {
+  serviceId: string
+  menuVersion: number
+  items: MenuItemLite[]
+  portions: { itemId: string; count: number; source: 'manual' | 'csv' | 'demo' }[]
+}
+
+export interface PortionEntry { itemId: string; count: number | null }
 
 export interface PeriodSummary {
   /** Inclusive local-date window the number covers. */

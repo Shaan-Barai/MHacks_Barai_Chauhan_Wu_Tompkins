@@ -19,6 +19,7 @@ import type {
   CaptureEvent,
   AnalysisAttempt,
   FoodMeasurement,
+  PortionsServed,
   Attendance,
   Insight,
 } from '../types.js';
@@ -140,6 +141,15 @@ export class SpacetimeRepository implements Repository {
   }
 
   // --- reference portions ---
+  async replacePortionsServed(serviceId: string, menuVersion: number, portions: PortionsServed[]): Promise<void> {
+    await this.call('replace_portions_served', { snapshotJson: JSON.stringify({ serviceId, menuVersion, portions }) });
+  }
+  async listPortionsServed(serviceId: string, menuVersion: number): Promise<PortionsServed[]> {
+    if (!Number.isInteger(menuVersion) || menuVersion < 1) throw new Error('Invalid menu version.');
+    return clean(await this.sql(`SELECT * FROM portions_served WHERE service_id = ${quote(serviceId)} AND menu_version = ${menuVersion}`) as PortionsServed[]);
+  }
+
+  // --- reference portions ---
   async upsertReferencePortion(ref: ReferencePortion): Promise<void> {
     await this.call('upsert_reference_portion', { refJson: JSON.stringify(ref) });
   }
@@ -237,7 +247,8 @@ export class SpacetimeRepository implements Repository {
     throw new Error('SpacetimeRepository: write measurements via recordAnalysis(attempt, measurements)');
   }
   private toMeasurement(row: Row): FoodMeasurement {
-    return clean({ ...row, itemId: row.itemId ?? null } as FoodMeasurement);
+    const { maskCountJson, ...rest } = row;
+    return clean({ ...rest, itemId: row.itemId ?? null, ...(maskCountJson ? { maskCount: JSON.parse(maskCountJson) } : {}) } as FoodMeasurement);
   }
   async listMeasurementsByAttempt(attemptId: string): Promise<FoodMeasurement[]> {
     const rows = await this.sql(`SELECT * FROM food_measurement WHERE attempt_id = ${quote(attemptId)}`);

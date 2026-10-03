@@ -71,6 +71,33 @@ measurement flow.
 Recommendations should cite the measured per-food pixel totals and capture
 coverage. Demo records and simulated attendance remain explicitly labeled.
 
+## Portions served benchmark (2026-10-03)
+
+The user selects **Pixels wasted per portion** as the recommendation benchmark.
+For the same item, hall, local date, service, and menu version:
+
+```text
+pixels_wasted_per_portion = observed validated item pixels / portions actually served
+```
+
+Keep the observed pixel total and denominator visible. This is not a percentage,
+physical mass, or a direct measure of dislike. Missing/zero counts are unavailable;
+attendance is not an item denominator. Prepared portions are not served portions.
+Include seconds and keep portion sizes consistent. Unknown food is unranked.
+Incompatible image geometries cannot be pooled. Full-service denominators paired
+with incomplete capture coverage understate waste; show measured/captured dishes
+and exclusions. Compare services only with comparable capture coverage and portion
+definitions; aggregate by summed pixels / summed portions, not average rates.
+
+The additive runtime types are `PortionsServed` and `MaskPixelCount` in `types.ts`.
+`FoodMeasurement.method = mask_pixel_count` requires count provenance with an
+external mask reference, matched geometry/menu version, stage versions, processing
+version, and validated exclusive item attribution. The vision validator must
+decode/count and resolve overlaps before creating this metadata. Legacy
+`gemini_area_estimate` records are rejected by the portion calculator. This work
+implements the denominator, downstream calculation, and recommendations, and
+does not implement SAM inference or prove mask accuracy.
+
 ## Implementation handoff
 
 - Agent 1 coordinates shared runtime types and sample migration; this context

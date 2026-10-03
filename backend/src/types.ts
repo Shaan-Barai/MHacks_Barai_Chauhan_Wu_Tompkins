@@ -22,6 +22,8 @@ export type {
   AnalysisAttempt,
   MeasurementMethod,
   FoodMeasurement,
+  PortionsServed,
+  MaskPixelCount,
   Attendance,
   Insight,
   ApiError,

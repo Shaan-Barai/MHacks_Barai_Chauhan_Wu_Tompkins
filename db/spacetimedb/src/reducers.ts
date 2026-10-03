@@ -221,7 +221,7 @@ function measurementRow(m: Json) {
   if (rawWasteFraction !== undefined && rawWasteFraction > 1 && !flags.includes('above_baseline')) {
     throw new SenderError(`measurement ${m.measurementId}: fraction > 1 must carry 'above_baseline'`);
   }
-  if (displayWastePercent === undefined && unavailableReason === undefined) {
+  if (m.method !== 'mask_pixel_count' && displayWastePercent === undefined && unavailableReason === undefined) {
     throw new SenderError(`measurement ${m.measurementId}: unavailableReason required when no percentage`);
   }
   return {
@@ -236,6 +236,18 @@ function measurementRow(m: Json) {
     displayWastePercent,
     unavailableReason,
     method: str(m, 'method', 'measurement'),
+    maskCountJson: m.method === 'mask_pixel_count' && m.maskCount ? JSON.stringify({
+      pixelsWasted: num(m.maskCount, 'pixelsWasted', 'mask'),
+      maskObjectId: str(m.maskCount, 'maskObjectId', 'mask'),
+      geometry: geometry(m.maskCount, 'mask'),
+      menuId: str(m.maskCount, 'menuId', 'mask'),
+      menuVersion: num(m.maskCount, 'menuVersion', 'mask'),
+      classificationVersion: str(m.maskCount, 'classificationVersion', 'mask'),
+      segmentationVersion: str(m.maskCount, 'segmentationVersion', 'mask'),
+      processingVersion: str(m.maskCount, 'processingVersion', 'mask'),
+      assignment: m.maskCount.assignment,
+      validated: m.maskCount.validated === true,
+    }) : undefined,
     qualityFlags: flags,
   };
 }
@@ -265,6 +277,38 @@ export const record_analysis = spacetimedb.reducer(
 );
 
 // --- attendance (SIMULATED) ------------------------------------------------
+
+/** Validate all rows before replacing this version's counts in one transaction. */
+export const replace_portions_served = spacetimedb.reducer({ snapshotJson: t.string() }, (ctx, { snapshotJson }) => {
+  const body = parse(snapshotJson, 'portions');
+  const serviceId = str(body, 'serviceId', 'portions');
+  const menuVersion = num(body, 'menuVersion', 'portions', { min: 1 });
+  const service = ctx.db.mealService.serviceId.find(serviceId);
+  if (!service || service.menuVersion !== menuVersion) throw new SenderError('The menu changed; reload before saving portions.');
+  if (!Array.isArray(body.portions)) throw new SenderError('portions must be an array');
+  const allowed = new Set([...ctx.db.menuItem.menuId.filter(service.menuId)].map(i => i.itemId));
+  const seen = new Set<string>();
+  const rows = (body.portions as Json[]).map(p => {
+    const itemId = str(p, 'itemId', 'portion');
+    const count = num(p, 'count', 'portion');
+    if (!allowed.has(itemId) || seen.has(itemId)) throw new SenderError('Unknown or duplicate portions item');
+    seen.add(itemId);
+    if (!Number.isInteger(count) || count > 4_294_967_295) throw new SenderError('Portions served must be a nonnegative whole number');
+    const source = str(p, 'source', 'portion');
+    if (!['manual', 'csv', 'demo'].includes(source)) throw new SenderError('Invalid portions source');
+    if (p.serviceId !== serviceId || p.menuVersion !== menuVersion || p.hallId !== service.hallId ||
+        p.serviceDate !== service.serviceDate || p.menuId !== service.menuId) throw new SenderError('Portions service context differs');
+    return {
+      recordId: JSON.stringify([serviceId, menuVersion, itemId]), serviceId, menuVersion,
+      hallId: service.hallId, serviceDate: service.serviceDate, menuId: service.menuId,
+      itemId, count, source, updatedAt: str(p, 'updatedAt', 'portion'),
+    };
+  });
+  for (const old of [...ctx.db.portionsServed.serviceId.filter(serviceId)]) {
+    if (old.menuVersion === menuVersion) ctx.db.portionsServed.recordId.delete(old.recordId);
+  }
+  for (const row of rows) ctx.db.portionsServed.insert(row);
+});
 
 export const upsert_attendance = spacetimedb.reducer({ attendanceJson: t.string() }, (ctx, { attendanceJson }) => {
   const a = parse(attendanceJson, 'attendance');

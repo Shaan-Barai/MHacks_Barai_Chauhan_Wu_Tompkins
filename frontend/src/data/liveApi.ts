@@ -17,6 +17,9 @@ import type {
   MenuItemLite,
   PeriodSummary,
   SummaryCards,
+  PortionService,
+  PortionEntry,
+  PortionBenchmark,
 } from './types'
 import { MEALS } from './types'
 import { todayIso } from '../lib/dates'
@@ -79,7 +82,7 @@ const q = (params: Record<string, string>) => new URLSearchParams(params).toStri
 // ---------------------------------------------------------------------------
 
 interface MenuBundle {
-  service: { menuId: string; serviceDate: string; mealLabel: MealLabel }
+  service: { serviceId: string; menuId: string; menuVersion: number; serviceDate: string; mealLabel: MealLabel }
   items: { itemId: string; displayName: string }[]
 }
 
@@ -142,6 +145,7 @@ export async function getDailyWaste(start: IsoDate, end: IsoDate): Promise<Daily
 }
 
 interface MealResponse {
+  portionBenchmark?: PortionBenchmark
   serviceId: string
   summary: {
     captureCount: number
@@ -185,7 +189,34 @@ export async function getMealDetail(date: IsoDate, meal: MealLabel): Promise<Mea
       shareOfMealWastePercent: i.shareOfMealWastePercent ?? 0,
     })),
     tip: body.insight && { recommendation: body.insight.recommendation, source: body.insight.source },
+    ...(body.portionBenchmark ? { portionBenchmark: body.portionBenchmark } : {}),
   }
+}
+
+export async function getPortionService(date: IsoDate, meal: MealLabel): Promise<PortionService | null> {
+  const menus = await orNull(call<{ menus: MenuBundle[] }>(`/api/menus?${q({ hallId: hallId(), date, meal })}`))
+  const menu = menus?.menus[0]
+  if (!menu) return null
+  const body = await call<{ menu: MenuBundle; portions: PortionService['portions'] }>(
+    `/api/portions-served?${q({ hallId: hallId(), serviceId: menu.service.serviceId })}`)
+  return { serviceId: body.menu.service.serviceId, menuVersion: body.menu.service.menuVersion, items: body.menu.items, portions: body.portions }
+}
+
+export async function savePortions(service: PortionService, entries: PortionEntry[]): Promise<void> {
+  await call(`/api/portions-served?${q({ hallId: hallId(), serviceId: service.serviceId })}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ serviceId: service.serviceId, menuVersion: service.menuVersion, entries }),
+  })
+}
+
+export async function importPortionsCsv(service: PortionService, csv: string): Promise<void> {
+  await call(`/api/portions-served/csv?${q({ hallId: hallId(), serviceId: service.serviceId })}`, {
+    method: 'POST', headers: { 'Content-Type': 'text/csv' }, body: csv,
+  })
+}
+
+export async function getPortionBenchmark(serviceId: string): Promise<PortionBenchmark> {
+  return call(`/api/portions-served/benchmark?${q({ hallId: hallId(), serviceId })}`)
 }
 
 interface PeriodResponse {

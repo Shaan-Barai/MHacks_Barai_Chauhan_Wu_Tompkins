@@ -60,7 +60,33 @@ export interface CaptureEvent {
   state: ProcessingState;
 }
 
-export type MeasurementMethod = 'gemini_area_estimate';
+export type MeasurementMethod = 'gemini_area_estimate' | 'mask_pixel_count';
+
+export interface MaskPixelCount {
+  pixelsWasted: number;
+  maskObjectId: string;
+  geometry: ImageGeometry;
+  menuId: string;
+  menuVersion: number;
+  classificationVersion: string;
+  segmentationVersion: string;
+  processingVersion: string;
+  assignment: 'exclusive';
+  validated: true;
+}
+
+export interface PortionsServed {
+  recordId: string;
+  hallId: string;
+  serviceId: string;
+  serviceDate: string;
+  menuId: string;
+  menuVersion: number;
+  itemId: string;
+  count: number;
+  source: 'manual' | 'csv' | 'demo';
+  updatedAt: string;
+}
 
 export interface FoodMeasurement {
   measurementId: string;
@@ -74,6 +100,7 @@ export interface FoodMeasurement {
   displayWastePercent?: number;
   unavailableReason?: string;
   method: MeasurementMethod;
+  maskCount?: MaskPixelCount;
   qualityFlags: QualityFlag[];
 }
 

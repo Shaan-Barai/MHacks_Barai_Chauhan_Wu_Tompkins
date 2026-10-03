@@ -12,16 +12,17 @@ import { formatNumber, formatPercent } from '../lib/format'
 import { SEVERITY_DOT_CLASS, SEVERITY_LABEL, severityFor } from '../lib/severity'
 import { useAsync } from '../lib/useAsync'
 import { Badge, EmptyState, InfoTip, LoadingBlock, WASTE_UNITS_EXPLANATION } from './ui'
+import { PortionBenchmarkView } from './PortionBenchmark'
 
-export function RightPanel({ date, isYesterday }: { date: IsoDate; isYesterday: boolean }) {
+export function RightPanel({ date, isYesterday, dataRevision = 0 }: { date: IsoDate; isYesterday: boolean; dataRevision?: number }) {
   const [meal, setMeal] = useState<MealLabel>('lunch')
-  const detail = useAsync(() => getMealDetail(date, meal), [date, meal])
+  const detail = useAsync(() => getMealDetail(date, meal), [date, meal, dataRevision])
   const totalTipId = useId()
   const swipesTipId = useId()
   const coverageTipId = useId()
 
   return (
-    <aside className="w-[21rem] shrink-0 overflow-y-auto border-l border-linen bg-cream p-5" aria-label="Day details">
+    <aside className="w-full shrink-0 overflow-y-auto border-t border-linen bg-cream p-5 lg:w-[21rem] lg:border-l lg:border-t-0" aria-label="Day details">
       <h2 className="font-display text-xl font-semibold text-ink">
         {isYesterday ? 'Yesterday, ' : ''}
         {formatLong(date)}
@@ -126,26 +127,12 @@ function MealDetailView({
       {/* Most wasted + Gemini-style tip */}
       {top && (
       <div>
-        <h3 className="text-base font-semibold text-ink">Most wasted</h3>
+        <h3 className="text-base font-semibold text-ink">Largest estimated total</h3>
         <div className="mt-2 rounded-card border border-linen bg-oat p-4">
           <p className="text-lg font-semibold text-ink">{top.displayName}</p>
           <p className="text-base text-thyme">
             {formatNumber(top.wasteUnits)} waste units · {formatPercent(top.shareOfMealWastePercent)} of meal waste
           </p>
-          {detail.tip && (
-          <div className="mt-3 rounded-btn border border-basil-tint bg-basil-tint/60 p-3">
-            <p className="text-sm font-semibold uppercase tracking-wide text-basil">
-              {detail.tip.source === 'gemini' ? (
-                <>
-                  <span aria-hidden="true">✦ </span>Gemini tip · AI-generated
-                </>
-              ) : (
-                'Tip · rule-based (AI unavailable)'
-              )}
-            </p>
-            <p className="mt-1 text-base leading-snug text-ink">{detail.tip.recommendation}</p>
-          </div>
-          )}
         </div>
       </div>
       )}
@@ -174,6 +161,11 @@ function MealDetailView({
           </ul>
         </div>
       )}
+      {detail.portionBenchmark && <PortionBenchmarkView benchmark={detail.portionBenchmark} />}
+      {detail.tip && <div className="rounded-btn border border-basil-tint bg-basil-tint/60 p-3">
+        <h3 className="text-sm font-semibold text-basil">{detail.tip.source === 'gemini' ? 'AI recommendation' : 'Recommendation · rule-based fallback'}</h3>
+        <p className="mt-1 text-base leading-snug text-ink">{detail.tip.recommendation}</p>
+      </div>}
     </div>
   )
 }

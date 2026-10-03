@@ -4,6 +4,7 @@
  */
 
 export * from './types.js';
+export { parsePortionsServed, parsePortionsCsv, MAX_PORTIONS_SERVED } from './portionsServed.js';
 export { DataValidationError } from './errors.js';
 export {
   MEAL_LABELS,

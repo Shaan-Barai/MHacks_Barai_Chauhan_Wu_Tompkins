@@ -1,0 +1,19 @@
+{
+  "name": "scrap-data",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Scrap data package: menu parsing/validation, classification vocabulary, reference portions, demo seeds (Agent 2)",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test dist/data/test/*.test.js",
+    "seed": "npm run build && node dist/data/src/seed/generate.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "typescript": "^5.6.3"
+  }
+}

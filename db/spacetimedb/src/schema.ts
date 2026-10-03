@@ -195,6 +195,7 @@ const foodMeasurement = table(
     displayWastePercent: t.option(t.f64()), // 100 * clamp(raw, 0, 1)
     unavailableReason: t.option(t.string()), // required whenever displayWastePercent is absent
     method: t.string(), // 'gemini_area_estimate' — always an AI estimate in prototype
+    maskCountJson: t.option(t.string()), // small validated count/provenance; no mask bytes
     qualityFlags: t.array(t.string()),
   },
 );
@@ -212,6 +213,22 @@ const attendance = table(
     configuredMax: t.u32(),
     seed: t.option(t.string()),
     generatorVersion: t.string(),
+  },
+);
+
+const portionsServed = table(
+  { name: 'portions_served', public: true },
+  {
+    recordId: t.string().primaryKey(),
+    serviceId: t.string().index('btree'),
+    hallId: t.string(),
+    serviceDate: t.string(),
+    menuId: t.string(),
+    menuVersion: t.u32(),
+    itemId: t.string(),
+    count: t.u32(),
+    source: t.string(),
+    updatedAt: t.string(),
   },
 );
 
@@ -299,6 +316,7 @@ const spacetimedb = schema({
   analysisAttempt,
   foodMeasurement,
   attendance,
+  portionsServed,
   insight,
   captureCount,
   segmentationRegion,

@@ -9,6 +9,7 @@ import { MockAnalyzer, type MockFixture } from '../src/analysis/mockAnalyzer.js'
 import type { BackendConfig } from '../src/config.js';
 import type { Analyzer } from '../src/analysis/analyzer.js';
 import type { MenuBundle, ReferencePortion } from '../src/types.js';
+import type { Repository } from '../src/repo/repository.js';
 
 export const HALL = 'hall-main';
 export const SERVICE = 'svc_hall-main_2026-10-03_lunch';
@@ -57,6 +58,7 @@ export const GEOMETRY = {
 };
 
 export interface TestServer {
+  repo: Repository;
   baseUrl: string;
   fixtures: Record<string, MockFixture>;
   close(): Promise<void>;
@@ -85,7 +87,7 @@ export async function startTestServer(analyzer?: Analyzer): Promise<TestServer> 
     samWorkerUrl: 'http://127.0.0.1:1',
   };
   const backend = buildBackend({ config, analyzer: analyzer ?? new MockAnalyzer(fixtures) });
-  const server = backend.app.listen(0);
+  const server = backend.app.listen(0, '127.0.0.1');
   await new Promise<void>((resolve) => server.once('listening', () => resolve()));
   const baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 
@@ -100,6 +102,7 @@ export async function startTestServer(analyzer?: Analyzer): Promise<TestServer> 
   };
 
   return {
+    repo: backend.repo,
     baseUrl,
     fixtures,
     close: () => new Promise((resolve) => server.close(() => resolve())),

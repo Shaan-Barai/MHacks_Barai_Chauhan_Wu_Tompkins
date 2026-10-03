@@ -11,6 +11,8 @@
  *  - Regions classified as unknown food (itemId null) feed the unclassified bucket.
  *  - Capture total = union of every valid mask, so it always equals the sum
  *    of the per-item counts plus the unclassified bucket.
+ *  - The pixels assigned to each bucket form an exclusive mask (no pixel in
+ *    two buckets); these back FoodMeasurement.maskCount.
  */
 
 import { PNG } from 'pngjs';
@@ -97,6 +99,10 @@ export interface PixelCounts {
   contestedPx: number;
   /** Union of all valid masks. */
   capturePx: number;
+  /** itemId -> bitmap of exactly the pixels assigned to that item. */
+  itemBitmaps: Map<string, Uint8Array>;
+  /** Bitmap of the unclassified bucket (unknown food + contested pixels). */
+  unclassifiedBitmap: Uint8Array;
 }
 
 /** Apply counting rule union-v1 to validated, equally sized bitmaps. */
@@ -132,6 +138,8 @@ export function countPixels(regions: CountedRegion[], size: number): PixelCounts
   }
 
   const perItemCounts = new Array<number>(itemIndex.size).fill(0);
+  const bitmaps = Array.from({ length: itemIndex.size }, () => new Uint8Array(size));
+  const unclassifiedBitmap = new Uint8Array(size);
   let unclassifiedPx = 0;
   let contestedPx = 0;
   let capturePx = 0;
@@ -140,13 +148,35 @@ export function countPixels(regions: CountedRegion[], size: number): PixelCounts
     if (o === UNCLAIMED && unknown.length > 0 && unknown[i]) o = UNKNOWN;
     if (o === UNCLAIMED) continue;
     capturePx++;
-    if (o >= 0) perItemCounts[o]!++;
-    else {
+    if (o >= 0) {
+      perItemCounts[o]!++;
+      bitmaps[o]![i] = 1;
+    } else {
       unclassifiedPx++;
+      unclassifiedBitmap[i] = 1;
       if (o === CONTESTED) contestedPx++;
     }
   }
   const perItem = new Map<string, number>();
-  for (const [itemId, idx] of itemIndex) perItem.set(itemId, perItemCounts[idx]!);
-  return { perItem, regionsPerItem, unclassifiedPx, unclassifiedRegionIds, contestedPx, capturePx };
+  const itemBitmaps = new Map<string, Uint8Array>();
+  for (const [itemId, idx] of itemIndex) {
+    perItem.set(itemId, perItemCounts[idx]!);
+    itemBitmaps.set(itemId, bitmaps[idx]!);
+  }
+  return { perItem, regionsPerItem, unclassifiedPx, unclassifiedRegionIds, contestedPx, capturePx, itemBitmaps, unclassifiedBitmap };
+}
+
+/** Encode a 0/1 bitmap as a binary greyscale PNG (255 = food) that decodeBinaryMask accepts. */
+export function encodeBinaryMask(bitmap: Uint8Array, width: number, height: number): Uint8Array {
+  const png = new PNG({ width, height, colorType: 0, inputColorType: 0, inputHasAlpha: false });
+  const data = Buffer.alloc(width * height * 4);
+  for (let i = 0; i < bitmap.length; i++) {
+    const v = bitmap[i] ? 255 : 0;
+    data[i * 4] = v;
+    data[i * 4 + 1] = v;
+    data[i * 4 + 2] = v;
+    data[i * 4 + 3] = 255;
+  }
+  png.data = data;
+  return new Uint8Array(PNG.sync.write(png, { colorType: 0 }));
 }

@@ -7,7 +7,8 @@
  *      XYXY on the exact analyzed image; invalid boxes fail their region.
  *   3. SAM 2.1 segments every valid box on that same image (one embedding).
  *   4. Masks are decoded and validated (exact size, strictly binary, nonempty).
- *   5. Pixels are counted in code (rule union-v1, masks.ts).
+ *   5. Pixels are counted in code (rule union-v1, masks.ts). Each bucket's
+ *      exclusive mask is returned for storage and backs maskCount.
  *
  * Stage outcomes stay separate: classification failure, explicit empty
  * plate, partial segmentation, and total segmentation failure each produce a
@@ -21,6 +22,7 @@ import type {
   CountStatus,
   FoodMeasurement,
   ImageGeometry,
+  MaskPixelCount,
   MenuItem,
   QualityFlag,
   ReferencePortion,
@@ -36,7 +38,14 @@ import {
   LOCALIZE_SYSTEM_INSTRUCTION,
   validateLocalizeText,
 } from './localize.js';
-import { COUNTING_RULE_VERSION, countPixels, decodeBinaryMask, geminiBoxToPixels, type CountedRegion } from './masks.js';
+import {
+  COUNTING_RULE_VERSION,
+  countPixels,
+  decodeBinaryMask,
+  encodeBinaryMask,
+  geminiBoxToPixels,
+  type CountedRegion,
+} from './masks.js';
 import type { Segmenter, SegmenterInfo } from './samClient.js';
 
 export interface MaskAnalysisInput {
@@ -56,6 +65,12 @@ export interface MaskAnalysisResult {
   measurements: FoodMeasurement[];
   /** Validated binary PNG masks to store (full canvas, 255 = food). */
   masks: { regionId: string; png: Uint8Array }[];
+  /**
+   * One exclusive mask per measurement (the pixels assigned to its bucket).
+   * The caller stores the PNG and sets measurement.maskCount =
+   * { ...count, maskObjectId }.
+   */
+  itemMasks: { measurementId: string; png: Uint8Array; count: Omit<MaskPixelCount, 'maskObjectId'> }[];
 }
 
 const NOT_RUN: SegmenterInfo = { model: 'not-run', checkpoint: 'not-run', codeRevision: 'not-run', device: 'none', settingsVersion: 'not-run' };
@@ -78,6 +93,7 @@ export async function analyzeCaptureWithMasks(
     measurements: FoodMeasurement[] = [],
     masks: MaskAnalysisResult['masks'] = [],
     error?: AnalysisAttempt['error'],
+    itemMasks: MaskAnalysisResult['itemMasks'] = [],
   ): MaskAnalysisResult => ({
     attempt: {
       eventId: input.eventId,
@@ -108,6 +124,7 @@ export async function analyzeCaptureWithMasks(
     },
     measurements,
     masks,
+    itemMasks,
   });
 
   // 1. Classification + localization.
@@ -242,8 +259,19 @@ export async function analyzeCaptureWithMasks(
   if (counts.contestedPx > 0) flags.add('overlapping_masks');
   const baselineFor = new Map((input.baselines ?? []).filter((b) => b.expectedAreaPx > 0).map((b) => [b.itemId, b]));
   const measurements: FoodMeasurement[] = [];
+  const itemMasks: MaskAnalysisResult['itemMasks'] = [];
+  const provenance = {
+    geometry: input.geometry,
+    menuId: input.menu.menuId,
+    menuVersion: input.menu.menuVersion,
+    classificationVersion: `${gateway.model}/${LOCALIZE_PROMPT_VERSION}`,
+    segmentationVersion: `${info.model}/${info.checkpoint}/${info.settingsVersion}`,
+    processingVersion: COUNTING_RULE_VERSION,
+    assignment: 'exclusive' as const,
+    validated: true as const,
+  };
   let seq = 0;
-  const push = (itemId: string | null, pixels: number, regionIds: string[], extra: QualityFlag[] = []) => {
+  const push = (itemId: string | null, pixels: number, regionIds: string[], bitmap: Uint8Array, extra: QualityFlag[] = []) => {
     const qualityFlags: QualityFlag[] = ['ai_estimate', ...extra];
     const ref = itemId ? baselineFor.get(itemId) : undefined;
     const aux: Partial<FoodMeasurement> = {};
@@ -259,21 +287,25 @@ export async function analyzeCaptureWithMasks(
     } else {
       aux.unavailableReason = itemId ? 'no_baseline_auxiliary_only' : 'unclassified_food';
     }
+    const measurementId = `meas_${input.attemptId}_${++seq}`;
+    itemMasks.push({ measurementId, png: encodeBinaryMask(bitmap, W, H), count: { ...provenance, pixelsWasted: pixels } });
     measurements.push({
-      measurementId: `meas_${input.attemptId}_${++seq}`,
+      measurementId,
       eventId: input.eventId,
       attemptId: input.attemptId,
       itemId,
       remainingAreaPx: pixels,
       regionIds,
       ...aux,
-      method: 'sam2_mask_pixel_count',
+      method: 'mask_pixel_count',
       qualityFlags,
     });
   };
-  for (const [itemId, pixels] of counts.perItem) push(itemId, pixels, counts.regionsPerItem.get(itemId) ?? []);
+  for (const [itemId, pixels] of counts.perItem) {
+    push(itemId, pixels, counts.regionsPerItem.get(itemId) ?? [], counts.itemBitmaps.get(itemId)!);
+  }
   if (counts.unclassifiedPx > 0) {
-    push(null, counts.unclassifiedPx, counts.unclassifiedRegionIds, counts.contestedPx > 0 ? ['overlapping_masks'] : []);
+    push(null, counts.unclassifiedPx, counts.unclassifiedRegionIds, counts.unclassifiedBitmap, counts.contestedPx > 0 ? ['overlapping_masks'] : []);
   }
 
   const partial = failed > 0;
@@ -284,5 +316,7 @@ export async function analyzeCaptureWithMasks(
     { info, status: partial ? 'partial' : 'succeeded', countStatus, capturePixelsWasted: counts.capturePx, regions },
     measurements,
     masks,
+    undefined,
+    itemMasks,
   );
 }

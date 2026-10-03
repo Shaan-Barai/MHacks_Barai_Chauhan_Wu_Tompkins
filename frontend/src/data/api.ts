@@ -19,6 +19,10 @@ export const testMenuConnection = impl.testMenuConnection
 export const getDailyWaste = impl.getDailyWaste
 export const getMealDetail = impl.getMealDetail
 export const getSummaryCards = impl.getSummaryCards
+export const getPortionService = impl.getPortionService
+export const savePortions = impl.savePortions
+export const importPortionsCsv = impl.importPortionsCsv
+export const getPortionBenchmark = impl.getPortionBenchmark
 
 /** Artificial latency for mock mode so loading states are visible; tests set 0. */
 export const setApiLatency = mock.setApiLatency

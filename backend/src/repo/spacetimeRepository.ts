@@ -19,6 +19,7 @@ import type {
   CaptureEvent,
   AnalysisAttempt,
   FoodMeasurement,
+  PortionsServed,
   Attendance,
   Insight,
   ClassificationRegion,
@@ -139,6 +140,15 @@ export class SpacetimeRepository implements Repository {
   async listServices(hallId?: string): Promise<MealService[]> {
     const q = hallId === undefined ? 'SELECT * FROM meal_service' : `SELECT * FROM meal_service WHERE hall_id = ${quote(hallId)}`;
     return clean((await this.sql(q)) as MealService[]);
+  }
+
+  // --- reference portions ---
+  async replacePortionsServed(serviceId: string, menuVersion: number, portions: PortionsServed[]): Promise<void> {
+    await this.call('replace_portions_served', { snapshotJson: JSON.stringify({ serviceId, menuVersion, portions }) });
+  }
+  async listPortionsServed(serviceId: string, menuVersion: number): Promise<PortionsServed[]> {
+    if (!Number.isInteger(menuVersion) || menuVersion < 1) throw new Error('Invalid menu version.');
+    return clean(await this.sql(`SELECT * FROM portions_served WHERE service_id = ${quote(serviceId)} AND menu_version = ${menuVersion}`) as PortionsServed[]);
   }
 
   // --- reference portions ---
@@ -276,12 +286,17 @@ export class SpacetimeRepository implements Repository {
    * the unclassified bucket's regions are the unknown-food ones.
    */
   private async withRegionIds(rows: Row[], regionQuery: string): Promise<FoodMeasurement[]> {
-    const masked = rows.some((r) => r.method === 'sam2_mask_pixel_count');
+    const masked = rows.some((r) => r.method === 'mask_pixel_count');
     const regions = masked ? await this.sql(regionQuery) : [];
     regions.sort((a, b) => String(a.regionId).localeCompare(String(b.regionId), undefined, { numeric: true }));
     return rows.map((row) => {
-      const m = { ...row, itemId: row.itemId ?? null } as FoodMeasurement;
-      if (m.method === 'sam2_mask_pixel_count') {
+      const { maskCountJson, ...rest } = row;
+      const m = {
+        ...rest,
+        itemId: row.itemId ?? null,
+        ...(maskCountJson ? { maskCount: JSON.parse(maskCountJson as string) } : {}),
+      } as FoodMeasurement;
+      if (m.method === 'mask_pixel_count') {
         m.regionIds = regions
           .filter((g) => g.attemptId === m.attemptId && g.segmentationStatus === 'succeeded' && (g.itemId ?? null) === m.itemId)
           .map((g) => g.regionId as string);

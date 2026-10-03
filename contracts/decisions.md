@@ -130,6 +130,41 @@ pending details arrive; agreed items came from the team or AGENTS.md.
   synthetic plates (flagged `above_baseline`, excluded). Real baselines need
   reference photos or measured portions.
 
+## 2026-10-03: portions served and recommendation benchmark
+
+- User request: normalize waste by the number of portions served for each food,
+  and use **Pixels wasted per portion** for recommendations. Raw Pixels wasted
+  stays the primary measured quantity; the rate does not prove dislike/causes.
+- Prototype input decision: manual per-meal entry and a downloadable CSV
+  template (`service_id,menu_version,item_id,portions_served`). Existing-system
+  integrations are deferred until their source/API is known. Counts represent
+  actual full-service portions served, including seconds; serving definitions
+  must be consistent. Do not use attendance, prepared amounts, plate counts,
+  or uneaten baselines as this denominator.
+- Persist replacement snapshots per service/menu version/item ID, with source
+  and update timestamp. Blank means missing; 0 means none served and makes the
+  rate unavailable. Validate an entire batch before any write. Retain previous
+  menu versions; refuse stale imports. Re-import/retry never adds counts.
+- Additive contract: `PortionsServed`, `MaskPixelCount`, and the optional
+  `FoodMeasurement.maskCount` with `method: mask_pixel_count`. The mask metadata
+  is small provenance, not image bytes. Exclusive attribution must be established
+  by vision before counting; decoding, serialization, SAM host/checkpoint, and
+  inference are still pending. Legacy estimated areas cannot enter the new rate.
+- Implementation in the root application (`frontend/`, `backend/`, `data/`,
+  `analytics/`, `db/spacetimedb/`): portion entry/CSV, both persistence adapters,
+  downstream mask-count calculator, ranked benchmarks and cached recommendations.
+  The separate `mhacks/` preview is outside this feature's runtime scope.
+- Recommendations use available rates, show missing items and coverage, and
+  invalidate when counts/sources/menu/measurements change. Until mask data exists,
+  return an input/setup action instead of ranking legacy area estimates. Simulated
+  attendance remains separate. Incompatible capture geometries make the benchmark
+  unavailable; selecting geometry groups is future UI work.
+- One agent filled the contract, schema, backend, analytics, UI, and verification
+  roles sequentially for this request. No parallel writers or dependencies added.
+- Open: actual serving-system source, consistent portion sizes, representative
+  capture coverage, and the separate pending segmentation integration. Across
+  compatible service windows use sum(pixels)/sum(portions), not the mean of rates.
+
 ## 2026-10-03: classification first, mask-counted Pixels wasted
 
 - The user's latest measurement decision is **Gemini CLASSIFICATION →
@@ -225,7 +260,7 @@ evaluation and team thresholds):
   → `failed`, retryable, never zero. There is no fallback to Gemini-guessed
   areas; the legacy `GeminiAnalyzer` was removed.
 - **Contracts:** `AnalysisAttempt.segmentation` (`SegmentationResult` with
-  `ClassificationRegion[]`), `MeasurementMethod` `sam2_mask_pixel_count`,
+  `ClassificationRegion[]`), `MeasurementMethod` `mask_pixel_count`,
   `FoodMeasurement.regionIds`, image association kind `mask`, quality flags
   `segmentation_failed` / `overlapping_masks`. All additive; legacy
   attempts stay readable and are excluded from pixel totals as
@@ -240,6 +275,17 @@ evaluation and team thresholds):
   groups not pooled. Dashboard API and UI report **Pixels wasted** in pixels;
   the "waste units" ÷1,000 scaling is gone. Suggestions cite measured pixels
   (`suggest-pixels-v1`).
+- **Integration with portions served (merge of `main`, 2026-10-03):** the
+  method is named `mask_pixel_count` (one name for both features). Vision
+  returns one exclusive mask per measurement (the pixels `union-v1` assigned
+  to that item or to the unclassified bucket, so masks are disjoint and sum to
+  the capture union). The backend stores each PNG
+  (`masks/<date>/<measurementId>.png`) and fills `FoodMeasurement.maskCount`
+  (classification `model/prompt`, segmentation `model/checkpoint/settings`,
+  processing `union-v1`). Ingestion validates count provenance; quality-flag
+  eligibility stays an aggregation-time decision. The dashboard tip is the
+  Pixels-wasted-per-portion recommendation (AGENTS.md 7); `summarizePixels`
+  still drives totals, items, and coverage.
 - **Still open:** the annotated 20–30-image evaluation set and held-out split
   (step 2); acceptable error/latency thresholds; point-prompt refinement
   policy; a second detector only if localization errors dominate.

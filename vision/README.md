@@ -122,7 +122,7 @@ The primary pipeline (contracts/measurement.md, MVP_AI.md):
 5. `masks.ts` `countPixels` (rule `union-v1`) — per-item unions; pixels
    contested by two items go to the unclassified bucket; capture total = union.
 
-Returns the attempt (with `segmentation`), `sam2_mask_pixel_count`
+Returns the attempt (with `segmentation`), `mask_pixel_count`
 measurements, and the mask PNGs for the backend to store. Stage outcomes
 (classification failure, explicit empty plate, partial, worker down) are
 distinct and never become zero pixels. `analyzeCapture` (Gemini-guessed

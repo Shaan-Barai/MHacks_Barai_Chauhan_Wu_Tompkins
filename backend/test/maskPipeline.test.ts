@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { PNG } from 'pngjs';
 import { createGeminiGateway, type Segmenter } from '@scrap/vision';
 import { MaskAnalyzer } from '../src/analysis/maskAnalyzer.js';
-import { HALL, startTestServer } from './helpers.js';
+import { HALL, SERVICE, startTestServer } from './helpers.js';
 
 const W = 1024;
 const H = 1024;
@@ -80,8 +80,31 @@ test('capture -> masks stored in object storage -> Pixels wasted on the dashboar
     assert.deepEqual([png.width, png.height], [W, H]);
   }
 
+  // Each item measurement carries an exclusive mask that counts to exactly its pixels.
+  for (const m of first.json.measurements) {
+    assert.equal(m.method, 'mask_pixel_count');
+    assert.equal(m.maskCount.pixelsWasted, m.remainingAreaPx);
+    assert.equal(m.maskCount.assignment, 'exclusive');
+    assert.equal(m.maskCount.processingVersion, 'union-v1');
+    const access = await s.api('GET', `/api/images/${m.maskCount.maskObjectId}/access`);
+    assert.equal(access.status, 200, 'exclusive mask is a finalized object in storage');
+    const png = PNG.sync.read(Buffer.from(await (await fetch(`${s.baseUrl}${access.json.url}`)).arrayBuffer()));
+    let foreground = 0;
+    for (let i = 0; i < W * H; i++) if (png.data[i * 4] === 255) foreground++;
+    assert.equal(foreground, m.remainingAreaPx);
+  }
+
   const again = await s.submitCapture('cap_mask_1', imageId);
   assert.equal(again.json.deduplicated, true);
+
+  await s.api('PUT', `/api/portions-served?hallId=${HALL}&serviceId=${SERVICE}`, {
+    serviceId: SERVICE,
+    menuVersion: 1,
+    entries: [
+      { itemId: 'item_eggs', count: 256 },
+      { itemId: 'item_toast', count: 128 },
+    ],
+  });
 
   const meal = await s.api('GET', `/api/dashboard/meal?hallId=${HALL}&date=2026-10-03&meal=lunch`);
   assert.equal(meal.status, 200, JSON.stringify(meal.json));
@@ -98,6 +121,19 @@ test('capture -> masks stored in object storage -> Pixels wasted on the dashboar
   assert.equal(summary.labels.pixelsWasted, 'Pixels wasted');
   assert.equal(meal.json.attendance.source, 'simulated');
   assert.equal(meal.json.insight.source, 'fallback_rules', 'mock gateway text is never shown as an AI tip');
+  // SAM mask counts feed the per-portion benchmark: 65,536 px / 128 portions = 512.
+  const benchmark = meal.json.portionBenchmark;
+  assert.equal(benchmark.measuredDishes, 1);
+  assert.deepEqual(
+    benchmark.items
+      .filter((i: { pixelsWastedPerPortion: number | null }) => i.pixelsWastedPerPortion !== null)
+      .map((i: { itemId: string; pixelsWastedPerPortion: number }) => [i.itemId, i.pixelsWastedPerPortion]),
+    [
+      ['item_toast', 512],
+      ['item_eggs', 256],
+    ],
+  );
+  assert.equal(meal.json.insight.metrics.topItemId, 'item_toast');
 
   const daily = await s.api('GET', `/api/dashboard/daily?hallId=${HALL}&start=2026-10-03&end=2026-10-03`);
   assert.deepEqual(daily.json.days[0], { date: '2026-10-03', pixelsWasted: 131072, capturedDishes: 1, countedDishes: 1 });
@@ -119,5 +155,7 @@ test('segmentation worker down: capture fails retryably and nothing is counted',
   const meal = await s.api('GET', `/api/dashboard/meal?hallId=${HALL}&date=2026-10-03&meal=lunch`);
   assert.equal(meal.json.summary.pixelsWasted, 0);
   assert.equal(meal.json.summary.exclusionReasons.analysis_failed, 1);
-  assert.equal(meal.json.insight, null);
+  // No counted pixels: the tip asks for inputs instead of ranking anything.
+  assert.equal(meal.json.portionBenchmark.measuredDishes, 0);
+  assert.equal(meal.json.insight.metrics.topItemId, undefined);
 });

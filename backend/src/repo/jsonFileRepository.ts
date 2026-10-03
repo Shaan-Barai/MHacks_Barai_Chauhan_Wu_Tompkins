@@ -17,6 +17,7 @@ import type {
   CaptureEvent,
   AnalysisAttempt,
   FoodMeasurement,
+  PortionsServed,
   Attendance,
   Insight,
 } from '../types.js';
@@ -31,6 +32,7 @@ interface Snapshot {
   measurements: FoodMeasurement[];
   attendance: Attendance[];
   insights: Insight[];
+  portionsServed: PortionsServed[];
 }
 
 export class JsonFileRepository implements Repository {
@@ -42,6 +44,7 @@ export class JsonFileRepository implements Repository {
   private measurementsByAttempt = new Map<string, FoodMeasurement[]>();
   private attendance = new Map<string, Attendance>(); // key: serviceId
   private insights = new Map<string, Insight>();
+  private portionsServed = new Map<string, PortionsServed>();
 
   constructor(private readonly dataFile?: string) {
     if (dataFile && existsSync(dataFile)) this.load(dataFile);
@@ -70,6 +73,21 @@ export class JsonFileRepository implements Repository {
     return [...this.menus.values()]
       .map((m) => structuredClone(m.service))
       .filter((s) => hallId === undefined || s.hallId === hallId);
+  }
+
+  // --- reference portions ---
+  async replacePortionsServed(serviceId: string, menuVersion: number, portions: PortionsServed[]): Promise<void> {
+    // Check again at write time so a simultaneous menu revision cannot accept stale counts.
+    const menu = this.menus.get(serviceId);
+    if (!menu || menu.service.menuVersion !== menuVersion) throw new Error('The menu changed; reload before saving portions.');
+    for (const [key, p] of this.portionsServed) {
+      if (p.serviceId === serviceId && p.menuVersion === menuVersion) this.portionsServed.delete(key);
+    }
+    for (const p of portions) this.portionsServed.set(p.recordId, structuredClone(p));
+    this.persist();
+  }
+  async listPortionsServed(serviceId: string, menuVersion: number): Promise<PortionsServed[]> {
+    return [...this.portionsServed.values()].filter(p => p.serviceId === serviceId && p.menuVersion === menuVersion).map(p => structuredClone(p));
   }
 
   // --- reference portions ---
@@ -199,6 +217,7 @@ export class JsonFileRepository implements Repository {
       measurements: [...this.measurementsByAttempt.values()].flat(),
       attendance: [...this.attendance.values()],
       insights: [...this.insights.values()],
+      portionsServed: [...this.portionsServed.values()],
     };
     mkdirSync(dirname(this.dataFile), { recursive: true });
     const tmp = `${this.dataFile}.tmp`;
@@ -224,5 +243,6 @@ export class JsonFileRepository implements Repository {
     }
     for (const a of snapshot.attendance ?? []) this.attendance.set(a.serviceId, a);
     for (const i of snapshot.insights ?? []) this.insights.set(i.insightId, i);
+    for (const p of snapshot.portionsServed ?? []) this.portionsServed.set(p.recordId, p);
   }
 }

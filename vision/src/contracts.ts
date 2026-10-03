@@ -140,12 +140,26 @@ export interface SegmentationResult {
 }
 
 /**
- * 'sam2_mask_pixel_count': remainingAreaPx is an integer count of mask
+ * 'mask_pixel_count': remainingAreaPx is an integer count of mask
  * foreground pixels assigned to the item (Pixels wasted). The mask boundary
  * is an AI estimate; counting it is deterministic.
  * 'gemini_area_estimate': legacy Gemini-guessed area (no longer primary).
  */
-export type MeasurementMethod = 'sam2_mask_pixel_count' | 'gemini_area_estimate';
+export type MeasurementMethod = 'mask_pixel_count' | 'gemini_area_estimate';
+
+/** Internal output of validated, mutually exclusive food masks; never user-entered. */
+export interface MaskPixelCount {
+  pixelsWasted: number;
+  maskObjectId: string;
+  geometry: ImageGeometry;
+  menuId: string;
+  menuVersion: number;
+  classificationVersion: string;
+  segmentationVersion: string;
+  processingVersion: string;
+  assignment: 'exclusive';
+  validated: true;
+}
 
 
 export interface FoodMeasurement {
@@ -154,9 +168,9 @@ export interface FoodMeasurement {
   attemptId: string;
   /** null = unclassified edible food (its own bucket; never a named item). */
   itemId: string | null;
-  /** sam2_mask_pixel_count: Pixels wasted (integer). Legacy: raw estimate. Finite and >= 0. */
+  /** mask_pixel_count: Pixels wasted (integer). Legacy: raw estimate. Finite and >= 0. */
   remainingAreaPx: number;
-  /** sam2_mask_pixel_count: the regions whose union produced this count. */
+  /** mask_pixel_count: the regions whose union produced this count. */
   regionIds?: string[];
   baselineId?: string;
   /** Optional auxiliary baseline; never required for Pixels wasted. Finite and > 0 when present. */
@@ -168,6 +182,8 @@ export interface FoodMeasurement {
   /** Required whenever displayWastePercent is absent. */
   unavailableReason?: string;
   method: MeasurementMethod;
+  /** Only available after mask validation/counting. Legacy area estimates cannot supply it. */
+  maskCount?: MaskPixelCount;
   qualityFlags: QualityFlag[];
 }
 

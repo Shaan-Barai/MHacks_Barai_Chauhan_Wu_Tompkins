@@ -26,6 +26,7 @@ import type {
   CaptureEvent,
   AnalysisAttempt,
   FoodMeasurement,
+  PortionsServed,
   Attendance,
   Insight,
 } from '../types.js';
@@ -37,6 +38,10 @@ export interface Repository {
   /** Resolve by hall + local service date (+ optional meal label). */
   findMenus(hallId: string, serviceDate: string, mealLabel?: string): Promise<MenuBundle[]>;
   listServices(hallId?: string): Promise<MealService[]>;
+
+  // Replace one version's full snapshot atomically; retain earlier menu versions.
+  replacePortionsServed(serviceId: string, menuVersion: number, portions: PortionsServed[]): Promise<void>;
+  listPortionsServed(serviceId: string, menuVersion: number): Promise<PortionsServed[]>;
 
   // --- reference portions (baselines) ---
   upsertReferencePortion(ref: ReferencePortion): Promise<void>;

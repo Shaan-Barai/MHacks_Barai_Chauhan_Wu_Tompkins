@@ -121,7 +121,7 @@ test('counting: overlap between foods is counted once and attributed to neither 
 
 test('full pipeline: classify -> segment -> count, with union across regions and overlap flag', async () => {
   const sam = boxFiller();
-  const { attempt, measurements, masks } = await analyzeCaptureWithMasks(
+  const { attempt, measurements, masks, itemMasks } = await analyzeCaptureWithMasks(
     gemini({
       plateEmpty: false,
       ambiguous: false,
@@ -145,10 +145,28 @@ test('full pipeline: classify -> segment -> count, with union across regions and
   assert.equal(by.unclassified!.remainingAreaPx, 200);
   assert.deepEqual(by.fries!.regionIds, ['att_1_r2', 'att_1_r3']);
   assert.ok(attempt.qualityFlags.includes('overlapping_masks'));
-  assert.ok(measurements.every((m) => m.method === 'sam2_mask_pixel_count' && Number.isInteger(m.remainingAreaPx)));
+  assert.ok(measurements.every((m) => m.method === 'mask_pixel_count' && Number.isInteger(m.remainingAreaPx)));
   assert.equal(by.burger!.displayWastePercent, 50, 'optional baseline adds an auxiliary percent');
   assert.equal(by.fries!.unavailableReason, 'no_baseline_auxiliary_only', 'missing baseline never blocks the count');
   assert.equal(masks.length, 3);
+  // One exclusive mask per measurement: disjoint, each counting to its own pixels.
+  assert.equal(itemMasks.length, measurements.length);
+  const owned = new Uint8Array(input.geometry.widthPx * input.geometry.heightPx);
+  for (const mask of itemMasks) {
+    const m = measurements.find((x) => x.measurementId === mask.measurementId)!;
+    const decoded = decodeBinaryMask(mask.png, input.geometry.widthPx, input.geometry.heightPx);
+    assert.ok(decoded.ok);
+    assert.equal(decoded.pixels, m.remainingAreaPx);
+    assert.equal(mask.count.pixelsWasted, m.remainingAreaPx);
+    assert.equal(mask.count.assignment, 'exclusive');
+    assert.equal(mask.count.processingVersion, 'union-v1');
+    decoded.bitmap.forEach((v, i) => {
+      if (!v) return;
+      assert.equal(owned[i], 0, 'no pixel belongs to two measurements');
+      owned[i] = 1;
+    });
+  }
+  assert.equal(owned.reduce((a, b) => a + b, 0), seg.capturePixelsWasted);
 });
 
 test('explicit empty plate is a valid zero; segmentation is not called', async () => {

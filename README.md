@@ -6,6 +6,14 @@ counting in code**. The primary metric is **Pixels wasted**: foreground pixels
 in validated masks of visible leftover food. A beginner-friendly dashboard
 shows totals, trends, the most-wasted items, and AI-powered suggestions.
 
+**Portions served:** enter actual per-food counts under **Portions served**,
+or download and upload a CSV template for a selected meal. The recommendation
+benchmark is **Pixels wasted per portion** = validated observed item pixels ÷
+that item's portions served. Counts persist by service and menu version;
+re-imports replace counts. See [the portion-count guide](docs/portions-served.md).
+Legacy area estimates cannot supply this benchmark: it remains unavailable
+until the planned mask stage produces validated counts.
+
 Uploaded/replayed images are the current input; camera placement and conveyor
 integration are deferred. Mask counts use a shared normalized image geometry,
 count overlapping pixels once, and preserve AI segmentation quality metadata.

@@ -3,13 +3,16 @@
  * offline runs (no GEMINI_API_KEY). It mimics the mask pipeline's output
  * shape: fixture `remainingAreaPx` values are integer Pixels wasted, the
  * capture union is their sum (no overlaps), and the segmentation result is
- * labeled 'mock-segmenter' so it is never mistaken for a real SAM run.
+ * labeled 'mock-segmenter' so it is never mistaken for a real SAM run. Each
+ * measurement gets a synthetic exclusive mask (its first N free pixels) so
+ * maskCount provenance is exercised end to end.
  *
  * Determinism: results come either from a fixture map keyed by eventId, or —
  * when no fixture matches — from a stable default (25% remaining of the first
  * menu item that has a baseline). Same input, same output, no network.
  */
 
+import { encodeBinaryMask } from '@scrap/vision';
 import { apiError } from '../errors.js';
 import type { Analyzer, AnalyzerInput } from './analyzer.js';
 import type {
@@ -64,7 +67,7 @@ export class MockAnalyzer implements Analyzer {
               attemptId,
               itemId: spec.itemId,
               remainingAreaPx: Math.round(spec.remainingAreaPx),
-              method: 'sam2_mask_pixel_count',
+              method: 'mask_pixel_count',
               qualityFlags: flags,
             };
             if (baseline && Number.isFinite(baseline.expectedAreaPx) && baseline.expectedAreaPx > 0) {
@@ -110,7 +113,33 @@ export class MockAnalyzer implements Analyzer {
         segmentation: this.segmentation(event.geometry, status, measurements),
       },
       measurements,
+      itemMasks: this.itemMasks(input, measurements),
     };
+  }
+
+  private itemMasks(input: AnalyzerInput, measurements: FoodMeasurement[]): NonNullable<AnalysisResult['itemMasks']> {
+    const { widthPx: W, heightPx: H } = input.event.geometry;
+    let offset = 0;
+    return measurements.map((m) => {
+      const bitmap = new Uint8Array(W * H);
+      bitmap.fill(1, offset, Math.min(W * H, offset + m.remainingAreaPx));
+      offset += m.remainingAreaPx;
+      return {
+        measurementId: m.measurementId,
+        png: encodeBinaryMask(bitmap, W, H),
+        count: {
+          pixelsWasted: m.remainingAreaPx,
+          geometry: input.event.geometry,
+          menuId: input.menu.service.menuId,
+          menuVersion: input.menu.service.menuVersion,
+          classificationVersion: `${this.model}/${this.promptVersion}`,
+          segmentationVersion: 'mock-segmenter/mock/mock-v1',
+          processingVersion: 'union-v1',
+          assignment: 'exclusive',
+          validated: true,
+        },
+      };
+    });
   }
 
   private segmentation(

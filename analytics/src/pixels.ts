@@ -155,7 +155,7 @@ export function summarizePixels(input: PixelAggregateInput): PixelServiceSummary
   const perItem = new Map<string, { pixels: number; captures: Set<string> }>();
   let unclassifiedPixels = 0;
   for (const m of input.measurements) {
-    if (!counted.has(m.eventId) || m.method !== 'sam2_mask_pixel_count') continue;
+    if (!counted.has(m.eventId) || m.method !== 'mask_pixel_count') continue;
     if (m.itemId === null) {
       unclassifiedPixels += m.remainingAreaPx;
       continue;

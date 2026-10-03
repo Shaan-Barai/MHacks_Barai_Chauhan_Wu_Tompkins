@@ -244,8 +244,8 @@ test('SpacetimeDB repository round-trips every entity through the reducers', { s
     };
     const maskAttempt: AnalysisAttempt = { ...attempt, attemptId: `att_${run}_mask`, createdAt: '2026-10-03T16:10:00.000Z', segmentation: seg };
     const maskMeasurements: FoodMeasurement[] = [
-      { measurementId: `meas_${run}_m1`, eventId: event.eventId, attemptId: maskAttempt.attemptId, itemId: ref.itemId, remainingAreaPx: 700, regionIds: [`${run}_mask_r1`], unavailableReason: 'no_baseline_auxiliary_only', method: 'sam2_mask_pixel_count', qualityFlags: ['ai_estimate'] },
-      { measurementId: `meas_${run}_m2`, eventId: event.eventId, attemptId: maskAttempt.attemptId, itemId: null, remainingAreaPx: 200, regionIds: [`${run}_mask_r2`], unavailableReason: 'unclassified_food', method: 'sam2_mask_pixel_count', qualityFlags: ['ai_estimate'] },
+      { measurementId: `meas_${run}_m1`, eventId: event.eventId, attemptId: maskAttempt.attemptId, itemId: ref.itemId, remainingAreaPx: 700, regionIds: [`${run}_mask_r1`], unavailableReason: 'no_baseline_auxiliary_only', method: 'mask_pixel_count', qualityFlags: ['ai_estimate'] },
+      { measurementId: `meas_${run}_m2`, eventId: event.eventId, attemptId: maskAttempt.attemptId, itemId: null, remainingAreaPx: 200, regionIds: [`${run}_mask_r2`], unavailableReason: 'unclassified_food', method: 'mask_pixel_count', qualityFlags: ['ai_estimate'] },
     ];
     await repo.recordAnalysis(maskAttempt, maskMeasurements);
     const stored = (await repo.listAnalysisAttempts(event.eventId)).find((a) => a.attemptId === maskAttempt.attemptId);

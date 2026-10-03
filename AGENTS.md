@@ -18,6 +18,7 @@ The initial repository contains only a README. The directory layout below is a p
 6. Use randomly generated attendance in a configurable, reasonable range for the prototype. Real attendance from meal swipes is a future input, not an existing integration.
 7. Show clear metrics, trends, menu-item comparisons, and AI-powered suggestions in a beginner-friendly dashboard.
 8. Keep the implementation small enough to demonstrate the complete workflow during the hackathon.
+9. Record portions actually served per menu item for each hall/date/meal (including seconds, using a consistent portion definition). Start with manual entry and CSV snapshots; an existing-system integration remains open. Use **Pixels wasted per portion** as the recommendation benchmark: validated observed item pixels divided by that item's portions served for the same service/menu version. Keep raw **Pixels wasted** as the primary measurement. Missing or zero portions make the rate unavailable. Attendance and prepared quantities cannot substitute for item portions. Show coverage and do not infer dislike or another cause from this rate.
 
 ### Agreed storage architecture
 
@@ -262,6 +263,7 @@ The coordinator owns exact schemas in `contracts/`; use the following minimum co
 | Analysis attempt | Event ID, attempt ID, menu/baseline versions, model/prompt versions, status, error/quality metadata |
 | Food measurement | Classified menu-item ID or unknown result, segmentation-mask object reference/metadata, counted foreground pixels, normalized geometry, classification/segmentation versions, mask-processing version, quality flags; optional separately labeled baseline comparison |
 | Attendance | Hall/date/service, count, `simulated` source label, configured range and reproducibility metadata |
+| Portions served | Hall/date/service, menu ID/version, stable item ID, nonnegative integer count, source (`manual`, `csv`, or `demo`), UTC update time; replacement snapshot, never additive retries |
 | Insight | Reporting window, underlying metrics, data version, recommendation text, source (`gemini` or labeled fallback), generation time |
 
 Store timestamps consistently in UTC; resolve menu dates and service membership using the dining hall's configured timezone. Use explicit IDs to join records instead of display-name matching. Image bytes belong in external object storage; SpacetimeDB stores their durable references and metadata. Temporary read/upload URLs belong in access responses with expiration metadata, not permanent image-identity fields. Do not duplicate image blobs across analytics payloads or subscription records.
@@ -301,6 +303,18 @@ total_pixels_wasted = sum(capture_pixels_wasted for unique eligible captures)
 The earlier request for mean percentage wasted when waste is present remains a separate auxiliary recommendation requirement pending its denominator definition. If retained, derive it from validated masks and compatible references; do not ask Gemini to guess it. It must not gate primary pixel totals.
 
 Show captured dishes, successful classifications, successful segmentations, partial results, exclusions, and simulated attendance separately. An optional pixels-per-simulated-attendee statistic is unavailable when attendance is missing or zero. Do not extrapolate uploaded/replayed observations to hall-wide waste without an explicit sampling method.
+
+### Portions served recommendation benchmark (2026-10-03)
+
+```text
+pixels_wasted_per_portion_i = observed_validated_item_pixels_i / portions_actually_served_i
+```
+
+Use the same hall, date, service, menu version, and compatible normalized image geometry. Count each item-assigned pixel once. Preserve the total and the served count beside the rate. Unknown food has no named-item denominator. Missing masks/portion counts are unavailable; zero portions cannot be divided into. A validated item mask with zero pixels and a positive count gives a valid zero rate; an item absent from images has no inferred zero.
+
+Rank recommendations by the available per-item rate. Mention missing benchmarks and capture coverage; dividing sampled waste by full-service portions can understate waste. Comparable coverage and portion definitions are required for comparisons. It does not identify why food was left over. Across compatible reporting windows, divide summed pixels by summed portions rather than averaging service rates.
+
+Agent 2 owns portion validation/schema, Agent 5 owns snapshot API/persistence, Agent 6 owns the calculation and recommendations, Agent 7 owns entry/CSV/benchmark screens, and Agent 8 verifies the flow. Agent 1 owns the additive contracts. Automated serving-system connections and live segmentation remain separate pending work.
 
 ## 8. Implementation phases and parallel work
 

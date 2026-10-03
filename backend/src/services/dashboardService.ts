@@ -11,12 +11,14 @@
  */
 
 import {
-  computePixelDataVersion,
   generateAttendance,
-  generatePixelInsight,
   summarizePixels,
   type PixelServiceSummary,
   type TextGateway,
+  summarizePortionBenchmarks,
+  portionDataVersion,
+  generatePortionInsight,
+  type PortionBenchmark,
 } from '@scrap/analytics';
 import { notFound } from '../errors.js';
 import type { BackendConfig } from '../config.js';
@@ -48,8 +50,9 @@ export interface MealDetailResponse {
   meal: MealLabel;
   summary: PixelServiceSummary;
   attendance: Attendance;
-  /** Null when no food pixels are attributed yet (nothing to ground a tip in). */
+  /** Grounded in the Pixels-wasted-per-portion benchmark (AGENTS.md 7). */
   insight: Insight | null;
+  portionBenchmark: PortionBenchmark;
 }
 
 function addDays(date: string, n: number): string {
@@ -151,6 +154,16 @@ export class DashboardService {
     );
   }
 
+  async portionBenchmark(menu: MenuBundle): Promise<PortionBenchmark> {
+    const captures = await this.repo.listCaptureEvents({ hallId: menu.service.hallId, serviceId: menu.service.serviceId });
+    const measurements: FoodMeasurement[] = [];
+    for (const event of captures) {
+      if (event.state === 'succeeded') measurements.push(...await this.ingestion.countedMeasurements(event));
+    }
+    return summarizePortionBenchmarks({ service: menu.service, menuItems: menu.items, captures, measurements,
+      portions: await this.repo.listPortionsServed(menu.service.serviceId, menu.service.menuVersion) });
+  }
+
   async cards(hallId: string, today: string): Promise<Record<'today' | 'thisWeek' | 'thisMonth', PeriodTotal>> {
     const monthStart = `${today.slice(0, 8)}01`;
     const windows = { today: today, thisWeek: startOfWeek(today), thisMonth: monthStart };
@@ -195,9 +208,10 @@ export class DashboardService {
     }
     const attendance = await this.ensureAttendance(menu);
     const summary = await this.serviceSummary(menu, attendance);
-    // A tip needs measured food pixels to be grounded in (6.4).
-    const insight = summary.items.length > 0 ? await this.insightFor(menu, summary) : null;
-    return { serviceId: menu.service.serviceId, date, meal, summary, attendance, insight };
+    // Tips rank by Pixels wasted per portion; without a rate they ask for inputs (6.4).
+    const portionBenchmark = await this.portionBenchmark(menu);
+    const insight = await this.portionInsightFor(portionBenchmark);
+    return { serviceId: menu.service.serviceId, date, meal, summary, attendance, insight, portionBenchmark };
   }
 
   /**
@@ -205,26 +219,14 @@ export class DashboardService {
    * fallback) when it changed. A stored fallback is retried with Gemini on the
    * next read, so a transient provider failure doesn't stick.
    */
-  private async insightFor(menu: MenuBundle, summary: PixelServiceSummary): Promise<Insight> {
-    const dataVersion = computePixelDataVersion(summary);
-    const stored = (await this.repo.listInsights(menu.service.hallId)).find(
+  private async portionInsightFor(benchmark: PortionBenchmark): Promise<Insight> {
+    const dataVersion = portionDataVersion(benchmark);
+    const stored = (await this.repo.listInsights(benchmark.hallId)).find(
       (i) => i.dataVersion === dataVersion && (i.source === 'gemini' || this.gateway === undefined),
     );
     if (stored) return stored;
 
-    const captures = await this.repo.listCaptureEvents({ serviceId: menu.service.serviceId });
-    const times = captures.map((c) => c.capturedAt).sort();
-    const insight = await generatePixelInsight(
-      {
-        hallId: menu.service.hallId,
-        windowStart: times[0] ?? `${menu.service.serviceDate}T00:00:00.000Z`,
-        windowEnd: times.at(-1) ?? `${menu.service.serviceDate}T23:59:59.999Z`,
-        summary,
-        menuItems: menu.items,
-        dataVersion,
-      },
-      this.gateway ? { gateway: this.gateway } : {},
-    );
+    const insight = await generatePortionInsight(benchmark, this.gateway);
     await this.repo.upsertInsight(insight);
     return insight;
   }

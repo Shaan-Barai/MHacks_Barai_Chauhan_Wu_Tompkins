@@ -132,7 +132,7 @@ describe('demo flow e2e (live stack)', { skip: !LIVE_E2E }, () => {
       const sum = first.body.measurements.reduce((total, m) => total + m.remainingAreaPx, 0);
       assert.equal(seg.capturePixelsWasted, sum, 'capture union = item + unclassified pixels');
       for (const m of first.body.measurements) {
-        assert.equal(m.method, 'sam2_mask_pixel_count');
+        assert.equal(m.method, 'mask_pixel_count');
         assert.ok(Number.isInteger(m.remainingAreaPx) && m.remainingAreaPx > 0);
       }
       for (const region of seg.regions.filter((r) => r.segmentationStatus === 'succeeded')) {

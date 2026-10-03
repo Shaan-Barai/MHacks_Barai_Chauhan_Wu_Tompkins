@@ -22,6 +22,8 @@ export type {
   AnalysisAttempt,
   MeasurementMethod,
   FoodMeasurement,
+  PortionsServed,
+  MaskPixelCount,
   Attendance,
   Insight,
   ApiError,
@@ -37,6 +39,7 @@ import type {
   MenuItem,
   AnalysisAttempt,
   FoodMeasurement,
+  MaskPixelCount,
 } from '../../contracts/types.js';
 
 /** A daily menu as uploaded and served: the service plus its items. */
@@ -51,4 +54,6 @@ export interface AnalysisResult {
   measurements: FoodMeasurement[];
   /** Validated binary PNG masks (mask pipeline) for the backend to store. */
   masks?: { regionId: string; png: Uint8Array }[];
+  /** Exclusive per-measurement masks; stored, then referenced from measurement.maskCount. */
+  itemMasks?: { measurementId: string; png: Uint8Array; count: Omit<MaskPixelCount, 'maskObjectId'> }[];
 }

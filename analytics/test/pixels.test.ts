@@ -50,7 +50,7 @@ function attempt(id: string, seg?: Partial<SegmentationResult>, status: Analysis
       : {}),
   };
 }
-function m(id: string, itemId: string | null, px: number, method: FoodMeasurement['method'] = 'sam2_mask_pixel_count'): FoodMeasurement {
+function m(id: string, itemId: string | null, px: number, method: FoodMeasurement['method'] = 'mask_pixel_count'): FoodMeasurement {
   return { measurementId: `${id}_${itemId}`, eventId: id, attemptId: `att_${id}`, itemId, remainingAreaPx: px, unavailableReason: 'x', method, qualityFlags: ['ai_estimate'] };
 }
 

@@ -34,7 +34,7 @@ export { analyzeCaptureWithMasks } from './maskPipeline.js';
 export type { MaskAnalysisInput, MaskAnalysisResult } from './maskPipeline.js';
 export { createSamWorkerClient } from './samClient.js';
 export type { Segmenter, SegmenterInfo, SegmentResponse } from './samClient.js';
-export { COUNTING_RULE_VERSION, BOX_CONVENTION, countPixels, decodeBinaryMask, geminiBoxToPixels } from './masks.js';
+export { COUNTING_RULE_VERSION, BOX_CONVENTION, countPixels, decodeBinaryMask, encodeBinaryMask, geminiBoxToPixels } from './masks.js';
 export { LOCALIZE_PROMPT_VERSION, validateLocalizeText, buildLocalizeSchema } from './localize.js';
 
 export {

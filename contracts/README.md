@@ -11,7 +11,7 @@ other modules build against. Change it only through Agent 1.
 - `measurement.md` — current classification → segmentation → pixel-count contract and migration scope.
   Runtime shapes: `AnalysisAttempt.segmentation` (`SegmentationResult` +
   `ClassificationRegion[]`) and `FoodMeasurement` with method
-  `sam2_mask_pixel_count` (implemented 2026-10-03; see `decisions.md`).
+  `mask_pixel_count` (implemented 2026-10-03; see `decisions.md`).
 
 ## Units and terminology
 

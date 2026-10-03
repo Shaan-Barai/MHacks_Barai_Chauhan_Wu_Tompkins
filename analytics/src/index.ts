@@ -10,6 +10,8 @@ export type {
   SegmentationResult,
   ClassificationRegion,
   CountStatus,
+  PortionsServed,
+  MaskPixelCount,
   MealLabel,
   MealService,
   MenuItem,
@@ -21,6 +23,9 @@ export type {
   ProcessingState,
   ApiError,
 } from './contracts.js';
+
+export { summarizePortionBenchmarks, portionDataVersion, validMaskCount, type PortionBenchmark, type PortionBenchmarkItem } from './portions.js';
+export { generatePortionInsight } from './portionSuggestions.js';
 
 export {
   classifyMeasurement,

@@ -2,8 +2,8 @@
  * HTTP implementations of the Uploader and IngestionSink seams against
  * Agent 5's backend API (backend/README.md):
  *
- *   POST /api/images/uploads          authorize -> { objectId, uploadUrl }
- *   PUT  <uploadUrl>                  normalized bytes (presigned-PUT stand-in)
+ *   POST /api/images/uploads          authorize -> { objectId, uploadUrl, uploadHeaders }
+ *   PUT  <uploadUrl>                  normalized bytes (R2 presigned URL, or the local-dev route)
  *   POST /api/images/:id/finalize     verify + register the object reference
  *   POST /api/captures                capture metadata + finalized objectId
  *
@@ -37,15 +37,15 @@ async function request<T>(url: string, init: RequestInit, what: string): Promise
 
 export class HttpUploader implements Uploader {
   private readonly base: string;
-  /** objectId -> authorized upload URL + MIME type for the in-flight upload. */
-  private readonly uploads = new Map<string, { url: string; mimeType: string }>();
+  /** objectId -> authorized upload URL + the headers it was signed over. */
+  private readonly uploads = new Map<string, { url: string; headers: Record<string, string> }>();
 
   constructor(apiUrl: string) {
     this.base = apiUrl.replace(/\/$/, '');
   }
 
   async authorizeUpload(req: UploadRequest): Promise<UploadAuthorization> {
-    const body = await request<{ objectId: string; uploadUrl: string }>(
+    const body = await request<{ objectId: string; uploadUrl: string; uploadHeaders?: Record<string, string> }>(
       `${this.base}/api/images/uploads`,
       {
         method: 'POST',
@@ -61,14 +61,20 @@ export class HttpUploader implements Uploader {
       },
       'Upload authorization',
     );
-    this.uploads.set(body.objectId, { url: new URL(body.uploadUrl, `${this.base}/`).toString(), mimeType: req.mimeType });
+    // local-dev returns a backend-relative URL; R2 returns an absolute presigned URL.
+    this.uploads.set(body.objectId, {
+      url: new URL(body.uploadUrl, `${this.base}/`).toString(),
+      headers: body.uploadHeaders ?? { 'Content-Type': req.mimeType },
+    });
     return { uploadId: body.objectId };
   }
 
   async uploadBytes(auth: UploadAuthorization, bytes: Uint8Array): Promise<void> {
     const upload = this.uploads.get(auth.uploadId);
     if (!upload) throw new Error(`No authorized upload URL for ${auth.uploadId}`);
-    await request(upload.url, { method: 'PUT', headers: { 'Content-Type': upload.mimeType }, body: bytes }, 'Image upload');
+    const res = await fetch(upload.url, { method: 'PUT', headers: upload.headers, body: bytes });
+    // R2 answers with an XML body, the local-dev route with JSON or nothing.
+    if (!res.ok) throw new BackendRequestError(res.status, undefined, 'Image upload');
   }
 
   async finalizeUpload(auth: UploadAuthorization): Promise<FinalizedUpload> {

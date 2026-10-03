@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  font-size: 16px; /* UI.md: body text at least 16px */
+}
+
+body {
+  margin: 0;
+  @apply bg-oat text-ink font-sans antialiased;
+}
+
+/* Keyboard focus is always visible (a11y). */
+:focus-visible {
+  outline: 3px solid #2e4a7d; /* Blueberry */
+  outline-offset: 2px;
+}

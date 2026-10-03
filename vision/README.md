@@ -108,6 +108,27 @@ npm test   # tsc build + node --test dist/test/*.test.js
 
 33 tests, all fixture-driven (no credentials needed, no live Gemini calls).
 
+## Classification → segmentation → Pixels wasted (`analyzeCaptureWithMasks`)
+
+The primary pipeline (contracts/measurement.md, MVP_AI.md):
+
+1. `localize.ts` — Gemini returns menu item IDs (or `unknown`), visual
+   labels, and `[ymin, xmin, ymax, xmax]` 0–1000 boxes; explicit
+   `plateEmpty`/`ambiguous`; no quantities. Invented IDs are rejected.
+2. `masks.ts` `geminiBoxToPixels` — convert to pixel XYXY on the exact image.
+3. `samClient.ts` — the SAM 2.1 worker (`vision/sam/`) segments every box in
+   one call (`Segmenter` seam; tests inject a fake).
+4. `masks.ts` `decodeBinaryMask` — exact size, strictly 0/255, nonempty.
+5. `masks.ts` `countPixels` (rule `union-v1`) — per-item unions; pixels
+   contested by two items go to the unclassified bucket; capture total = union.
+
+Returns the attempt (with `segmentation`), `sam2_mask_pixel_count`
+measurements, and the mask PNGs for the backend to store. Stage outcomes
+(classification failure, explicit empty plate, partial, worker down) are
+distinct and never become zero pixels. `analyzeCapture` (Gemini-guessed
+areas) and `assessLeftovers` (counts/percents) remain as legacy/research
+helpers, not the measurement path.
+
 ## Countable vs uncountable leftovers (`assessLeftovers`)
 
 `assessLeftovers(gateway, { image, labels })` (`src/leftovers.ts`) follows the

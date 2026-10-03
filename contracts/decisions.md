@@ -24,10 +24,16 @@ pending details arrive; agreed items came from the team or AGENTS.md.
 - **Frontend tooling:** Vite + React 18 + TypeScript + Tailwind.
 - **Backend:** Node.js 20+, TypeScript, Express. Smallest setup that can host
   the storage adapter, Gemini gateway, and REST API.
-- **SpacetimeDB module language:** verify currently supported module languages
-  against the official SpacetimeDB docs before Agent 2 starts; default to the
-  best-documented option (Rust) if nothing argues otherwise. Record the chosen
-  version here when installed.
+- **SpacetimeDB module language: TypeScript** (`spacetimedb@2.10.2`), chosen by
+  Agent 2 over the earlier conditional Rust default — v2.10.2 supports TS
+  modules and the whole team stack is TS. Compile-, publish-, and
+  table-verified against a local `spacetime start` server (see `db/README.md`).
+  Supersedes the previous provisional entry.
+- **`menuId` is per hall + local date + meal** (e.g.
+  `menu_hall-main_2026-10-03_lunch`), not per date: `MenuItem` joins by
+  `menuId` alone, so a per-date ID could not resolve per-service item lists.
+  `contracts/samples.json` updated accordingly. Older per-date strings inside
+  module-local test fixtures are internally consistent and unaffected.
 - **Gemini model:** `gemini-2.5-flash` via the official `@google/genai` SDK,
   server-side only; confirm model availability and limits when the API key
   arrives.

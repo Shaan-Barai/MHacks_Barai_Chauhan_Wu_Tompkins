@@ -5,12 +5,12 @@
     "hallTimezone": "America/Detroit",
     "serviceDate": "2026-10-03",
     "mealLabel": "lunch",
-    "menuId": "menu_hall-main_2026-10-03",
+    "menuId": "menu_hall-main_2026-10-03_lunch",
     "menuVersion": 1
   },
   "menuItem": {
     "itemId": "item_scrambled-eggs",
-    "menuId": "menu_hall-main_2026-10-03",
+    "menuId": "menu_hall-main_2026-10-03_lunch",
     "displayName": "Scrambled Eggs",
     "category": "entree",
     "description": "Plain scrambled eggs, standard scoop serving"

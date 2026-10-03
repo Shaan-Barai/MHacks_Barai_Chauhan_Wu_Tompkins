@@ -15,5 +15,13 @@
   "devDependencies": {
     "@types/node": "^20.17.0",
     "typescript": "^5.6.3"
+  },
+  "main": "dist/data/src/index.js",
+  "types": "dist/data/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/data/src/index.d.ts",
+      "default": "./dist/data/src/index.js"
+    }
   }
 }

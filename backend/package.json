@@ -1,0 +1,23 @@
+{
+  "name": "scrap-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Scrap backend: REST API, object-storage adapter, persistence orchestration (Agent 5)",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "npm run build && node dist/backend/src/server.js",
+    "test": "npm run build && node --test dist/backend/test/*.test.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.17.0",
+    "typescript": "^5.6.3"
+  }
+}

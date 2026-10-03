@@ -33,10 +33,52 @@ throughout.
 
 ## Setup
 
-1. Copy `.env.example` to `.env` and fill in values (server-side only; never
-   commit `.env`).
-2. Install and start commands will be added here as each module lands —
-   the stack is Vite + React + TypeScript + Tailwind (frontend),
-   Node + TypeScript (backend), SpacetimeDB + external object storage (data).
-   See [`contracts/decisions.md`](contracts/decisions.md) for current status
-   and open questions.
+Prerequisites: Node.js 20.12+ and the SpacetimeDB CLI 2.10.x
+(`curl -sSf https://install.spacetimedb.com | sh`).
+
+```bash
+# 1. Secrets (server-side only; .env is gitignored — never commit it)
+cp .env.example .env            # then set GEMINI_API_KEY and the R2_* bucket credentials
+
+# 2. Local SpacetimeDB (keep running in its own terminal)
+spacetime start
+
+# 3. One-time: a local identity that owns the database, saved to .env
+echo "SPACETIMEDB_TOKEN=$(curl -s -X POST http://127.0.0.1:3000/v1/identity | node -pe 'JSON.parse(require("fs").readFileSync(0)).token')" >> .env
+spacetime login --token "$(grep ^SPACETIMEDB_TOKEN= .env | cut -d= -f2)"
+cd db/spacetimedb && npm ci && spacetime publish --module-path . --server local --yes scrap && cd ../..
+
+# 4. Backend API (builds data/vision/analytics first) — http://localhost:8787
+cd backend && npm ci && npm start          # own terminal
+
+# 5. Demo data: seed menus + reference portions, then replay labeled captures
+cd backend && npm run seed
+cd capture && npm ci && npm run replay     # live Gemini analysis per plate
+
+# 6. Dashboard — http://localhost:5173 (proxies /api to the backend)
+cd frontend && npm ci && npm run dev
+```
+
+Images are stored in a private **Cloudflare R2** bucket: create the bucket and
+an R2 API token with Object Read & Write on it, then fill in
+`OBJECT_STORAGE_CONTAINER` and `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` /
+`R2_SECRET_ACCESS_KEY`. Set `OBJECT_STORAGE_PROVIDER=local-dev` to run without
+a Cloudflare account (files under `backend/.local-storage/`).
+
+Always pass `--server local` to `spacetime` commands: the CLI's default
+server is the hosted maincloud. Without `GEMINI_API_KEY` the backend uses a
+deterministic mock analyzer; without `SPACETIMEDB_URI` it uses an in-memory
+store. `VITE_USE_MOCK=1 npm run dev` runs the dashboard on demo data alone.
+
+## Verify
+
+```bash
+cd tests && npm test                          # fixture + formula checks
+(cd <module> && npm test)                     # data capture vision analytics backend frontend
+cd vision && npm run smoke                    # live Gemini smoke test (uses .env key)
+cd tests && SCRAP_E2E=1 npm run test:e2e      # live API flow against the running stack
+```
+
+See [`docs/`](docs/) for the [demo walkthrough](docs/demo-walkthrough.md),
+[runbook](docs/runbook.md), [known limitations](docs/known-limitations.md),
+and the latest [verification report](docs/verification-report.md).

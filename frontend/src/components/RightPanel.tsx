@@ -98,12 +98,10 @@ function MealDetailView({
       <div>
         <h3 className="text-base font-semibold text-ink">Most wasted</h3>
         <div className="mt-2 rounded-card border border-linen bg-oat p-4">
-          <div className="flex items-baseline justify-between gap-2">
-            <p className="text-lg font-semibold text-ink">{top.displayName}</p>
-            <p className="whitespace-nowrap text-base text-thyme">
-              {formatNumber(top.wasteUnits)} units · {formatPercent(top.shareOfMealWastePercent)} of meal waste
-            </p>
-          </div>
+          <p className="text-lg font-semibold text-ink">{top.displayName}</p>
+          <p className="text-base text-thyme">
+            {formatNumber(top.wasteUnits)} waste units · {formatPercent(top.shareOfMealWastePercent)} of meal waste
+          </p>
           <div className="mt-3 rounded-btn border border-basil-tint bg-basil-tint/60 p-3">
             <p className="text-sm font-semibold uppercase tracking-wide text-basil">
               <span aria-hidden="true">✦ </span>Gemini tip · AI-generated

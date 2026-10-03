@@ -11,13 +11,26 @@ The initial repository contains only a README. The directory layout below is a p
 ## 2. Agreed product requirements
 
 1. Capture top-down images of finished dishes on their way to the wash station.
-2. Upload and store the dining hall's daily menu in a database. Classify food against the menu for the relevant hall, date, and meal service.
+2. Upload and store the dining hall's daily menu in SpacetimeDB. Classify food against the menu for the relevant hall, date, and meal service.
 3. Use the Gemini API for food classification and prototype image analysis. Custom model training is outside the hackathon scope.
 4. Estimate remaining food area in pixels and compare it with the expected pixel area of a matching uneaten serving. The ratio represents estimated food waste for that serving.
 5. Store per-dish observations and per-food measurements, then summarize overall waste and which menu items contribute most.
 6. Use randomly generated attendance in a configurable, reasonable range for the prototype. Real attendance from meal swipes is a future input, not an existing integration.
 7. Show clear metrics, trends, menu-item comparisons, and AI-powered suggestions in a beginner-friendly dashboard.
 8. Keep the implementation small enough to demonstrate the complete workflow during the hackathon.
+
+### Agreed storage architecture
+
+Use **SpacetimeDB plus external object storage**. SpacetimeDB holds menus, image references/metadata, analysis results, attendance, and insights. External object storage holds observation images and uneaten-reference photos. Do not store image bytes, base64 images, or image blobs in SpacetimeDB tables or subscription payloads.
+
+The object-storage provider is still undecided. Cloudflare R2, Supabase Storage, Amazon S3, or Firebase Storage may be selected when setup details arrive; this plan does not assume an account or bucket already exists.
+
+1. Upload the image through Agent 5's storage adapter, either through the backend or with a server-authorized direct upload.
+2. Confirm the upload succeeded, then register the durable object reference and metadata in SpacetimeDB.
+3. Subscribe/query for small application records and analysis updates. Retrieve image bytes separately from object storage for display or Gemini analysis.
+4. Store a stable object key/reference. A public delivery URL may be stored if public access is deliberately chosen; private images receive temporary read URLs when requested. Do not use an expiring signed URL as the permanent image identifier.
+
+Use the official [SpacetimeDB external-file storage guidance](https://spacetimedb.com/docs/tables/file-storage/) when implementing this pattern. If R2 is selected, consult its [presigned URL guidance](https://developers.cloudflare.com/r2/api/s3/presigned-urls/) for upload/read access and expiration behavior. These references inform implementation; they do not select a provider.
 
 Do not add model training, real swipe-system integration, purchasing automation, or production camera infrastructure unless requested. Do not present estimated pixel area as measured grams, kilograms, volume, cost, or environmental impact without an independently specified conversion.
 
@@ -43,10 +56,10 @@ Agent numbers are stable role identifiers, not a required number of simultaneous
 | Agent | Role | Exclusive primary ownership |
 | --- | --- | --- |
 | 1 | Coordinator and contract owner | `AGENTS.md`, `README.md`, `contracts/`, root configuration, dependency manifests and lockfiles, `.env.example` |
-| 2 | Menu, reference portions, and database schema | `data/`, `db/` including schema, migrations, and seeds |
+| 2 | Menu, reference portions, and SpacetimeDB schema | `data/`, `db/` including table definitions, schema evolution, and seeds |
 | 3 | Camera capture and image preparation | `capture/` |
 | 4 | Gemini classification and pixel-area analysis | `vision/` |
-| 5 | Backend API, persistence access, and orchestration | `backend/` |
+| 5 | Backend API, object storage, persistence access, and orchestration | `backend/` including storage adapters and reducer implementations |
 | 6 | Analytics, simulated attendance, and suggestions | `analytics/` |
 | 7 | Dining hall dashboard | `frontend/` |
 | 8 | Integration verification and demo documentation | `tests/integration/`, `tests/e2e/`, `tests/fixtures/`, `docs/`, `.github/workflows/` |
@@ -55,13 +68,15 @@ Each owner may add focused unit tests inside their owned directory. Agent 8 owns
 
 The coordinator maps these logical boundaries to the chosen framework before implementation. If a framework requires a different layout, update this table and announce the mapping before agents create files. Root files, shared types, migrations, generated API clients, dependency files, and shared configuration always have one named owner. Gitignored local environment files are configured by the person running the project; they must never be included in a commit.
 
+For the SpacetimeDB module, Agent 2 owns table/schema source files and Agent 5 owns reducer/procedure source files. Agent 1 owns shared module assembly and generated client bindings. Map these files into the selected language's required module layout before work starts; do not have Agents 2 and 5 edit one module entry file concurrently.
+
 ## 5. Enumerated agent assignments
 
 ### Agent 1 — Coordinator and shared contracts
 
 **Objective:** Make independently developed modules fit together and keep the hackathon scope consistent.
 
-1.1. Inspect the repository and agree on the smallest suitable frontend, backend, database, and runtime setup. Do not force a stack before the pending implementation details arrive.
+1.1. Inspect the repository and agree on the smallest suitable frontend, backend, SpacetimeDB module language/version, and runtime setup. Preserve the agreed SpacetimeDB-plus-object-storage architecture; record the object-storage provider once selected. Do not force the remaining stack before the pending details arrive.
 
 1.2. Publish the shared entity definitions, API payloads, error format, service identifiers, pixel units, measurement flags, and sample records in `contracts/`.
 
@@ -85,13 +100,13 @@ The coordinator maps these logical boundaries to the chosen framework before imp
 
 2.3. Define and maintain uneaten-serving reference records: menu-item ID, expected area in pixels, image/plate geometry, baseline ID/version, and source. Reference photos, manually provided areas, and Gemini-estimated baselines must remain distinguishable.
 
-2.4. Own schema, migrations, and demo seeds for menus, baselines, capture events, observations, food measurements, attendance, and insights. Preserve raw measurements and their quality metadata.
+2.4. Own SpacetimeDB table definitions, schema evolution, and demo seed definitions for menus, baselines, capture events, image-object metadata, observations, food measurements, attendance, and insights. Store image references rather than bytes. Preserve raw measurements and their quality metadata; agree on the minimal subscription-visible fields with Agents 5 and 7.
 
 2.5. Provide pure menu/reference validation helpers and realistic demo data to the backend and vision owners. Define safe behavior for menu revisions and missing references.
 
 **Handoffs:** Schema and validated menu/reference shapes to Agents 4 and 5; labeled seed data to Agents 6 and 8.
 
-**Boundary:** Agent 2 owns schema and data validation. Agent 5 owns runtime database access, transactions, and HTTP upload endpoints. Agent 7 owns upload screens.
+**Boundary:** Agent 2 owns schema and data validation. Agent 5 owns reducer/procedure implementations, runtime database access, external object storage, and upload endpoints. Agent 7 owns upload screens.
 
 **Done when:** A sample daily menu and compatible reference portions can be persisted, retrieved, and resolved by hall/date/service without ambiguous IDs or units.
 
@@ -107,7 +122,7 @@ The coordinator maps these logical boundaries to the chosen framework before imp
 
 3.4. Flag unusable inputs such as blurred images, missing plates, multiple dishes in one frame, or incompatible geometry. Report actionable errors rather than silently discarding captures.
 
-3.5. Send images and capture metadata to the backend ingestion contract. Keep capture hardware details behind the adapter.
+3.5. Send images through Agent 5's agreed upload flow, then submit capture metadata and the finalized object reference to ingestion. Keep capture hardware details behind the adapter. Do not add a separate storage client or send image bytes to a SpacetimeDB reducer.
 
 **Handoffs:** Prepared images, geometry metadata, and quality flags to Agent 4 via Agent 5; replay inputs to Agent 8.
 
@@ -131,17 +146,19 @@ The coordinator maps these logical boundaries to the chosen framework before imp
 
 4.6. Expose a reusable Gemini request interface for Agent 6's suggestion generation. Agent 6 owns the suggestion prompt and business logic; Agent 4 owns provider access and transport behavior.
 
+4.7. Receive authorized image content or temporary read access through Agent 5's storage interface. Own Gemini's required image-input formatting, but leave bucket access, object validation, and read-URL issuance to Agent 5.
+
 **Handoffs:** Validated analysis results and explicit failure results to Agent 5; Gemini gateway interface to Agent 6; representative responses to Agent 8.
 
 **Boundary:** Do not own camera acquisition, database writes, attendance, analytics aggregation, or dashboard components.
 
 **Done when:** Known, mixed, empty, ambiguous, and invalid fixture images produce contract-valid results or explicit failures, and a configured live Gemini smoke test is documented when credentials are available.
 
-### Agent 5 — Backend API and persistence orchestration
+### Agent 5 — Backend API, object storage, and persistence orchestration
 
 **Objective:** Connect ingestion, stored menus, Gemini analysis, analytics, and the dashboard through a coherent API.
 
-5.1. Implement database access against Agent 2's schema, image-storage references, and menu/reference retrieval. Add validated upload endpoints using Agent 2's parsing helpers.
+5.1. Implement SpacetimeDB access against Agent 2's schema, reducer-driven mutations, and menu/reference retrieval. Add validated menu upload endpoints using Agent 2's parsing helpers. Keep Gemini requests and object-storage network operations outside transactional reducers; use a backend service or supported procedures after checking the selected SpacetimeDB version's capabilities.
 
 5.2. Implement ingestion and processing states such as `pending`, `processing`, `succeeded`, `needs_review`, and `failed`. Persist capture events and validated per-food measurements atomically where needed.
 
@@ -153,11 +170,15 @@ The coordinator maps these logical boundaries to the chosen framework before imp
 
 5.6. Invoke Agent 6's analytics and suggestion services; keep their formulas and recommendation logic in `analytics/`. Coordinate API compatibility with Agent 7.
 
-**Handoffs:** Stable API and persistence behavior to Agents 3, 6, and 7; API fixtures and setup hooks to Agent 8.
+5.7. Own the external object-storage adapter for capture and reference images: server-side credentials, upload authorization, file-type/size validation, object-key generation, upload completion checks, read access, and any browser-upload CORS configuration. Register only verified objects belonging to the intended upload; preserve provider/container/key, MIME type, size, dimensions, and upload time in SpacetimeDB.
+
+5.8. Handle failed uploads, expired read URLs, missing objects, and retries explicitly. An object-store upload and a SpacetimeDB write are separate operations; implement a retryable finalization step rather than treating them as one atomic transaction. Track orphaned uploads and provide cleanup consistent with the agreed retention policy. Do not log signed URLs or share storage credentials with clients.
+
+**Handoffs:** Stable API, storage/upload interface, subscription behavior, and persistence behavior to Agents 3, 4, 6, and 7; API fixtures and setup hooks to Agent 8.
 
 **Boundary:** Own orchestration and persistence access, not schema migrations, Gemini prompts, analytics formulas, or frontend rendering.
 
-**Done when:** The API can accept a menu and capture, store a validated analysis once, and return dashboard data with understandable recoverable errors.
+**Done when:** The API can accept a menu, upload an image to external storage, register its reference in SpacetimeDB, store a validated analysis once, and return dashboard data plus working image access with understandable recoverable errors.
 
 ### Agent 6 — Analytics, simulated attendance, and AI suggestions
 
@@ -197,6 +218,8 @@ The coordinator maps these logical boundaries to the chosen framework before imp
 
 7.6. Use readable chart labels, accessible contrast, keyboard-friendly controls, responsive layout, and units on every metric. Use API fixtures while the backend is under development, then verify against the real API.
 
+7.7. Use approved SpacetimeDB subscriptions for lightweight data updates. Upload images through Agent 5's authorized flow and display images using delivery/read URLs supplied by the storage interface. Handle upload progress, broken image links, and read-URL renewal; never embed image bytes in database mutation payloads.
+
 **Handoffs:** Integrated screens and UI states to Agent 8; API gaps to Agent 5; unclear metric definitions to Agent 6.
 
 **Boundary:** Do not call Gemini from the browser, expose keys, perform canonical analytics in components, or modify backend/schema files.
@@ -217,6 +240,8 @@ The coordinator maps these logical boundaries to the chosen framework before imp
 
 8.5. Write the demo walkthrough, environment setup details, fixture provenance, known limitations, and a minimal runbook in `docs/`. Add only the CI checks justified by the selected stack and demo scope.
 
+8.6. Verify that image bytes live in external storage while SpacetimeDB rows/subscriptions contain references and metadata. Cover failed upload/finalization, repeated finalization, missing objects, and temporary read-URL expiration without requiring a particular provider before one is selected.
+
 **Handoffs:** Reproducible verification results, identified defects, and a demo readiness report to Agent 1.
 
 **Boundary:** Do not redesign feature modules or take ownership of their unit tests. Root README changes go through Agent 1.
@@ -231,24 +256,25 @@ The coordinator owns exact schemas in `contracts/`; use the following minimum co
 | --- | --- |
 | Meal service | Stable service ID, hall ID, hall timezone, local service date, meal label, menu ID/version |
 | Menu item | Stable item ID, menu ID, display name, optional category/description |
-| Reference portion | Baseline ID/version, menu-item ID, expected uneaten area in pixels, compatible image/plate geometry, reference source/method |
+| Reference portion | Baseline ID/version, menu-item ID, expected uneaten area in pixels, compatible image/plate geometry, reference source/method, optional reference-image object ID |
+| Image object | Stable object ID, provider/container/key, optional deliberately public URL, MIME type, size, dimensions, upload time, capture/reference association, upload/finalization state |
 | Capture event | Stable event ID, hall/service context, UTC timestamp, image reference, dimensions/coordinate space, source label, quality flags, processing state |
 | Analysis attempt | Event ID, attempt ID, menu/baseline versions, model/prompt versions, status, error/quality metadata |
 | Food measurement | Menu-item ID or unknown result, remaining area in pixels, baseline area/ID when available, ratio/percentage when valid, measurement method, quality flags |
 | Attendance | Hall/date/service, count, `simulated` source label, configured range and reproducibility metadata |
 | Insight | Reporting window, underlying metrics, data version, recommendation text, source (`gemini` or labeled fallback), generation time |
 
-Store timestamps consistently in UTC; resolve menu dates and service membership using the dining hall's configured timezone. Use explicit IDs to join records instead of display-name matching. Store images once and pass storage references between modules; do not duplicate image blobs across analytics payloads.
+Store timestamps consistently in UTC; resolve menu dates and service membership using the dining hall's configured timezone. Use explicit IDs to join records instead of display-name matching. Image bytes belong in external object storage; SpacetimeDB stores their durable references and metadata. Temporary read/upload URLs belong in access responses with expiration metadata, not permanent image-identity fields. Do not duplicate image blobs across analytics payloads or subscription records.
 
 The backend orchestrates this sequence:
 
 1. Agent 2's validated menu and reference data are uploaded through Agent 5's API and Agent 7's UI.
-2. Agent 3 submits a capture event with a normalized image and geometry metadata.
+2. Agent 3 uploads a normalized image through Agent 5's storage flow. Agent 5 verifies the completed object, registers its metadata/reference in SpacetimeDB, and accepts the capture event and geometry metadata.
 3. Agent 5 resolves the relevant menu/references and requests Agent 4's analysis.
 4. Agent 4 returns validated food measurements or an explicit review/failure result.
 5. Agent 5 persists results without duplicate observations.
 6. Agent 6 aggregates eligible observations, supplies persisted simulated attendance, and generates grounded suggestions.
-7. Agent 5 serves those results to Agent 7's dashboard; Agent 8 verifies the entire path.
+7. Agent 5 serves those results or approved SpacetimeDB subscriptions to Agent 7's dashboard. Image display/analysis reads use external storage access; Agent 8 verifies the entire path.
 
 Unknown items may retain a visible-area estimate, but they are excluded from menu-specific percentages until identified and supplied with a valid baseline. A detected empty plate is a valid capture; it does not prove which menu items were originally served. Do not infer an uneaten serving for every item on the daily menu.
 
@@ -303,17 +329,18 @@ The hackathon prototype is ready when:
 6. The dashboard shows overall observed waste, food breakdowns, coverage, useful service comparisons, and an AI-powered suggestion supported by displayed metrics.
 7. Unknown/missing/failed analysis is visible and does not silently reduce reported waste.
 8. Setup and a repeatable demo are documented, focused verification passes, and remaining limitations are disclosed.
+9. Observation/reference images are uploaded to external object storage; SpacetimeDB stores references/metadata, and the dashboard can load images without database blob subscriptions.
 
 ## 10. Pending details and change process
 
 The following require confirmation or an explicitly recorded prototype decision as implementation reaches them:
 
-- Frontend/backend framework, database, runtime, and deployment target.
+- Frontend/backend framework, SpacetimeDB module language/version, runtime, and deployment target. SpacetimeDB plus external image storage is already agreed.
 - Camera hardware, image format, capture trigger, dish tracking, plate sizes, and conveyor conditions.
 - Menu upload format, hall timezone, service definitions, categories, and menu revision behavior.
 - How uneaten reference areas are supplied, normalized, versioned, and reviewed; treatment of mixed foods and variable portions.
 - Gemini model, provider limits, timeout/retry budget, and acceptable image/measurement quality.
 - Attendance bounds per hall/service, required charts, reporting windows, and desired recommendation format.
-- Image storage/retention, intended users/access controls, and any live deployment requirements.
+- External object-storage provider/account/bucket, public versus private image access, retention/cleanup policy, intended users/access controls, and any live deployment requirements.
 
 Agent 1 records decisions in `contracts/decisions.md` and updates contracts/ownership before affected agents proceed. Keep provisional decisions labeled, preserve valid completed work, and change only the modules affected by new requirements.

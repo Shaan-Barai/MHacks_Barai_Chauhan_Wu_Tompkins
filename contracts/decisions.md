@@ -189,3 +189,57 @@ pending details arrive; agreed items came from the team or AGENTS.md.
   code-counted Pixels wasted. Grounding DINO and YOLO-World remain optional
   bounding-box alternatives. No SAM 3 setup, downloads, or evaluation are in
   the current scope.
+
+## 2026-10-03: SAM 2.1 mask pipeline implemented
+
+Executes [MVP_AI.md](../MVP_AI.md) steps 1, 4, 5 and a preliminary 2–3.
+Choices the plan left open, now made (provisional until the annotated
+evaluation and team thresholds):
+
+- **Checkpoint / host:** `facebook/sam2.1-hiera-small` (SAM 2.1 Small), Meta
+  `sam2` at `2b90b9f`, torch 2.14.1, on the team MacBook M1 Max via MPS
+  (CPU fallback). Worker: `vision/sam/worker.py` (Python, stdlib HTTP,
+  127.0.0.1:8790), one serialized predictor. Gemini stays in the TS gateway.
+- **Localization:** Gemini (`gemini-3.8-flash`, prompt `scrap-localize-v1`)
+  returns menu item IDs or `unknown`, a visual label, and one or more
+  `[ymin, xmin, ymax, xmax]` 0–1000 boxes per item, plus explicit
+  `plateEmpty`/`ambiguous`. No quantities are requested. Grounding DINO was
+  not needed for the images tested; revisit if localization dominates errors.
+- **Box conversion:** `gemini-yxyx-1000_to_xyxy-px_v1` — `[xmin·W/1000,
+  ymin·H/1000, xmax·W/1000, ymax·H/1000]`; nonfinite, out-of-range,
+  reversed, and sub-pixel boxes fail their region. Both forms are stored.
+- **Mask settings `sam2-box-v1`:** `multimask_output=False`, logit threshold
+  0.0, no hole filling or small-component removal. **Format:** lossless
+  8-bit PNG at the analyzed image's exact size, 255 food / 0 background;
+  rejected unless exactly that size and strictly binary.
+- **Counting rule `union-v1`:** item pixels = union of that item's regions;
+  a pixel claimed by two different items goes to the unclassified bucket and
+  the capture is flagged `overlapping_masks`; unknown-food regions feed the
+  unclassified bucket; capture total = union of all valid masks = sum of
+  item + unclassified counts (enforced by the backend and the SpacetimeDB
+  reducer).
+- **Stage outcomes:** classification failure → attempt `failed`, nothing
+  counted. Explicit `plateEmpty` → `succeeded`, count status `empty`, 0
+  pixels (no SAM call). Some regions fail → `needs_review`, `partial`
+  (lower bound, excluded from totals). All segmentation fails / worker down
+  → `failed`, retryable, never zero. There is no fallback to Gemini-guessed
+  areas; the legacy `GeminiAnalyzer` was removed.
+- **Contracts:** `AnalysisAttempt.segmentation` (`SegmentationResult` with
+  `ClassificationRegion[]`), `MeasurementMethod` `sam2_mask_pixel_count`,
+  `FoodMeasurement.regionIds`, image association kind `mask`, quality flags
+  `segmentation_failed` / `overlapping_masks`. All additive; legacy
+  attempts stay readable and are excluded from pixel totals as
+  `legacy_estimate`.
+- **Persistence:** additive SpacetimeDB tables `capture_count` (stage
+  provenance + union count) and `segmentation_region` (boxes, status, mask
+  object id); published in place. Masks are stored through the backend's
+  storage adapter (`masks/<date>/<regionId>.png`, R2 or local-dev) — never in
+  rows.
+- **Analytics/dashboard:** `summarizePixels` counts captures with
+  `complete` or `empty` counts once each; exclusions by reason; geometry
+  groups not pooled. Dashboard API and UI report **Pixels wasted** in pixels;
+  the "waste units" ÷1,000 scaling is gone. Suggestions cite measured pixels
+  (`suggest-pixels-v1`).
+- **Still open:** the annotated 20–30-image evaluation set and held-out split
+  (step 2); acceptable error/latency thresholds; point-prompt refinement
+  policy; a second detector only if localization errors dominate.

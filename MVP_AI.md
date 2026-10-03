@@ -1,7 +1,12 @@
 # MVP AI plan: Gemini classification and Meta SAM segmentation
 
 Recorded October 3, 2026. Owner: Agent 1 for this planning document.
-Status: researched proposal; no segmentation model has been installed or tested.
+Status: **vertical slice implemented 2026-10-03** (classification + boxes →
+SAM 2.1 Small → counted Pixels wasted, persisted and on the dashboard); see
+[implementation decisions](contracts/decisions.md#2026-10-03-sam-21-mask-pipeline-implemented)
+and [verification](docs/verification-report.md). The 20–30-image annotated
+evaluation set (step 2) does not exist yet; only a 5-image proxy evaluation
+has been run. Quality thresholds remain a team decision.
 
 ## Recommended first prototype
 

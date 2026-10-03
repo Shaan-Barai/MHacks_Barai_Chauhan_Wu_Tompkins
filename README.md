@@ -57,14 +57,17 @@ echo "SPACETIMEDB_TOKEN=$(curl -s -X POST http://127.0.0.1:3000/v1/identity | no
 spacetime login --token "$(grep ^SPACETIMEDB_TOKEN= .env | cut -d= -f2)"
 cd db/spacetimedb && npm ci && spacetime publish --module-path . --server local --yes scrap && cd ../..
 
-# 4. Backend API (builds data/vision/analytics first) — http://localhost:8787
+# 4. SAM 2.1 segmentation worker (Python venv with Meta's sam2; see vision/sam/README.md)
+.venv/bin/python vision/sam/worker.py      # own terminal; http://127.0.0.1:8790
+
+# 5. Backend API (builds data/vision/analytics first) — http://localhost:8787
 cd backend && npm ci && npm start          # own terminal
 
-# 5. Demo data: seed menus + reference portions, then replay labeled captures
+# 6. Demo data: seed menus + reference portions, then replay labeled captures
 cd backend && npm run seed
-cd capture && npm ci && npm run replay     # live Gemini analysis per plate
+cd capture && npm ci && npm run replay     # Gemini classification + SAM masks per plate
 
-# 6. Dashboard — http://localhost:5173 (proxies /api to the backend)
+# 7. Dashboard — http://localhost:5173 (proxies /api to the backend)
 cd frontend && npm ci && npm run dev
 ```
 

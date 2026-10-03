@@ -69,7 +69,7 @@ bounded retries. Suggestion prompts and business logic stay in `analytics/`.
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `GEMINI_API_KEY` | _unset_ | Server-side only. **Unset ⇒ mock mode.** |
-| `GEMINI_MODEL` | `gemini-2.5-flash` | Model id passed to `@google/genai`. |
+| `GEMINI_MODEL` | `gemini-3.8-flash` | Model id passed to `@google/genai`. |
 | `GEMINI_TIMEOUT_MS` | `30000` | Per-request timeout (AbortSignal). |
 | `GEMINI_MAX_RETRIES` | `2` | Bounded retries after the first attempt (retryable errors only). |
 | `GEMINI_RETRY_BASE_DELAY_MS` | `500` | Exponential backoff base (500, 1000, …). |
@@ -108,19 +108,27 @@ npm test   # tsc build + node --test dist/test/*.test.js
 
 33 tests, all fixture-driven (no credentials needed, no live Gemini calls).
 
-## Live smoke test — documented, NOT yet run
+## Live smoke test
 
-No Gemini API key has been provisioned, so **no live call has been made**; all
-verification above is mock/fixture based. Once a key exists:
+```sh
+npm run smoke    # builds, loads ../.env, makes real Gemini calls
+```
 
-1. `export GEMINI_API_KEY=...` (never commit it; optionally set `GEMINI_MODEL`).
-2. From `vision/` after `npm run build`, run a one-off script that
-   `createGeminiGateway()` (should report `mode === 'live'`), calls
-   `gateway.generateText('Reply with the word OK.')`, then `analyzeCapture`
-   with a real top-down test photo (`kind: 'bytes'`) and the sample menu from
-   `contracts/samples.json`.
-3. Confirm: structured JSON parses and validates, `attempt.model` matches the
-   configured model, areas are plausible for the image, and a deliberately bad
-   key produces `GEMINI_AUTH_FAILED` without retries.
-4. Record the result (date, model, outcome) in `contracts/decisions.md` via
-   Agent 1 before claiming live verification anywhere.
+`scripts/smoke.mjs` checks: live mode; `generateText`; a short tip at
+`maxOutputTokens: 220` finishes untruncated; `analyzeCapture` on a top-down
+plate (default `capture/fixtures/replay/images/dinner-1003-salmon-rice.jpg`)
+against the demo-seed menu and baselines; a bad key → `GEMINI_AUTH_FAILED`
+without retries. Optional args: `[image.jpg] [serviceId]`.
+
+**Last run: 2026-10-03, `gemini-3.8-flash`, all checks passed**
+(recorded in `contracts/decisions.md`). Inputs were AI-generated synthetic
+plates — this verifies the provider path, not measurement accuracy.
+
+Live-run findings now handled in code: Google returns HTTP 400 for an invalid
+key (mapped to `GEMINI_AUTH_FAILED`); text requests disable thinking
+(`thinkingBudget: 0`) because thinking tokens count against
+`maxOutputTokens`; a `MAX_TOKENS` finish is rejected as
+`GEMINI_TRUNCATED_RESPONSE` rather than returning half an answer. An
+above-baseline item no longer turns the attempt into `needs_review`: the
+measurement carries `above_baseline` and aggregates exclude it, while the
+plate's other items still count.

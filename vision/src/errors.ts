@@ -74,7 +74,9 @@ export function normalizeProviderError(err: unknown): ApiError {
   const details: Record<string, unknown> = { providerMessage: rawMessage.slice(0, 500) };
   if (status !== undefined) details['providerStatus'] = status;
 
-  if (status === 401 || status === 403) {
+  // Google answers an invalid API key with 400 INVALID_ARGUMENT, reason API_KEY_INVALID.
+  const invalidKey = status === 400 && /API_KEY_INVALID|API key not valid/i.test(rawMessage);
+  if (status === 401 || status === 403 || invalidKey) {
     return makeApiError(
       'GEMINI_AUTH_FAILED',
       'The image analysis service rejected our credentials. Check the server configuration.',

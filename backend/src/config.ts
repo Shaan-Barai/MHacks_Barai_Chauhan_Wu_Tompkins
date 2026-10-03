@@ -6,7 +6,7 @@
 export interface BackendConfig {
   port: number;
   objectStorage: {
-    provider: string; // 'local-dev' until a cloud provider is chosen (decisions.md)
+    provider: string; // 'r2' (Cloudflare R2) or 'local-dev' (offline filesystem)
     container: string;
     localDir: string; // local-dev adapter root; gitignored (.local-storage/)
     allowedMimeTypes: string[];
@@ -15,6 +15,8 @@ export interface BackendConfig {
     readUrlTtlMs: number;
     /** Uploads never finalized after this long count as orphans. */
     orphanMaxAgeMs: number;
+    /** Cloudflare R2 credentials (provider 'r2'); server-side only. */
+    r2?: { accountId: string; accessKeyId: string; secretAccessKey: string; endpoint?: string };
   };
   /** Optional JSON persistence file for the offline/test repository. */
   dataFile?: string;
@@ -48,6 +50,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BackendConfig 
       uploadUrlTtlMs: int('UPLOAD_URL_TTL_SECONDS', 15 * 60) * 1000,
       readUrlTtlMs: int('READ_URL_TTL_SECONDS', 10 * 60) * 1000,
       orphanMaxAgeMs: int('ORPHAN_MAX_AGE_SECONDS', 60 * 60) * 1000,
+      r2:
+        env.R2_ACCOUNT_ID && env.R2_ACCESS_KEY_ID && env.R2_SECRET_ACCESS_KEY
+          ? {
+              accountId: env.R2_ACCOUNT_ID,
+              accessKeyId: env.R2_ACCESS_KEY_ID,
+              secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+              endpoint: env.R2_ENDPOINT || undefined,
+            }
+          : undefined,
     },
     dataFile: env.BACKEND_DATA_FILE || undefined,
     spacetime: env.SPACETIMEDB_URI

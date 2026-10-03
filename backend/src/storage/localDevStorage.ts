@@ -1,8 +1,7 @@
 /**
  * `local-dev` filesystem implementation of ObjectStorageAdapter.
  *
- * PLACEHOLDER for the real provider (R2 / S3 / Supabase / Firebase —
- * undecided, see contracts/decisions.md). Bytes live under
+ * Offline/dev stand-in for Cloudflare R2 (r2Storage.ts). Bytes live under
  * OBJECT_STORAGE_LOCAL_DIR (default `.local-storage/`, gitignored at the
  * repo root). Upload/read URLs are backend routes guarded by opaque
  * random tokens with expiry — standing in for presigned URLs.
@@ -14,12 +13,15 @@ import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, normalize, sep } from 'node:path';
 import { badRequest, notFound, HttpError, apiError } from '../errors.js';
-import type {
-  ObjectStorageAdapter,
-  ReadAccess,
-  StoredObjectStat,
-  UploadAuthorization,
-  UploadRequest,
+import {
+  makeObjectKey,
+  mimeForKey,
+  validateUploadRequest,
+  type ObjectStorageAdapter,
+  type ReadAccess,
+  type StoredObjectStat,
+  type UploadAuthorization,
+  type UploadRequest,
 } from './objectStorage.js';
 
 interface LocalDevOptions {
@@ -41,12 +43,6 @@ interface TokenRecord {
   expiresAtMs: number;
 }
 
-const EXT_BY_MIME: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-};
-
 export class LocalDevStorage implements ObjectStorageAdapter {
   readonly provider = 'local-dev';
   readonly container: string;
@@ -59,28 +55,9 @@ export class LocalDevStorage implements ObjectStorageAdapter {
     this.container = options.container;
   }
 
-  authorizeUpload(req: UploadRequest): UploadAuthorization {
-    if (!this.opts.allowedMimeTypes.includes(req.mimeType)) {
-      throw badRequest(
-        'UNSUPPORTED_MEDIA_TYPE',
-        `Only these image types are accepted: ${this.opts.allowedMimeTypes.join(', ')}.`,
-        { mimeType: req.mimeType },
-      );
-    }
-    if (!Number.isFinite(req.declaredSizeBytes) || req.declaredSizeBytes <= 0) {
-      throw badRequest('INVALID_UPLOAD_SIZE', 'The upload size must be a positive number of bytes.');
-    }
-    if (req.declaredSizeBytes > this.opts.maxUploadBytes) {
-      throw badRequest(
-        'UPLOAD_TOO_LARGE',
-        `Images may be at most ${this.opts.maxUploadBytes} bytes.`,
-        { maxUploadBytes: this.opts.maxUploadBytes, declaredSizeBytes: req.declaredSizeBytes },
-      );
-    }
-    const ext = EXT_BY_MIME[req.mimeType] ?? 'bin';
-    const prefix = req.associationKind === 'capture' ? 'captures' : 'references';
-    const date = new Date(this.opts.now()).toISOString().slice(0, 10);
-    const objectKey = `${prefix}/${date}/${req.associationId}_${randomBytes(6).toString('hex')}.${ext}`;
+  async authorizeUpload(req: UploadRequest): Promise<UploadAuthorization> {
+    validateUploadRequest(req, this.opts);
+    const objectKey = makeObjectKey(req, this.opts.now());
     const uploadToken = randomBytes(24).toString('hex');
     const expiresAtMs = this.opts.now() + this.opts.uploadUrlTtlMs;
     this.uploadTokens.set(uploadToken, {
@@ -92,7 +69,7 @@ export class LocalDevStorage implements ObjectStorageAdapter {
     return {
       objectKey,
       uploadUrl: `${this.opts.routeBase}/upload/${encodeURIComponent(objectKey)}?token=${uploadToken}`,
-      uploadToken,
+      uploadHeaders: { 'Content-Type': req.mimeType },
       expiresAt: new Date(expiresAtMs).toISOString(),
     };
   }
@@ -143,7 +120,7 @@ export class LocalDevStorage implements ObjectStorageAdapter {
     const expiresAtMs = this.opts.now() + this.opts.readUrlTtlMs;
     this.readTokens.set(readToken, {
       objectKey,
-      mimeType: this.mimeFor(objectKey),
+      mimeType: mimeForKey(objectKey),
       declaredSizeBytes: s.sizeBytes ?? 0,
       expiresAtMs,
     });
@@ -169,6 +146,14 @@ export class LocalDevStorage implements ObjectStorageAdapter {
     return { bytes, mimeType: record.mimeType };
   }
 
+  async getObjectBytes(objectKey: string): Promise<{ bytes: Buffer; mimeType: string }> {
+    try {
+      return { bytes: await readFile(this.pathFor(objectKey)), mimeType: mimeForKey(objectKey) };
+    } catch {
+      throw notFound('OBJECT_MISSING', 'The stored image could not be found.', { objectKey });
+    }
+  }
+
   async deleteObject(objectKey: string): Promise<void> {
     await rm(this.pathFor(objectKey), { force: true });
   }
@@ -179,11 +164,5 @@ export class LocalDevStorage implements ObjectStorageAdapter {
       throw badRequest('INVALID_OBJECT_KEY', 'The image reference is not valid.');
     }
     return join(this.opts.localDir, this.container, safe);
-  }
-
-  private mimeFor(objectKey: string): string {
-    const ext = objectKey.split('.').pop();
-    for (const [mime, e] of Object.entries(EXT_BY_MIME)) if (e === ext) return mime;
-    return 'application/octet-stream';
   }
 }

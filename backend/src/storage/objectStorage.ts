@@ -19,9 +19,12 @@
  *
  * Security: signed/temporary URLs are never logged; storage credentials never
  * reach a client. The local-dev implementation uses opaque random tokens in
- * place of cryptographic signatures — a real provider adapter must use its
- * presigned-URL mechanism.
+ * place of cryptographic signatures; the R2 adapter (r2Storage.ts) issues
+ * real S3-compatible presigned URLs.
  */
+
+import { randomBytes } from 'node:crypto';
+import { badRequest } from '../errors.js';
 
 export interface UploadRequest {
   /** 'capture' or 'reference' association drives the object-key prefix. */
@@ -35,7 +38,8 @@ export interface UploadAuthorization {
   objectKey: string;
   /** Where the client PUTs the bytes. Temporary; expires. */
   uploadUrl: string;
-  uploadToken: string;
+  /** Headers the PUT must carry (a presigned URL is signed over them). */
+  uploadHeaders: Record<string, string>;
   expiresAt: string; // UTC ISO 8601
 }
 
@@ -55,10 +59,7 @@ export interface ObjectStorageAdapter {
   readonly container: string;
 
   /** Validate MIME/size and authorize an upload for a new object key. */
-  authorizeUpload(req: UploadRequest): UploadAuthorization;
-
-  /** local-dev only: accept the PUT bytes the uploadUrl points at. */
-  putObject(objectKey: string, uploadToken: string, bytes: Buffer, mimeType: string): Promise<void>;
+  authorizeUpload(req: UploadRequest): Promise<UploadAuthorization>;
 
   /** Check the object really exists and report its stored size. */
   statObject(objectKey: string): Promise<StoredObjectStat>;
@@ -66,9 +67,61 @@ export interface ObjectStorageAdapter {
   /** Issue temporary read access for a stored object. */
   getReadAccess(objectKey: string): Promise<ReadAccess>;
 
-  /** local-dev only: resolve a read token back to bytes. */
-  readObject(objectKey: string, readToken: string): Promise<{ bytes: Buffer; mimeType: string }>;
+  /** Server-internal read of the bytes (analysis); never exposed to clients. */
+  getObjectBytes(objectKey: string): Promise<{ bytes: Buffer; mimeType: string }>;
 
   /** Remove the stored bytes (used by orphan cleanup). */
   deleteObject(objectKey: string): Promise<void>;
+
+  /**
+   * local-dev only: the backend itself serves the upload/read URLs, so it
+   * needs these. Providers with presigned URLs leave them undefined.
+   */
+  putObject?(objectKey: string, uploadToken: string, bytes: Buffer, mimeType: string): Promise<void>;
+  readObject?(objectKey: string, readToken: string): Promise<{ bytes: Buffer; mimeType: string }>;
+}
+
+const EXT_BY_MIME: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+};
+
+export interface UploadPolicy {
+  allowedMimeTypes: string[];
+  maxUploadBytes: number;
+}
+
+/** Shared MIME/size validation every adapter applies before authorizing. */
+export function validateUploadRequest(req: UploadRequest, policy: UploadPolicy): void {
+  if (!policy.allowedMimeTypes.includes(req.mimeType)) {
+    throw badRequest(
+      'UNSUPPORTED_MEDIA_TYPE',
+      `Only these image types are accepted: ${policy.allowedMimeTypes.join(', ')}.`,
+      { mimeType: req.mimeType },
+    );
+  }
+  if (!Number.isFinite(req.declaredSizeBytes) || req.declaredSizeBytes <= 0) {
+    throw badRequest('INVALID_UPLOAD_SIZE', 'The upload size must be a positive number of bytes.');
+  }
+  if (req.declaredSizeBytes > policy.maxUploadBytes) {
+    throw badRequest('UPLOAD_TOO_LARGE', `Images may be at most ${policy.maxUploadBytes} bytes.`, {
+      maxUploadBytes: policy.maxUploadBytes,
+      declaredSizeBytes: req.declaredSizeBytes,
+    });
+  }
+}
+
+/** Stable, provider-independent key: <captures|references>/<date>/<associationId>_<random>.<ext>. */
+export function makeObjectKey(req: UploadRequest, nowMs: number): string {
+  const ext = EXT_BY_MIME[req.mimeType] ?? 'bin';
+  const prefix = req.associationKind === 'capture' ? 'captures' : 'references';
+  const date = new Date(nowMs).toISOString().slice(0, 10);
+  return `${prefix}/${date}/${req.associationId}_${randomBytes(6).toString('hex')}.${ext}`;
+}
+
+export function mimeForKey(objectKey: string): string {
+  const ext = objectKey.split('.').pop();
+  for (const [mime, e] of Object.entries(EXT_BY_MIME)) if (e === ext) return mime;
+  return 'application/octet-stream';
 }

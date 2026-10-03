@@ -49,6 +49,11 @@ export function createApp(deps: AppDeps): express.Express {
     return req.params[name] ?? '';
   }
 
+  /** The /api/storage routes exist only for the local-dev adapter; R2 uses presigned URLs. */
+  function localDevOnly(path: string): HttpError {
+    return notFound('ROUTE_NOT_FOUND', 'This API route does not exist.', { path });
+  }
+
   function requireQuery(req: Request, name: string): string {
     const v = req.query[name];
     if (typeof v !== 'string' || v.length === 0) {
@@ -224,6 +229,7 @@ export function createApp(deps: AppDeps): express.Express {
     '/api/storage/upload/:objectKey(*)',
     express.raw({ type: () => true, limit: config.objectStorage.maxUploadBytes }),
     wrap(async (req, res) => {
+      if (!storage.putObject) throw localDevOnly(req.path);
       const token = typeof req.query.token === 'string' ? req.query.token : '';
       const mimeType = req.headers['content-type'] ?? '';
       await storage.putObject(
@@ -254,6 +260,7 @@ export function createApp(deps: AppDeps): express.Express {
   app.get(
     '/api/storage/read/:objectKey(*)',
     wrap(async (req, res) => {
+      if (!storage.readObject) throw localDevOnly(req.path);
       const token = typeof req.query.token === 'string' ? req.query.token : '';
       const { bytes, mimeType } = await storage.readObject(
         decodeURIComponent(req.params.objectKey ?? ''),

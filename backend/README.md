@@ -11,8 +11,9 @@ touched; dependencies live in `backend/package.json` only.
 ```bash
 cd backend
 npm install
-npm start          # build + run; default http://localhost:8787
-npm test           # build + node --test (13 tests)
+npm start          # build (data/vision/analytics first) + run; http://localhost:8787
+npm test           # build + node --test (13 tests; in-memory repo, mock analyzer)
+npm run seed       # load data/seed/demo-seed.json through the API (backend running)
 ```
 
 ## Environment (see root `.env.example`; all server-side, no secrets in code)
@@ -28,11 +29,14 @@ npm test           # build + node --test (13 tests)
 | `UPLOAD_URL_TTL_SECONDS` | `900` | Upload-URL expiry |
 | `READ_URL_TTL_SECONDS` | `600` | Read-URL expiry |
 | `ORPHAN_MAX_AGE_SECONDS` | `3600` | Age after which unfinalized uploads count as orphans |
-| `BACKEND_DATA_FILE` | *(unset = in-memory)* | Optional JSON snapshot file for the placeholder repository |
+| `SPACETIMEDB_URI` | *(unset = in-memory/JSON)* | SpacetimeDB HTTP API, e.g. `http://127.0.0.1:3000` |
+| `SPACETIMEDB_MODULE` | `scrap` | Database name |
+| `SPACETIMEDB_TOKEN` | – | Bearer token of the identity that published the module (reads private tables) |
+| `GEMINI_API_KEY` / `GEMINI_MODEL` | *(unset = mock analyzer)* | Read by `@scrap/vision`; set ⇒ live Gemini analysis and suggestions |
+| `BACKEND_DATA_FILE` | *(unset = in-memory)* | Optional JSON snapshot file for the offline repository |
 | `ATTENDANCE_MIN/MAX/SEED` | `300`/`1200`/– | Passed through for Agent 6's generator |
 
-`GEMINI_*` and `SPACETIMEDB_*` from `.env.example` belong to Agent 4 and the
-future SpacetimeDB integration; this package does not read them yet.
+`npm start` loads the repo-root `.env` (real environment variables win).
 
 ## Endpoints
 
@@ -102,6 +106,17 @@ Every error returns the shared envelope `{ "error": { code, message, details?, r
   above-baseline, invalid measurements — excluded, counted, never zero waste),
   and simulated-attendance normalization (`null` + reason when missing/zero).
 
+### Menu uploads (manager flow, parsed by `scrap-data`)
+- `POST /api/menus/upload` — typed days (`{ hallId, hallTimezone, days: [{ date, breakfast?, lunch?, dinner? }] }`, data/README "Typed/JSON bundle").
+- `POST /api/menus/csv?hallId=…&hallTimezone=…` — `text/csv` body (data/README "CSV").
+- Both return `{ results: [{ action: 'create'|'revise'|'unchanged', menu }] }`; re-uploads with changed items bump `menuVersion`.
+- `GET /api/menus/days?hallId=…&start=…&end=…` — `{ dates }` that have a menu (Menus calendar).
+
+### Dashboard read models (formulas from `@scrap/analytics`)
+- `GET /api/dashboard/daily?hallId=…&start=…&end=…` — per local date: eligible `observedRemainingAreaPx` (null = no analyzed plate), captured/analyzed dishes.
+- `GET /api/dashboard/cards?hallId=…&today=…` — today / this week (Mon start) / this month totals and the same-length previous window (null = no data).
+- `GET /api/dashboard/meal?hallId=…&date=…&meal=…` — analytics `ServiceSummary`, the persisted simulated attendance (generated once on first read), and an `Insight` (Gemini, or labeled `fallback_rules`; null when no item counted). Insights are stored per data version; a stored fallback is retried with Gemini.
+
 ### Suggestions
 - `GET /api/suggestions?hallId=…` — serves stored `Insight` records. Generation
   belongs to Agent 6; with none stored this returns
@@ -128,21 +143,28 @@ Every error returns the shared envelope `{ "error": { code, message, details?, r
 - **Agent 7 (dashboard):** all GET endpoints; images via
   `/api/images/:objectId/access` (renewable temporary URLs).
 
-## Persistence: PLACEHOLDER for SpacetimeDB (swap plan)
+## Persistence: SpacetimeDB (with an offline fallback)
 
-Agent 2's SpacetimeDB schema does not exist yet. `src/repo/repository.ts`
-defines the repository interface — record shapes verbatim from
-`contracts/types.ts` — and `src/repo/jsonFileRepository.ts` implements it
-in-memory (optional JSON snapshots via `BACKEND_DATA_FILE`). When the schema
-lands:
+`src/repo/repository.ts` is the persistence interface (record shapes verbatim
+from `contracts/types.ts`). `wiring.ts` picks:
 
-1. Each mutation method maps to one reducer (Agent 5 owns reducer sources);
-   each read maps to a query/subscription.
-2. Only the `Repository` implementation changes; services and routes do not.
-3. Gemini calls and object-storage network I/O already live in service code
-   (`ingestionService`, `imageService`) and must stay **outside** transactional
-   reducers (AGENTS.md 5.1): reducers only receive verified object references
-   and validated analysis results.
+- `SpacetimeRepository` when `SPACETIMEDB_URI` is set: each mutation calls one
+  reducer in `db/spacetimedb/src/reducers.ts` over the HTTP API
+  (`/v1/database/<db>/call/<reducer>`, entity passed as JSON); reads are SQL
+  (`/v1/database/<db>/sql`). `recordAnalysis(attempt, measurements)` is one
+  reducer call, so an attempt and its measurements commit atomically.
+- `JsonFileRepository` otherwise (in-memory, optional `BACKEND_DATA_FILE`
+  snapshots) — used by the test suite and fixture-only machines.
+
+Gemini calls and object-storage I/O stay in the service layer
+(`ingestionService`, `imageService`), never inside reducers (AGENTS.md 5.1).
+
+## Analysis
+
+`GeminiAnalyzer` (`src/analysis/geminiAnalyzer.ts`) adapts `@scrap/vision`'s
+`analyzeCapture` to the `Analyzer` seam and is used when the Gemini gateway is
+live; otherwise the deterministic `MockAnalyzer` runs. Mock gateway text is
+never used for suggestions.
 
 ## Object storage: `local-dev` adapter
 
@@ -157,9 +179,8 @@ independent.
 
 ## Assumptions (recorded per working rule 5)
 
-- Menu upload body is the `MenuBundle` JSON shape above; Agent 2's richer
-  parsing/validation helpers will replace the basic shape checks in
-  `src/services/validation.ts` when they exist.
+- `POST /api/menus` keeps the `MenuBundle` shape check (seed/API clients);
+  manager uploads go through `scrap-data` parsers on `/api/menus/upload|csv`.
 - `PUT /api/attendance` and `POST /api/suggestions` are provisional write
   paths for Agent 6 (first-write-wins attendance); Agent 6 may prefer direct
   service invocation later.
@@ -172,8 +193,8 @@ independent.
 
 ## Remaining work
 
-- Swap `JsonFileRepository` for SpacetimeDB reducers/queries (blocked on Agent 2).
 - Real object-storage provider adapter + CORS for browser direct upload
   (blocked on provider decision).
-- Wire Agent 4's real Gemini analyzer and Agent 6's analytics/suggestion and
-  attendance-generation services in place of the mock/stubs.
+- Reducer-level caller auth if the database is ever exposed beyond the backend.
+- Retire `SummaryService` in favor of the analytics summary once API consumers
+  move to `/api/dashboard/meal`.

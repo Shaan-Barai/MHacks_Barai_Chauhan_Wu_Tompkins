@@ -1,0 +1,304 @@
+/**
+ * Scrap SpacetimeDB module — REDUCERS (Agent 5).
+ *
+ * One reducer per mutation in backend/src/repo/repository.ts (db/README.md
+ * "Swap plan"). Each takes the contract entity as a JSON string — the backend
+ * already validated it with the data/ helpers — maps it onto the row shape
+ * documented in schema.ts, and re-checks the invariants a bad write would
+ * break (§7.1 baseline > 0, finite non-negative areas, no image bytes).
+ *
+ * No network I/O here: Gemini calls and object-storage operations stay in the
+ * backend service layer (AGENTS.md 5.1). Reducers only receive verified
+ * object references and validated analysis results.
+ *
+ * No caller auth: hackathon prototype on a trusted network (backend/README.md
+ * assumptions). The backend is the only intended caller.
+ */
+
+import { t, SenderError } from 'spacetimedb/server';
+import spacetimedb from './schema';
+
+type Json = Record<string, any>;
+
+function parse(json: string, what: string): Json {
+  let value: unknown;
+  try {
+    value = JSON.parse(json);
+  } catch {
+    throw new SenderError(`${what}: invalid JSON`);
+  }
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new SenderError(`${what}: expected a JSON object`);
+  }
+  return value as Json;
+}
+
+function str(o: Json, key: string, what: string): string {
+  const v = o[key];
+  if (typeof v !== 'string' || v.length === 0) throw new SenderError(`${what}.${key} must be a non-empty string`);
+  return v;
+}
+
+function optStr(o: Json, key: string): string | undefined {
+  return typeof o[key] === 'string' ? o[key] : undefined;
+}
+
+function num(o: Json, key: string, what: string, { min = 0, exclusive = false } = {}): number {
+  const v = o[key];
+  if (typeof v !== 'number' || !Number.isFinite(v) || (exclusive ? v <= min : v < min)) {
+    throw new SenderError(`${what}.${key} must be a finite number ${exclusive ? '>' : '>='} ${min}`);
+  }
+  return v;
+}
+
+function optNum(o: Json, key: string): number | undefined {
+  return typeof o[key] === 'number' && Number.isFinite(o[key]) ? o[key] : undefined;
+}
+
+function strArray(o: Json, key: string): string[] {
+  const v = o[key];
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+}
+
+function geometry(o: Json, what: string) {
+  const g = o.geometry;
+  if (typeof g !== 'object' || g === null) throw new SenderError(`${what}.geometry is required`);
+  return {
+    widthPx: num(g, 'widthPx', `${what}.geometry`, { exclusive: true }),
+    heightPx: num(g, 'heightPx', `${what}.geometry`, { exclusive: true }),
+    coordinateSpace: str(g, 'coordinateSpace', `${what}.geometry`),
+    plateShape: optStr(g, 'plateShape'),
+    plateDiameterPx: optNum(g, 'plateDiameterPx'),
+  };
+}
+
+// --- menus -----------------------------------------------------------------
+
+/** Upsert the meal_service row and replace its menu_item rows. */
+export const upsert_menu = spacetimedb.reducer({ menuJson: t.string() }, (ctx, { menuJson }) => {
+  const bundle = parse(menuJson, 'menu');
+  const s = bundle.service;
+  if (typeof s !== 'object' || s === null) throw new SenderError('menu.service is required');
+  const service = {
+    serviceId: str(s, 'serviceId', 'service'),
+    hallId: str(s, 'hallId', 'service'),
+    hallTimezone: str(s, 'hallTimezone', 'service'),
+    serviceDate: str(s, 'serviceDate', 'service'),
+    mealLabel: str(s, 'mealLabel', 'service'),
+    menuId: str(s, 'menuId', 'service'),
+    menuVersion: num(s, 'menuVersion', 'service', { min: 1 }),
+  };
+  if (!Array.isArray(bundle.items)) throw new SenderError('menu.items must be an array');
+
+  const existing = ctx.db.mealService.serviceId.find(service.serviceId);
+  if (existing) {
+    ctx.db.menuItem.menuId.delete(existing.menuId);
+    ctx.db.mealService.serviceId.update(service);
+  } else {
+    ctx.db.mealService.insert(service);
+  }
+  ctx.db.menuItem.menuId.delete(service.menuId);
+  for (const raw of bundle.items as Json[]) {
+    const itemMenuId = str(raw, 'menuId', 'item');
+    if (itemMenuId !== service.menuId) throw new SenderError(`item ${raw.itemId} belongs to menu ${itemMenuId}`);
+    ctx.db.menuItem.insert({
+      itemId: str(raw, 'itemId', 'item'),
+      menuId: itemMenuId,
+      displayName: str(raw, 'displayName', 'item'),
+      category: optStr(raw, 'category'),
+      description: optStr(raw, 'description'),
+    });
+  }
+});
+
+// --- reference portions ----------------------------------------------------
+
+export const upsert_reference_portion = spacetimedb.reducer({ refJson: t.string() }, (ctx, { refJson }) => {
+  const r = parse(refJson, 'reference');
+  const row = {
+    baselineId: str(r, 'baselineId', 'reference'),
+    baselineVersion: num(r, 'baselineVersion', 'reference', { min: 1 }),
+    itemId: str(r, 'itemId', 'reference'),
+    // §7.1: the denominator must be finite and > 0; a missing baseline is the absence of a row.
+    expectedAreaPx: num(r, 'expectedAreaPx', 'reference', { exclusive: true }),
+    geometry: geometry(r, 'reference'),
+    source: str(r, 'source', 'reference'),
+    referenceImageObjectId: optStr(r, 'referenceImageObjectId'),
+  };
+  if (ctx.db.referencePortion.baselineId.find(row.baselineId)) ctx.db.referencePortion.baselineId.update(row);
+  else ctx.db.referencePortion.insert(row);
+});
+
+export const delete_reference_portion = spacetimedb.reducer({ baselineId: t.string() }, (ctx, { baselineId }) => {
+  ctx.db.referencePortion.baselineId.delete(baselineId);
+});
+
+// --- image objects (references + metadata only) ----------------------------
+
+export const upsert_image_object = spacetimedb.reducer({ objectJson: t.string() }, (ctx, { objectJson }) => {
+  const o = parse(objectJson, 'imageObject');
+  const association = o.association;
+  if (typeof association !== 'object' || association === null) {
+    throw new SenderError('imageObject.association is required');
+  }
+  const row = {
+    objectId: str(o, 'objectId', 'imageObject'),
+    provider: str(o, 'provider', 'imageObject'),
+    container: str(o, 'container', 'imageObject'),
+    objectKey: str(o, 'objectKey', 'imageObject'),
+    publicUrl: optStr(o, 'publicUrl'),
+    mimeType: str(o, 'mimeType', 'imageObject'),
+    sizeBytes: BigInt(Math.trunc(num(o, 'sizeBytes', 'imageObject'))),
+    widthPx: optNum(o, 'widthPx'),
+    heightPx: optNum(o, 'heightPx'),
+    uploadedAt: optStr(o, 'uploadedAt'),
+    associationKind: str(association, 'kind', 'imageObject.association'),
+    associationId: str(association, 'id', 'imageObject.association'),
+    state: str(o, 'state', 'imageObject'),
+  };
+  if (ctx.db.imageObject.objectId.find(row.objectId)) ctx.db.imageObject.objectId.update(row);
+  else ctx.db.imageObject.insert(row);
+});
+
+export const delete_image_object = spacetimedb.reducer({ objectId: t.string() }, (ctx, { objectId }) => {
+  ctx.db.imageObject.objectId.delete(objectId);
+});
+
+// --- capture events (idempotency key: eventId) -----------------------------
+
+export const upsert_capture_event = spacetimedb.reducer({ eventJson: t.string() }, (ctx, { eventJson }) => {
+  const e = parse(eventJson, 'captureEvent');
+  const row = {
+    eventId: str(e, 'eventId', 'captureEvent'),
+    hallId: str(e, 'hallId', 'captureEvent'),
+    serviceId: str(e, 'serviceId', 'captureEvent'),
+    capturedAt: str(e, 'capturedAt', 'captureEvent'),
+    imageObjectId: str(e, 'imageObjectId', 'captureEvent'),
+    geometry: geometry(e, 'captureEvent'),
+    source: str(e, 'source', 'captureEvent'),
+    qualityFlags: strArray(e, 'qualityFlags'),
+    state: str(e, 'state', 'captureEvent'),
+  };
+  // Retries update the same event; they never create another dish.
+  if (ctx.db.captureEvent.eventId.find(row.eventId)) ctx.db.captureEvent.eventId.update(row);
+  else ctx.db.captureEvent.insert(row);
+});
+
+// --- analysis attempts + measurements --------------------------------------
+
+function attemptRow(a: Json) {
+  const versions = typeof a.baselineVersions === 'object' && a.baselineVersions !== null ? a.baselineVersions : {};
+  const error = typeof a.error === 'object' && a.error !== null ? a.error : undefined;
+  return {
+    attemptId: str(a, 'attemptId', 'attempt'),
+    eventId: str(a, 'eventId', 'attempt'),
+    menuId: str(a, 'menuId', 'attempt'),
+    menuVersion: num(a, 'menuVersion', 'attempt'),
+    baselineVersions: Object.entries(versions)
+      .filter(([, v]) => typeof v === 'number')
+      .map(([itemId, v]) => ({ itemId, baselineVersion: v as number })),
+    model: str(a, 'model', 'attempt'),
+    promptVersion: str(a, 'promptVersion', 'attempt'),
+    status: str(a, 'status', 'attempt'),
+    error: error
+      ? {
+          code: str(error, 'code', 'attempt.error'),
+          message: str(error, 'message', 'attempt.error'),
+          detailsJson: error.details === undefined ? undefined : JSON.stringify(error.details),
+          retryable: error.retryable === true,
+        }
+      : undefined,
+    qualityFlags: strArray(a, 'qualityFlags'),
+    createdAt: str(a, 'createdAt', 'attempt'),
+  };
+}
+
+function measurementRow(m: Json) {
+  const flags = strArray(m, 'qualityFlags');
+  const rawWasteFraction = optNum(m, 'rawWasteFraction');
+  const displayWastePercent = optNum(m, 'displayWastePercent');
+  const unavailableReason = optStr(m, 'unavailableReason');
+  if (rawWasteFraction !== undefined && rawWasteFraction > 1 && !flags.includes('above_baseline')) {
+    throw new SenderError(`measurement ${m.measurementId}: fraction > 1 must carry 'above_baseline'`);
+  }
+  if (displayWastePercent === undefined && unavailableReason === undefined) {
+    throw new SenderError(`measurement ${m.measurementId}: unavailableReason required when no percentage`);
+  }
+  return {
+    measurementId: str(m, 'measurementId', 'measurement'),
+    eventId: str(m, 'eventId', 'measurement'),
+    attemptId: str(m, 'attemptId', 'measurement'),
+    itemId: optStr(m, 'itemId'), // null/absent = unknown food
+    remainingAreaPx: num(m, 'remainingAreaPx', 'measurement'),
+    baselineId: optStr(m, 'baselineId'),
+    baselineAreaPx: optNum(m, 'baselineAreaPx'),
+    rawWasteFraction,
+    displayWastePercent,
+    unavailableReason,
+    method: str(m, 'method', 'measurement'),
+    qualityFlags: flags,
+  };
+}
+
+/** Append one attempt and its measurements in a single transaction. */
+export const record_analysis = spacetimedb.reducer(
+  { attemptJson: t.string(), measurementsJson: t.string() },
+  (ctx, { attemptJson, measurementsJson }) => {
+    const attempt = attemptRow(parse(attemptJson, 'attempt'));
+    if (ctx.db.analysisAttempt.attemptId.find(attempt.attemptId)) {
+      throw new SenderError(`attempt ${attempt.attemptId} already recorded`);
+    }
+    let list: unknown;
+    try {
+      list = JSON.parse(measurementsJson);
+    } catch {
+      throw new SenderError('measurements: invalid JSON');
+    }
+    if (!Array.isArray(list)) throw new SenderError('measurements must be an array');
+    ctx.db.analysisAttempt.insert(attempt);
+    for (const raw of list as Json[]) {
+      const row = measurementRow(raw);
+      if (row.attemptId !== attempt.attemptId) throw new SenderError(`measurement ${row.measurementId} is for another attempt`);
+      ctx.db.foodMeasurement.insert(row);
+    }
+  },
+);
+
+// --- attendance (SIMULATED) ------------------------------------------------
+
+export const upsert_attendance = spacetimedb.reducer({ attendanceJson: t.string() }, (ctx, { attendanceJson }) => {
+  const a = parse(attendanceJson, 'attendance');
+  if (a.source !== 'simulated') throw new SenderError("attendance.source must be 'simulated' in the prototype");
+  const row = {
+    serviceId: str(a, 'serviceId', 'attendance'),
+    hallId: str(a, 'hallId', 'attendance'),
+    serviceDate: str(a, 'serviceDate', 'attendance'),
+    count: num(a, 'count', 'attendance'),
+    source: 'simulated',
+    configuredMin: num(a, 'configuredMin', 'attendance'),
+    configuredMax: num(a, 'configuredMax', 'attendance'),
+    seed: optStr(a, 'seed'),
+    generatorVersion: str(a, 'generatorVersion', 'attendance'),
+  };
+  if (ctx.db.attendance.serviceId.find(row.serviceId)) ctx.db.attendance.serviceId.update(row);
+  else ctx.db.attendance.insert(row);
+});
+
+// --- insights --------------------------------------------------------------
+
+export const upsert_insight = spacetimedb.reducer({ insightJson: t.string() }, (ctx, { insightJson }) => {
+  const i = parse(insightJson, 'insight');
+  const row = {
+    insightId: str(i, 'insightId', 'insight'),
+    hallId: str(i, 'hallId', 'insight'),
+    windowStart: str(i, 'windowStart', 'insight'),
+    windowEnd: str(i, 'windowEnd', 'insight'),
+    metricsJson: JSON.stringify(typeof i.metrics === 'object' && i.metrics !== null ? i.metrics : {}),
+    dataVersion: str(i, 'dataVersion', 'insight'),
+    recommendation: str(i, 'recommendation', 'insight'),
+    source: str(i, 'source', 'insight'),
+    generatedAt: str(i, 'generatedAt', 'insight'),
+  };
+  if (ctx.db.insight.insightId.find(row.insightId)) ctx.db.insight.insightId.update(row);
+  else ctx.db.insight.insert(row);
+});

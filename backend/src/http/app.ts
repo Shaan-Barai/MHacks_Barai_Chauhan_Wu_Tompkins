@@ -7,6 +7,7 @@
  */
 
 import express, { type NextFunction, type Request, type Response } from 'express';
+import { parseMenuCsv, parseMenuUpload, planMenuRevision } from 'scrap-data';
 import { HttpError, notFound, badRequest, toHttpError, apiError } from '../errors.js';
 import type { BackendConfig } from '../config.js';
 import type { Repository } from '../repo/repository.js';
@@ -14,6 +15,8 @@ import type { ObjectStorageAdapter } from '../storage/objectStorage.js';
 import type { ImageService } from '../services/imageService.js';
 import type { IngestionService } from '../services/ingestionService.js';
 import type { SummaryService } from '../services/summaryService.js';
+import type { DashboardService } from '../services/dashboardService.js';
+import type { MealLabel, MenuBundle } from '../types.js';
 import {
   validateAttendance,
   validateCaptureSubmission,
@@ -29,10 +32,11 @@ export interface AppDeps {
   images: ImageService;
   ingestion: IngestionService;
   summary: SummaryService;
+  dashboard: DashboardService;
 }
 
 export function createApp(deps: AppDeps): express.Express {
-  const { config, repo, storage, images, ingestion, summary } = deps;
+  const { config, repo, storage, images, ingestion, summary, dashboard } = deps;
   const app = express();
   app.use(express.json({ limit: '1mb' }));
 
@@ -82,6 +86,54 @@ export function createApp(deps: AppDeps): express.Express {
         });
       }
       res.json({ menus });
+    }),
+  );
+
+  // Manager uploads (UI.md setup step 2): typed days or CSV, parsed by
+  // Agent 2's helpers; re-uploads become numbered revisions (data/ planMenuRevision).
+  async function saveParsedMenus(bundles: MenuBundle[]) {
+    const results = [];
+    for (const bundle of bundles) {
+      const plan = planMenuRevision(await repo.getMenuByService(bundle.service.serviceId), bundle);
+      if (plan.action !== 'unchanged') await repo.upsertMenu(plan.bundle);
+      results.push({ action: plan.action, menu: plan.bundle });
+    }
+    return results;
+  }
+
+  app.post(
+    '/api/menus/upload',
+    wrap(async (req, res) => {
+      res.status(201).json({ results: await saveParsedMenus(parseMenuUpload(req.body)) });
+    }),
+  );
+
+  app.post(
+    '/api/menus/csv',
+    express.text({ type: ['text/csv', 'text/plain'], limit: '1mb' }),
+    wrap(async (req, res) => {
+      const hallId = requireQuery(req, 'hallId');
+      const hallTimezone = requireQuery(req, 'hallTimezone');
+      if (typeof req.body !== 'string') {
+        throw badRequest('INVALID_CSV', 'Send the CSV file as text/csv.');
+      }
+      res.status(201).json({ results: await saveParsedMenus(parseMenuCsv(req.body, { hallId, hallTimezone })) });
+    }),
+  );
+
+  /** Which local dates in [start, end] have at least one meal's menu (Menus calendar). */
+  app.get(
+    '/api/menus/days',
+    wrap(async (req, res) => {
+      const hallId = requireQuery(req, 'hallId');
+      const start = requireQuery(req, 'start');
+      const end = requireQuery(req, 'end');
+      const dates = new Set(
+        (await repo.listServices(hallId))
+          .map((s) => s.serviceDate)
+          .filter((d) => d >= start && d <= end),
+      );
+      res.json({ dates: [...dates].sort() });
     }),
   );
 
@@ -329,6 +381,32 @@ export function createApp(deps: AppDeps): express.Express {
       const hallId = requireQuery(req, 'hallId');
       const serviceId = requireQuery(req, 'serviceId');
       res.json(await summary.getSummary(hallId, serviceId));
+    }),
+  );
+
+  // ---- dashboard read models for the UI (formulas from analytics/) ----
+  app.get(
+    '/api/dashboard/daily',
+    wrap(async (req, res) => {
+      const hallId = requireQuery(req, 'hallId');
+      res.json({ days: await dashboard.daily(hallId, requireQuery(req, 'start'), requireQuery(req, 'end')) });
+    }),
+  );
+
+  app.get(
+    '/api/dashboard/cards',
+    wrap(async (req, res) => {
+      const hallId = requireQuery(req, 'hallId');
+      res.json(await dashboard.cards(hallId, requireQuery(req, 'today')));
+    }),
+  );
+
+  app.get(
+    '/api/dashboard/meal',
+    wrap(async (req, res) => {
+      const hallId = requireQuery(req, 'hallId');
+      const date = requireQuery(req, 'date');
+      res.json(await dashboard.meal(hallId, date, requireQuery(req, 'meal') as MealLabel));
     }),
   );
 

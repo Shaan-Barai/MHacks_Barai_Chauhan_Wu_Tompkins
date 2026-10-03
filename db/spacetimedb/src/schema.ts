@@ -166,7 +166,7 @@ const analysisAttempt = table(
     menuId: t.string(),
     menuVersion: t.u32(),
     baselineVersions: t.array(BaselineVersionEntry),
-    model: t.string(), // e.g. 'gemini-2.5-flash'
+    model: t.string(), // e.g. 'gemini-3.8-flash'
     promptVersion: t.string(),
     status: t.string(), // 'succeeded' | 'needs_review' | 'failed'
     error: t.option(StoredApiError),
@@ -253,8 +253,6 @@ const spacetimedb = schema({
 
 export default spacetimedb;
 
-// Agent 5: declare reducers against this schema, e.g.
-//   export const upsertMenu = spacetimedb.reducer({ ... }, (ctx, args) => { ... });
-// One reducer per Repository mutation in backend/src/repo/repository.ts
-// (see db/README.md "Swap plan"). Reducers must validate inputs with the
-// data/ helpers and must not perform network I/O.
+// Reducers (Agent 5) live in reducers.ts — one per Repository mutation in
+// backend/src/repo/repository.ts (db/README.md "Swap plan"); index.ts is the
+// module entry that exports both. Reducers must not perform network I/O.

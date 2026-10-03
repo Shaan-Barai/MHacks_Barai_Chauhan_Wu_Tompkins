@@ -59,6 +59,8 @@ export interface Repository {
   // --- analysis attempts (append-only per event) ---
   addAnalysisAttempt(attempt: AnalysisAttempt): Promise<void>;
   listAnalysisAttempts(eventId: string): Promise<AnalysisAttempt[]>;
+  /** Append an attempt and its measurements together (one reducer call = one transaction). */
+  recordAnalysis(attempt: AnalysisAttempt, measurements: FoodMeasurement[]): Promise<void>;
 
   // --- food measurements (owned by one attempt) ---
   addMeasurements(measurements: FoodMeasurement[]): Promise<void>;

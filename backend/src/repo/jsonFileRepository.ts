@@ -138,6 +138,10 @@ export class JsonFileRepository implements Repository {
     this.analysisAttempts.set(attempt.eventId, list);
     this.persist();
   }
+  async recordAnalysis(attempt: AnalysisAttempt, measurements: FoodMeasurement[]): Promise<void> {
+    await this.addAnalysisAttempt(attempt);
+    if (measurements.length > 0) await this.addMeasurements(measurements);
+  }
   async listAnalysisAttempts(eventId: string): Promise<AnalysisAttempt[]> {
     return (this.analysisAttempts.get(eventId) ?? []).map((a) => structuredClone(a));
   }

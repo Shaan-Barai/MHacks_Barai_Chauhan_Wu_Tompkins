@@ -45,6 +45,10 @@ export function conflict(code: string, message: string, details?: Record<string,
 /** Coerce any thrown value into an HttpError with an ApiError body. */
 export function toHttpError(err: unknown): HttpError {
   if (err instanceof HttpError) return err;
+  // data/ parsers throw DataValidationError carrying a ready ApiError: bad input, not a server fault.
+  if (err instanceof Error && err.name === 'DataValidationError' && 'apiError' in err) {
+    return new HttpError(400, (err as Error & { apiError: ApiError }).apiError);
+  }
   const message =
     err instanceof Error ? err.message : 'Something went wrong on the server. Please try again.';
   return new HttpError(500, apiError('INTERNAL_ERROR', message, true));

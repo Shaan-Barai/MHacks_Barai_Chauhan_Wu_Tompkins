@@ -16,8 +16,10 @@ export interface BackendConfig {
     /** Uploads never finalized after this long count as orphans. */
     orphanMaxAgeMs: number;
   };
-  /** Optional JSON persistence file for the placeholder repository. */
+  /** Optional JSON persistence file for the offline/test repository. */
   dataFile?: string;
+  /** SpacetimeDB persistence; when unset the JSON/in-memory repository is used. */
+  spacetime?: { uri: string; module: string; token?: string };
   attendance: { min: number; max: number; seed?: string };
 }
 
@@ -48,6 +50,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BackendConfig 
       orphanMaxAgeMs: int('ORPHAN_MAX_AGE_SECONDS', 60 * 60) * 1000,
     },
     dataFile: env.BACKEND_DATA_FILE || undefined,
+    spacetime: env.SPACETIMEDB_URI
+      ? {
+          uri: env.SPACETIMEDB_URI,
+          module: env.SPACETIMEDB_MODULE || 'scrap',
+          token: env.SPACETIMEDB_TOKEN || undefined,
+        }
+      : undefined,
     attendance: {
       min: int('ATTENDANCE_MIN', 300),
       max: int('ATTENDANCE_MAX', 1200),

@@ -42,7 +42,10 @@ db/
 └── spacetimedb/          # the module project (`spacetime publish -p db/spacetimedb`)
     ├── package.json      # dependency: spacetimedb ^2.10.2
     ├── tsconfig.json     # typecheck only; the CLI does the real build
-    └── src/index.ts      # TABLE DEFINITIONS (Agent 2) + schema export
+    └── src/
+        ├── index.ts      # module entry (Agent 1): re-exports schema + reducers
+        ├── schema.ts     # TABLE DEFINITIONS (Agent 2) + schema export
+        └── reducers.ts   # REDUCERS (Agent 5): one per backend Repository mutation
 ```
 
 ## Publish / generate
@@ -57,6 +60,7 @@ spacetime start
 
 # create/update the database
 spacetime publish --module-path . --server local scrap
+# (the backend must be the publishing identity — see root README setup step 3)
 
 # client bindings (Agent 1 decides the committed location)
 spacetime generate --lang typescript --out-dir ../../frontend/src/module_bindings --module-path .
@@ -150,9 +154,15 @@ reducer; reads become queries/subscriptions; Gemini calls and object-storage
 network I/O stay **outside** reducers (service layer) — reducers only receive
 verified object references and validated analysis results.
 
-Agent 5 declares reducers in a separate file importing the schema from
-`src/index.ts` (see the comment at its end); table definitions change only
-through Agent 2.
+Agent 5's reducers live in `src/reducers.ts` (importing the schema from
+`src/schema.ts`): `upsert_menu`, `upsert_reference_portion`,
+`delete_reference_portion`, `upsert_image_object`, `delete_image_object`,
+`upsert_capture_event`, `record_analysis` (attempt + measurements, one
+transaction), `upsert_attendance` (source must be `simulated`), and
+`upsert_insight`. Each takes the contract entity as a JSON string and
+re-checks the invariants a bad write would break (§7.1 baseline > 0, finite
+non-negative areas, `above_baseline` on fractions > 1). Table definitions
+change only through Agent 2.
 
 ## Seeds
 

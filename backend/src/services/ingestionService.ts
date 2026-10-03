@@ -153,8 +153,7 @@ export class IngestionService {
       measurements = [];
     }
 
-    await this.repo.addAnalysisAttempt(attempt);
-    if (measurements.length > 0) await this.repo.addMeasurements(measurements);
+    await this.repo.recordAnalysis(attempt, measurements);
 
     const finalState: ProcessingState =
       attempt.status === 'succeeded'

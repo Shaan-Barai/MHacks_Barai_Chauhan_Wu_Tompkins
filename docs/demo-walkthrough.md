@@ -4,50 +4,42 @@ Audience: dining-hall staff or hackathon judges. Goal: show the full Scrap loop 
 
 ## Before you start
 
-1. Complete [environment-setup.md](environment-setup.md).
-2. Prefer **replay** captures labeled as such — do not imply a live conveyor unless hardware is connected.
-3. Keep the dashboard copy honest: **AI-estimated leftover area (pixels)** and **simulated attendance**.
+1. Complete [environment-setup.md](environment-setup.md) and the root README setup (SpacetimeDB, backend, frontend running; demo data seeded and replayed).
+2. Captures are **replays** of AI-generated synthetic plates (`capture/fixtures/replay/`) — do not imply a live conveyor.
+3. Keep the copy honest: **AI-estimated leftover area** ("waste units" = 1,000 px²) and **simulated attendance**.
 
 ## Script (≈5 minutes)
 
 ### 1. Context (30s)
 
-> Scrap watches finished plates on the way to dish return. We estimate leftover food as pixel area against an uneaten reference serving, store results, and surface suggestions. Numbers are prototype AI estimates, not weighed food.
+> Scrap watches finished plates on the way to dish return. Gemini matches the food to today's menu and estimates leftover area in pixels against an uneaten reference serving; we store the results and surface suggestions. Numbers are prototype AI estimates, not weighed food.
 
-### 2. Menu + reference (1 min)
+### 2. Menus (1 min)
 
-1. Open the dashboard setup / Menus flow.
-2. Upload the sample lunch menu for `hall-main` / `2026-10-03` / lunch.
-3. Confirm Scrambled Eggs has a reference portion (`expectedAreaPx = 48000` in the vertical-slice fixture).
+1. Open **Menus**. The calendar shows Oct 1–3 saved (demo seed) and missing days highlighted in Squash.
+2. Click a highlighted day, type a few items under Lunch, **Save this day** — the day turns white. The menu is validated by the backend and stored in SpacetimeDB.
 
-### 3. Capture / replay (1 min)
+### 3. Capture (1 min)
 
-1. Replay fixture capture `cap_01J9ABCD` (or upload the matching labeled image).
-2. Confirm the image lands in **external object storage** and SpacetimeDB only stores the object reference (`provider` / `container` / `objectKey`).
-3. Confirm processing reaches `succeeded` (or an explicit `needs_review` / `failed` with a plain-language error).
+Run `cd capture && npm run replay` (or show its earlier output). Each plate is normalized, uploaded to object storage, finalized, and submitted; the backend sends it to Gemini with that meal's menu and reference portions. Point out:
 
-### 4. Results (1.5 min)
+- SpacetimeDB holds only the image **reference** (`spacetime sql --server local scrap "SELECT object_key, state FROM image_object"` — private table, owner token required) — never bytes.
+- Running replay again says **already ingested**: the same dish is never counted twice.
 
-On the overview:
+### 4. Dashboard (1.5 min)
 
-- Overall observed waste ≈ **31%** for the vertical-slice single-item case (14880 / 48000).
-- Top item: Scrambled Eggs.
-- Attendance shows **simulated** (example fixture count `742`).
-- Per-attendee leftover area is labeled as **observed leftover area per simulated attendee**.
+1. **Dashboard → Today**. Summary cards and the chart show today's observed leftover area.
+2. Right panel → **Dinner**: total waste units, plates scanned, items **left out of totals** (e.g. an estimate above a full serving), and meal swipes with the **simulated** badge.
+3. **Most wasted** item with its share of the meal's waste.
 
 ### 5. Suggestion (1 min)
 
-Open Insights and read the grounded recommendation. Point at the supporting metrics (top item share, analyzed vs excluded captures). If Gemini is unavailable, show the labeled **fallback** suggestion state instead of inventing causation.
+Read the **Gemini tip** under Most wasted. It cites the numbers on screen, mentions limited coverage, and calls it an observed pattern. If Gemini is unavailable the box is labeled **rule-based (AI unavailable)** instead.
 
 ### 6. Failure honesty (30s)
 
-Optionally open a failed/invalid analysis fixture and show that exclusions are counted — failed plates are **not** zero waste.
-
-## Fixture IDs used in this script
-
-- Scenario: `vertical-slice` → `tests/fixtures/scenarios/vertical-slice.json`
-- Contract samples: `contracts/samples.json`
+Switch to **Yesterday → Lunch**: one plate was scanned, but every estimate was left out, so the panel says so instead of showing zero waste.
 
 ## After the demo
 
-Record anything that diverged from fixtures in [verification-report.md](verification-report.md). Coordinate fixes with the owning agent; Agent 8 does not edit feature modules.
+Record anything that diverged in [verification-report.md](verification-report.md). Coordinate fixes with the owning agent; Agent 8 does not edit feature modules.

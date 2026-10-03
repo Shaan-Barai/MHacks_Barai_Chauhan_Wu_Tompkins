@@ -26,4 +26,8 @@ Every scenario sets `"mode": "fixture"` today. Live-provider fixtures will be ad
 
 ## Image bytes
 
-Scenario JSON contains **metadata only**. Any replay image files added later must live under object storage (or a clearly labeled `tests/fixtures/images/` path that is never embedded into SpacetimeDB rows).
+Scenario JSON contains **metadata only**. Demo replay images live in
+[`capture/fixtures/replay/images/`](../capture/fixtures/replay/) — six
+AI-generated (`gemini-3.1-flash-image`, 2026-10-03) synthetic top-down plates
+of demo-seed menu items, no people or real halls. They are uploaded to object
+storage by the replay command and are never embedded in SpacetimeDB rows.

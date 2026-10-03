@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "id": "above-baseline",
+  "title": "Above-baseline raw fraction is flagged and excluded from ordinary aggregates",
+  "mode": "fixture",
+  "input": {
+    "foodMeasurements": [
+      {
+        "measurementId": "meas_above",
+        "eventId": "cap_above",
+        "attemptId": "att_above",
+        "itemId": "item_pasta",
+        "remainingAreaPx": 60000,
+        "baselineId": "base_pasta_v1",
+        "baselineAreaPx": 40000,
+        "rawWasteFraction": 1.5,
+        "displayWastePercent": 100,
+        "method": "gemini_area_estimate",
+        "qualityFlags": ["ai_estimate", "above_baseline"]
+      },
+      {
+        "measurementId": "meas_ok",
+        "eventId": "cap_above",
+        "attemptId": "att_above",
+        "itemId": "item_salad",
+        "remainingAreaPx": 10000,
+        "baselineId": "base_salad_v1",
+        "baselineAreaPx": 20000,
+        "rawWasteFraction": 0.5,
+        "displayWastePercent": 50,
+        "method": "gemini_area_estimate",
+        "qualityFlags": ["ai_estimate"]
+      }
+    ]
+  },
+  "expected": {
+    "aboveBaselineMustCarryFlag": true,
+    "displayClampMustNotHideFlag": true,
+    "aggregates": {
+      "eligibleMeasurementCount": 1,
+      "excludedMeasurementCount": 1,
+      "observedRemainingAreaPx": 10000,
+      "overallWastePercent": 50
+    }
+  }
+}

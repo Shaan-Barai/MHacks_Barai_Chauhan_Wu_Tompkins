@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "id": "dashboard-labels",
+  "title": "Demo/simulated/estimated labels must be consistent and visible",
+  "mode": "fixture",
+  "input": {
+    "dashboardCopyCandidates": [
+      {
+        "metric": "overallWastePercent",
+        "value": 31,
+        "requiredPhrases": ["AI estimate", "observed", "pixels"]
+      },
+      {
+        "metric": "attendance",
+        "value": 742,
+        "requiredPhrases": ["simulated"]
+      },
+      {
+        "metric": "perAttendee",
+        "value": 20.05,
+        "requiredPhrases": ["simulated attendee", "leftover area"]
+      },
+      {
+        "metric": "captureSource",
+        "value": "replay",
+        "requiredPhrases": ["replay"]
+      },
+      {
+        "metric": "exclusionCount",
+        "value": 3,
+        "requiredPhrases": ["excluded"]
+      }
+    ],
+    "forbiddenClaims": [
+      "grams",
+      "kilograms",
+      "measured weight",
+      "real attendance",
+      "meal swipe",
+      "carbon",
+      "dollars of waste"
+    ]
+  },
+  "expected": {
+    "allDemoLabelsPresent": true,
+    "noForbiddenClaims": true
+  }
+}

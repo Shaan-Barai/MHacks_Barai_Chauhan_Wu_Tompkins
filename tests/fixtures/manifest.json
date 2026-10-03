@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "owner": "agent8",
+  "coordinateSpace": "topdown-normalized-v1",
+  "contractSamples": "../contracts/samples.json",
+  "scenarios": [
+    {
+      "id": "vertical-slice",
+      "file": "scenarios/vertical-slice.json",
+      "mode": "fixture",
+      "covers": ["8.1", "completion-1", "completion-2", "completion-3", "completion-5", "completion-6"]
+    },
+    {
+      "id": "unknown-food",
+      "file": "scenarios/unknown-food.json",
+      "mode": "fixture",
+      "covers": ["8.2", "section-7-unknown"]
+    },
+    {
+      "id": "missing-baseline",
+      "file": "scenarios/missing-baseline.json",
+      "mode": "fixture",
+      "covers": ["8.2", "section-7-missing-baseline"]
+    },
+    {
+      "id": "empty-plate",
+      "file": "scenarios/empty-plate.json",
+      "mode": "fixture",
+      "covers": ["8.2", "section-7-zero-leftover"]
+    },
+    {
+      "id": "above-baseline",
+      "file": "scenarios/above-baseline.json",
+      "mode": "fixture",
+      "covers": ["8.2", "8.3", "section-7-above-baseline"]
+    },
+    {
+      "id": "overlapping-areas",
+      "file": "scenarios/overlapping-areas.json",
+      "mode": "fixture",
+      "covers": ["8.2", "section-7-no-overlap"]
+    },
+    {
+      "id": "repeated-capture",
+      "file": "scenarios/repeated-capture.json",
+      "mode": "fixture",
+      "covers": ["8.2", "completion-4", "idempotency"]
+    },
+    {
+      "id": "attendance-stable",
+      "file": "scenarios/attendance-stable.json",
+      "mode": "fixture",
+      "covers": ["8.2", "8.3", "completion-5"]
+    },
+    {
+      "id": "aggregate-handcalc",
+      "file": "scenarios/aggregate-handcalc.json",
+      "mode": "fixture",
+      "covers": ["8.3", "section-7-aggregates"]
+    },
+    {
+      "id": "filter-isolation",
+      "file": "scenarios/filter-isolation.json",
+      "mode": "fixture",
+      "covers": ["8.3"]
+    },
+    {
+      "id": "invalid-analysis",
+      "file": "scenarios/invalid-analysis.json",
+      "mode": "fixture",
+      "covers": ["8.2", "8.3", "completion-7"]
+    },
+    {
+      "id": "storage-refs-only",
+      "file": "scenarios/storage-refs-only.json",
+      "mode": "fixture",
+      "covers": ["8.6", "completion-9"]
+    },
+    {
+      "id": "upload-failures",
+      "file": "scenarios/upload-failures.json",
+      "mode": "fixture",
+      "covers": ["8.6"]
+    },
+    {
+      "id": "dashboard-labels",
+      "file": "scenarios/dashboard-labels.json",
+      "mode": "fixture",
+      "covers": ["8.4"]
+    }
+  ]
+}

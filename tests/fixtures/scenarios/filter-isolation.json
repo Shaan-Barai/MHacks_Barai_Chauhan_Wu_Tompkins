@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "id": "filter-isolation",
+  "title": "Hall/date/service filters isolate the correct records",
+  "mode": "fixture",
+  "input": {
+    "filter": {
+      "hallId": "hall-main",
+      "serviceDate": "2026-10-03",
+      "serviceId": "svc_hall-main_2026-10-03_lunch"
+    },
+    "captures": [
+      {
+        "eventId": "cap_match",
+        "hallId": "hall-main",
+        "serviceId": "svc_hall-main_2026-10-03_lunch",
+        "serviceDate": "2026-10-03"
+      },
+      {
+        "eventId": "cap_wrong_hall",
+        "hallId": "hall-north",
+        "serviceId": "svc_hall-north_2026-10-03_lunch",
+        "serviceDate": "2026-10-03"
+      },
+      {
+        "eventId": "cap_wrong_meal",
+        "hallId": "hall-main",
+        "serviceId": "svc_hall-main_2026-10-03_dinner",
+        "serviceDate": "2026-10-03"
+      },
+      {
+        "eventId": "cap_wrong_day",
+        "hallId": "hall-main",
+        "serviceId": "svc_hall-main_2026-10-02_lunch",
+        "serviceDate": "2026-10-02"
+      }
+    ],
+    "foodMeasurements": [
+      {
+        "measurementId": "m_match",
+        "eventId": "cap_match",
+        "itemId": "item_scrambled-eggs",
+        "remainingAreaPx": 10000,
+        "baselineAreaPx": 40000,
+        "rawWasteFraction": 0.25,
+        "displayWastePercent": 25,
+        "method": "gemini_area_estimate",
+        "qualityFlags": ["ai_estimate"]
+      },
+      {
+        "measurementId": "m_wrong_hall",
+        "eventId": "cap_wrong_hall",
+        "itemId": "item_scrambled-eggs",
+        "remainingAreaPx": 30000,
+        "baselineAreaPx": 40000,
+        "rawWasteFraction": 0.75,
+        "displayWastePercent": 75,
+        "method": "gemini_area_estimate",
+        "qualityFlags": ["ai_estimate"]
+      },
+      {
+        "measurementId": "m_wrong_meal",
+        "eventId": "cap_wrong_meal",
+        "itemId": "item_scrambled-eggs",
+        "remainingAreaPx": 20000,
+        "baselineAreaPx": 40000,
+        "rawWasteFraction": 0.5,
+        "displayWastePercent": 50,
+        "method": "gemini_area_estimate",
+        "qualityFlags": ["ai_estimate"]
+      }
+    ]
+  },
+  "expected": {
+    "matchedEventIds": ["cap_match"],
+    "aggregates": {
+      "eligibleMeasurementCount": 1,
+      "observedRemainingAreaPx": 10000,
+      "overallWastePercent": 25
+    }
+  }
+}

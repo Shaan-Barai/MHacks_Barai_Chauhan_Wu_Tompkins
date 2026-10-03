@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "id": "vertical-slice",
+  "title": "Menu → capture → analysis → persistence → analytics → dashboard facts",
+  "mode": "fixture",
+  "notes": "Happy-path vertical slice using contract samples. Kitchen-garden demo default.",
+  "input": {
+    "mealService": {
+      "serviceId": "svc_hall-main_2026-10-03_lunch",
+      "hallId": "hall-main",
+      "hallTimezone": "America/Detroit",
+      "serviceDate": "2026-10-03",
+      "mealLabel": "lunch",
+      "menuId": "menu_hall-main_2026-10-03",
+      "menuVersion": 1
+    },
+    "menuItems": [
+      {
+        "itemId": "item_scrambled-eggs",
+        "menuId": "menu_hall-main_2026-10-03",
+        "displayName": "Scrambled Eggs",
+        "category": "entree"
+      }
+    ],
+    "referencePortions": [
+      {
+        "baselineId": "base_scrambled-eggs_v1",
+        "baselineVersion": 1,
+        "itemId": "item_scrambled-eggs",
+        "expectedAreaPx": 48000,
+        "geometry": {
+          "widthPx": 1024,
+          "heightPx": 1024,
+          "coordinateSpace": "topdown-normalized-v1",
+          "plateShape": "round",
+          "plateDiameterPx": 900
+        },
+        "source": "manual_area"
+      }
+    ],
+    "imageObject": {
+      "objectId": "img_01J9ABCDXYZ",
+      "provider": "local-dev",
+      "container": "scrap-images",
+      "objectKey": "captures/2026-10-03/cap_01J9ABCD.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 183422,
+      "widthPx": 1024,
+      "heightPx": 1024,
+      "uploadedAt": "2026-10-03T16:42:11Z",
+      "association": { "kind": "capture", "id": "cap_01J9ABCD" },
+      "state": "finalized"
+    },
+    "captureEvent": {
+      "eventId": "cap_01J9ABCD",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_lunch",
+      "capturedAt": "2026-10-03T16:42:09Z",
+      "imageObjectId": "img_01J9ABCDXYZ",
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "replay",
+      "qualityFlags": [],
+      "state": "succeeded"
+    },
+    "analysisAttempt": {
+      "eventId": "cap_01J9ABCD",
+      "attemptId": "att_01J9ABCE01",
+      "menuId": "menu_hall-main_2026-10-03",
+      "menuVersion": 1,
+      "baselineVersions": { "item_scrambled-eggs": 1 },
+      "model": "gemini-2.5-flash",
+      "promptVersion": "classify-v1",
+      "status": "succeeded",
+      "qualityFlags": ["ai_estimate"],
+      "createdAt": "2026-10-03T16:42:15Z"
+    },
+    "foodMeasurements": [
+      {
+        "measurementId": "meas_01J9ABCE01_1",
+        "eventId": "cap_01J9ABCD",
+        "attemptId": "att_01J9ABCE01",
+        "itemId": "item_scrambled-eggs",
+        "remainingAreaPx": 14880,
+        "baselineId": "base_scrambled-eggs_v1",
+        "baselineAreaPx": 48000,
+        "rawWasteFraction": 0.31,
+        "displayWastePercent": 31,
+        "method": "gemini_area_estimate",
+        "qualityFlags": ["ai_estimate"]
+      }
+    ],
+    "attendance": {
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_lunch",
+      "serviceDate": "2026-10-03",
+      "count": 742,
+      "source": "simulated",
+      "configuredMin": 300,
+      "configuredMax": 1200,
+      "seed": "demo-seed-1",
+      "generatorVersion": "attendance-gen-v1"
+    }
+  },
+  "expected": {
+    "requiredLabels": ["ai_estimate", "simulated", "replay"],
+    "aggregates": {
+      "eligibleMeasurementCount": 1,
+      "excludedMeasurementCount": 0,
+      "observedRemainingAreaPx": 14880,
+      "overallWastePercent": 31,
+      "observedRemainingAreaPxPerAttendee": 20.053908355795148
+    },
+    "imageBytesInSpacetimeRecords": false
+  }
+}

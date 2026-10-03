@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "id": "aggregate-handcalc",
+  "title": "Hand-calculated aggregate arithmetic (area-weighted, not average of percents)",
+  "mode": "fixture",
+  "notes": "Items A and B: remaining 10000/20000 and 30000/60000. Overall = 40000/80000 = 50%, NOT avg(50,50) coincidence — also includes C 5000/10000 so avg of item % would still be 50 but formula is sum-based.",
+  "input": {
+    "attendance": {
+      "count": 500,
+      "source": "simulated"
+    },
+    "foodMeasurements": [
+      {
+        "measurementId": "hc_a",
+        "eventId": "cap_hc",
+        "attemptId": "att_hc",
+        "itemId": "item_a",
+        "remainingAreaPx": 10000,
+        "baselineAreaPx": 20000,
+        "rawWasteFraction": 0.5,
+        "displayWastePercent": 50,
+        "method": "gemini_area_estimate",
+        "qualityFlags": ["ai_estimate"]
+      },
+      {
+        "measurementId": "hc_b",
+        "eventId": "cap_hc",
+        "attemptId": "att_hc",
+        "itemId": "item_b",
+        "remainingAreaPx": 30000,
+        "baselineAreaPx": 60000,
+        "rawWasteFraction": 0.5,
+        "displayWastePercent": 50,
+        "method": "gemini_area_estimate",
+        "qualityFlags": ["ai_estimate"]
+      },
+      {
+        "measurementId": "hc_c",
+        "eventId": "cap_hc",
+        "attemptId": "att_hc",
+        "itemId": "item_c",
+        "remainingAreaPx": 5000,
+        "baselineAreaPx": 10000,
+        "rawWasteFraction": 0.5,
+        "displayWastePercent": 50,
+        "method": "gemini_area_estimate",
+        "qualityFlags": ["ai_estimate"]
+      },
+      {
+        "measurementId": "hc_weighted",
+        "eventId": "cap_hc2",
+        "attemptId": "att_hc2",
+        "itemId": "item_d",
+        "remainingAreaPx": 9000,
+        "baselineAreaPx": 10000,
+        "rawWasteFraction": 0.9,
+        "displayWastePercent": 90,
+        "method": "gemini_area_estimate",
+        "qualityFlags": ["ai_estimate"]
+      },
+      {
+        "measurementId": "hc_weighted_b",
+        "eventId": "cap_hc2",
+        "attemptId": "att_hc2",
+        "itemId": "item_e",
+        "remainingAreaPx": 1000,
+        "baselineAreaPx": 90000,
+        "rawWasteFraction": 0.011111111111111112,
+        "displayWastePercent": 1.1111111111111112,
+        "method": "gemini_area_estimate",
+        "qualityFlags": ["ai_estimate"]
+      }
+    ],
+    "groups": {
+      "equal_item_percents": ["hc_a", "hc_b", "hc_c"],
+      "unequal_item_percents": ["hc_weighted", "hc_weighted_b"]
+    }
+  },
+  "expected": {
+    "equal_item_percents": {
+      "observedRemainingAreaPx": 45000,
+      "sumBaselineAreaPx": 90000,
+      "overallWastePercent": 50,
+      "notSimpleAverageOfItemPercentsOnly": false
+    },
+    "unequal_item_percents": {
+      "observedRemainingAreaPx": 10000,
+      "sumBaselineAreaPx": 100000,
+      "overallWastePercent": 10,
+      "simpleAverageOfItemPercents": 45.55555555555556,
+      "mustNotUseSimpleAverage": true
+    },
+    "perAttendeeForEqualGroup": 90
+  }
+}

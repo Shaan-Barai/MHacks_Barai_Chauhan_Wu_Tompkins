@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "id": "invalid-analysis",
+  "title": "Failed/invalid analysis is excluded and counted, never treated as zero waste",
+  "mode": "fixture",
+  "input": {
+    "analysisAttempts": [
+      {
+        "eventId": "cap_fail_json",
+        "attemptId": "att_fail_json",
+        "status": "failed",
+        "menuId": "menu_hall-main_2026-10-03",
+        "menuVersion": 1,
+        "baselineVersions": {},
+        "model": "gemini-2.5-flash",
+        "promptVersion": "classify-v1",
+        "qualityFlags": [],
+        "createdAt": "2026-10-03T17:00:00Z",
+        "error": {
+          "code": "INVALID_MODEL_JSON",
+          "message": "Gemini returned invalid JSON for this plate. Try again or review the photo.",
+          "retryable": true
+        }
+      },
+      {
+        "eventId": "cap_api_fail",
+        "attemptId": "att_api_fail",
+        "status": "failed",
+        "menuId": "menu_hall-main_2026-10-03",
+        "menuVersion": 1,
+        "baselineVersions": {},
+        "model": "gemini-2.5-flash",
+        "promptVersion": "classify-v1",
+        "qualityFlags": [],
+        "createdAt": "2026-10-03T17:01:00Z",
+        "error": {
+          "code": "GEMINI_UNAVAILABLE",
+          "message": "The vision service is temporarily unavailable.",
+          "retryable": true
+        }
+      }
+    ],
+    "foodMeasurements": [
+      {
+        "measurementId": "m_ok",
+        "eventId": "cap_ok",
+        "attemptId": "att_ok",
+        "itemId": "item_scrambled-eggs",
+        "remainingAreaPx": 12000,
+        "baselineAreaPx": 40000,
+        "rawWasteFraction": 0.3,
+        "displayWastePercent": 30,
+        "method": "gemini_area_estimate",
+        "qualityFlags": ["ai_estimate"]
+      }
+    ],
+    "failedObservationPlaceholders": [
+      {
+        "eventId": "cap_fail_json",
+        "remainingAreaPx": 0,
+        "note": "MUST_NOT_ENTER_AGGREGATES"
+      },
+      {
+        "eventId": "cap_api_fail",
+        "remainingAreaPx": 0,
+        "note": "MUST_NOT_ENTER_AGGREGATES"
+      }
+    ]
+  },
+  "expected": {
+    "excludedFailedEventIds": ["cap_fail_json", "cap_api_fail"],
+    "exclusionCount": 2,
+    "aggregates": {
+      "eligibleMeasurementCount": 1,
+      "excludedMeasurementCount": 0,
+      "observedRemainingAreaPx": 12000,
+      "overallWastePercent": 30
+    },
+    "mustNotCountFailedAsZeroWaste": true
+  }
+}

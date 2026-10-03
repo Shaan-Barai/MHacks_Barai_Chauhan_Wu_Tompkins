@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "id": "storage-refs-only",
+  "title": "SpacetimeDB rows/subscriptions hold image references and metadata, never bytes",
+  "mode": "fixture",
+  "input": {
+    "spacetimeRows": [
+      {
+        "objectId": "img_01J9ABCDXYZ",
+        "provider": "local-dev",
+        "container": "scrap-images",
+        "objectKey": "captures/2026-10-03/cap_01J9ABCD.jpg",
+        "mimeType": "image/jpeg",
+        "sizeBytes": 183422,
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "state": "finalized",
+        "association": { "kind": "capture", "id": "cap_01J9ABCD" }
+      }
+    ],
+    "forbiddenFieldsIfPresent": [
+      "bytes",
+      "base64",
+      "imageBase64",
+      "blob",
+      "dataUrl",
+      "contentBase64"
+    ],
+    "accessResponse": {
+      "objectId": "img_01J9ABCDXYZ",
+      "readUrl": "http://localhost:8787/tmp/read/cap_01J9ABCD.jpg?token=ephemeral",
+      "expiresAt": "2026-10-03T17:15:00Z"
+    },
+    "permanentIdentityFields": ["objectId", "provider", "container", "objectKey"]
+  },
+  "expected": {
+    "noImageBytesInRows": true,
+    "readUrlIsNotPermanentIdentity": true,
+    "expiredReadUrlRequiresRenewal": true
+  }
+}

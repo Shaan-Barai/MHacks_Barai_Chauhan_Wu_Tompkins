@@ -13,6 +13,50 @@ SpacetimeDB persistence → analytics + simulated attendance → grounded
 suggestion → dashboard. Camera hardware and a cloud object-storage provider
 are **not** tested (neither exists yet).
 
+## Mask pipeline (MVP_AI.md) — 2026-10-03
+
+Gemini classification + boxes → SAM 2.1 Small (`sam2@2b90b9f`, MPS on M1
+Max) → validated binary masks → Pixels wasted counted in code.
+
+| Check | Mode | Result |
+| --- | --- | --- |
+| `vision/` mask tests (box XY/YX conversion, known foreground count, misaligned/soft/non-PNG masks, overlap union, explicit empty plate, classification failure, worker down, partial, unknown food, invented IDs) | unit | 10 new; vision 48/48 |
+| `analytics/` pixel aggregation (hand-calculated: complete + empty counted; partial, failed, legacy, other geometry, pending excluded by reason) | unit | 3 new; analytics 31/31 |
+| `backend/` capture → masks in object storage → dashboard pixels, dedup on resubmit, worker-down failure | unit/API | 2 new; backend 21/21 (+1 live-only skip) |
+| `backend/` live SpacetimeDB: segmentation result + regions round-trip; reducer rejects a capture total ≠ sum of item pixels | **live SpacetimeDB** | 12/12 |
+| `frontend/` Pixels wasted payloads, coverage, unclassified food | unit | 23/23; build passes |
+| `tests/` live e2e incl. segmentation present, integer counts summing to the union, masks in storage at image size | **live stack** | 5/5 (one earlier run hit a transient Gemini network error, recorded as a retryable `failed` attempt; two reruns passed) |
+| Demo replay (6 synthetic plates) | **live stack** | 6/6 `complete`; 23 mask objects stored; e.g. dinner 10-03: 177,920 px (rice 66%, zucchini 20%, salmon 14%) with a Gemini tip citing those pixels |
+
+### Preliminary segmentation evaluation (not the planned annotated set)
+
+A local evaluation script (kept out of the repo, like the photos) on the 5
+stock photos in the gitignored `images/` folder. **Ground truth is a proxy** — non-near-white
+pixels on a white background — not a hand annotation; it counts food
+shadows as food. A = SAM with the tight proxy box (segmentation alone);
+B = full path with Gemini's boxes.
+
+| Image | A IoU | B IoU | B count vs proxy | Gemini label |
+| --- | --- | --- | --- | --- |
+| burger50 | 93.5% | 93.5% | 127,421 vs 124,714 (+2.2%) | burger ✓ |
+| burger60 | 91.9% | 91.8% | 81,182 vs 78,635 (+3.2%) | burger ✓ |
+| burger90 | 96.4% | 96.4% | 72,240 vs 72,843 (−0.8%) | burger ✓ |
+| fries10 | 96.9% | 96.9% | 82,076 vs 84,739 (−3.1%) | fries ✓ |
+| fries20 | 82.9% | 82.9% | 53,748 vs 64,575 (−16.8%) | fries ✓ |
+
+Mean IoU 92.3% (A and B), Dice 95.9%, classification 5/5. fries20's "missed"
+area is mostly the shadow under the fries (proxy error); its fry edges are
+traced with 116 false-positive pixels. Gemini's boxes matched the tight
+proxy boxes almost exactly, so on these images localization added no
+measurable error. **Limits:** 5 single-food stock photos on white is far
+easier than real trays; nothing here is a held-out test or an accuracy
+claim. Latency: SAM ~0.3 s/image warm; full path 2.3–3.3 s typical (one
+33.6 s outlier from Gemini). Worker memory ~0.4 GB RSS + ~0.3 GB MPS.
+
+**Still required by the plan:** a 20–30-image hand-annotated set of real
+dish photos (residue, mixed/unknown foods, empty plates, non-food objects)
+with a held-out split, and team-agreed error/latency thresholds.
+
 ## Results
 
 | Check | Mode | Result |

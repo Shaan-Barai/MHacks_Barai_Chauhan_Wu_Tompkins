@@ -6,7 +6,7 @@ Audience: dining-hall staff or hackathon judges. Goal: show the full Scrap loop 
 
 1. Complete [environment-setup.md](environment-setup.md) and the root README setup (SpacetimeDB, backend, frontend running; demo data seeded and replayed).
 2. Captures are **replays** of AI-generated synthetic plates (`capture/fixtures/replay/`) — do not imply a live conveyor.
-3. Keep the copy honest: **AI-estimated leftover area** ("waste units" = 1,000 px²) and **simulated attendance**.
+3. Keep the copy honest: **Pixels wasted** = pixels counted inside AI-drawn masks of leftover food (not grams or servings), and **simulated attendance**. Start the SAM worker before the backend.
 
 ## Script (≈5 minutes)
 
@@ -29,7 +29,7 @@ Run `cd capture && npm run replay` (or show its earlier output). Each plate is n
 ### 4. Dashboard (1.5 min)
 
 1. **Dashboard → Today**. Summary cards and the chart show today's observed leftover area.
-2. Right panel → **Dinner**: total waste units, plates scanned, items **left out of totals** (e.g. an estimate above a full serving), and meal swipes with the **simulated** badge.
+2. Right panel → **Dinner**: Pixels wasted, plates scanned, plates **left out of totals** (failed or partial segmentation), unclassified food pixels, and meal swipes with the **simulated** badge.
 3. **Most wasted** item with its share of the meal's waste.
 
 ### 5. Suggestion (1 min)

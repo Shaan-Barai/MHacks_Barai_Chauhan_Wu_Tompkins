@@ -1,5 +1,17 @@
 Web dashboard called "Scrap" (placeholder name) that helps dining hall and cafeteria managers track plate food waste. The user is a busy, non-technical dining manager. Keep it to one main screen with big numbers, plain language, and as few clicks as possible. If a feature isn't listed here, leave it out.
 
+## CURRENT MEASUREMENT CONTEXT (2026-10-03)
+
+Use **Pixels wasted** as the primary metric, with units **pixels**. Gemini
+classifies the food first; a subsequent segmentation stage produces masks;
+application code counts foreground pixels. Totals count overlapping food
+pixels once and use compatible normalized image geometry. This replaces
+primary servings, serving percentages, piece counts, guessed pixel areas, and
+the legacy "waste units" conversion. A percentage share of total wasted pixels
+is a breakdown statistic, not percentage of food originally served. Camera
+placement/conveyor work is deferred. See `contracts/measurement.md`; runtime
+and dashboard migration remain separate implementation work.
+
 ## FIRST-TIME SETUP (3 steps, shown once)
 1. Dining hall name and meal times (Breakfast / Lunch / Dinner, with editable default hours).
 2. Add menus. Offer two big buttons:
@@ -21,7 +33,7 @@ Web dashboard called "Scrap" (placeholder name) that helps dining hall and cafet
   • Today's waste
   • This week's waste
   • This month's waste
-  Each card shows the number in waste units and a small ↑/↓ vs the previous period (Basil if waste went down, Tomato if it went up).
+  Each card shows Pixels wasted in pixels and a small ↑/↓ vs the previous period (Basil if waste went down, Tomato if it went up).
 - One main chart: waste (y-axis) vs date (x-axis), following the selected date range. Put a small toggle above it for Daily / Weekly / Monthly grouping. Hovering shows the exact value and date.
 - Nothing else goes in the middle column.
 
@@ -30,7 +42,7 @@ Web dashboard called "Scrap" (placeholder name) that helps dining hall and cafet
 - Tabs: Breakfast | Lunch | Dinner
 - Each tab shows:
   • Total waste for that meal (big number), plates scanned, and meal swipes
-  • "Most wasted": the top item, with its waste units and share of that meal's waste, plus a one-line tip from Gemini (e.g., "Scrambled eggs made up 31% of breakfast waste. Try a smaller batch or a smaller serving scoop.")
+  • "Most wasted": the top item, with its counted pixels and share of that meal's wasted pixels, plus a one-line tip from Gemini (e.g., "Scrambled eggs made up 31% of breakfast's wasted pixels. Review the serving scoop size.")
   • A short ranked list of the next 4 most wasted items, each with a severity color dot
 
 ## SEVERITY COLORS (for items)

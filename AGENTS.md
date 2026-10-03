@@ -2,7 +2,7 @@
 
 ## 1. Purpose and scope
 
-Build a hackathon prototype that helps dining halls reduce food waste using images of finished dishes, the hall's daily menu, and a beginner-friendly dashboard. A top-down camera photographs dishes as they travel on a conveyor belt toward the wash station. Gemini identifies menu items and estimates the visible food remaining. The application stores these observations, aggregates waste metrics, and generates practical, AI-powered suggestions for dining hall staff.
+Build a hackathon prototype that helps dining halls reduce food waste using images of finished dishes, the hall's daily menu, and a beginner-friendly dashboard. The current input is uploaded or replayed dish images; camera placement and conveyor integration are deferred. First use Gemini to classify visible food against the daily menu. Then generate segmentation masks for the leftover food and count their foreground pixels programmatically. The primary metric is **Pixels wasted**. The application stores these observations, aggregates pixel counts, and generates practical, AI-powered suggestions for dining hall staff.
 
 This file applies to the entire repository. It defines agent responsibilities, exclusive file ownership, interfaces, implementation order, and completion criteria. It is a working plan: more product details will arrive. Follow explicit user instructions first, then this file, then any applicable instructions in a child directory. Record new decisions instead of silently inventing requirements.
 
@@ -10,10 +10,10 @@ The initial repository contains only a README. The directory layout below is a p
 
 ## 2. Agreed product requirements
 
-1. Capture top-down images of finished dishes on their way to the wash station.
+1. Accept uploaded or replayed images of finished dishes. Keep future top-down camera capture behind an adapter; camera placement is deferred.
 2. Upload and store the dining hall's daily menu in SpacetimeDB. Classify food against the menu for the relevant hall, date, and meal service.
-3. Use the Gemini API for food classification and prototype image analysis. Custom model training is outside the hackathon scope.
-4. Estimate remaining food area in pixels and compare it with the expected pixel area of a matching uneaten serving. The ratio represents estimated food waste for that serving.
+3. Use the Gemini API for **classification first**, then a separate **segmentation-mask stage** using the planned Meta SAM family. Count pixels in code after validating the masks. [MVP_AI.md](MVP_AI.md) proposes SAM 2.1 Small with Gemini boxes as the first evaluation path; the exact checkpoint and host remain provisional. Custom model training is outside the hackathon scope.
+4. Use **Pixels wasted**, the number of foreground pixels in validated leftover-food masks, as the primary metric. Uneaten-serving baselines are not required to calculate it. This replaces primary reporting in percentages, servings, piece counts, and model-guessed pixel numbers.
 5. Store per-dish observations and per-food measurements, then summarize overall waste and which menu items contribute most.
 6. Use randomly generated attendance in a configurable, reasonable range for the prototype. Real attendance from meal swipes is a future input, not an existing integration.
 7. Show clear metrics, trends, menu-item comparisons, and AI-powered suggestions in a beginner-friendly dashboard.
@@ -92,13 +92,13 @@ For the SpacetimeDB module, Agent 2 owns table/schema source files and Agent 5 o
 
 ### Agent 2 — Menus, uneaten reference portions, and schema
 
-**Objective:** Define the menu vocabulary, reference areas, and persistent data structure that all measurements depend on.
+**Objective:** Define the menu vocabulary and persistent data structure; maintain optional reference areas for auxiliary baseline comparisons.
 
 2.1. Implement menu parsing and validation in `data/` for the agreed upload format. Store stable menu-item IDs plus hall, local service date, service ID, display name, and optional description/category.
 
 2.2. Ensure classification categories come from the applicable daily menu. Support a separate unknown/non-menu result instead of inventing menu items.
 
-2.3. Define and maintain uneaten-serving reference records: menu-item ID, expected area in pixels, image/plate geometry, baseline ID/version, and source. Reference photos, manually provided areas, and Gemini-estimated baselines must remain distinguishable.
+2.3. Maintain existing uneaten-serving reference records for optional auxiliary comparisons: menu-item ID, expected area in pixels, image/plate geometry, baseline ID/version, and source. They do not gate mask counting or Pixels wasted. Reference photos, manually provided areas, and Gemini-estimated baselines must remain distinguishable.
 
 2.4. Own SpacetimeDB table definitions, schema evolution, and demo seed definitions for menus, baselines, capture events, image-object metadata, observations, food measurements, attendance, and insights. Store image references rather than bytes. Preserve raw measurements and their quality metadata; agree on the minimal subscription-visible fields with Agents 5 and 7.
 
@@ -108,7 +108,7 @@ For the SpacetimeDB module, Agent 2 owns table/schema source files and Agent 5 o
 
 **Boundary:** Agent 2 owns schema and data validation. Agent 5 owns reducer/procedure implementations, runtime database access, external object storage, and upload endpoints. Agent 7 owns upload screens.
 
-**Done when:** A sample daily menu and compatible reference portions can be persisted, retrieved, and resolved by hall/date/service without ambiguous IDs or units.
+**Done when:** A sample daily menu can be persisted, retrieved, and resolved by hall/date/service without ambiguous IDs or units. Optional reference portions remain separately versioned and do not block pixel totals.
 
 ### Agent 3 — Capture and image preparation
 
@@ -132,17 +132,17 @@ For the SpacetimeDB module, Agent 2 owns table/schema source files and Agent 5 o
 
 ### Agent 4 — Gemini classification and waste measurement
 
-**Objective:** Turn an image and its menu/reference context into validated per-food measurements.
+**Objective:** Classify food first, then obtain validated segmentation masks and derive per-food pixel counts from them.
 
 4.1. Own the server-side Gemini client/gateway, configurable model selection, image-analysis prompts, response schemas, timeouts, bounded retries, and provider error handling. Confirm supported SDK/model behavior against official documentation when implementing it.
 
-4.2. Classify visible food against only the supplied menu-item IDs and descriptions. Return unknown/ambiguous results when evidence is insufficient; identify multiple food items on one plate where possible.
+4.2. Run Gemini classification before segmentation, against only the supplied menu-item IDs and descriptions. Return unknown/ambiguous results when evidence is insufficient; identify multiple food items on one plate where possible. Classification supplies labels, not final quantity measurements.
 
-4.3. Estimate remaining food area in the agreed pixel coordinate space. Accept compatible reference areas from Agent 2. If Gemini estimates a missing uneaten baseline, label it explicitly and preserve the method and uncertainty.
+4.3. Obtain a segmentation mask for each identified leftover-food region, align it to the agreed normalized image coordinate space, and count foreground pixels deterministically in code. Validate mask dimensions, encoding, bounds, and any threshold/rasterization rule. Do not substitute a verbal area estimate, piece count, or guessed serving percentage for a missing mask. Follow the planned Meta SAM evaluation in [MVP_AI.md](MVP_AI.md); record the selected checkpoint, localization method, and host before implementation.
 
-4.4. Apply the formula and validation rules in Section 7. Preserve raw values, flag invalid or above-baseline results, and avoid overlapping food-area assignments.
+4.4. Apply Section 7. Preserve mask-derived counts and quality metadata; resolve overlapping category assignments or flag them for review. Count each pixel once in the capture total. Optional baseline-comparison flags must not invalidate an otherwise valid mask count.
 
-4.5. Return structured measurements, menu/baseline versions, model/prompt metadata, and quality flags. Validate types, allowed item IDs, finite nonnegative areas, and required fields before returning successful analysis.
+4.5. Return classification results, mask references/metadata, integer pixel counts, menu version, separate classification/segmentation model and prompt versions, and quality flags. Validate allowed item IDs, mask-to-image alignment, and counts within image bounds. Include baseline versions only for auxiliary comparisons actually performed.
 
 4.6. Expose a reusable Gemini request interface for Agent 6's suggestion generation. Agent 6 owns the suggestion prompt and business logic; Agent 4 owns provider access and transport behavior.
 
@@ -164,7 +164,7 @@ For the SpacetimeDB module, Agent 2 owns table/schema source files and Agent 5 o
 
 5.3. Make capture processing idempotent by capture-event ID. Retries must update the same event; preserve analysis attempts without double-counting successful observations.
 
-5.4. Supply the correct hall/date/service menu and compatible baseline context to Agent 4. Preserve the menu/baseline versions used so later edits do not silently rewrite historical results.
+5.4. Supply the correct hall/date/service menu and normalized image context to Agent 4. Preserve menu and stage versions so later edits do not silently rewrite historical results. Supply compatible baselines only for optional auxiliary comparisons; missing baselines must not block Pixels wasted.
 
 5.5. Expose the agreed endpoints for menus, reference portions, captures, observations, attendance, dashboard summaries, food breakdowns, and suggestions. Use a consistent validation/error format and configurable upload limits.
 
@@ -184,7 +184,7 @@ For the SpacetimeDB module, Agent 2 owns table/schema source files and Agent 5 o
 
 **Objective:** Convert stored observations into honest, useful waste insights for dining hall staff.
 
-6.1. Implement the agreed aggregate formulas for service totals, food-item comparisons, waste trends, valid observation counts, and attendance-normalized metrics. Exclude invalid measurements and display their exclusion counts.
+6.1. Aggregate mask-derived Pixels wasted for service totals, food-item comparisons, and trends. Keep incompatible image geometries separate. Exclude invalid masks/failed analysis and display their exclusion counts; do not exclude valid pixel counts merely because a baseline is missing or exceeded. Keep any attendance-normalized or baseline-derived statistic separately labeled.
 
 6.2. Generate and persist one attendance value per hall/date/service. Use a configurable integer range; a provisional demo default is 300–1,200 attendees per service. This is a demo assumption, not a factual attendance claim, and must be adjustable when hall details arrive.
 
@@ -206,13 +206,13 @@ For the SpacetimeDB module, Agent 2 owns table/schema source files and Agent 5 o
 
 **Objective:** Make the product usable by dining hall staff without technical knowledge.
 
-7.1. Build hall/date/service selection, daily menu upload, and the agreed reference-portion setup flow against Agent 5's API.
+7.1. Build hall/date/service selection and daily menu upload against Agent 5's API. Reference-portion setup is auxiliary and must not block the primary pixel metric.
 
-7.2. Show overall estimated waste, the foods with the most waste, trends when multiple services exist, simulated attendance, and clearly named attendance-normalized metrics.
+7.2. Label the primary metric **Pixels wasted** and show mask-derived totals, foods with the most wasted pixels, and trends when compatible services exist. Show simulated attendance separately; label any normalized statistics explicitly.
 
 7.3. Display AI-powered suggestions with supporting numbers and reporting dates. Label fallback suggestions and unavailable analysis clearly.
 
-7.4. Explain pixel-area estimates in plain language. Distinguish measured captures, analysis coverage, and simulated attendance. Use tooltips or short explanatory text for percentages and normalization.
+7.4. Explain that Pixels wasted counts visible leftover-food pixels in AI-generated segmentation masks. Distinguish mask uncertainty, captured dishes, analysis coverage, and simulated attendance. The count is not physical mass, servings, or percentage of a diner's original food. Explain any auxiliary percentages separately.
 
 7.5. Implement loading, empty, partial-data, failed-analysis, missing-menu, missing-baseline, and provider-error states. Provide useful next actions instead of blank charts.
 
@@ -232,7 +232,7 @@ For the SpacetimeDB module, Agent 2 owns table/schema source files and Agent 5 o
 
 8.1. Maintain contract fixtures and cross-system checks for menu upload → capture/replay → analysis → persistence → analytics → dashboard.
 
-8.2. Exercise unknown foods, missing/zero baselines, empty plates, overlapping item areas, above-baseline estimates, invalid JSON, API failures, repeated captures, and stable simulated attendance.
+8.2. Exercise unknown foods, valid empty masks, malformed/misaligned masks, foreground thresholding, cropped-mask placement, overlapping masks, invalid classification JSON, stage-specific failures, repeated captures, and stable simulated attendance. Verify missing/zero/above-baseline references do not block valid Pixels wasted; test auxiliary ratios separately if retained.
 
 8.3. Check aggregate arithmetic against hand-calculated examples. Confirm that invalid/failed observations are excluded rather than counted as zero waste, and that filters isolate the correct hall/date/service.
 
@@ -260,7 +260,7 @@ The coordinator owns exact schemas in `contracts/`; use the following minimum co
 | Image object | Stable object ID, provider/container/key, optional deliberately public URL, MIME type, size, dimensions, upload time, capture/reference association, upload/finalization state |
 | Capture event | Stable event ID, hall/service context, UTC timestamp, image reference, dimensions/coordinate space, source label, quality flags, processing state |
 | Analysis attempt | Event ID, attempt ID, menu/baseline versions, model/prompt versions, status, error/quality metadata |
-| Food measurement | Menu-item ID or unknown result, remaining area in pixels, baseline area/ID when available, ratio/percentage when valid, measurement method, quality flags |
+| Food measurement | Classified menu-item ID or unknown result, segmentation-mask object reference/metadata, counted foreground pixels, normalized geometry, classification/segmentation versions, mask-processing version, quality flags; optional separately labeled baseline comparison |
 | Attendance | Hall/date/service, count, `simulated` source label, configured range and reproducibility metadata |
 | Insight | Reporting window, underlying metrics, data version, recommendation text, source (`gemini` or labeled fallback), generation time |
 
@@ -270,49 +270,43 @@ The backend orchestrates this sequence:
 
 1. Agent 2's validated menu and reference data are uploaded through Agent 5's API and Agent 7's UI.
 2. Agent 3 uploads a normalized image through Agent 5's storage flow. Agent 5 verifies the completed object, registers its metadata/reference in SpacetimeDB, and accepts the capture event and geometry metadata.
-3. Agent 5 resolves the relevant menu/references and requests Agent 4's analysis.
-4. Agent 4 returns validated food measurements or an explicit review/failure result.
+3. Agent 5 resolves the relevant menu and normalized image context, then requests Agent 4's classification.
+4. Agent 4 uses Gemini to classify food, obtains segmentation masks for the classified regions, validates and aligns them, and counts pixels in code. It returns counts and mask provenance or an explicit stage-specific review/failure result.
 5. Agent 5 persists results without duplicate observations.
 6. Agent 6 aggregates eligible observations, supplies persisted simulated attendance, and generates grounded suggestions.
 7. Agent 5 serves those results or approved SpacetimeDB subscriptions to Agent 7's dashboard. Image display/analysis reads use external storage access; Agent 8 verifies the entire path.
 
-Unknown items may retain a visible-area estimate, but they are excluded from menu-specific percentages until identified and supplied with a valid baseline. A detected empty plate is a valid capture; it does not prove which menu items were originally served. Do not infer an uneaten serving for every item on the daily menu.
+Unknown edible leftovers with valid masks may contribute to an explicitly labeled unclassified pixel bucket and the overall total. They must not be assigned to a named menu item. A successfully segmented empty plate has zero wasted pixels; it does not prove which menu items were originally served. Missing/failed masks are unavailable, not zero. Persisted mask images belong in external object storage; SpacetimeDB holds durable references and small provenance/count records.
 
-## 7. Pixel-area measurement and reporting rules
+## 7. Classification, segmentation, and Pixels wasted
 
-For a confirmed assessed serving of menu item `i`:
+The current decision is **Gemini classification → segmentation mask → programmatic pixel count**. Classification and segmentation are distinct stages, with separately traceable status and model/prompt metadata. A numeric estimate alone does not satisfy the mask requirement.
 
-```text
-remaining_area_px_i = visible leftover food area in the agreed coordinate space
-baseline_area_px_i = expected visible area of one compatible uneaten serving
-raw_waste_fraction_i = remaining_area_px_i / baseline_area_px_i
-display_waste_percent_i = 100 * clamp(raw_waste_fraction_i, 0, 1)
-```
-
-1. The denominator must be finite and greater than zero. Missing or invalid baselines produce an unavailable percentage with a reason, never a guessed zero.
-2. Preserve raw remaining area and the raw ratio. A value above 100% may indicate a portion or geometry mismatch; flag it for review and exclude it from ordinary aggregates until resolved. A bounded display value must not hide that flag.
-3. Observation and reference areas must use compatible resolution, perspective, plate geometry, and portion definitions. Apply the same normalization to both. Do not compare raw pixels from differently scaled images.
-4. Assign each visible pixel to at most one food category. Keep unknown material and non-food objects separate. For mixed dishes that cannot be separated reliably, use the matching composite menu item or report ambiguity.
-5. A zero leftover area is valid only for a serving known to have been assessed with a valid baseline. Do not allocate zero waste to foods merely absent from the image.
-6. Gemini's numerical areas are prototype estimates. Label the measurement method as an AI estimate unless actual mask-based counting is implemented and verified. Store uncertainty/quality flags; do not present model confidence as calibrated measurement accuracy.
-
-For eligible, non-overlapping measurements with compatible normalized geometry:
+For validated binary leftover-food masks in the normalized image coordinate space:
 
 ```text
-observed_remaining_area_px = sum(remaining_area_px_i)
-overall_waste_percent = 100 * sum(remaining_area_px_i) / sum(baseline_area_px_i)
-observed_remaining_area_px_per_attendee = observed_remaining_area_px / attendance
+pixels_wasted_i = count(foreground pixels in the mask assigned to food item i)
+capture_pixels_wasted = count(foreground pixels in the union of eligible food masks)
+total_pixels_wasted = sum(capture_pixels_wasted for unique eligible captures)
 ```
 
-Calculate overall percentage over assessed servings with valid baselines; it is an area-weighted percentage. Do not average item percentages and call that the same metric. Return unavailable when the aggregate baseline denominator is zero. Return unavailable for per-attendee values when attendance is missing or zero.
+1. Decode masks, map cropped or differently sized provider outputs to the agreed image coordinate space, and validate dimensions, bounds, encoding, and food labels before counting. If the output is a soft mask or contour, document and version the binarization/rasterization rule. Count in application code; Gemini's reported numeric area is not the final measurement.
+2. Pixel counts must be finite nonnegative integers bounded by the normalized image's pixel count. Preserve the mask reference, dimensions, coordinate space, stage versions, and processing rule needed to reproduce the result. Never store image/mask blobs in SpacetimeDB.
+3. Assign each visible pixel to at most one food category. Resolve overlapping masks or report ambiguity; count their union for a valid capture total so overlaps never inflate it. Keep unknown edible food separate from named categories and exclude non-food objects.
+4. Aggregate only compatible normalized resolutions, perspective, and plate geometry. Group incompatible geometries separately. Image normalization details remain Agent 3's contract; do not silently pool raw pixels from differently scaled uploads.
+5. A successfully validated empty-food mask is a valid zero-pixel capture. Missing, malformed, failed, or incomplete segmentation is unavailable or explicitly partial, never silently zero. Do not infer per-menu-item zero measurements for food absent from the image.
+6. Uneaten-serving baselines are not required for Pixels wasted. Missing or exceeded baselines do not invalidate an otherwise valid pixel count. Any retained baseline percentage is auxiliary, needs a finite positive compatible denominator, and measures visible area relative to a reference rather than physical mass or the original serving.
+7. Label the primary metric **Pixels wasted** with units **pixels**. Explain that the count is computed from an AI-generated mask of visible leftover food; accurate pixel counting does not guarantee accurate segmentation. Preserve quality flags and label demo data. Do not convert this count to servings, grams, cost, or environmental impact without separately specified calibration.
 
-Group incompatible measurement geometries separately instead of pooling their pixel areas. Label summed waste as **observed estimated leftover area (pixels)** and attendance normalization as **observed leftover area per simulated attendee**. A simulated attendee count does not establish camera coverage. Show captured dishes, successful analyses, exclusions, and attendance separately; do not equate dishes with people or extrapolate to unobserved hall-wide waste without an explicit sampling method.
+The earlier request for mean percentage wasted when waste is present remains a separate auxiliary recommendation requirement pending its denominator definition. If retained, derive it from validated masks and compatible references; do not ask Gemini to guess it. It must not gate primary pixel totals.
+
+Show captured dishes, successful classifications, successful segmentations, partial results, exclusions, and simulated attendance separately. An optional pixels-per-simulated-attendee statistic is unavailable when attendance is missing or zero. Do not extrapolate uploaded/replayed observations to hall-wide waste without an explicit sampling method.
 
 ## 8. Implementation phases and parallel work
 
-1. **Contract and setup:** Agent 1 agrees on the stack/layout and publishes contracts. Agent 2 defines schema/menu/baselines; Agents 3 and 4 agree on image geometry. Agent 8 prepares fixture expectations. This phase gates dependent implementation.
+1. **Contract and setup:** Agent 1 agrees on the stack/layout and publishes contracts. Agent 2 defines schema/menu and optional baselines; Agents 3 and 4 agree on image geometry, mask format/alignment, and counting rules. Agent 8 prepares fixture expectations. This phase gates dependent implementation.
 2. **Independent modules:** Agent 2 implements data/schema, Agent 3 capture/replay, Agent 4 vision, Agent 5 backend with mocked dependencies, Agent 6 analytics against fixed records, and Agent 7 UI against approved API fixtures. Agent 8 builds cross-system checks. Match active assignments to available worker capacity.
-3. **Vertical-slice integration:** Connect one menu, one reference portion, one capture, one analysis, persistence, simulated attendance, a summary, and a grounded suggestion through the dashboard. Resolve contract gaps through Agent 1 before expanding.
+3. **Vertical-slice integration:** Connect one menu, one uploaded/replayed capture, Gemini classification, a validated segmentation mask, code-counted pixels, persistence, a summary, and a grounded suggestion through the dashboard. Resolve contract gaps through Agent 1 before expanding. Optional baselines do not gate this slice.
 4. **Demo completion:** Add mixed/unknown foods, additional services for trends, useful error states, and hardware integration if available. Agent 8 verifies; owners fix defects; Agent 1 confirms the documented demo works.
 
 Do not begin dependent work against an unapproved payload shape. An owner may supply a small fixture or stub as a handoff so another owner can progress without waiting for the entire module.
@@ -323,7 +317,7 @@ The hackathon prototype is ready when:
 
 1. A daily menu can be uploaded and retrieved for the correct dining hall and service.
 2. A camera or explicitly labeled replay capture is analyzed against that menu using Gemini, with validated output and recoverable failures.
-3. Per-food remaining areas and baseline-derived percentages follow Section 7 and retain estimate/quality metadata.
+3. Classification precedes segmentation; per-food and total Pixels wasted are counted from validated masks under Section 7 and retain mask provenance and quality metadata.
 4. Persisted results survive refreshes and repeated ingestion does not duplicate a dish.
 5. Simulated attendance is configurable, reproducible for tests, stable per service, and clearly labeled.
 6. The dashboard shows overall observed waste, food breakdowns, coverage, useful service comparisons, and an AI-powered suggestion supported by displayed metrics.
@@ -338,7 +332,8 @@ The following require confirmation or an explicitly recorded prototype decision 
 - Frontend/backend framework, SpacetimeDB module language/version, runtime, and deployment target. SpacetimeDB plus external image storage is already agreed.
 - Camera hardware, image format, capture trigger, dish tracking, plate sizes, and conveyor conditions.
 - Menu upload format, hall timezone, service definitions, categories, and menu revision behavior.
-- How uneaten reference areas are supplied, normalized, versioned, and reviewed; treatment of mixed foods and variable portions.
+- Exact Meta SAM checkpoint, execution host, localization method, mask format/alignment, processing settings, and acceptable mask quality. Gemini is selected for classification; [MVP_AI.md](MVP_AI.md) records the proposed SAM 2.1/Gemini-box path and alternatives, pending evaluation.
+- Optional recommendation-percentage denominator and how compatible references are supplied/versioned/reviewed; references do not gate Pixels wasted.
 - Gemini model, provider limits, timeout/retry budget, and acceptable image/measurement quality.
 - Attendance bounds per hall/service, required charts, reporting windows, and desired recommendation format.
 - External object-storage provider/account/bucket, public versus private image access, retention/cleanup policy, intended users/access controls, and any live deployment requirements.

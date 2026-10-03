@@ -1,20 +1,29 @@
 # Scrap — dining hall food-waste tracker (MHacks prototype)
 
-Scrap helps dining hall managers see what food comes back uneaten. A top-down
-camera photographs dishes on the conveyor toward the wash station, Gemini
-identifies menu items and estimates the leftover food area in pixels, and a
-beginner-friendly dashboard shows waste totals, trends, the most-wasted items,
-and AI-powered suggestions.
+Scrap helps dining hall managers see what food comes back uneaten. The agreed
+analysis flow is **Gemini food classification → segmentation mask → pixel
+counting in code**. The primary metric is **Pixels wasted**: foreground pixels
+in validated masks of visible leftover food. A beginner-friendly dashboard
+shows totals, trends, the most-wasted items, and AI-powered suggestions.
 
-All waste figures are **AI-estimated pixel areas**, not grams or cost, and
-attendance is **simulated** in this prototype — both are labeled as such
-throughout.
+Uploaded/replayed images are the current input; camera placement and conveyor
+integration are deferred. Mask counts use a shared normalized image geometry,
+count overlapping pixels once, and preserve AI segmentation quality metadata.
+Attendance is **simulated**. Pixels are not physical mass or servings.
+
+This is the updated product context. Existing scalar-area and count/percentage
+analysis paths still require migration; this context update does not implement
+the new pipeline. See [the measurement contract](contracts/measurement.md).
 
 ## Documents
 
 - [`AGENTS.md`](AGENTS.md) — the working plan: agent roles, ownership, rules,
   measurement formulas, and completion checks.
 - [`UI.md`](UI.md) — dashboard spec (layout, palette, copy).
+- [`MVP_AI.md`](MVP_AI.md) — researched Meta SAM segmentation plan and
+  bounding-box model options; implementation and food-image evaluation are pending.
+- [`AI.md`](AI.md) — current AI flow and future DepthAnythingV2 volume plan;
+  depth/volume work is deferred.
 - [`contracts/`](contracts/) — shared entity types, error format, sample
   records, and [recorded decisions](contracts/decisions.md).
 
@@ -25,7 +34,7 @@ throughout.
 | `contracts/` | Agent 1 | Shared types, samples, decisions |
 | `data/`, `db/` | Agent 2 | Menu parsing/validation, SpacetimeDB schema, seeds |
 | `capture/` | Agent 3 | Camera/replay capture adapter |
-| `vision/` | Agent 4 | Gemini gateway, classification, area analysis |
+| `vision/` | Agent 4 | Gemini classification, segmentation, mask pixel counting |
 | `backend/` | Agent 5 | API, object-storage adapter, orchestration |
 | `analytics/` | Agent 6 | Aggregates, simulated attendance, suggestions |
 | `frontend/` | Agent 7 | Scrap dashboard (React + Tailwind) |

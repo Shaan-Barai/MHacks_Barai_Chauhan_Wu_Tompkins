@@ -20,13 +20,20 @@ pending details arrive; agreed items came from the team or AGENTS.md.
   Browser CORS policy for direct upload/display: `backend/r2-cors.json`.
   Retention: unfinalized uploads older than `ORPHAN_MAX_AGE_SECONDS` are
   removable via `POST /api/images/cleanup-orphans`; finalized images are kept.
-- **Vision provider:** Gemini API for classification and pixel-area estimates.
-  No custom model training.
+- **Vision flow (updated 2026-10-03):** Gemini API for food classification
+  first, then a separate segmentation-mask stage, then foreground pixel
+  counting in application code. The planned segmentation family is Meta SAM;
+  [MVP_AI.md](../MVP_AI.md) proposes SAM 2.1 Small with Gemini boxes for initial
+  evaluation. Exact checkpoint/host selection remains provisional. No custom
+  model training.
 - **Frontend:** React + Tailwind, "Kitchen Garden" palette mapped to Tailwind
   theme tokens, single-dashboard layout per `UI.md`. All mock data in one file
   so it can be swapped for live queries later.
-- **Terminology:** UI "waste units" = observed estimated leftover area
-  (pixels). See `contracts/README.md`.
+- **Primary metric (updated 2026-10-03): Pixels wasted**, the integer count
+  of foreground pixels in validated leftover-food masks in the shared
+  normalized geometry. This supersedes primary percentages, servings, piece
+  counts, and numeric area guesses. The current UI's "waste units" scaling
+  is legacy implementation behavior. See `contracts/measurement.md`.
 - **Workflow:** commit and push incrementally to `main`; PRs are resolved
   automatically by the agents (confirmed in workspace chat, 2026-10-03).
 
@@ -100,6 +107,15 @@ pending details arrive; agreed items came from the team or AGENTS.md.
 
 ## Open questions
 
+- Exact Meta SAM checkpoint, execution host, localization method, mask
+  serialization/alignment, processing settings, and quality criteria. The
+  [MVP AI plan](../MVP_AI.md) proposes initial choices, pending evaluation.
+- Coordinated migration of shared types, vision, persistence, analytics,
+  fixtures, and dashboards from scalar estimates to mask provenance/counts.
+- The earlier conditional mean-percentage recommendation request remains
+  auxiliary; define its compatible reference denominator before implementing
+  it. It does not gate the primary pixel metric.
+
 - R2 account/bucket provisioning for the team and a long-term retention
   policy for finalized images (currently kept indefinitely).
 - Camera hardware, capture trigger, conveyor conditions, plate sizes.
@@ -113,3 +129,54 @@ pending details arrive; agreed items came from the team or AGENTS.md.
   hand-assigned, and live Gemini often estimates leftovers above them on the
   synthetic plates (flagged `above_baseline`, excluded). Real baselines need
   reference photos or measured portions.
+
+## 2026-10-03: classification first, mask-counted Pixels wasted
+
+- The user's latest measurement decision is **Gemini CLASSIFICATION →
+  SEGMENTATION MASK → code-counted Pixels wasted**. Quantity must come from
+  the validated mask, not Gemini's guessed pixel count, piece count, or
+  serving percentage. Separate stage failures and metadata remain visible.
+- Per-food counts use assigned foreground pixels; per-capture totals count
+  their union, and reporting totals include each capture once. Normalized
+  dimensions and plate geometry must be compatible; unknown edible leftovers
+  remain in an unclassified bucket and non-food pixels are excluded.
+- Uneaten baselines are auxiliary. Missing or exceeded baselines do not
+  prevent otherwise valid mask-derived pixel totals. Failed/missing masks
+  are unavailable; a validated empty mask establishes a zero-pixel capture.
+- Store mask assets in external object storage if retained, with durable
+  references and small count/provenance records in SpacetimeDB.
+- Camera placement/conveyor integration remain deferred; use uploaded or
+  replayed images for the current prototype.
+- This assignment updates context only. Existing Gemini scalar-area and
+  countable/uncountable assessment paths, runtime types, and dashboard
+  calculations are not migrated by this change. Previous smoke/evaluation
+  results do not verify the proposed segmentation/counting pipeline.
+
+## 2026-10-03: future DepthAnythingV2 volume extension
+
+- The user requests a future volume-data extension documented in root `AI.md`:
+  classify food, obtain segmentation masks, estimate per-pixel depth with
+  DepthAnythingV2, then integrate food height above the plate over physical
+  area to estimate leftover volume.
+- Depth and volume are deferred explicitly. Pixels wasted remains the current
+  primary metric. This assignment adds documentation only; no model weights,
+  dependencies, inference code, runtime contracts, or volume fields are added.
+- Metric depth or validated scale calibration, empty-plate geometry, camera
+  calibration, mask/depth alignment, and volume validation are prerequisites
+  for implementation. Their exact setup and checkpoint remain open.
+
+## 2026-10-03: Meta SAM segmentation and localization plan
+
+- The user requests a Meta SAM segmentation plan and bounding-box model
+  research. Root [MVP_AI.md](../MVP_AI.md) records the proposal and sources.
+- Proposed first evaluation: Gemini classification plus boxes → SAM 2.1
+  Hiera Small masks → validated code-counted Pixels wasted. Grounding DINO is
+  the first dedicated detector to compare if Gemini localization is inadequate;
+  YOLO-World is a speed-oriented alternative. SAM 3 text prompting can remove
+  the separate box stage if its hardware/checkpoint access is available.
+- Model choice, runtime host, and quality thresholds remain provisional.
+  Compare manual-box segmentation with the complete path on annotated dish
+  images before selecting the implementation. No food accuracy is established.
+- This assignment adds planning/context documentation only. No model weights,
+  packages, inference code, runtime-contract migration, or depth/volume work
+  are implemented.

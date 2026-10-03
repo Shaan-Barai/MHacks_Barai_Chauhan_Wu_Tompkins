@@ -10,7 +10,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "npm run build && node dist/backend/src/server.js",
-    "test": "npm run build && node --test dist/backend/test/"
+    "test": "npm run build && node --test dist/backend/test/*.test.js"
   },
   "dependencies": {
     "express": "^4.21.2"

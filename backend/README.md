@@ -12,7 +12,9 @@ touched; dependencies live in `backend/package.json` only.
 cd backend
 npm install
 npm start          # build (data/vision/analytics first) + run; http://localhost:8787
-npm test           # build + node --test (13 tests; in-memory repo, mock analyzer)
+npm test           # build + node --test (in-memory repo, mock analyzer, offline R2)
+# live SpacetimeDB check (per-run ids; demo data untouched):
+set -a; . ../.env; set +a; npm test   # runs test/spacetimeRepository.live.test.ts too
 npm run seed       # load data/seed/demo-seed.json through the API (backend running)
 ```
 

@@ -1,20 +1,20 @@
 /**
  * Three summary cards (UI.md): Today / This week / This month, number in waste
- * units + small ↑/↓ vs the previous period (Basil if waste went down, Tomato
+ * Pixels wasted + small ↑/↓ vs the previous period (Basil if waste went down, Tomato
  * if it went up).
  */
 import { useId } from 'react'
 import type { PeriodSummary, SummaryCards as SummaryCardsData } from '../data/types'
 import { formatCompact, formatDeltaPercent, formatNumber } from '../lib/format'
-import { Card, InfoTip, WASTE_UNITS_EXPLANATION } from './ui'
+import { Card, InfoTip, PIXELS_WASTED_EXPLANATION } from './ui'
 
 function Delta({ summary }: { summary: PeriodSummary }) {
-  const prev = summary.previousWasteUnits
-  const delta = prev !== null ? formatDeltaPercent(summary.wasteUnits, prev) : null
+  const prev = summary.previousPixelsWasted
+  const delta = prev !== null ? formatDeltaPercent(summary.pixelsWasted, prev) : null
   if (prev === null || delta === null) {
     return <p className="mt-1 text-sm text-thyme">No previous period to compare</p>
   }
-  const up = summary.wasteUnits > prev
+  const up = summary.pixelsWasted > prev
   const flat = delta === '0%'
   return (
     <p className={`mt-1 text-sm font-semibold ${flat ? 'text-thyme' : up ? 'text-tomato' : 'text-basil'}`}>
@@ -32,12 +32,12 @@ function SummaryCard({ label, summary }: { label: string; summary: PeriodSummary
     <Card>
       <h3 className="text-base font-medium text-thyme">
         {label}
-        <InfoTip id={tipId} text={WASTE_UNITS_EXPLANATION} />
+        <InfoTip id={tipId} text={PIXELS_WASTED_EXPLANATION} />
       </h3>
-      <p className="mt-1 font-display text-[44px] font-semibold leading-none text-ink" title={`${formatNumber(summary.wasteUnits)} waste units`}>
-        {formatCompact(summary.wasteUnits)}
+      <p className="mt-1 font-display text-[44px] font-semibold leading-none text-ink" title={`${formatNumber(summary.pixelsWasted)} pixels wasted`}>
+        {formatCompact(summary.pixelsWasted)}
       </p>
-      <p className="mt-1 text-sm text-thyme">waste units (AI estimate)</p>
+      <p className="mt-1 text-sm text-thyme">Pixels wasted</p>
       <Delta summary={summary} />
     </Card>
   )

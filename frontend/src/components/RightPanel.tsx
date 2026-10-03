@@ -11,7 +11,7 @@ import { formatLong } from '../lib/dates'
 import { formatNumber, formatPercent } from '../lib/format'
 import { SEVERITY_DOT_CLASS, SEVERITY_LABEL, severityFor } from '../lib/severity'
 import { useAsync } from '../lib/useAsync'
-import { Badge, EmptyState, InfoTip, LoadingBlock, WASTE_UNITS_EXPLANATION } from './ui'
+import { Badge, EmptyState, InfoTip, LoadingBlock, PIXELS_WASTED_EXPLANATION } from './ui'
 
 export function RightPanel({ date, isYesterday }: { date: IsoDate; isYesterday: boolean }) {
   const [meal, setMeal] = useState<MealLabel>('lunch')
@@ -75,32 +75,40 @@ function MealDetailView({
     <div className="space-y-5">
       {/* Big total + coverage numbers */}
       <div>
-        <p className="font-display text-[40px] font-semibold leading-none text-ink">{formatNumber(detail.totalWasteUnits)}</p>
+        <p className="font-display text-[40px] font-semibold leading-none text-ink">{formatNumber(detail.pixelsWasted)}</p>
         <p className="mt-1 text-base text-thyme">
-          waste units (AI estimate)
-          <InfoTip id={totalTipId} text={WASTE_UNITS_EXPLANATION} />
+          Pixels wasted
+          <InfoTip id={totalTipId} text={PIXELS_WASTED_EXPLANATION} />
         </p>
         <dl className="mt-3 space-y-1 text-base">
           <div className="flex justify-between">
             <dt className="text-thyme">Plates scanned</dt>
             <dd className="font-medium text-ink">{formatNumber(detail.platesScanned)}</dd>
           </div>
-          {(detail.coverage.platesLeftOut > 0 || detail.coverage.itemsLeftOut > 0) && (
+          {detail.coverage.emptyPlates > 0 && (
+            <div className="flex justify-between">
+              <dt className="text-thyme">Clean plates (0 pixels)</dt>
+              <dd className="font-medium text-ink">{formatNumber(detail.coverage.emptyPlates)}</dd>
+            </div>
+          )}
+          {detail.coverage.platesLeftOut > 0 && (
             <div className="flex justify-between">
               <dt className="text-thyme">
                 Left out of totals
                 <InfoTip
                   id={coverageTipId}
-                  text="Plates whose analysis failed or needs review, and foods the AI couldn't match to the menu or measured above a full serving. They are left out instead of being counted as zero waste."
+                  text="Plates whose analysis failed, was only partly segmented, or is still processing. They are left out instead of being counted as zero waste."
                 />
               </dt>
               <dd className="font-medium text-ink">
-                {detail.coverage.platesLeftOut > 0 &&
-                  `${formatNumber(detail.coverage.platesLeftOut)} plate${detail.coverage.platesLeftOut === 1 ? '' : 's'}`}
-                {detail.coverage.platesLeftOut > 0 && detail.coverage.itemsLeftOut > 0 && ', '}
-                {detail.coverage.itemsLeftOut > 0 &&
-                  `${formatNumber(detail.coverage.itemsLeftOut)} item${detail.coverage.itemsLeftOut === 1 ? '' : 's'}`}
+                {`${formatNumber(detail.coverage.platesLeftOut)} plate${detail.coverage.platesLeftOut === 1 ? '' : 's'}`}
               </dd>
+            </div>
+          )}
+          {detail.unclassifiedPixels > 0 && (
+            <div className="flex justify-between">
+              <dt className="text-thyme">Unclassified food</dt>
+              <dd className="font-medium text-ink">{formatNumber(detail.unclassifiedPixels)} px</dd>
             </div>
           )}
           <div className="flex items-center justify-between">
@@ -116,10 +124,12 @@ function MealDetailView({
       </div>
 
       {!top && (
-        <EmptyState title="No waste totals for this meal yet.">
-          {detail.platesScanned === 0
-            ? 'Data appears once plates are scanned.'
-            : 'Plates were scanned, but every food estimate was left out of the totals (for example, the AI measured more than a full serving, or couldn\'t match the food to the menu). Nothing is counted as zero waste.'}
+        <EmptyState title="No menu item waste counted yet.">
+          {detail.coverage.platesCounted === 0
+            ? 'Plates were scanned, but none could be counted yet (analysis failed, was partial, or is still running). Nothing is counted as zero waste.'
+            : detail.pixelsWasted === 0
+              ? 'Every counted plate came back clean — 0 pixels wasted.'
+              : 'The counted food could not be matched to a menu item; it is shown as unclassified food.'}
         </EmptyState>
       )}
 
@@ -130,7 +140,7 @@ function MealDetailView({
         <div className="mt-2 rounded-card border border-linen bg-oat p-4">
           <p className="text-lg font-semibold text-ink">{top.displayName}</p>
           <p className="text-base text-thyme">
-            {formatNumber(top.wasteUnits)} waste units · {formatPercent(top.shareOfMealWastePercent)} of meal waste
+            {formatNumber(top.pixelsWasted)} px · {formatPercent(top.shareOfMealPixelsPercent)} of the meal's wasted pixels
           </p>
           {detail.tip && (
           <div className="mt-3 rounded-btn border border-basil-tint bg-basil-tint/60 p-3">
@@ -156,7 +166,7 @@ function MealDetailView({
           <h3 className="text-base font-semibold text-ink">Also wasted</h3>
           <ul className="mt-2 divide-y divide-linen">
             {rest.map((item) => {
-              const sev = severityFor(item.shareOfMealWastePercent)
+              const sev = severityFor(item.shareOfMealPixelsPercent)
               return (
                 <li key={item.itemId} className="flex items-center gap-3 py-2.5">
                   <span
@@ -166,7 +176,7 @@ function MealDetailView({
                   />
                   <span className="min-w-0 flex-1 truncate text-base text-ink">{item.displayName}</span>
                   <span className="whitespace-nowrap text-sm text-thyme">
-                    {formatNumber(item.wasteUnits)} units · {formatPercent(item.shareOfMealWastePercent)}
+                    {formatNumber(item.pixelsWasted)} px · {formatPercent(item.shareOfMealPixelsPercent)}
                   </span>
                 </li>
               )

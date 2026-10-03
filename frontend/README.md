@@ -31,9 +31,9 @@ setup again, clear site data or run
   `/api/menus*` and `/api/dashboard/{daily,cards,meal}` endpoints
   (backend/README.md). `npm run dev` proxies `/api` to `http://localhost:8787`
   (`VITE_PROXY_TARGET` to change; `VITE_API_URL` for a non-proxied base).
-  The backend returns pixels; the UI shows **waste units = 1,000 px²** of
-  AI-estimated leftover area (`PX_PER_WASTE_UNIT`). All shares, totals, and
-  exclusions are computed server-side by `analytics/`.
+  The UI shows **Pixels wasted** exactly as the backend counts them
+  (foreground pixels in AI-generated leftover-food masks; no scaling). All
+  shares, totals, and exclusions are computed server-side by `analytics/`.
 - **`src/data/mockApi.ts` + `mockData.ts`** — the deterministic demo data
   (seeded PRNG), for offline demos: `VITE_USE_MOCK=1 npm run dev`.
 - Menus saved in the UI go to `POST /api/menus/upload` in live mode

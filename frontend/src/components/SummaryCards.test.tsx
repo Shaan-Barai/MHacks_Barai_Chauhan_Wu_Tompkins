@@ -4,9 +4,9 @@ import { SummaryCardsRow } from './SummaryCards'
 import type { SummaryCards } from '../data/types'
 
 const data: SummaryCards = {
-  today: { start: '2026-10-03', end: '2026-10-03', wasteUnits: 1200, previousWasteUnits: 1000 },
-  thisWeek: { start: '2026-09-28', end: '2026-10-03', wasteUnits: 8000, previousWasteUnits: 10000 },
-  thisMonth: { start: '2026-10-01', end: '2026-10-03', wasteUnits: 3000, previousWasteUnits: null },
+  today: { start: '2026-10-03', end: '2026-10-03', pixelsWasted: 1200, previousPixelsWasted: 1000 },
+  thisWeek: { start: '2026-09-28', end: '2026-10-03', pixelsWasted: 8000, previousPixelsWasted: 10000 },
+  thisMonth: { start: '2026-10-01', end: '2026-10-03', pixelsWasted: 3000, previousPixelsWasted: null },
 }
 
 describe('SummaryCardsRow', () => {

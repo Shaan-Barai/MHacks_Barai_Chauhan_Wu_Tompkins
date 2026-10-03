@@ -80,8 +80,8 @@ export function SetupWizard({ onComplete }: { onComplete: (settings: HallSetting
         <section className="mt-8" aria-label="Step 3: all set">
           <h1 className="font-display text-3xl font-semibold text-ink">You're all set! 🎉</h1>
           <p className="mt-2 max-w-lg text-base text-thyme">
-            {draft.name.trim()} is ready. The dashboard shows waste units — the AI-estimated leftover food area seen on
-            plates — plus the items driving it and simple tips to cut it down.
+            {draft.name.trim()} is ready. The dashboard shows Pixels wasted — leftover food counted pixel by pixel
+            inside AI-drawn outlines on each plate photo — plus the items driving it and simple tips to cut it down.
           </p>
           <div className="mt-8 flex gap-3">
             <GhostButton type="button" onClick={() => setStep(2)}>

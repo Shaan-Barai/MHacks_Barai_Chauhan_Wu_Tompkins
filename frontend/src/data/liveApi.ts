@@ -2,10 +2,10 @@
  * Live data access against Agent 5's backend (backend/README.md). Same
  * function signatures as mockApi.ts; api.ts picks one.
  *
- * The backend reports pixels ("observed estimated leftover area", AGENTS.md
- * §7); the UI shows friendly "waste units" = thousands of pixels. Analytics
- * (shares, totals, exclusions) are computed server-side by analytics/ —
- * components never redo canonical math.
+ * Everything is Pixels wasted (contracts/measurement.md): integer counts of
+ * foreground pixels in validated leftover-food masks, shown as-is (no
+ * "waste units" scaling). Totals, shares, and exclusions are computed
+ * server-side by analytics/ — components never redo canonical math.
  */
 import { loadSettings } from '../state/settings'
 import type {
@@ -21,8 +21,6 @@ import type {
 import { MEALS } from './types'
 import { todayIso } from '../lib/dates'
 
-/** One "waste unit" in the UI = 1,000 px² of AI-estimated leftover area. */
-export const PX_PER_WASTE_UNIT = 1000
 /** contracts/decisions.md: hall timezone until a hall config says otherwise. */
 const HALL_TIMEZONE = 'America/Detroit'
 
@@ -31,8 +29,6 @@ const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
 function hallId(): string {
   return loadSettings()?.hallId ?? 'hall-main'
 }
-
-const units = (px: number) => Math.round((px / PX_PER_WASTE_UNIT) * 10) / 10
 
 interface ApiErrorBody {
   error?: { code: string; message: string }
@@ -132,28 +128,26 @@ export async function testMenuConnection(url: string, apiKey: string): Promise<{
 // ---------------------------------------------------------------------------
 
 export async function getDailyWaste(start: IsoDate, end: IsoDate): Promise<DailyWastePoint[]> {
-  const { days } = await call<{ days: { date: IsoDate; observedRemainingAreaPx: number | null }[] }>(
+  const { days } = await call<{ days: { date: IsoDate; pixelsWasted: number | null }[] }>(
     `/api/dashboard/daily?${q({ hallId: hallId(), start, end })}`,
   )
-  return days.map((d) => ({
-    date: d.date,
-    wasteUnits: d.observedRemainingAreaPx === null ? null : units(d.observedRemainingAreaPx),
-  }))
+  return days.map((d) => ({ date: d.date, pixelsWasted: d.pixelsWasted }))
 }
 
 interface MealResponse {
   serviceId: string
   summary: {
     captureCount: number
-    succeededCaptureCount: number
+    countedCaptureCount: number
+    emptyPlateCount: number
     excludedCaptureCount: number
-    excludedMeasurementCount: number
-    observedRemainingAreaPx: number
+    pixelsWasted: number
+    unclassifiedPixels: number
     items: {
       itemId: string
       displayName?: string
-      remainingAreaPx: number
-      shareOfMealWastePercent: number | null
+      pixelsWasted: number
+      shareOfMealPixelsPercent: number | null
     }[]
   }
   attendance: { count: number; source: 'simulated' }
@@ -163,26 +157,27 @@ interface MealResponse {
 /** Null = no menu or no scanned plate yet (friendly empty state). */
 export async function getMealDetail(date: IsoDate, meal: MealLabel): Promise<MealDetail | null> {
   const body = await orNull(call<MealResponse>(`/api/dashboard/meal?${q({ hallId: hallId(), date, meal })}`))
-  // Scanned plates whose estimates were all left out stay visible (AGENTS.md §9.7).
+  // Scanned plates that weren't counted stay visible (AGENTS.md §9.7).
   if (!body || body.summary.captureCount === 0) return null
   const s = body.summary
   return {
     serviceId: body.serviceId,
     date,
     meal,
-    totalWasteUnits: units(s.observedRemainingAreaPx),
+    pixelsWasted: s.pixelsWasted,
+    unclassifiedPixels: s.unclassifiedPixels,
     platesScanned: s.captureCount,
     coverage: {
-      platesAnalyzed: s.succeededCaptureCount,
+      platesCounted: s.countedCaptureCount,
+      emptyPlates: s.emptyPlateCount,
       platesLeftOut: s.excludedCaptureCount,
-      itemsLeftOut: s.excludedMeasurementCount,
     },
     mealSwipes: { count: body.attendance.count, source: 'simulated' },
     items: s.items.map((i) => ({
       itemId: i.itemId,
       displayName: i.displayName ?? i.itemId,
-      wasteUnits: units(i.remainingAreaPx),
-      shareOfMealWastePercent: i.shareOfMealWastePercent ?? 0,
+      pixelsWasted: i.pixelsWasted,
+      shareOfMealPixelsPercent: i.shareOfMealPixelsPercent ?? 0,
     })),
     tip: body.insight && { recommendation: body.insight.recommendation, source: body.insight.source },
   }
@@ -191,8 +186,8 @@ export async function getMealDetail(date: IsoDate, meal: MealLabel): Promise<Mea
 interface PeriodResponse {
   start: IsoDate
   end: IsoDate
-  observedRemainingAreaPx: number
-  previousObservedRemainingAreaPx: number | null
+  pixelsWasted: number
+  previousPixelsWasted: number | null
 }
 
 export async function getSummaryCards(): Promise<SummaryCards> {
@@ -202,8 +197,8 @@ export async function getSummaryCards(): Promise<SummaryCards> {
   const period = (p: PeriodResponse): PeriodSummary => ({
     start: p.start,
     end: p.end,
-    wasteUnits: units(p.observedRemainingAreaPx),
-    previousWasteUnits: p.previousObservedRemainingAreaPx === null ? null : units(p.previousObservedRemainingAreaPx),
+    pixelsWasted: p.pixelsWasted,
+    previousPixelsWasted: p.previousPixelsWasted,
   })
   return { today: period(body.today), thisWeek: period(body.thisWeek), thisMonth: period(body.thisMonth) }
 }

@@ -61,8 +61,8 @@ export function InfoTip({ id, text }: { id: string; text: string }) {
   )
 }
 
-export const WASTE_UNITS_EXPLANATION =
-  'Waste units are the AI-estimated leftover food area seen on plates by the camera (a prototype estimate — not grams or servings).'
+export const PIXELS_WASTED_EXPLANATION =
+  'Pixels wasted counts the visible leftover-food pixels inside AI-drawn outlines (segmentation masks) of each plate photo. The counting is exact; the outlines are AI estimates. Not grams, servings, or the share of food originally served.'
 
 export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
   return (

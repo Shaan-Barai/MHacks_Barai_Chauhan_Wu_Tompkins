@@ -1,5 +1,5 @@
 /**
- * The one main chart (UI.md): waste units vs date, Blueberry bars, hover (and
+ * The one main chart (UI.md): Pixels wasted vs date, Blueberry bars, hover (and
  * keyboard-focus) tooltip with the exact value and date. Hand-rolled SVG.
  */
 import { useLayoutEffect, useRef, useState } from 'react'
@@ -30,7 +30,7 @@ export function WasteChart({ buckets }: { buckets: ChartBucket[] }) {
   const n = buckets.length
   const plotW = Math.max(40, width - M.left - M.right)
   const plotH = HEIGHT - M.top - M.bottom
-  const max = niceCeil(Math.max(0, ...buckets.map((b) => b.wasteUnits ?? 0)))
+  const max = niceCeil(Math.max(0, ...buckets.map((b) => b.pixelsWasted ?? 0)))
   const band = plotW / Math.max(1, n)
   const barW = Math.min(24, Math.max(2, band - 2)) // ≤24px thick, 2px surface gap
   const yFor = (v: number) => M.top + plotH - (v / max) * plotH
@@ -49,7 +49,7 @@ export function WasteChart({ buckets }: { buckets: ChartBucket[] }) {
         width={width}
         height={HEIGHT}
         role="img"
-        aria-label="Bar chart of waste units per period for the selected date range"
+        aria-label="Bar chart of pixels wasted per period for the selected date range"
       >
         {/* recessive hairline gridlines + y ticks */}
         {ticks.map((t) => (
@@ -63,9 +63,9 @@ export function WasteChart({ buckets }: { buckets: ChartBucket[] }) {
 
         {/* Blueberry bars: square at the baseline, 4px rounded data-end */}
         {buckets.map((b, i) => {
-          if (b.wasteUnits === null) return null
+          if (b.pixelsWasted === null) return null
           const x = M.left + i * band + (band - barW) / 2
-          const y = yFor(b.wasteUnits)
+          const y = yFor(b.pixelsWasted)
           const h = M.top + plotH - y
           const r = Math.min(4, barW / 2, h)
           const d =
@@ -106,9 +106,9 @@ export function WasteChart({ buckets }: { buckets: ChartBucket[] }) {
             tabIndex={0}
             role="img"
             aria-label={
-              b.wasteUnits === null
+              b.pixelsWasted === null
                 ? `${b.tooltipLabel}: no data`
-                : `${b.tooltipLabel}: ${formatNumber(b.wasteUnits)} waste units`
+                : `${b.tooltipLabel}: ${formatNumber(b.pixelsWasted)} pixels wasted`
             }
             onMouseEnter={() => setHover(i)}
             onMouseLeave={() => setHover(null)}
@@ -125,7 +125,7 @@ export function WasteChart({ buckets }: { buckets: ChartBucket[] }) {
           style={{ left: tooltipLeft }}
         >
           <span className="font-semibold">
-            {hovered.wasteUnits === null ? 'No data' : `${formatNumber(hovered.wasteUnits)} waste units`}
+            {hovered.pixelsWasted === null ? 'No data' : `${formatNumber(hovered.pixelsWasted)} pixels wasted`}
           </span>
           <span className="ml-2 opacity-80">{hovered.tooltipLabel}</span>
         </div>

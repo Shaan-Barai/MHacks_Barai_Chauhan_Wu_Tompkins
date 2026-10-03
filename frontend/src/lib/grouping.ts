@@ -11,7 +11,7 @@ export interface ChartBucket {
   /** Full label for the tooltip. */
   tooltipLabel: string
   /** null = no data in the bucket. */
-  wasteUnits: number | null
+  pixelsWasted: number | null
 }
 
 export function groupPoints(points: DailyWastePoint[], grouping: Grouping): ChartBucket[] {
@@ -20,7 +20,7 @@ export function groupPoints(points: DailyWastePoint[], grouping: Grouping): Char
       key: p.date,
       label: formatShort(p.date),
       tooltipLabel: formatMedium(p.date),
-      wasteUnits: p.wasteUnits,
+      pixelsWasted: p.pixelsWasted,
     }))
   }
   const buckets = new Map<string, { label: string; tooltipLabel: string; sum: number; any: boolean }>()
@@ -36,8 +36,8 @@ export function groupPoints(points: DailyWastePoint[], grouping: Grouping): Char
       }
       buckets.set(key, b)
     }
-    if (p.wasteUnits !== null) {
-      b.sum += p.wasteUnits
+    if (p.pixelsWasted !== null) {
+      b.sum += p.pixelsWasted
       b.any = true
     }
   }
@@ -45,7 +45,7 @@ export function groupPoints(points: DailyWastePoint[], grouping: Grouping): Char
     key,
     label: b.label,
     tooltipLabel: b.tooltipLabel,
-    wasteUnits: b.any ? b.sum : null,
+    pixelsWasted: b.any ? b.sum : null,
   }))
 }
 

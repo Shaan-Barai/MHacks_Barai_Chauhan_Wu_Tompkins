@@ -4,9 +4,9 @@
  */
 export type Severity = 'low' | 'medium' | 'high'
 
-export function severityFor(shareOfMealWastePercent: number): Severity {
-  if (shareOfMealWastePercent > 25) return 'high'
-  if (shareOfMealWastePercent >= 10) return 'medium'
+export function severityFor(shareOfMealPixelsPercent: number): Severity {
+  if (shareOfMealPixelsPercent > 25) return 'high'
+  if (shareOfMealPixelsPercent >= 10) return 'medium'
   return 'low'
 }
 

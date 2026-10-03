@@ -1,4 +1,4 @@
-/** Number formatting for waste units and counts. */
+/** Number formatting for pixel counts and other counts. */
 
 const full = new Intl.NumberFormat()
 

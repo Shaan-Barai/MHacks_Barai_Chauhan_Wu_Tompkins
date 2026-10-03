@@ -26,7 +26,7 @@ export function DashboardPage({ range, onRangeChange }: { range: DateRange; onRa
     () => (series.data ? groupPoints(series.data, grouping) : []),
     [series.data, grouping],
   )
-  const hasAnyData = buckets.some((b) => b.wasteUnits !== null)
+  const hasAnyData = buckets.some((b) => b.pixelsWasted !== null)
 
   return (
     <div className="space-y-5">
@@ -58,8 +58,8 @@ export function DashboardPage({ range, onRangeChange }: { range: DateRange; onRa
           </div>
         </div>
         <p className="mt-1 text-sm text-thyme">
-          Waste units per {grouping === 'daily' ? 'day' : grouping === 'weekly' ? 'week' : 'month'} — AI-estimated
-          leftover food area. Hover or focus a bar for the exact value.
+          Pixels wasted per {grouping === 'daily' ? 'day' : grouping === 'weekly' ? 'week' : 'month'} — counted inside AI-drawn
+          leftover-food outlines. Hover or focus a bar for the exact value.
         </p>
         <div className={`mt-3 ${series.status === 'loading' && series.data ? 'opacity-60' : ''}`}>
           {series.status === 'loading' && !series.data && <LoadingBlock label="Loading chart…" />}

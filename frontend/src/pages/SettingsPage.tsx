@@ -67,8 +67,8 @@ export function SettingsPage({
       <Card>
         <h2 className="text-lg font-semibold text-ink">Export</h2>
         <p className="mt-1 text-base text-thyme">
-          Download the last 30 days as a CSV — one row per item per meal. Waste units are AI-estimated leftover food
-          area; meal swipes are simulated.
+          Download the last 30 days as a CSV — one row per item per meal. Pixels wasted are counted inside AI-drawn
+          leftover-food outlines; meal swipes are simulated.
         </p>
         <div className="mt-3">
           <GhostButton type="button" onClick={exportCsv} disabled={exporting}>

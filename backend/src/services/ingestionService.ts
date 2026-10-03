@@ -205,7 +205,8 @@ export class IngestionService {
   ): FoodMeasurement[] {
     const menuItemIds = new Set(menu.items.map((i) => i.itemId));
     let maskPixels = 0;
-    for (const m of measurements) {
+    const normalized = measurements.map(m => structuredClone(m));
+    for (const m of normalized) {
       if (m.eventId !== event.eventId || m.attemptId !== attemptId) {
         throw new Error(`Analyzer returned a measurement for the wrong event/attempt (${m.measurementId}).`);
       }
@@ -221,6 +222,16 @@ export class IngestionService {
         }
         maskPixels += m.maskCount!.pixelsWasted;
         if (maskPixels > event.geometry.widthPx * event.geometry.heightPx) throw new Error('Mask assignments exceed image bounds.');
+        // An invalid auxiliary denominator cannot invalidate a counted mask.
+        if (m.baselineAreaPx !== undefined && (!Number.isFinite(m.baselineAreaPx) || m.baselineAreaPx <= 0)) {
+          delete m.baselineAreaPx;
+          delete m.baselineId;
+          delete m.rawWasteFraction;
+          delete m.displayWastePercent;
+          m.unavailableReason = 'Auxiliary baseline comparison unavailable.';
+          if (!m.qualityFlags.includes('missing_baseline')) m.qualityFlags.push('missing_baseline');
+        }
+        if (m.rawWasteFraction !== undefined && m.rawWasteFraction > 1 && !m.qualityFlags.includes('above_baseline')) m.qualityFlags.push('above_baseline');
       }
       if (m.baselineAreaPx !== undefined && (!Number.isFinite(m.baselineAreaPx) || m.baselineAreaPx <= 0)) {
         throw new Error(`Analyzer returned an invalid baseline area for ${m.measurementId}.`);
@@ -236,6 +247,6 @@ export class IngestionService {
         throw new Error(`Measurement ${m.measurementId} is above baseline but not flagged.`);
       }
     }
-    return measurements;
+    return normalized;
   }
 }

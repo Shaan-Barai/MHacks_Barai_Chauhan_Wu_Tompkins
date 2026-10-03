@@ -153,7 +153,7 @@ export interface FoodMeasurement {
   attemptId: string;
   /** null = unknown/non-menu food (excluded from menu percentages). */
   itemId: string | null;
-  /** Raw estimate, preserved unclamped; finite and >= 0. */
+  /** Legacy raw area estimate, or code-counted mask pixels when method is mask_pixel_count. */
   remainingAreaPx: number;
   baselineId?: string;
   /** Finite and > 0 when present; missing baseline => no percentage. */

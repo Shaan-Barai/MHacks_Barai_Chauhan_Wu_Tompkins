@@ -22,6 +22,7 @@ import type {
   Insight,
 } from '../types.js';
 import type { Repository } from './repository.js';
+import { conflict } from '../errors.js';
 
 interface Snapshot {
   menus: MenuBundle[];
@@ -79,7 +80,7 @@ export class JsonFileRepository implements Repository {
   async replacePortionsServed(serviceId: string, menuVersion: number, portions: PortionsServed[]): Promise<void> {
     // Check again at write time so a simultaneous menu revision cannot accept stale counts.
     const menu = this.menus.get(serviceId);
-    if (!menu || menu.service.menuVersion !== menuVersion) throw new Error('The menu changed; reload before saving portions.');
+    if (!menu || menu.service.menuVersion !== menuVersion) throw conflict('STALE_PORTIONS_MENU', 'The menu changed; reload before saving portions.');
     for (const [key, p] of this.portionsServed) {
       if (p.serviceId === serviceId && p.menuVersion === menuVersion) this.portionsServed.delete(key);
     }

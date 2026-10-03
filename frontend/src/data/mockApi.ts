@@ -81,6 +81,9 @@ export async function saveUserMenu(date: IsoDate, meals: Record<MealLabel, MenuI
   const all = readUserMenus()
   all[date] = menu
   writeUserMenus(all)
+  const counts = storedPortions()
+  for (const meal of MEALS) delete counts[`mock|${date}|${meal}`]
+  localStorage.setItem(PORTIONS_KEY, JSON.stringify(counts))
   return menu
 }
 

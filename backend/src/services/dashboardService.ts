@@ -214,7 +214,10 @@ export class DashboardService {
     );
     if (stored) return stored;
 
-    const insight = await generatePortionInsight(benchmark, this.gateway);
+    const captures = await this.repo.listCaptureEvents({ hallId: benchmark.hallId, serviceId: benchmark.serviceId });
+    const times = captures.map(c => c.capturedAt).filter(t => Number.isFinite(Date.parse(t))).map(t => new Date(t).toISOString()).sort();
+    const now = new Date().toISOString();
+    const insight = await generatePortionInsight(benchmark, this.gateway, { windowStart: times[0] ?? now, windowEnd: times.at(-1) ?? now });
     await this.repo.upsertInsight(insight);
     return insight;
   }

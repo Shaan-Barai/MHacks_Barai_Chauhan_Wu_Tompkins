@@ -6,6 +6,8 @@ other modules build against. Change it only through Agent 1.
 ## Files
 
 - `types.ts` — entity and error type definitions (TypeScript, dependency-free).
+  Additive `PortionsServed` / `MaskPixelCount` types support the per-portion
+  recommendation benchmark; mask inference remains pending.
 - `samples.json` — one valid sample record per entity, usable as fixtures.
 - `decisions.md` — recorded stack decisions and open questions.
 - `measurement.md` — current classification → segmentation → pixel-count contract and migration scope.
@@ -43,8 +45,9 @@ total_pixels_wasted = sum(capture_pixels_wasted for unique eligible captures)
   and versioned. Incompatible geometries are grouped separately. Overlap is
   resolved for item assignment and counted once in the capture total.
 - `types.ts` and existing samples describe the pre-migration implementation.
-  Their coordinated migration is required before modules claim mask counting;
-  this documentation update does not alter runtime interfaces.
+  The new optional mask-count provenance and served-portion records are additive;
+  the downstream portion calculator rejects legacy estimates. The rest of the
+  coordinated mask-pipeline migration is required before live mask counting is claimed.
 
 ## Error format
 

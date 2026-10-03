@@ -24,6 +24,7 @@ import type {
   Insight,
 } from '../types.js';
 import type { Repository } from './repository.js';
+import { conflict } from '../errors.js';
 
 export interface SpacetimeConfig {
   /** e.g. http://127.0.0.1:3000 */
@@ -142,7 +143,12 @@ export class SpacetimeRepository implements Repository {
 
   // --- reference portions ---
   async replacePortionsServed(serviceId: string, menuVersion: number, portions: PortionsServed[]): Promise<void> {
-    await this.call('replace_portions_served', { snapshotJson: JSON.stringify({ serviceId, menuVersion, portions }) });
+    try {
+      await this.call('replace_portions_served', { snapshotJson: JSON.stringify({ serviceId, menuVersion, portions }) });
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('The menu changed')) throw conflict('STALE_PORTIONS_MENU', 'The menu changed; reload before saving portions.');
+      throw error;
+    }
   }
   async listPortionsServed(serviceId: string, menuVersion: number): Promise<PortionsServed[]> {
     if (!Number.isInteger(menuVersion) || menuVersion < 1) throw new Error('Invalid menu version.');

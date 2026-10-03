@@ -163,7 +163,7 @@ export function createApp(deps: AppDeps): express.Express {
     }),
   );
 
-  // ---- reference portions (CRUD-lite) ----
+  // ---- actual portions served (replacement snapshots) ----
   async function portionsMenu(req: Request): Promise<MenuBundle> {
     const serviceId = requireQuery(req, 'serviceId');
     const hallId = requireQuery(req, 'hallId');

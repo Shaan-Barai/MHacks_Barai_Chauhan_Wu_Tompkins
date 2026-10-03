@@ -22,6 +22,12 @@ npm test
 | `computeDataVersion` | Stable fingerprint for suggestion cache keys |
 | `generateAttendance` / `AttendanceCache` | Reproducible simulated attendance (300–1200 default) |
 | `generateInsight` / `InsightCache` | Grounded suggestions via Agent 4 `generateText`, with rule-based fallback |
+| `summarizePortionBenchmarks` | Validated observed item pixels / actual portions served; legacy areas cannot enter |
+| `generatePortionInsight` / `portionDataVersion` | Recommendation ranking and cache invalidation using per-portion rates |
+
+The dashboard now uses the per-portion recommendation path. `generateInsight`
+and the baseline formulas below remain legacy APIs; they do not establish the
+new mask-derived benchmark. See [the portion guide](../docs/portions-served.md).
 
 ## Formulas (AGENTS.md §7)
 

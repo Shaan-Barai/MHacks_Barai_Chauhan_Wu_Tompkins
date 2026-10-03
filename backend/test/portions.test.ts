@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { startTestServer, MENU, SERVICE, HALL, GEOMETRY } from './helpers.js';
 import { JsonFileRepository } from '../src/repo/jsonFileRepository.js';
 import type { FoodMeasurement, PortionsServed } from '../src/types.js';
+import type { Analyzer } from '../src/analysis/analyzer.js';
 
 const path = `/api/portions-served?hallId=${HALL}&serviceId=${SERVICE}`;
 const input = { serviceId: SERVICE, menuVersion: 1, entries: [{ itemId: 'item_eggs', count: 1000 }, { itemId: 'item_toast', count: 100 }] };
@@ -74,3 +75,25 @@ test('JSON persistence retains portions and menu revision prevents stale denomin
   assert.deepEqual(await reloaded.listPortionsServed(SERVICE, 1), [count]);
   await assert.rejects(reloaded.replacePortionsServed(SERVICE, 1, [count]));
 });
+
+for (const malformed of [false, true]) {
+  test(`ingestion ${malformed ? 'rejects misaligned' : 'persists validated'} mask metadata; optional zero baseline does not gate counting`, async t => {
+    const analyzer: Analyzer = { analyze: async ({ event, attemptId, menu }) => ({
+      attempt: { eventId: event.eventId, attemptId, menuId: menu.service.menuId, menuVersion: menu.service.menuVersion,
+        baselineVersions: {}, model: 'synthetic-mask-fixture', promptVersion: 'fixture-v1', status: 'succeeded', qualityFlags: [], createdAt: '2026-10-03T16:00:01Z' },
+      measurements: [{ measurementId: `mask-${event.eventId}`, eventId: event.eventId, attemptId, itemId: 'item_eggs', remainingAreaPx: 100,
+        method: 'mask_pixel_count', baselineAreaPx: 0, qualityFlags: [],
+        maskCount: { pixelsWasted: 100, maskObjectId: 'synthetic-external-mask', geometry: { ...GEOMETRY, widthPx: malformed ? 10 : GEOMETRY.widthPx },
+          menuId: menu.service.menuId, menuVersion: menu.service.menuVersion, classificationVersion: 'fixture-v1', segmentationVersion: 'fixture-v1', processingVersion: 'exclusive-count-v1', assignment: 'exclusive', validated: true } }],
+    }) };
+    const s = await startTestServer(analyzer); t.after(() => s.close()); await s.seedMenuAndBaselines();
+    await s.api('PUT', path, input);
+    const image = await s.uploadImage('mask-ingestion');
+    const captured = await s.submitCapture('mask-ingestion', image);
+    assert.equal(captured.json.event.state, malformed ? 'failed' : 'succeeded');
+    const benchmark = await s.api('GET', `/api/portions-served/benchmark?hallId=${HALL}&serviceId=${SERVICE}`);
+    const item = benchmark.json.items.find((i: { itemId: string }) => i.itemId === 'item_eggs');
+    assert.equal(item.pixelsWastedPerPortion, malformed ? null : 0.1);
+    if (!malformed) assert.equal(captured.json.measurements[0].baselineAreaPx, undefined);
+  });
+}

@@ -3,7 +3,8 @@ import type { TextGateway } from './suggestions.js';
 import { portionDataVersion, type PortionBenchmark } from './portions.js';
 
 /** Recommendations use the served-portion benchmark, never total waste as a proxy for dislike. */
-export async function generatePortionInsight(summary: PortionBenchmark, gateway?: TextGateway): Promise<Insight> {
+export async function generatePortionInsight(summary: PortionBenchmark, gateway?: TextGateway, window?: { windowStart: string; windowEnd: string }): Promise<Insight> {
+  const generatedAt = new Date().toISOString();
   const top = summary.items.find(i => i.pixelsWastedPerPortion !== null);
   const missing = summary.items.filter(i => i.pixelsWastedPerPortion === null).length;
   const metrics: Record<string, number | string> = {
@@ -11,8 +12,11 @@ export async function generatePortionInsight(summary: PortionBenchmark, gateway?
     menuVersion: summary.menuVersion, capturedDishes: summary.capturedDishes,
     measuredDishes: summary.measuredDishes, excludedMeasurements: summary.excludedMeasurements,
     itemsWithoutBenchmark: missing, coverageNote: summary.coverageNote,
+    itemBenchmarks: JSON.stringify(summary.items),
   };
-  let recommendation = 'Enter portions served and collect validated food masks to compare pixels wasted per portion. Current area estimates cannot establish this benchmark.';
+  let recommendation = 'No menu item has an available pixels-per-portion benchmark. ' +
+    (summary.items.some(i => i.portionsServed === null || i.portionsServed === 0) ? 'Enter missing portions served or check zero counts. ' : 'Portions served are saved. ') +
+    'Resolve unavailable mask measurements before comparing foods; current area estimates cannot establish this benchmark.';
   if (top) {
     Object.assign(metrics, {
       topItemId: top.itemId, topItemName: top.displayName, pixelsWasted: top.pixelsWasted!,
@@ -38,8 +42,8 @@ export async function generatePortionInsight(summary: PortionBenchmark, gateway?
   }
   return {
     insightId: `ins_portions_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
-    hallId: summary.hallId, windowStart: `${summary.serviceDate}T00:00:00.000Z`,
-    windowEnd: `${summary.serviceDate}T23:59:59.999Z`, metrics,
-    dataVersion: portionDataVersion(summary), recommendation, source, generatedAt: new Date().toISOString(),
+    hallId: summary.hallId, windowStart: window?.windowStart ?? generatedAt,
+    windowEnd: window?.windowEnd ?? generatedAt, metrics,
+    dataVersion: portionDataVersion(summary), recommendation, source, generatedAt,
   };
 }

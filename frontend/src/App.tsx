@@ -70,7 +70,7 @@ export default function App() {
       </main>
 
       {/* Right: Cream with Linen left border */}
-      <RightPanel dataRevision={dataRevision} date={detailDate} isYesterday={!single} />
+      {page !== 'portions' && <RightPanel dataRevision={dataRevision} date={detailDate} isYesterday={!single} />}
     </div>
   )
 }

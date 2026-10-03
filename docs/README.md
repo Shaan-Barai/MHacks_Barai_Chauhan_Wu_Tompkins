@@ -10,5 +10,6 @@ Owner: Agent 8 — demo walkthrough, setup, runbook, fixture provenance, limitat
 | [fixture-provenance.md](fixture-provenance.md) | Where fixture numbers come from |
 | [known-limitations.md](known-limitations.md) | Honest scope boundaries |
 | [verification-report.md](verification-report.md) | Latest Agent 8 verification results |
+| [portions-served.md](portions-served.md) | Portion entry/CSV, normalized recommendations, API, and mask-integration handoff |
 
 Root install narrative stays in [`README.md`](../README.md) (Agent 1).

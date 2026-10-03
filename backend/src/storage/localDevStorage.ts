@@ -154,6 +154,13 @@ export class LocalDevStorage implements ObjectStorageAdapter {
     }
   }
 
+  async putBytes(objectKey: string, bytes: Uint8Array, _mimeType: string): Promise<{ sizeBytes: number }> {
+    const filePath = this.pathFor(objectKey);
+    await mkdir(dirname(filePath), { recursive: true });
+    await writeFile(filePath, bytes);
+    return { sizeBytes: bytes.byteLength };
+  }
+
   async deleteObject(objectKey: string): Promise<void> {
     await rm(this.pathFor(objectKey), { force: true });
   }

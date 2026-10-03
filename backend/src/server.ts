@@ -12,7 +12,9 @@ const { app, config } = buildBackend();
 
 app.listen(config.port, () => {
   const persistence = config.spacetime ? `SpacetimeDB ${config.spacetime.module}` : 'in-memory/JSON';
-  const vision = process.env.GEMINI_API_KEY ? 'live Gemini' : 'mock analyzer';
+  const vision = process.env.GEMINI_API_KEY
+    ? `Gemini classification + SAM 2.1 masks (${config.samWorkerUrl})`
+    : 'mock analyzer';
   console.log(
     `[backend] Scrap API listening on port ${config.port} (storage: ${config.objectStorage.provider}, persistence: ${persistence}, vision: ${vision})`,
   );

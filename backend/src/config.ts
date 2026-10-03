@@ -20,6 +20,8 @@ export interface BackendConfig {
   };
   /** Optional JSON persistence file for the offline/test repository. */
   dataFile?: string;
+  /** SAM 2.1 segmentation worker (vision/sam/worker.py). */
+  samWorkerUrl: string;
   /** SpacetimeDB persistence; when unset the JSON/in-memory repository is used. */
   spacetime?: { uri: string; module: string; token?: string };
   attendance: { min: number; max: number; seed?: string };
@@ -61,6 +63,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BackendConfig 
           : undefined,
     },
     dataFile: env.BACKEND_DATA_FILE || undefined,
+    samWorkerUrl: env.SAM_WORKER_URL || 'http://127.0.0.1:8790',
     spacetime: env.SPACETIMEDB_URI
       ? {
           uri: env.SPACETIMEDB_URI,

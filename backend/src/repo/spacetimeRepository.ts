@@ -21,6 +21,8 @@ import type {
   FoodMeasurement,
   Attendance,
   Insight,
+  ClassificationRegion,
+  SegmentationResult,
 } from '../types.js';
 import type { Repository } from './repository.js';
 
@@ -209,8 +211,39 @@ export class SpacetimeRepository implements Repository {
       measurementsJson: JSON.stringify(measurements),
     });
   }
+  /** Rebuild contract SegmentationResults (capture_count + segmentation_region) for an event. */
+  private async segmentationsFor(eventId: string): Promise<Map<string, SegmentationResult>> {
+    const [counts, regions] = await Promise.all([
+      this.sql(`SELECT * FROM capture_count WHERE event_id = ${quote(eventId)}`),
+      this.sql(`SELECT * FROM segmentation_region WHERE event_id = ${quote(eventId)}`),
+    ]);
+    const out = new Map<string, SegmentationResult>();
+    for (const c of counts) {
+      const { attemptId, eventId: _e, ...rest } = c;
+      out.set(attemptId, clean({ ...rest, regions: [] } as unknown as SegmentationResult));
+    }
+    regions.sort((a, b) => String(a.regionId).localeCompare(String(b.regionId), undefined, { numeric: true }));
+    for (const r of regions) {
+      const seg = out.get(r.attemptId);
+      if (!seg) continue;
+      const { geminiBox, pixelBox, boxConvention, error, itemId, ...rest } = r;
+      seg.regions.push(
+        clean({
+          ...rest,
+          itemId: itemId ?? null,
+          box: { gemini: geminiBox, pixelXyxy: pixelBox, convention: boxConvention },
+          error: error
+            ? { code: error.code, message: error.message, details: error.detailsJson ? JSON.parse(error.detailsJson) : undefined, retryable: error.retryable }
+            : undefined,
+        } as ClassificationRegion),
+      );
+    }
+    return out;
+  }
+
   async listAnalysisAttempts(eventId: string): Promise<AnalysisAttempt[]> {
     const rows = await this.sql(`SELECT * FROM analysis_attempt WHERE event_id = ${quote(eventId)}`);
+    const segmentations = await this.segmentationsFor(eventId);
     return rows
       .map((r) => {
         const { baselineVersions, error, ...rest } = r;
@@ -227,6 +260,7 @@ export class SpacetimeRepository implements Repository {
                 retryable: error.retryable,
               }
             : undefined,
+          segmentation: segmentations.get(r.attemptId),
         } as AnalysisAttempt);
       })
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
@@ -236,16 +270,32 @@ export class SpacetimeRepository implements Repository {
     // because SpacetimeDB can commit both in one transaction.
     throw new Error('SpacetimeRepository: write measurements via recordAnalysis(attempt, measurements)');
   }
-  private toMeasurement(row: Row): FoodMeasurement {
-    return clean({ ...row, itemId: row.itemId ?? null } as FoodMeasurement);
+  /**
+   * Mask measurements get their regionIds back from segmentation_region:
+   * an item's count is the union of its successfully segmented regions, and
+   * the unclassified bucket's regions are the unknown-food ones.
+   */
+  private async withRegionIds(rows: Row[], regionQuery: string): Promise<FoodMeasurement[]> {
+    const masked = rows.some((r) => r.method === 'sam2_mask_pixel_count');
+    const regions = masked ? await this.sql(regionQuery) : [];
+    regions.sort((a, b) => String(a.regionId).localeCompare(String(b.regionId), undefined, { numeric: true }));
+    return rows.map((row) => {
+      const m = { ...row, itemId: row.itemId ?? null } as FoodMeasurement;
+      if (m.method === 'sam2_mask_pixel_count') {
+        m.regionIds = regions
+          .filter((g) => g.attemptId === m.attemptId && g.segmentationStatus === 'succeeded' && (g.itemId ?? null) === m.itemId)
+          .map((g) => g.regionId as string);
+      }
+      return clean(m);
+    });
   }
   async listMeasurementsByAttempt(attemptId: string): Promise<FoodMeasurement[]> {
     const rows = await this.sql(`SELECT * FROM food_measurement WHERE attempt_id = ${quote(attemptId)}`);
-    return rows.map((r) => this.toMeasurement(r));
+    return this.withRegionIds(rows, `SELECT * FROM segmentation_region WHERE attempt_id = ${quote(attemptId)}`);
   }
   async listMeasurementsByEvent(eventId: string): Promise<FoodMeasurement[]> {
     const rows = await this.sql(`SELECT * FROM food_measurement WHERE event_id = ${quote(eventId)}`);
-    return rows.map((r) => this.toMeasurement(r));
+    return this.withRegionIds(rows, `SELECT * FROM segmentation_region WHERE event_id = ${quote(eventId)}`);
   }
 
   // --- attendance ---

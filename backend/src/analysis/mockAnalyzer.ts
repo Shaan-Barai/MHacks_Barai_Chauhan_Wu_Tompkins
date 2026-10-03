@@ -1,6 +1,9 @@
 /**
  * Deterministic mock implementation of the Analyzer seam, used for tests and
- * for running the demo flow before Agent 4's Gemini module exists.
+ * offline runs (no GEMINI_API_KEY). It mimics the mask pipeline's output
+ * shape: fixture `remainingAreaPx` values are integer Pixels wasted, the
+ * capture union is their sum (no overlaps), and the segmentation result is
+ * labeled 'mock-segmenter' so it is never mistaken for a real SAM run.
  *
  * Determinism: results come either from a fixture map keyed by eventId, or —
  * when no fixture matches — from a stable default (25% remaining of the first
@@ -12,8 +15,10 @@ import type { Analyzer, AnalyzerInput } from './analyzer.js';
 import type {
   AnalysisResult,
   AnalysisStatus,
+  CountStatus,
   FoodMeasurement,
   QualityFlag,
+  SegmentationResult,
 } from '../types.js';
 
 export interface MockMeasurementSpec {
@@ -58,8 +63,8 @@ export class MockAnalyzer implements Analyzer {
               eventId: event.eventId,
               attemptId,
               itemId: spec.itemId,
-              remainingAreaPx: spec.remainingAreaPx,
-              method: 'gemini_area_estimate',
+              remainingAreaPx: Math.round(spec.remainingAreaPx),
+              method: 'sam2_mask_pixel_count',
               qualityFlags: flags,
             };
             if (baseline && Number.isFinite(baseline.expectedAreaPx) && baseline.expectedAreaPx > 0) {
@@ -102,8 +107,33 @@ export class MockAnalyzer implements Analyzer {
           : {}),
         qualityFlags: ['ai_estimate', ...(fixture?.qualityFlags ?? [])],
         createdAt: new Date().toISOString(),
+        segmentation: this.segmentation(event.geometry, status, measurements),
       },
       measurements,
+    };
+  }
+
+  private segmentation(
+    geometry: AnalyzerInput['event']['geometry'],
+    status: AnalysisStatus,
+    measurements: FoodMeasurement[],
+  ): SegmentationResult {
+    const total = measurements.reduce((sum, m) => sum + m.remainingAreaPx, 0);
+    const countStatus: CountStatus =
+      status === 'failed' ? 'unavailable' : status === 'needs_review' ? 'partial' : measurements.length === 0 ? 'empty' : 'complete';
+    return {
+      model: 'mock-segmenter',
+      checkpoint: 'mock',
+      codeRevision: 'mock',
+      promptSource: 'gemini_box',
+      settingsVersion: 'mock-v1',
+      countingRuleVersion: 'union-v1',
+      status: status === 'failed' ? 'failed' : status === 'needs_review' ? 'partial' : measurements.length === 0 ? 'skipped' : 'succeeded',
+      countStatus,
+      ...(countStatus === 'unavailable' ? {} : { capturePixelsWasted: total }),
+      widthPx: geometry.widthPx,
+      heightPx: geometry.heightPx,
+      regions: [],
     };
   }
 

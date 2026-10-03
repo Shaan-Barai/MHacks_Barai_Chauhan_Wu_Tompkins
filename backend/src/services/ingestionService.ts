@@ -130,6 +130,22 @@ export class IngestionService {
       });
       attempt = result.attempt;
       measurements = this.validateMeasurements(result.measurements, menu, attemptId, event.eventId);
+      this.validateSegmentation(attempt, measurements);
+      // Masks go to object storage; only their ids reach the database.
+      if (attempt.segmentation && result.masks?.length) {
+        const byRegion = new Map(attempt.segmentation.regions.map((r) => [r.regionId, r]));
+        for (const mask of result.masks) {
+          const region = byRegion.get(mask.regionId);
+          if (!region) throw new Error(`Analyzer returned a mask for unknown region ${mask.regionId}.`);
+          const stored = await this.images.storeMask(
+            mask.regionId,
+            mask.png,
+            attempt.segmentation.widthPx,
+            attempt.segmentation.heightPx,
+          );
+          region.maskObjectId = stored.objectId;
+        }
+      }
     } catch (err) {
       // Infrastructure failure: record an explicit failed attempt, never
       // silence it and never leave the event stuck in `processing`.
@@ -193,6 +209,33 @@ export class IngestionService {
       if (latest) result.push(latest);
     }
     return result;
+  }
+
+  /**
+   * Pixels wasted invariants (contracts/measurement.md): integer mask counts
+   * within the canvas, and for complete/partial captures the item +
+   * unclassified pixels sum exactly to the capture's union total.
+   */
+  private validateSegmentation(attempt: AnalysisAttempt, measurements: FoodMeasurement[]): void {
+    const seg = attempt.segmentation;
+    const maskMeasurements = measurements.filter((m) => m.method === 'sam2_mask_pixel_count');
+    if (!seg) {
+      if (maskMeasurements.length > 0) throw new Error('Mask pixel counts were returned without a segmentation result.');
+      return;
+    }
+    const canvas = seg.widthPx * seg.heightPx;
+    for (const m of maskMeasurements) {
+      if (!Number.isInteger(m.remainingAreaPx) || m.remainingAreaPx > canvas) {
+        throw new Error(`Measurement ${m.measurementId} is not an integer pixel count within the image.`);
+      }
+    }
+    const sum = maskMeasurements.reduce((total, m) => total + m.remainingAreaPx, 0);
+    const capture = seg.capturePixelsWasted;
+    if ((seg.countStatus === 'complete' || seg.countStatus === 'partial') && capture !== sum) {
+      throw new Error(`Capture union ${capture} does not equal the measured pixels ${sum}.`);
+    }
+    if (seg.countStatus === 'empty' && (capture !== 0 || sum !== 0)) throw new Error('An empty plate must count 0 pixels.');
+    if (seg.countStatus === 'unavailable' && capture !== undefined) throw new Error('An unavailable count has no total.');
   }
 
   /** Working rule 9: validate analyzer output before storing it. */

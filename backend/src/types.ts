@@ -25,6 +25,11 @@ export type {
   Attendance,
   Insight,
   ApiError,
+  RegionBox,
+  StageStatus,
+  ClassificationRegion,
+  CountStatus,
+  SegmentationResult,
 } from '../../contracts/types.js';
 
 import type {
@@ -44,4 +49,6 @@ export interface MenuBundle {
 export interface AnalysisResult {
   attempt: AnalysisAttempt;
   measurements: FoodMeasurement[];
+  /** Validated binary PNG masks (mask pipeline) for the backend to store. */
+  masks?: { regionId: string; png: Uint8Array }[];
 }

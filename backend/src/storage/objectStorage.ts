@@ -73,6 +73,9 @@ export interface ObjectStorageAdapter {
   /** Remove the stored bytes (used by orphan cleanup). */
   deleteObject(objectKey: string): Promise<void>;
 
+  /** Server-side write of bytes the backend itself produced (segmentation masks). */
+  putBytes(objectKey: string, bytes: Uint8Array, mimeType: string): Promise<{ sizeBytes: number }>;
+
   /**
    * local-dev only: the backend itself serves the upload/read URLs, so it
    * needs these. Providers with presigned URLs leave them undefined.

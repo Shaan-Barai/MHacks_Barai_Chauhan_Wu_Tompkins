@@ -1,0 +1,111 @@
+/**
+ * HTTP implementations of the Uploader and IngestionSink seams against
+ * Agent 5's backend API (backend/README.md):
+ *
+ *   POST /api/images/uploads          authorize -> { objectId, uploadUrl }
+ *   PUT  <uploadUrl>                  normalized bytes (presigned-PUT stand-in)
+ *   POST /api/images/:id/finalize     verify + register the object reference
+ *   POST /api/captures                capture metadata + finalized objectId
+ *
+ * Still not a storage client: no credentials, no bucket access — only the
+ * backend's authorized upload URL. Upload URLs are never logged.
+ */
+
+import type { ApiError, CaptureEvent, ProcessingState } from './contract-types.js';
+import type { IngestionSink } from './ingestion.js';
+import type { FinalizedUpload, UploadAuthorization, UploadRequest, Uploader } from './uploader.js';
+
+/** Thrown for non-2xx backend responses; carries the backend's ApiError when present. */
+export class BackendRequestError extends Error {
+  constructor(
+    readonly status: number,
+    readonly apiError: ApiError | undefined,
+    what: string,
+  ) {
+    super(`${what} failed (${status})${apiError ? `: ${apiError.code} — ${apiError.message}` : ''}`);
+    this.name = 'BackendRequestError';
+  }
+}
+
+async function request<T>(url: string, init: RequestInit, what: string): Promise<T> {
+  const res = await fetch(url, init);
+  const text = await res.text();
+  const body = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+  if (!res.ok) throw new BackendRequestError(res.status, body.error as ApiError | undefined, what);
+  return body as T;
+}
+
+export class HttpUploader implements Uploader {
+  private readonly base: string;
+  /** objectId -> authorized upload URL + MIME type for the in-flight upload. */
+  private readonly uploads = new Map<string, { url: string; mimeType: string }>();
+
+  constructor(apiUrl: string) {
+    this.base = apiUrl.replace(/\/$/, '');
+  }
+
+  async authorizeUpload(req: UploadRequest): Promise<UploadAuthorization> {
+    const body = await request<{ objectId: string; uploadUrl: string }>(
+      `${this.base}/api/images/uploads`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          associationKind: req.association.kind,
+          associationId: req.association.id,
+          mimeType: req.mimeType,
+          sizeBytes: req.sizeBytes,
+          widthPx: req.widthPx,
+          heightPx: req.heightPx,
+        }),
+      },
+      'Upload authorization',
+    );
+    this.uploads.set(body.objectId, { url: new URL(body.uploadUrl, `${this.base}/`).toString(), mimeType: req.mimeType });
+    return { uploadId: body.objectId };
+  }
+
+  async uploadBytes(auth: UploadAuthorization, bytes: Uint8Array): Promise<void> {
+    const upload = this.uploads.get(auth.uploadId);
+    if (!upload) throw new Error(`No authorized upload URL for ${auth.uploadId}`);
+    await request(upload.url, { method: 'PUT', headers: { 'Content-Type': upload.mimeType }, body: bytes }, 'Image upload');
+  }
+
+  async finalizeUpload(auth: UploadAuthorization): Promise<FinalizedUpload> {
+    await request(
+      `${this.base}/api/images/${encodeURIComponent(auth.uploadId)}/finalize`,
+      { method: 'POST' },
+      'Upload finalization',
+    );
+    this.uploads.delete(auth.uploadId);
+    return { objectId: auth.uploadId };
+  }
+}
+
+export interface SubmittedCapture {
+  state: ProcessingState;
+  deduplicated: boolean;
+}
+
+export class HttpIngestionSink implements IngestionSink {
+  private readonly base: string;
+  /** Backend outcome per eventId, for reporting (analysis runs on submit). */
+  readonly outcomes = new Map<string, SubmittedCapture>();
+
+  constructor(apiUrl: string) {
+    this.base = apiUrl.replace(/\/$/, '');
+  }
+
+  async submitCaptureEvent(event: CaptureEvent): Promise<void> {
+    const body = await request<{ event: CaptureEvent; deduplicated?: boolean }>(
+      `${this.base}/api/captures`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(event),
+      },
+      'Capture submission',
+    );
+    this.outcomes.set(event.eventId, { state: body.event.state, deduplicated: body.deduplicated === true });
+  }
+}

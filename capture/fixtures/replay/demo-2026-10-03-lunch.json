@@ -1,0 +1,19 @@
+{
+  "manifestVersion": 1,
+  "hallId": "hall-main",
+  "serviceId": "svc_hall-main_2026-10-03_lunch",
+  "entries": [
+    {
+      "entryId": "dish-001",
+      "imagePath": "images/lunch-1003-flatbread-fries.jpg",
+      "capturedAt": "2026-10-03T12:05:12-04:00",
+      "plateShape": "round"
+    },
+    {
+      "entryId": "dish-002",
+      "imagePath": "images/lunch-1003-wrap-cookie.jpg",
+      "capturedAt": "2026-10-03T12:31:48-04:00",
+      "plateShape": "round"
+    }
+  ]
+}

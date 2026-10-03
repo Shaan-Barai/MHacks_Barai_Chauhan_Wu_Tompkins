@@ -51,6 +51,8 @@ export {
 
 export { InMemoryIngestionSink, type IngestionSink } from './ingestion.js';
 
+export { HttpUploader, HttpIngestionSink, BackendRequestError, type SubmittedCapture } from './http.js';
+
 export {
   ReplayCaptureAdapter,
   type CaptureAdapterOptions,

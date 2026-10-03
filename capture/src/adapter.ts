@@ -20,6 +20,7 @@
  * ingestion or any database payload.
  */
 
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -76,6 +77,17 @@ export interface CaptureAdapterOptions {
   clock?: () => Date;
   /** Injectable ID factory for tests. */
   idFactory?: IdFactory;
+  /**
+   * Optional JSON file that keeps the identity registry across processes, so
+   * re-running a replay (e.g. the CLI) reuses the same eventIds instead of
+   * minting new dishes. Without it the registry lives only in memory.
+   */
+  stateFile?: string;
+}
+
+interface RegistrySnapshot {
+  minted: Record<string, MintedIdentity>;
+  completed: Record<string, { event: CaptureEvent; imageObjectId: string }>;
 }
 
 export class ReplayCaptureAdapter {
@@ -83,6 +95,7 @@ export class ReplayCaptureAdapter {
   private readonly sink: IngestionSink;
   private readonly clock: () => Date;
   private readonly idFactory: IdFactory;
+  private readonly stateFile: string | undefined;
 
   /**
    * Identity registry: once an entry key has minted an eventId/capturedAt,
@@ -100,6 +113,24 @@ export class ReplayCaptureAdapter {
     this.sink = sink;
     this.clock = options.clock ?? (() => new Date());
     this.idFactory = options.idFactory ?? newId;
+    this.stateFile = options.stateFile;
+    if (this.stateFile && existsSync(this.stateFile)) {
+      const snapshot = JSON.parse(readFileSync(this.stateFile, 'utf8')) as RegistrySnapshot;
+      for (const [k, v] of Object.entries(snapshot.minted ?? {})) this.minted.set(k, v);
+      for (const [k, v] of Object.entries(snapshot.completed ?? {})) this.completed.set(k, v);
+    }
+  }
+
+  private saveState(): void {
+    if (!this.stateFile) return;
+    const snapshot: RegistrySnapshot = {
+      minted: Object.fromEntries(this.minted),
+      completed: Object.fromEntries(this.completed),
+    };
+    mkdirSync(path.dirname(this.stateFile), { recursive: true });
+    const tmp = `${this.stateFile}.tmp`;
+    writeFileSync(tmp, JSON.stringify(snapshot, null, 2));
+    renameSync(tmp, this.stateFile);
   }
 
   /**
@@ -186,6 +217,7 @@ export class ReplayCaptureAdapter {
           : this.clock().toISOString(),
       };
       this.minted.set(key, identity);
+      this.saveState();
     }
 
     const imagePath = path.isAbsolute(entry.imagePath)
@@ -253,6 +285,7 @@ export class ReplayCaptureAdapter {
 
       await this.sink.submitCaptureEvent(event);
       this.completed.set(key, { event, imageObjectId: objectId });
+      this.saveState();
 
       return {
         ok: true,

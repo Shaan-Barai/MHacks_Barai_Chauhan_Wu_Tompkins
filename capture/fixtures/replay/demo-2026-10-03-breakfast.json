@@ -1,0 +1,13 @@
+{
+  "manifestVersion": 1,
+  "hallId": "hall-main",
+  "serviceId": "svc_hall-main_2026-10-03_breakfast",
+  "entries": [
+    {
+      "entryId": "dish-001",
+      "imagePath": "images/breakfast-1003-waffle-homefries.jpg",
+      "capturedAt": "2026-10-03T08:14:05-04:00",
+      "plateShape": "round"
+    }
+  ]
+}

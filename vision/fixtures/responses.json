@@ -1,0 +1,15 @@
+{
+  "_comment": "Canned Gemini classification responses used by mock mode and tests. Each value is the raw model text the gateway would return. Areas are pixels in topdown-normalized-v1 (1024x1024, plate diameter 900px). None of these came from a live Gemini call.",
+  "known_item": "{\"plateEmpty\":false,\"ambiguous\":false,\"items\":[{\"itemId\":\"item_scrambled-eggs\",\"remainingAreaPx\":14880,\"confidence\":0.86}],\"unknown\":[]}",
+  "mixed_plate": "{\"plateEmpty\":false,\"ambiguous\":false,\"items\":[{\"itemId\":\"item_scrambled-eggs\",\"remainingAreaPx\":12000,\"confidence\":0.81},{\"itemId\":\"item_hash-browns\",\"remainingAreaPx\":9000,\"confidence\":0.74}],\"unknown\":[]}",
+  "empty_plate": "{\"plateEmpty\":true,\"ambiguous\":false,\"items\":[],\"unknown\":[]}",
+  "unknown_food": "{\"plateEmpty\":false,\"ambiguous\":false,\"items\":[],\"unknown\":[{\"label\":\"unidentified pastry\",\"remainingAreaPx\":6200}]}",
+  "ambiguous": "{\"plateEmpty\":false,\"ambiguous\":true,\"notes\":\"Mixed scramble; cannot separate eggs from hash browns reliably.\",\"items\":[{\"itemId\":\"item_scrambled-eggs\",\"remainingAreaPx\":20000,\"confidence\":0.35}],\"unknown\":[]}",
+  "invalid_json": "The plate appears to contain some scrambled eggs, maybe a third of a serving left.",
+  "unknown_item_id": "{\"plateEmpty\":false,\"ambiguous\":false,\"items\":[{\"itemId\":\"item_pizza\",\"remainingAreaPx\":10000,\"confidence\":0.9}],\"unknown\":[]}",
+  "negative_area": "{\"plateEmpty\":false,\"ambiguous\":false,\"items\":[{\"itemId\":\"item_scrambled-eggs\",\"remainingAreaPx\":-5,\"confidence\":0.8}],\"unknown\":[]}",
+  "duplicate_item": "{\"plateEmpty\":false,\"ambiguous\":false,\"items\":[{\"itemId\":\"item_scrambled-eggs\",\"remainingAreaPx\":8000,\"confidence\":0.8},{\"itemId\":\"item_scrambled-eggs\",\"remainingAreaPx\":7000,\"confidence\":0.6}],\"unknown\":[]}",
+  "above_baseline": "{\"plateEmpty\":false,\"ambiguous\":false,\"items\":[{\"itemId\":\"item_scrambled-eggs\",\"remainingAreaPx\":60000,\"confidence\":0.7}],\"unknown\":[]}",
+  "estimated_baseline": "{\"plateEmpty\":false,\"ambiguous\":false,\"items\":[{\"itemId\":\"item_fruit-cup\",\"remainingAreaPx\":5000,\"confidence\":0.77,\"estimatedUneatenAreaPx\":20000}],\"unknown\":[]}",
+  "area_exceeds_plate": "{\"plateEmpty\":false,\"ambiguous\":false,\"items\":[{\"itemId\":\"item_scrambled-eggs\",\"remainingAreaPx\":600000,\"confidence\":0.5}],\"unknown\":[{\"label\":\"sauce\",\"remainingAreaPx\":500000}]}"
+}

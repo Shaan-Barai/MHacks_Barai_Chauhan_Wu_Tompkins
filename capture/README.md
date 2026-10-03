@@ -125,21 +125,37 @@ Each `CaptureResult` is either
 
 ## Interfaces for Agents 4 / 5 / 8
 
-- **`Uploader`** (`src/uploader.ts`) — the seam Agent 5 implements with the
-  real object-storage adapter: `authorizeUpload(request)` →
+- **`Uploader`** (`src/uploader.ts`) — `authorizeUpload(request)` →
   `uploadBytes(auth, bytes)` → `finalizeUpload(auth)` returning the durable
-  `objectId`. This package ships only `InMemoryUploader` (tests/offline
-  replay); it is deliberately **not** a storage client and holds no
+  `objectId`. `HttpUploader` (`src/http.ts`) implements it against the
+  backend (`/api/images/uploads` → PUT upload URL → `/finalize`);
+  `InMemoryUploader` serves tests. Neither is a storage client or holds
   credentials.
 - **`IngestionSink`** (`src/ingestion.ts`) — `submitCaptureEvent(event)`,
-  idempotent by `eventId` on Agent 5's side. Receives metadata + object
-  reference only, never bytes.
+  idempotent by `eventId` on Agent 5's side. `HttpIngestionSink` posts to
+  `/api/captures` (analysis runs there) and records each event's resulting
+  state. Receives metadata + object reference only, never bytes.
 - **`CaptureEvent` / `ImageGeometry` / `QualityFlag` / `ApiError`** — verbatim
   copies of `contracts/types.ts` in `src/contract-types.ts` (re-sync when
   Agent 1 changes the contract; do not edit locally).
 - Agent 4 consumes the recorded `ImageGeometry` (always 1024×1024
   `topdown-normalized-v1`) for pixel-area estimation; Agent 8 can feed replay
   manifests as fixture input.
+
+## Replay into a running backend
+
+```bash
+npm run replay                          # every fixtures/replay/demo-*.json
+npm run replay -- path/to/manifest.json
+API_URL=http://host:8787 npm run replay
+```
+
+Demo manifests and AI-generated synthetic plate images (provenance in
+`fixtures/replay/README.md`) cover four services on 2026-10-02/03.
+`ReplayCaptureAdapter`'s optional `stateFile` (the CLI uses
+`.replay-state.json`, gitignored) persists minted eventIds and completed
+entries across processes, so re-running replay reports "already ingested"
+instead of creating new dishes. Delete it only together with a fresh database.
 
 ## Run tests
 

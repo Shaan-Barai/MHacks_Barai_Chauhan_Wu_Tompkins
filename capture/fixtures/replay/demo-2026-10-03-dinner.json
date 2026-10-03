@@ -1,0 +1,19 @@
+{
+  "manifestVersion": 1,
+  "hallId": "hall-main",
+  "serviceId": "svc_hall-main_2026-10-03_dinner",
+  "entries": [
+    {
+      "entryId": "dish-001",
+      "imagePath": "images/dinner-1003-salmon-rice.jpg",
+      "capturedAt": "2026-10-03T18:02:33-04:00",
+      "plateShape": "round"
+    },
+    {
+      "entryId": "dish-002",
+      "imagePath": "images/dinner-1003-empty.jpg",
+      "capturedAt": "2026-10-03T18:19:57-04:00",
+      "plateShape": "round"
+    }
+  ]
+}

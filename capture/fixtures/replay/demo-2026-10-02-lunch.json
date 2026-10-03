@@ -1,0 +1,13 @@
+{
+  "manifestVersion": 1,
+  "hallId": "hall-main",
+  "serviceId": "svc_hall-main_2026-10-02_lunch",
+  "entries": [
+    {
+      "entryId": "dish-001",
+      "imagePath": "images/lunch-1002-tacos-rice.jpg",
+      "capturedAt": "2026-10-02T12:21:40-04:00",
+      "plateShape": "round"
+    }
+  ]
+}

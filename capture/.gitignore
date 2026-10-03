@@ -1,2 +1,5 @@
 # Replay identity registry (minted eventIds per manifest entry)
 .replay-state.json
+
+# Python bytecode from capture/uno-q scripts/tests
+__pycache__/

@@ -356,7 +356,12 @@ class ValidateBundle(unittest.TestCase):
 
     def test_rejects_empty_and_garbage(self):
         self.assert_rejected(b"", "empty or too large")
-        self.assert_rejected(b"Welcome to the Uno Q!\n" + make_bundle())
+        self.assert_rejected(b"Welcome to the Uno Q!\n" * 100)
+
+    def test_prepended_banner_still_yields_verified_photo(self):
+        # zipfile tolerates leading bytes; the checksum still guards the content.
+        photo, _ = laptop.validate_bundle(b"Welcome!\n" + make_bundle(), self.capture_id)
+        self.assertEqual(photo, FIXTURE_JPEG.read_bytes())
 
     def test_rejects_other_capture_id(self):
         self.assert_rejected(make_bundle(captureId=str(uuid.uuid4())), "different capture ID")

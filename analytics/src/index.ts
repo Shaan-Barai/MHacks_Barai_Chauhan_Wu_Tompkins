@@ -6,6 +6,10 @@
  */
 
 export type {
+  AnalysisAttempt,
+  SegmentationResult,
+  ClassificationRegion,
+  CountStatus,
   MealLabel,
   MealService,
   MenuItem,
@@ -65,3 +69,21 @@ export {
   type SuggestionRequest,
   type SuggestionOptions,
 } from './suggestions.js';
+
+export {
+  summarizePixels,
+  computePixelDataVersion,
+  PIXEL_LABELS,
+  type PixelServiceSummary,
+  type PixelItemTotal,
+  type PixelAggregateInput,
+  type PixelExclusionReason,
+} from './pixels.js';
+
+export {
+  generatePixelInsight,
+  buildPixelInsightMetrics,
+  buildPixelFallback,
+  PIXEL_SUGGESTION_PROMPT_VERSION,
+  type PixelSuggestionRequest,
+} from './pixelSuggestions.js';

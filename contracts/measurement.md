@@ -12,9 +12,9 @@ need a coordinated migration.
    not supply final quantity measurements.
 2. **Segmentation:** Generate leftover-food masks for the classified regions.
    Validate them and map provider outputs into the normalized image's pixel
-   coordinate space. The planned model family is Meta SAM; the
+   coordinate space. The planned segmentation model is Meta SAM 2.1; the
    [MVP AI plan](../MVP_AI.md) proposes SAM 2.1 Small with Gemini boxes first,
-   plus detector alternatives and SAM 3 text prompting for evaluation. The
+   plus detector alternatives for evaluation. SAM 3 is deferred. The
    exact checkpoint and execution host remain provisional.
 3. **Counting:** Application code counts foreground pixels in each validated
    binary mask. It counts the union of eligible food masks for the capture

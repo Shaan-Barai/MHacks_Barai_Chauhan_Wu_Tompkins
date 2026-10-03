@@ -8,12 +8,14 @@ Status: researched proposal; no segmentation model has been installed or tested.
 **Normalized dish image → Gemini food classification and boxes → SAM 2.1
 Small masks → validated foreground pixel counts → Pixels wasted**
 
-Use Meta's SAM family for the planned segmentation stage. Start evaluation
+Use Meta's SAM 2.1 for the planned segmentation stage. Start evaluation
 with **SAM 2.1 Hiera Small** (`sam2.1_hiera_small.pt`) and boxes returned
 alongside Gemini's classifications. Keep the detector replaceable. If Gemini
 misses or poorly localizes leftovers, compare **Grounding DINO** on the same
-images before adding it to the runtime. Also evaluate **SAM 3 text prompting**
-if compatible GPU access and checkpoint access are available.
+images before adding it to the runtime.
+
+**Scope update:** SAM 3 is deferred and excluded from MVP implementation and
+evaluation at the user's request.
 
 These are engineering recommendations, not measured food-accuracy claims.
 The exact checkpoint and execution host remain provisional until evaluation.
@@ -24,24 +26,18 @@ deferred. [The measurement contract](contracts/measurement.md) governs counts.
 
 ## Do SAM models need bounding boxes?
 
-Boxes are useful prompts, but they are not universally required.
+SAM 2.1 can use point prompts as well as boxes. Boxes are the planned starting
+prompt for this MVP.
 
 | Model | Prompt options and relevance | Proposed use |
 | --- | --- | --- |
 | Original SAM | Point/box prompts and automatic mask generation. Automatic masks do not provide our menu-item classification. [Official repository](https://github.com/facebookresearch/segment-anything). | Historical comparison; no need to start a new integration here. |
 | SAM 2 / SAM 2.1 | Image segmentation with point/box prompts; automatic mask generation is also available. SAM 2.1 supplies updated Tiny, Small, Base Plus, and Large checkpoints. [Official repository](https://github.com/facebookresearch/sam2). | Start with Small and box prompts; compare larger checkpoints only if errors justify it. |
-| SAM 3 | Text or visual prompts; its image example returns masks, boxes, and scores from a text concept. A separate box detector is unnecessary for this route. [Official repository](https://github.com/facebookresearch/sam3). | Alternative: Gemini classifies foods, then SAM 3 receives short visual labels such as “rice” or “broccoli.” |
 
 SAM 2.1 Small is a manageable baseline for the existing separate classification
 and segmentation design. The official SAM 2 setup specifies Python ≥3.10,
 PyTorch ≥2.5.1, and TorchVision ≥0.20.1. Its published speed results use an
 A100; they do not establish latency on our machine. [SAM 2 setup and benchmarks](https://github.com/facebookresearch/sam2).
-
-SAM 3's documented setup requires Python ≥3.12, PyTorch ≥2.7, and a
-CUDA-compatible GPU with CUDA ≥12.6; downloading checkpoints requires granted
-Hugging Face access. The repository also announces SAM 3.1 for joint
-multi-object video tracking. Still images are the MVP scope, so tracking is
-deferred. [SAM 3 setup and updates](https://github.com/facebookresearch/sam3).
 
 Do not automatically sum every mask from an automatic generator: object parts,
 whole objects, and background regions can overlap. Food selection and semantic
@@ -57,7 +53,6 @@ A dedicated detector would localize its food labels, not replace that step.
 | Gemini, using the existing configurable gateway | Google's image-understanding documentation includes object detection and normalized boxes. [Official documentation](https://ai.google.dev/gemini-api/docs/image-understanding#object-detection). | First trial: request stable menu-item IDs and one or more food-region boxes in the classification response. Least additional model setup; localization quality must be tested. |
 | Grounding DINO, initially GroundingDINO-T / Swin-T | Text-conditioned open-set detection with published pretrained weights. [Official repository](https://github.com/IDEA-Research/GroundingDINO). | First dedicated detector to compare if Gemini boxes are inadequate. Use simple visual food descriptions associated explicitly with menu-item IDs. |
 | YOLO-World, initially a Small checkpoint | Open-vocabulary detection with a prompt-then-detect design for efficient use of a chosen vocabulary. [Official repository](https://github.com/AILab-CVC/YOLO-World). | Speed-oriented alternative to benchmark if detection latency becomes a bottleneck. Do not assume its published speed or food quality transfers to our setup. |
-| SAM 3's native text-conditioned detection and segmentation | Returns masks and boxes together from a concept prompt. [Official example](https://github.com/facebookresearch/sam3#basic-usage). | Compare against the two-stage localization/masking path when its setup is available. No external box model needed. |
 
 This detector-plus-segmenter approach has precedent: the authors' **Grounded
 SAM 2** repository supplies Grounding DINO + SAM 2 image demos and SAM 2.1
@@ -112,10 +107,6 @@ support. It demonstrates integration, not reliable leftover-food measurement.
    backend's object-storage adapter; SpacetimeDB receives durable references,
    counts, geometry, provenance, and quality/status metadata. Preserve capture
    idempotency and expose the primary label **Pixels wasted**.
-
-For SAM 3 evaluation, replace steps 3–4 with text prompting for each classified
-food's visual label. Preserve the explicit label-to-menu-ID mapping, union
-separate instances, and apply the same counting and review rules.
 
 ## Failure and food-specific review rules
 
@@ -179,7 +170,7 @@ smoke tests do not verify this pipeline.
 3. **Test the complete path.** Run Gemini classification/boxes on the same
    images. Compare localization omissions and resulting masks against the
    manual-box baseline. Evaluate Grounding DINO if localization dominates
-   errors; compare SAM 3 if available. Select the simplest path that meets
+   errors. Select the simplest SAM 2.1 path that meets
    agreed criteria, without tuning on the held-out subset.
 4. **Connect one vertical slice.** Agent 4 implements the selected adapter;
    Agent 5 handles processing states/storage/persistence; Agents 6 and 7

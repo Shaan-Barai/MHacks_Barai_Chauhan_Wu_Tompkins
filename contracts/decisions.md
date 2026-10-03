@@ -22,10 +22,10 @@ pending details arrive; agreed items came from the team or AGENTS.md.
   removable via `POST /api/images/cleanup-orphans`; finalized images are kept.
 - **Vision flow (updated 2026-10-03):** Gemini API for food classification
   first, then a separate segmentation-mask stage, then foreground pixel
-  counting in application code. The planned segmentation family is Meta SAM;
+  counting in application code. The planned segmentation model is Meta SAM 2.1;
   [MVP_AI.md](../MVP_AI.md) proposes SAM 2.1 Small with Gemini boxes for initial
-  evaluation. Exact checkpoint/host selection remains provisional. No custom
-  model training.
+  evaluation. Exact checkpoint/host selection remains provisional. SAM 3
+  implementation and evaluation are deferred. No custom model training.
 - **Frontend:** React + Tailwind, "Kitchen Garden" palette mapped to Tailwind
   theme tokens, single-dashboard layout per `UI.md`. All mock data in one file
   so it can be swapped for live queries later.
@@ -172,11 +172,20 @@ pending details arrive; agreed items came from the team or AGENTS.md.
 - Proposed first evaluation: Gemini classification plus boxes → SAM 2.1
   Hiera Small masks → validated code-counted Pixels wasted. Grounding DINO is
   the first dedicated detector to compare if Gemini localization is inadequate;
-  YOLO-World is a speed-oriented alternative. SAM 3 text prompting can remove
-  the separate box stage if its hardware/checkpoint access is available.
+  YOLO-World is a speed-oriented alternative.
 - Model choice, runtime host, and quality thresholds remain provisional.
   Compare manual-box segmentation with the complete path on annotated dish
   images before selecting the implementation. No food accuracy is established.
 - This assignment adds planning/context documentation only. No model weights,
   packages, inference code, runtime-contract migration, or depth/volume work
   are implemented.
+
+## 2026-10-03: defer SAM 3
+
+- The user explicitly excludes SAM 3 for now because of setup complexity.
+  Remove SAM 3 from the MVP alternatives, evaluation phases, and implementation
+  plan. Its previously proposed text-prompt route is superseded.
+- The MVP remains Gemini classification and boxes → SAM 2.1 Small masks →
+  code-counted Pixels wasted. Grounding DINO and YOLO-World remain optional
+  bounding-box alternatives. No SAM 3 setup, downloads, or evaluation are in
+  the current scope.

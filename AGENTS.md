@@ -12,7 +12,7 @@ The initial repository contains only a README. The directory layout below is a p
 
 1. Accept uploaded or replayed images of finished dishes. Keep future top-down camera capture behind an adapter; camera placement is deferred.
 2. Upload and store the dining hall's daily menu in SpacetimeDB. Classify food against the menu for the relevant hall, date, and meal service.
-3. Use the Gemini API for **classification first**, then a separate **segmentation-mask stage** using the planned Meta SAM family. Count pixels in code after validating the masks. [MVP_AI.md](MVP_AI.md) proposes SAM 2.1 Small with Gemini boxes as the first evaluation path; the exact checkpoint and host remain provisional. Custom model training is outside the hackathon scope.
+3. Use the Gemini API for **classification first**, then a separate **segmentation-mask stage** using Meta SAM 2.1. Count pixels in code after validating the masks. [MVP_AI.md](MVP_AI.md) proposes SAM 2.1 Small with Gemini boxes as the first evaluation path; the exact checkpoint and host remain provisional. SAM 3 implementation and evaluation are deferred at the user's request. Custom model training is outside the hackathon scope.
 4. Use **Pixels wasted**, the number of foreground pixels in validated leftover-food masks, as the primary metric. Uneaten-serving baselines are not required to calculate it. This replaces primary reporting in percentages, servings, piece counts, and model-guessed pixel numbers.
 5. Store per-dish observations and per-food measurements, then summarize overall waste and which menu items contribute most.
 6. Use randomly generated attendance in a configurable, reasonable range for the prototype. Real attendance from meal swipes is a future input, not an existing integration.

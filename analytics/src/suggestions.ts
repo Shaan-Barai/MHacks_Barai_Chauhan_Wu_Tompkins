@@ -198,7 +198,7 @@ export async function generateInsight(
       const raw = await opts.gateway.generateText(prompt, {
         systemInstruction: SYSTEM_INSTRUCTION,
         temperature: opts.temperature ?? 0.3,
-        maxOutputTokens: opts.maxOutputTokens ?? 220,
+        maxOutputTokens: opts.maxOutputTokens ?? 512,
       });
       return {
         insightId: idFactory(),

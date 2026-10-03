@@ -1,0 +1,20 @@
+# Dependencies and build output
+node_modules/
+dist/
+build/
+target/
+coverage/
+
+# Local environment — never commit real credentials
+.env
+.env.*
+!.env.example
+
+# Local object-storage dev adapter data
+.local-storage/
+
+# Editor/OS noise
+.DS_Store
+*.log
+.idea/
+.vscode/

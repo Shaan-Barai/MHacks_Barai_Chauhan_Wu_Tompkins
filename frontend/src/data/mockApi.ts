@@ -1,15 +1,8 @@
 /**
- * Data-access layer. Components only talk to this module.
+ * Mock data access (VITE_USE_MOCK=1 and unit tests); see api.ts.
  *
- * Today every function answers from src/data/mockData.ts (plus the manager's
- * own menus kept in localStorage). To swap in the real backend, replace the
- * bodies with fetch() calls to Agent 5's GET endpoints (backend/README.md) —
- * the shapes in src/data/types.ts already mirror them:
- *   getMenu           → GET /api/menus?hallId=…&date=…
- *   saveUserMenu      → POST /api/menus
- *   getDailyWaste     → GET /api/dashboard/summary per service, summed per day
- *   getMealDetail     → GET /api/dashboard/summary + /api/attendance + /api/suggestions
- *   getSummaryCards   → derived from the same summary endpoint
+ * Every function answers from src/data/mockData.ts (plus the manager's own
+ * menus kept in localStorage), with the same signatures as liveApi.ts.
  */
 import { addDays, eachDay, startOfMonth, startOfWeek, todayIso } from '../lib/dates'
 import { MOCK_FUTURE_MENU_DAYS, mockMealDetail, mockMenuFor } from './mockData'

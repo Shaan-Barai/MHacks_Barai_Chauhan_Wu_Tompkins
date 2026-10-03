@@ -55,7 +55,7 @@ describe('getMealDetail', () => {
     expect(shares.reduce((s, v) => s + v, 0)).toBeCloseTo(100, 5)
     expect(d.mealSwipes.source).toBe('simulated')
     expect(d.totalWasteUnits).toBe(d.items.reduce((s, i) => s + i.wasteUnits, 0))
-    expect(d.tip.recommendation.length).toBeGreaterThan(0)
+    expect(d.tip?.recommendation.length).toBeGreaterThan(0)
   })
 
   it('returns null when the day has no menu', async () => {

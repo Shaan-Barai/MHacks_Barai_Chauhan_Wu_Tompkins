@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "id": "unknown-food",
+  "title": "Unknown/non-menu food keeps area but is excluded from menu percentages",
+  "mode": "fixture",
+  "input": {
+    "foodMeasurements": [
+      {
+        "measurementId": "meas_unknown_1",
+        "eventId": "cap_unknown_1",
+        "attemptId": "att_unknown_1",
+        "itemId": null,
+        "remainingAreaPx": 12000,
+        "method": "gemini_area_estimate",
+        "qualityFlags": ["ai_estimate", "ambiguous_items"],
+        "unavailableReason": "unknown_or_non_menu_item"
+      },
+      {
+        "measurementId": "meas_menu_1",
+        "eventId": "cap_unknown_1",
+        "attemptId": "att_unknown_1",
+        "itemId": "item_scrambled-eggs",
+        "remainingAreaPx": 10000,
+        "baselineId": "base_scrambled-eggs_v1",
+        "baselineAreaPx": 50000,
+        "rawWasteFraction": 0.2,
+        "displayWastePercent": 20,
+        "method": "gemini_area_estimate",
+        "qualityFlags": ["ai_estimate"]
+      }
+    ]
+  },
+  "expected": {
+    "menuPercentageEligibleItemIds": ["item_scrambled-eggs"],
+    "unknownKeepsArea": true,
+    "aggregates": {
+      "eligibleMeasurementCount": 1,
+      "excludedMeasurementCount": 1,
+      "observedRemainingAreaPx": 10000,
+      "overallWastePercent": 20
+    }
+  }
+}

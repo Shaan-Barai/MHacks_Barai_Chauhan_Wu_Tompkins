@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "id": "upload-failures",
+  "title": "Failed upload/finalization, repeated finalization, missing objects, expired read URLs",
+  "mode": "fixture",
+  "input": {
+    "cases": [
+      {
+        "name": "upload_failed_before_finalize",
+        "imageObject": {
+          "objectId": "img_up_fail",
+          "provider": "local-dev",
+          "container": "scrap-images",
+          "objectKey": "captures/2026-10-03/cap_up_fail.jpg",
+          "mimeType": "image/jpeg",
+          "sizeBytes": 0,
+          "association": { "kind": "capture", "id": "cap_up_fail" },
+          "state": "failed"
+        },
+        "mayRegisterCapture": false
+      },
+      {
+        "name": "orphan_uploaded_not_finalized",
+        "imageObject": {
+          "objectId": "img_orphan",
+          "provider": "local-dev",
+          "container": "scrap-images",
+          "objectKey": "captures/2026-10-03/cap_orphan.jpg",
+          "mimeType": "image/jpeg",
+          "sizeBytes": 12000,
+          "association": { "kind": "capture", "id": "cap_orphan" },
+          "state": "orphaned"
+        },
+        "cleanupEligible": true
+      },
+      {
+        "name": "repeated_finalization_idempotent",
+        "finalizationAttempts": [
+          { "objectId": "img_fin", "result": "finalized" },
+          { "objectId": "img_fin", "result": "finalized" }
+        ],
+        "expectedUniqueFinalizedCount": 1
+      },
+      {
+        "name": "missing_object_on_read",
+        "error": {
+          "code": "OBJECT_NOT_FOUND",
+          "message": "That photo is missing from storage. Re-upload or pick another capture.",
+          "retryable": false
+        }
+      },
+      {
+        "name": "expired_read_url",
+        "access": {
+          "objectId": "img_exp",
+          "readUrl": "http://localhost:8787/tmp/read/expired.jpg?token=old",
+          "expiresAt": "2026-10-03T16:00:00Z",
+          "now": "2026-10-03T17:00:00Z"
+        },
+        "expected": {
+          "isExpired": true,
+          "action": "renew_read_url"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "uploadAndDbWriteAreSeparate": true,
+    "providerAgnostic": true
+  }
+}

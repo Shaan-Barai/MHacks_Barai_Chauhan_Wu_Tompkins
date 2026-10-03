@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "overlapping-areas",
+  "title": "Overlapping assigned food areas fail validation; each pixel belongs to at most one category",
+  "mode": "fixture",
+  "input": {
+    "analysisAttempt": {
+      "eventId": "cap_overlap",
+      "attemptId": "att_overlap",
+      "menuId": "menu_hall-main_2026-10-03",
+      "menuVersion": 1,
+      "baselineVersions": {
+        "item_scrambled-eggs": 1,
+        "item_hashbrowns": 1
+      },
+      "model": "gemini-2.5-flash",
+      "promptVersion": "classify-v1",
+      "status": "needs_review",
+      "qualityFlags": ["ai_estimate", "ambiguous_items"],
+      "createdAt": "2026-10-03T16:55:00Z",
+      "error": {
+        "code": "OVERLAPPING_FOOD_AREAS",
+        "message": "Food regions overlap; reassign pixels so each belongs to one category.",
+        "retryable": false
+      }
+    },
+    "regionAssignments": [
+      { "itemId": "item_scrambled-eggs", "pixelIds": ["p1", "p2", "p3"] },
+      { "itemId": "item_hashbrowns", "pixelIds": ["p3", "p4"] }
+    ]
+  },
+  "expected": {
+    "validation": "reject_or_needs_review",
+    "overlappingPixelIds": ["p3"],
+    "aggregates": {
+      "eligibleMeasurementCount": 0,
+      "excludedMeasurementCount": 0,
+      "observedRemainingAreaPx": null,
+      "overallWastePercent": null
+    }
+  }
+}

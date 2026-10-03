@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "missing-baseline",
+  "title": "Missing or zero baseline yields unavailable percentage, never guessed zero",
+  "mode": "fixture",
+  "input": {
+    "foodMeasurements": [
+      {
+        "measurementId": "meas_missing_base",
+        "eventId": "cap_miss_base",
+        "attemptId": "att_miss_base",
+        "itemId": "item_oatmeal",
+        "remainingAreaPx": 8000,
+        "method": "gemini_area_estimate",
+        "qualityFlags": ["ai_estimate", "missing_baseline"],
+        "unavailableReason": "baseline_missing"
+      },
+      {
+        "measurementId": "meas_zero_base",
+        "eventId": "cap_miss_base",
+        "attemptId": "att_miss_base",
+        "itemId": "item_toast",
+        "remainingAreaPx": 2000,
+        "baselineId": "base_toast_bad",
+        "baselineAreaPx": 0,
+        "method": "gemini_area_estimate",
+        "qualityFlags": ["ai_estimate", "missing_baseline"],
+        "unavailableReason": "baseline_invalid"
+      }
+    ]
+  },
+  "expected": {
+    "mustNotGuessZeroWaste": true,
+    "aggregates": {
+      "eligibleMeasurementCount": 0,
+      "excludedMeasurementCount": 2,
+      "observedRemainingAreaPx": null,
+      "overallWastePercent": null,
+      "unavailableReason": "aggregate_baseline_denominator_zero"
+    }
+  }
+}

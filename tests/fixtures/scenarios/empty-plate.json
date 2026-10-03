@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "id": "empty-plate",
+  "title": "Empty plate is a valid capture with zero leftover when assessed against a baseline",
+  "mode": "fixture",
+  "input": {
+    "captureEvent": {
+      "eventId": "cap_empty_1",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_lunch",
+      "capturedAt": "2026-10-03T16:50:00Z",
+      "imageObjectId": "img_empty_1",
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "replay",
+      "qualityFlags": ["empty_plate"],
+      "state": "succeeded"
+    },
+    "foodMeasurements": [
+      {
+        "measurementId": "meas_empty_eggs",
+        "eventId": "cap_empty_1",
+        "attemptId": "att_empty_1",
+        "itemId": "item_scrambled-eggs",
+        "remainingAreaPx": 0,
+        "baselineId": "base_scrambled-eggs_v1",
+        "baselineAreaPx": 48000,
+        "rawWasteFraction": 0,
+        "displayWastePercent": 0,
+        "method": "gemini_area_estimate",
+        "qualityFlags": ["ai_estimate", "empty_plate"]
+      }
+    ]
+  },
+  "expected": {
+    "validCapture": true,
+    "doesNotInferUneatenForAbsentMenuItems": true,
+    "aggregates": {
+      "eligibleMeasurementCount": 1,
+      "excludedMeasurementCount": 0,
+      "observedRemainingAreaPx": 0,
+      "overallWastePercent": 0
+    }
+  }
+}

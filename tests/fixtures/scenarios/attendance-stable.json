@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "id": "attendance-stable",
+  "title": "Simulated attendance is stable for a hall/date/service and reproducible by seed",
+  "mode": "fixture",
+  "input": {
+    "generator": {
+      "configuredMin": 300,
+      "configuredMax": 1200,
+      "seed": "demo-seed-1",
+      "generatorVersion": "attendance-gen-v1"
+    },
+    "requests": [
+      {
+        "hallId": "hall-main",
+        "serviceId": "svc_hall-main_2026-10-03_lunch",
+        "serviceDate": "2026-10-03"
+      },
+      {
+        "hallId": "hall-main",
+        "serviceId": "svc_hall-main_2026-10-03_lunch",
+        "serviceDate": "2026-10-03"
+      },
+      {
+        "hallId": "hall-main",
+        "serviceId": "svc_hall-main_2026-10-03_dinner",
+        "serviceDate": "2026-10-03"
+      }
+    ],
+    "persisted": [
+      {
+        "hallId": "hall-main",
+        "serviceId": "svc_hall-main_2026-10-03_lunch",
+        "serviceDate": "2026-10-03",
+        "count": 742,
+        "source": "simulated",
+        "configuredMin": 300,
+        "configuredMax": 1200,
+        "seed": "demo-seed-1",
+        "generatorVersion": "attendance-gen-v1"
+      },
+      {
+        "hallId": "hall-main",
+        "serviceId": "svc_hall-main_2026-10-03_lunch",
+        "serviceDate": "2026-10-03",
+        "count": 742,
+        "source": "simulated",
+        "configuredMin": 300,
+        "configuredMax": 1200,
+        "seed": "demo-seed-1",
+        "generatorVersion": "attendance-gen-v1"
+      },
+      {
+        "hallId": "hall-main",
+        "serviceId": "svc_hall-main_2026-10-03_dinner",
+        "serviceDate": "2026-10-03",
+        "count": 901,
+        "source": "simulated",
+        "configuredMin": 300,
+        "configuredMax": 1200,
+        "seed": "demo-seed-1",
+        "generatorVersion": "attendance-gen-v1"
+      }
+    ]
+  },
+  "expected": {
+    "sameServiceSameCount": true,
+    "differentServiceMayDiffer": true,
+    "sourceLabel": "simulated",
+    "countWithinConfiguredRange": true,
+    "neverRegenerateOnDashboardRead": true
+  }
+}

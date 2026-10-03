@@ -1,0 +1,30 @@
+name: Agent 8 verify
+
+on:
+  push:
+    paths:
+      - 'tests/**'
+      - 'contracts/**'
+      - 'docs/**'
+      - '.github/workflows/agent8-verify.yml'
+  pull_request:
+    paths:
+      - 'tests/**'
+      - 'contracts/**'
+      - 'docs/**'
+      - '.github/workflows/agent8-verify.yml'
+
+jobs:
+  fixture-integration:
+    name: Fixture + integration checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run Agent 8 tests
+        run: npm test

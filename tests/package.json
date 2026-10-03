@@ -1,0 +1,14 @@
+{
+  "name": "scrap-agent8-tests",
+  "private": true,
+  "type": "module",
+  "description": "Agent 8 fixture validation and cross-system checks (no feature-module ownership).",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test integration/*.test.mjs e2e/*.test.mjs",
+    "test:integration": "node --test integration/*.test.mjs",
+    "test:e2e": "node --test e2e/*.test.mjs"
+  }
+}

@@ -15,7 +15,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { GatewayError, makeApiError, normalizeProviderError } from './errors.js';
 
-export const DEFAULT_MODEL = 'gemini-2.5-flash';
+export const DEFAULT_MODEL = 'gemini-3.8-flash';
 export const DEFAULT_TIMEOUT_MS = 30_000;
 export const DEFAULT_MAX_RETRIES = 2;
 export const DEFAULT_RETRY_BASE_DELAY_MS = 500;
@@ -61,7 +61,7 @@ export interface GenerateTextOptions {
 export interface GeminiGatewayOptions {
   /** Defaults to env GEMINI_API_KEY. Unset => mock mode. */
   apiKey?: string;
-  /** Defaults to env GEMINI_MODEL, then 'gemini-2.5-flash'. */
+  /** Defaults to env GEMINI_MODEL, then 'gemini-3.8-flash'. */
   model?: string;
   /** Per-request timeout. Defaults to env GEMINI_TIMEOUT_MS, then 30000. */
   timeoutMs?: number;
@@ -184,9 +184,22 @@ class GatewayImpl implements GeminiGateway {
         ...(req.maxOutputTokens !== undefined ? { maxOutputTokens: req.maxOutputTokens } : {}),
         ...(req.kind === 'structured'
           ? { responseMimeType: 'application/json', responseSchema: req.responseSchema as object }
-          : {}),
+          : // Short prose (suggestions): thinking tokens count against
+            // maxOutputTokens on thinking models and truncated the answer
+            // in the live smoke test, so text requests skip thinking.
+            { thinkingConfig: { thinkingBudget: 0 } }),
       },
     });
+    if (response.candidates?.[0]?.finishReason === 'MAX_TOKENS') {
+      throw new GatewayError(
+        makeApiError(
+          'GEMINI_TRUNCATED_RESPONSE',
+          'The analysis service stopped before finishing its answer.',
+          false,
+          { maxOutputTokens: req.maxOutputTokens },
+        ),
+      );
+    }
     const text = response.text;
     if (text === undefined || text === '') {
       throw new GatewayError(

@@ -111,6 +111,23 @@ test('non-retryable failures (auth) are not retried', async () => {
   assert.equal(calls, 1);
 });
 
+test('Google invalid-key 400 normalizes to GEMINI_AUTH_FAILED (seen in the live smoke test)', async () => {
+  const gw = createGeminiGateway({
+    env: {},
+    sleep: noSleep,
+    mockTransport: () => {
+      const err = new Error('{"error":{"code":400,"message":"API key not valid. Please pass a valid API key.","status":"INVALID_ARGUMENT"}}');
+      (err as Error & { status: number }).status = 400;
+      throw err;
+    },
+  });
+  await assert.rejects(gw.generateText('x'), (err: unknown) => {
+    assert.ok(err instanceof GatewayError);
+    assert.equal(err.apiError.code, 'GEMINI_AUTH_FAILED');
+    return true;
+  });
+});
+
 test('timeout-shaped errors normalize to retryable GEMINI_TIMEOUT', async () => {
   const gw = createGeminiGateway({
     env: {},

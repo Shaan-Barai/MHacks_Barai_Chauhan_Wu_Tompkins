@@ -205,10 +205,10 @@ export async function analyzeCapture(
       attemptFlags.add('ambiguous_items');
       status = 'needs_review';
     }
-    if (attemptFlags.has('above_baseline')) {
-      // §7.2: flag above-baseline results for review; aggregates exclude them.
-      status = 'needs_review';
-    }
+    // §7.2: an above-baseline value is flagged ('above_baseline' on the
+    // measurement and the attempt) and aggregates exclude that measurement.
+    // The attempt stays 'succeeded' so the plate's other, valid items still
+    // count — a whole-plate needs_review would silently drop them.
     if (measurements.length === 0) {
       // Model says the plate is not empty yet reports no food at all.
       attemptFlags.add('ambiguous_items');

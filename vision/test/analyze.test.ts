@@ -12,7 +12,7 @@ test('known item: contract-valid attempt and §7 math', async () => {
   assert.equal(attempt.attemptId, 'att_test01');
   assert.equal(attempt.menuId, 'menu_hall-main_2026-10-03');
   assert.equal(attempt.menuVersion, 1);
-  assert.equal(attempt.model, 'gemini-2.5-flash');
+  assert.equal(attempt.model, 'gemini-3.8-flash');
   assert.equal(attempt.promptVersion, PROMPT_VERSION);
   assert.deepEqual(attempt.baselineVersions, { 'item_scrambled-eggs': 1 });
   assert.ok(attempt.qualityFlags.includes('ai_estimate'));
@@ -144,7 +144,8 @@ test('above-baseline estimate: raw preserved, display clamped, flagged for revie
   assert.equal(m.displayWastePercent, 100); // bounded display must not hide the flag
   assert.ok(m.qualityFlags.includes('above_baseline'));
   assert.ok(attempt.qualityFlags.includes('above_baseline'));
-  assert.equal(attempt.status, 'needs_review'); // excluded from ordinary aggregates until resolved
+  // The measurement is excluded from aggregates by its flag; the plate's other items still count.
+  assert.equal(attempt.status, 'succeeded');
 });
 
 test('gemini-estimated baseline is used only when requested and labeled', async () => {
@@ -190,7 +191,7 @@ test('retry-then-fail path: provider errors become an explicit failed attempt', 
   assert.equal(attempt.error?.retryable, true);
   assert.equal(measurements.length, 0); // failure is explicit, never zero waste
   // Metadata still recorded for the stored failure:
-  assert.equal(attempt.model, 'gemini-2.5-flash');
+  assert.equal(attempt.model, 'gemini-3.8-flash');
   assert.equal(attempt.promptVersion, PROMPT_VERSION);
 });
 

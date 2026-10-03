@@ -129,7 +129,7 @@ const imageObject = table(
     widthPx: t.option(t.u32()),
     heightPx: t.option(t.u32()),
     uploadedAt: t.option(t.string()), // UTC ISO 8601
-    associationKind: t.string(), // 'capture' | 'reference'
+    associationKind: t.string(), // 'capture' | 'reference' | 'mask'
     associationId: t.string().index('btree'),
     // 'pending_upload' | 'uploaded' | 'finalized' | 'failed' | 'orphaned'
     state: t.string().index('btree'),
@@ -235,6 +235,57 @@ const insight = table(
   },
 );
 
+/**
+ * Segmentation stage + Pixels wasted per analysis attempt
+ * (contracts SegmentationResult minus its regions). One row per attempt that
+ * ran the mask pipeline; legacy Gemini-area attempts have none.
+ * capturePixelsWasted is the union of the attempt's valid food masks:
+ * present for 'complete', 'empty' (0), and 'partial' (a lower bound).
+ * Private, like analysis_attempt: the dashboard reads aggregates.
+ */
+const captureCount = table(
+  { name: 'capture_count' },
+  {
+    attemptId: t.string().primaryKey(),
+    eventId: t.string().index('btree'),
+    model: t.string(), // e.g. 'sam2.1-hiera-small'
+    checkpoint: t.string(),
+    codeRevision: t.string(),
+    promptSource: t.string(), // 'gemini_box'
+    settingsVersion: t.string(), // e.g. 'sam2-box-v1'
+    countingRuleVersion: t.string(), // e.g. 'union-v1'
+    status: t.string(), // 'succeeded' | 'partial' | 'failed' | 'skipped'
+    countStatus: t.string(), // 'complete' | 'empty' | 'partial' | 'unavailable'
+    capturePixelsWasted: t.option(t.u32()),
+    widthPx: t.u32(),
+    heightPx: t.u32(),
+  },
+);
+
+/**
+ * contracts ClassificationRegion — one food box from classification and its
+ * segmentation outcome. The mask itself lives in object storage
+ * (image_object with association kind 'mask'); only its id is here.
+ */
+const segmentationRegion = table(
+  { name: 'segmentation_region' },
+  {
+    regionId: t.string().primaryKey(),
+    attemptId: t.string().index('btree'),
+    eventId: t.string().index('btree'),
+    itemId: t.option(t.string()), // none = unclassified edible food
+    visualLabel: t.string(),
+    geminiBox: t.array(t.f64()), // [ymin, xmin, ymax, xmax] on 0-1000
+    pixelBox: t.array(t.f64()), // [x0, y0, x1, y1] on the analyzed image
+    boxConvention: t.string(),
+    segmentationStatus: t.string(), // 'succeeded' | 'failed' | 'skipped'
+    maskObjectId: t.option(t.string()),
+    maskPixels: t.option(t.u32()),
+    score: t.option(t.f64()),
+    error: t.option(StoredApiError),
+  },
+);
+
 // ---------------------------------------------------------------------------
 // Schema assembly
 // ---------------------------------------------------------------------------
@@ -249,6 +300,8 @@ const spacetimedb = schema({
   foodMeasurement,
   attendance,
   insight,
+  captureCount,
+  segmentationRegion,
 });
 
 export default spacetimedb;

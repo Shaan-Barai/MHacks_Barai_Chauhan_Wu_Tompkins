@@ -21,8 +21,10 @@ npm run seed       # load data/seed/demo-seed.json through the API (backend runn
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `PORT` | `8787` | API port |
-| `OBJECT_STORAGE_PROVIDER` | `local-dev` | Only `local-dev` implemented until a provider is chosen |
-| `OBJECT_STORAGE_CONTAINER` | `scrap-images` | Bucket/container name |
+| `OBJECT_STORAGE_PROVIDER` | `local-dev` | `r2` (Cloudflare R2) or `local-dev` (offline filesystem) |
+| `OBJECT_STORAGE_CONTAINER` | `scrap-images` | R2 bucket name (or local-dev folder) |
+| `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | – | R2 API token with Object Read & Write on the bucket (provider `r2`) |
+| `R2_ENDPOINT` | `https://<account>.r2.cloudflarestorage.com` | Override, e.g. EU-jurisdiction buckets |
 | `OBJECT_STORAGE_LOCAL_DIR` | `.local-storage` | local-dev bytes root (gitignored) |
 | `UPLOAD_ALLOWED_MIME_TYPES` | `image/jpeg,image/png,image/webp` | Comma-separated allowlist |
 | `UPLOAD_MAX_BYTES` | `10485760` | Upload size limit |
@@ -166,16 +168,29 @@ Gemini calls and object-storage I/O stay in the service layer
 live; otherwise the deterministic `MockAnalyzer` runs. Mock gateway text is
 never used for suggestions.
 
-## Object storage: `local-dev` adapter
+## Object storage: Cloudflare R2 (and `local-dev` offline)
 
 `src/storage/objectStorage.ts` is the provider-neutral interface
-(requestUpload → upload → finalize → getReadAccess, plus stat/delete for
-orphan cleanup). `localDevStorage.ts` stores bytes under
-`OBJECT_STORAGE_LOCAL_DIR/<container>/…` and uses opaque expiring tokens as a
-stand-in for presigned URLs. An R2/S3/Supabase/Firebase adapter replaces only
-this class once the provider decision lands (contracts/decisions.md); the
-two-step register/finalize orchestration in `imageService.ts` is provider-
-independent.
+(`authorizeUpload` → client PUT → `statObject` on finalize → `getReadAccess`,
+plus `getObjectBytes` for analysis and `deleteObject` for orphan cleanup).
+The two-step register/finalize orchestration in `imageService.ts` is
+provider-independent.
+
+- **`R2Storage`** (`OBJECT_STORAGE_PROVIDER=r2`): S3 API against
+  `https://<account>.r2.cloudflarestorage.com` (region `auto`, path-style).
+  `POST /api/images/uploads` returns a presigned PUT URL signed over
+  Content-Type and Content-Length plus the `uploadHeaders` the PUT must send;
+  finalize checks the object with HeadObject (`409 UPLOAD_NOT_COMPLETED`
+  until it exists); `/access` returns a presigned GET URL; analysis reads the
+  bytes server-side. Provider failures surface as retryable
+  `502 STORAGE_UNAVAILABLE` without credentials or URLs. Bucket setup:
+  create a private bucket, an R2 API token with Object Read & Write on it, and
+  — only if a browser will upload or fetch images directly — apply
+  `r2-cors.json` (`npx wrangler r2 bucket cors set <bucket> --file r2-cors.json`).
+- **`LocalDevStorage`** (`local-dev`): bytes under
+  `OBJECT_STORAGE_LOCAL_DIR/<container>/…`, with backend routes
+  (`/api/storage/upload|read`) and opaque expiring tokens standing in for
+  presigned URLs. Used by tests and offline machines.
 
 ## Assumptions (recorded per working rule 5)
 
@@ -193,8 +208,7 @@ independent.
 
 ## Remaining work
 
-- Real object-storage provider adapter + CORS for browser direct upload
-  (blocked on provider decision).
+- Browser-side image upload/display in the dashboard (R2 CORS policy is ready).
 - Reducer-level caller auth if the database is ever exposed beyond the backend.
 - Retire `SummaryService` in favor of the analytics summary once API consumers
   move to `/api/dashboard/meal`.

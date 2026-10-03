@@ -31,6 +31,8 @@ export interface RequestUploadResponse {
   objectId: string;
   objectKey: string;
   uploadUrl: string;
+  /** Headers the PUT must send (presigned URLs are signed over Content-Type). */
+  uploadHeaders: Record<string, string>;
   expiresAt: string;
 }
 
@@ -55,7 +57,7 @@ export class ImageService {
     if (!body.associationId || typeof body.associationId !== 'string') {
       throw badRequest('INVALID_ASSOCIATION', 'associationId is required.');
     }
-    const auth = this.storage.authorizeUpload({
+    const auth = await this.storage.authorizeUpload({
       associationKind: body.associationKind,
       associationId: body.associationId,
       mimeType: body.mimeType,
@@ -80,6 +82,7 @@ export class ImageService {
       objectId,
       objectKey: auth.objectKey,
       uploadUrl: auth.uploadUrl,
+      uploadHeaders: auth.uploadHeaders,
       expiresAt: auth.expiresAt,
     };
   }
@@ -138,15 +141,22 @@ export class ImageService {
 
   /**
    * Server-internal bytes read for analysis (AGENTS.md 4.7: Agent 4 receives
-   * image content through Agent 5's storage interface). Issues and consumes
-   * its own short-lived read access; nothing is logged.
+   * image content through Agent 5's storage interface). Only finalized
+   * objects are readable; nothing is logged.
    */
   async readImageBytes(objectId: string): Promise<{ bytes: Buffer; mimeType: string }> {
-    const access = await this.getReadAccess(objectId);
-    const url = new URL(access.url, 'http://internal');
-    const token = url.searchParams.get('token') ?? '';
-    const objectKey = decodeURIComponent(url.pathname.split('/read/')[1] ?? '');
-    return this.storage.readObject(objectKey, token);
+    const record = await this.repo.getImageObject(objectId);
+    if (!record) {
+      throw notFound('IMAGE_OBJECT_NOT_FOUND', 'This image is not registered.', { objectId });
+    }
+    if (record.state !== 'finalized') {
+      throw conflict('IMAGE_NOT_FINALIZED', 'This image upload was never completed.', {
+        objectId,
+        state: record.state,
+      });
+    }
+    const { bytes } = await this.storage.getObjectBytes(record.objectKey);
+    return { bytes, mimeType: record.mimeType };
   }
 
   /** Uploads authorized/uploaded but never finalized, older than maxAgeMs. */

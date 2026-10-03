@@ -18,3 +18,6 @@ coverage/
 *.log
 .idea/
 .vscode/
+
+# Local evaluation photos (stock images; not for the public repo)
+images/

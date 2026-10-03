@@ -20,15 +20,18 @@ are **not** tested (neither exists yet).
 | `tests/` `npm test` | fixture | 18/18 pass |
 | `data/` `npm test` | unit | 27/27 pass |
 | `capture/` `npm test` | unit | 16/16 pass |
-| `vision/` `npm test` | unit (mock transport) | 34/34 pass |
+| `vision/` `npm test` | unit (mock transport) | 38/38 pass |
 | `analytics/` `npm test` | unit | 28/28 pass |
-| `backend/` `npm test` | unit/API (in-memory repo, mock analyzer, R2 adapter offline) | 19/19 pass |
+| `backend/` `npm test` | unit/API (in-memory repo, mock analyzer, R2 adapter offline) | 19/19 pass (live SpacetimeDB test skipped without `SPACETIMEDB_URI`) |
 | `frontend/` `npm test` | unit (vitest, mock + stubbed fetch) | 23/23 pass |
 | `db/spacetimedb` typecheck + `spacetime publish --server local` | build/publish | pass |
 | `vision/` `npm run smoke` | **live Gemini** (`gemini-3.8-flash`) | 9/9 checks pass |
 | `tests/` `SCRAP_E2E=1 npm run test:e2e` | **live stack** (SpacetimeDB + live Gemini) | 5/5 pass |
 | Demo replay (`capture/` `npm run replay`, 6 synthetic plates) | **live stack** | 6/6 ingested `succeeded`; re-run → "already ingested", still 6 capture events / 6 attempts in SpacetimeDB |
 | Backend restart | live stack | menus, captures, attendance, insights all served unchanged after restart |
+| `backend/` live SpacetimeDB test (`SPACETIMEDB_URI` set) | **live SpacetimeDB** | 11/11: every reducer + read round-trips; re-upload replaces items; capture idempotent; attempt + measurements atomic (a bad measurement stores nothing, attempts append-only); reducers reject zero baselines and non-simulated attendance; data visible to a fresh connection; image rows hold only key + metadata |
+| SpacetimeDB server restart | **live SpacetimeDB** | row counts identical before/after (13 services, 9 captures, 21 measurements, 9 insights); dashboard served unchanged |
+| `vision/` `npm run eval:leftovers` (countable/uncountable mode, blind) | **live Gemini** | label + countable decision 15/15; counts/percents in `vision/README.md` |
 | Dashboard in Chrome (`npm run dev`) | live stack | cards, daily chart, per-meal panel with Gemini tip, simulated swipes badge, "left out of totals" coverage, Menus calendar from SpacetimeDB, typed menu save → row in SpacetimeDB; no console errors |
 
 ## Defects found and fixed during integration

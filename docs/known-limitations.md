@@ -11,14 +11,17 @@ Honest boundaries for the hackathon prototype. Update as modules land.
 
 ## Architecture
 
-- Object-storage cloud provider is undecided; `local-dev` is the provisional offline adapter.
-- SpacetimeDB module language/version is still provisional (see `contracts/decisions.md`).
+- Images go to Cloudflare R2 (`OBJECT_STORAGE_PROVIDER=r2`); `local-dev` (backend filesystem) remains for offline runs and tests.
+- SpacetimeDB runs locally (standalone); no hosted deployment. Reducers have no caller auth — the backend is the only intended client on a trusted machine.
+- The dashboard reads through the backend API (polling on navigation), not live SpacetimeDB subscriptions.
+- Two §7 summary implementations exist (backend `SummaryService` for `/api/dashboard/summary`, analytics for the UI endpoints); both are checked against hand calculations.
 - Upload to object storage and SpacetimeDB registration are **separate** steps — not one atomic transaction.
 
 ## Verification
 
-- Agent 8 CI currently proves **fixture + formula** agreement only.
-- Live API e2e, live Gemini smoke, and live camera tests are documented but not claimed until explicitly run.
+- CI proves fixture/unit agreement only (no key or database in CI).
+- Live Gemini smoke and live API e2e were run by hand on 2026-10-03 (see verification-report.md). Camera hardware is untested.
+- Demo images are AI-generated synthetic plates and demo baselines are hand-assigned: live estimates often exceed the baseline and are excluded as `above_baseline`. The numbers show the pipeline works, not real-world accuracy.
 - Agent 8 reports defects; feature owners fix their own modules.
 
 ## Data / privacy

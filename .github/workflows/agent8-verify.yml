@@ -1,18 +1,12 @@
 name: Agent 8 verify
 
+# Fixture/unit verification only: no Gemini key, no SpacetimeDB, no camera.
+# The live path (tests/e2e with SCRAP_E2E=1, vision smoke test) is run by
+# hand against a local stack — see docs/verification-report.md.
+
 on:
   push:
-    paths:
-      - 'tests/**'
-      - 'contracts/**'
-      - 'docs/**'
-      - '.github/workflows/agent8-verify.yml'
   pull_request:
-    paths:
-      - 'tests/**'
-      - 'contracts/**'
-      - 'docs/**'
-      - '.github/workflows/agent8-verify.yml'
 
 jobs:
   fixture-integration:
@@ -28,3 +22,36 @@ jobs:
           node-version: '20'
       - name: Run Agent 8 tests
         run: npm test
+
+  modules:
+    name: Module tests (${{ matrix.module }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [data, capture, vision, analytics, backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install
+        working-directory: ${{ matrix.module }}
+        run: npm ci
+      - name: Test
+        working-directory: ${{ matrix.module }}
+        run: npm test
+
+  spacetimedb-module:
+    name: SpacetimeDB module typecheck
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: db/spacetimedb
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npm run typecheck

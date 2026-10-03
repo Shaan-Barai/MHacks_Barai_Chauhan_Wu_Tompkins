@@ -2,9 +2,10 @@
 
 ## Prerequisites
 
-- Node.js **20+** (fixture/integration runner)
+- Node.js **20.12+** (22+ fine)
 - Git
-- (Later) SpacetimeDB CLI, Gemini API key, and the chosen object-storage credentials — see [`.env.example`](../.env.example)
+- SpacetimeDB CLI **2.10.x** (`curl -sSf https://install.spacetimedb.com | sh`)
+- A Gemini API key for live analysis (optional: without it the backend uses a mock analyzer) — see [`.env.example`](../.env.example)
 
 ## Fixture verification (available now)
 
@@ -17,22 +18,20 @@ npm test
 
 This runs offline checks under `tests/integration/` and the skipped e2e placeholder. It validates AGENTS.md §7 formulas and scenario expectations against JSON fixtures.
 
-## Full demo stack (when modules land)
+## Full demo stack
 
-Provisional stack from [`contracts/decisions.md`](../contracts/decisions.md):
-
-| Piece | Provisional choice |
+| Piece | Choice |
 | --- | --- |
-| Frontend | Vite + React 18 + TypeScript + Tailwind |
-| Backend | Node 20 + TypeScript + Express |
-| DB | SpacetimeDB (module language TBD) |
-| Images | `local-dev` filesystem adapter until a cloud provider is chosen |
-| Vision | Gemini `gemini-2.5-flash` via server-side `@google/genai` |
+| Frontend | Vite + React 18 + TypeScript + Tailwind (`frontend/`, dev proxy → backend) |
+| Backend | Node 20 + TypeScript + Express (`backend/`, port 8787) |
+| DB | SpacetimeDB 2.10.2 standalone, TypeScript module `db/spacetimedb`, database `scrap` |
+| Images | Cloudflare R2 bucket (presigned URLs); `local-dev` filesystem adapter offline |
+| Vision | Gemini `gemini-3.8-flash` via server-side `@google/genai` |
 
-1. Copy `.env.example` → `.env` (never commit `.env`).
-2. Follow root README start commands once Agent 1 publishes them.
-3. Confirm `OBJECT_STORAGE_PROVIDER=local-dev` for offline demos.
-4. Set `GEMINI_API_KEY` only for live vision smoke tests; fixture runs must not require it.
+1. Copy `.env.example` → `.env` (never commit `.env`) and set `GEMINI_API_KEY`.
+2. Follow the root [README setup](../README.md#setup).
+3. For R2 set `OBJECT_STORAGE_PROVIDER=r2`, the bucket in `OBJECT_STORAGE_CONTAINER`, and `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` (an R2 API token with Object Read & Write on that bucket). Use `local-dev` to run without a Cloudflare account.
+4. Fixture/unit runs never need the key, SpacetimeDB, or network access.
 
 ## Hall defaults
 

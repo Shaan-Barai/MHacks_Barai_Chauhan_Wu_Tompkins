@@ -108,6 +108,40 @@ npm test   # tsc build + node --test dist/test/*.test.js
 
 33 tests, all fixture-driven (no credentials needed, no live Gemini calls).
 
+## Countable vs uncountable leftovers (`assessLeftovers`)
+
+`assessLeftovers(gateway, { image, labels })` (`src/leftovers.ts`) follows the
+team spec: for each food, Gemini (1) classifies it with one of the supplied
+labels, (2) decides from that classification whether the leftovers are
+**countable** (separate pieces, e.g. fries) or **uncountable** (one portion
+eaten into, e.g. a burger), then (3) returns a **piece count** for countable
+food or the **percent of a whole serving remaining** for uncountable food.
+The schema orders the fields so the countable decision comes first; output
+mixing count and percent, unknown labels, non-integer counts, or percents
+outside 0–100 is rejected (`VISION_INVALID_RESPONSE`, retryable). The model
+receives only the image and the labels.
+
+Blind live check (`npm run eval:leftovers [runs]`): reads a local `images/`
+folder at the repo root (gitignored — evaluation photos are not committed),
+re-encodes each image without metadata, shuffles them under anonymous ids,
+and compares the answers with the file names afterwards.
+
+**2026-10-03, `gemini-3.8-flash`, 5 images × 3 runs:** label and
+countable/uncountable decision correct 15/15; answers stable across runs.
+
+| File (never sent) | Gemini (3 runs) |
+| --- | --- |
+| burger50 | uncountable, 80 / 80 / 78 % left |
+| burger60 | uncountable, 80 / 75 / 78 % left |
+| burger90 | uncountable, 88 / 88 / 85 % left |
+| fries10 | countable, 13 / 13 / 13 left |
+| fries20 | countable, 27 / 25 / 26 left |
+
+If the file-name numbers are % remaining and fry counts, burger90 is close
+but burger50/60 read ~20–30 points high and are not told apart; fries are
+overcounted by ~30%. By eye, fries10 shows about 13 fries, so the labels may
+be approximate. Not yet wired into the backend pipeline or dashboard.
+
 ## Live smoke test
 
 ```sh

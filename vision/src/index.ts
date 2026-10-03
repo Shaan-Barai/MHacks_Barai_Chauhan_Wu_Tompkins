@@ -29,6 +29,14 @@ export type {
 } from './gateway.js';
 
 export { analyzeCapture } from './analyze.js';
+
+export {
+  assessLeftovers,
+  buildLeftoverSchema,
+  validateLeftoverText,
+  LEFTOVER_PROMPT_VERSION,
+} from './leftovers.js';
+export type { AssessLeftoversInput, AssessLeftoversResult, LeftoverAssessment } from './leftovers.js';
 export type { AnalyzeCaptureInput, AnalyzeCaptureResult } from './analyze.js';
 
 export { GatewayError, makeApiError, normalizeProviderError } from './errors.js';

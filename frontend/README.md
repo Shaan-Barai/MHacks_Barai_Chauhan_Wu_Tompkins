@@ -11,7 +11,8 @@ package — no root files touched.
 ```bash
 cd frontend
 npm install
-npm run dev       # http://localhost:5173
+npm run dev       # http://localhost:5173 — live data via the backend (start it first)
+VITE_USE_MOCK=1 npm run dev   # demo data only, no backend needed
 npm run build     # tsc -b + vite build (must pass)
 npm test          # vitest (data-access layer, severity bands, grouping, cards)
 ```
@@ -21,23 +22,22 @@ completion is persisted to `localStorage` (`scrap.hallSettings.v1`). To see
 setup again, clear site data or run
 `localStorage.clear()` in the console.
 
-## Where the data lives — and how to swap it for the backend
+## Where the data comes from
 
-- **`src/data/mockData.ts` — ALL demo data.** Deterministic (seeded PRNG keyed
-  by date/meal/item), so the demo is repeatable. Waste figures are mock
-  AI-style estimates of leftover food area ("waste units", explained via
-  tooltips in the UI); attendance/meal swipes are **simulated** and labeled as
-  such everywhere, per AGENTS.md §3.7/§7.
-- **`src/data/api.ts` — the swap seam.** Components only import from here.
-  Each function documents the backend endpoint it stands in for
-  (`GET /api/menus`, `POST /api/menus`, `GET /api/dashboard/summary`, …).
-  To go live, replace the function bodies with `fetch()` calls (or SpacetimeDB
-  subscriptions) and delete `mockData.ts`; `src/data/types.ts` already mirrors
-  `contracts/types.ts` conventions (meal labels, local service dates, item
-  IDs, simulated-attendance labeling).
-- Manager-uploaded menus currently persist to `localStorage`
-  (`scrap.userMenus.v1`) and win over mock menus — they become
-  `POST /api/menus` later.
+- **`src/data/api.ts`** — the only module components import. It forwards to
+  `liveApi.ts` by default, or to `mockApi.ts` when `VITE_USE_MOCK=1` (and
+  always in unit tests).
+- **`src/data/liveApi.ts`** — `fetch` calls to the backend's
+  `/api/menus*` and `/api/dashboard/{daily,cards,meal}` endpoints
+  (backend/README.md). `npm run dev` proxies `/api` to `http://localhost:8787`
+  (`VITE_PROXY_TARGET` to change; `VITE_API_URL` for a non-proxied base).
+  The backend returns pixels; the UI shows **waste units = 1,000 px²** of
+  AI-estimated leftover area (`PX_PER_WASTE_UNIT`). All shares, totals, and
+  exclusions are computed server-side by `analytics/`.
+- **`src/data/mockApi.ts` + `mockData.ts`** — the deterministic demo data
+  (seeded PRNG), for offline demos: `VITE_USE_MOCK=1 npm run dev`.
+- Menus saved in the UI go to `POST /api/menus/upload` in live mode
+  (localStorage only in mock mode).
 
 ## Implemented (UI.md)
 
@@ -58,6 +58,10 @@ setup again, clear site data or run
   meal swipes (simulated badge + tooltip), "Most wasted" with units, share of
   meal waste and a one-line Gemini-styled tip labeled AI-generated, then the
   next 4 items with Sage/Squash/Tomato severity dots (<10% / 10–25% / >25%).
+  "Left out of totals" shows plates/items excluded from the numbers (failed,
+  needs review, unknown food, above-baseline) — never shown as zero waste; a
+  meal whose estimates were all excluded says so. Rule-based tips are labeled
+  "rule-based (AI unavailable)".
 - Menus page: the same two menu options + a month calendar; days missing a
   menu highlighted in Squash (click to prefill the editor).
 - Settings: hall name, meal times, client-side CSV export (last 30 days, one
@@ -69,8 +73,8 @@ setup again, clear site data or run
 
 ## Deferred / out of scope here
 
-- Real backend/SpacetimeDB wiring (the `api.ts` seam above) and live
-  subscriptions — blocked on integration; mock mode is the demo path.
+- Live SpacetimeDB subscriptions — the dashboard re-fetches through the
+  backend API on navigation instead.
 - The menu-API connector is a mock ("Test connection" succeeds without a
   network call) as UI.md specifies.
 - Gemini calls from the browser: never — tips come from mock data and are

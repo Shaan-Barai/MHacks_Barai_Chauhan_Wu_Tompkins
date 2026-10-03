@@ -171,6 +171,7 @@ export function mockMealDetail(date: IsoDate, meal: MealLabel, menu: DayMenu | n
     meal,
     totalWasteUnits: total,
     platesScanned,
+    coverage: { platesAnalyzed: platesScanned, platesLeftOut: 0, itemsLeftOut: 0 },
     mealSwipes: { count: attendance, source: 'simulated' },
     items: sorted,
     tip: {

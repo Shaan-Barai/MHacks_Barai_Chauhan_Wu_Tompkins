@@ -18,6 +18,7 @@ export function RightPanel({ date, isYesterday }: { date: IsoDate; isYesterday: 
   const detail = useAsync(() => getMealDetail(date, meal), [date, meal])
   const totalTipId = useId()
   const swipesTipId = useId()
+  const coverageTipId = useId()
 
   return (
     <aside className="w-[21rem] shrink-0 overflow-y-auto border-l border-linen bg-cream p-5" aria-label="Day details">
@@ -51,7 +52,7 @@ export function RightPanel({ date, isYesterday }: { date: IsoDate; isYesterday: 
             If the day is missing a menu, add one in Menus. Data appears once plates are scanned.
           </EmptyState>
         )}
-        {detail.status === 'ready' && detail.data !== null && <MealDetailView detail={detail.data} totalTipId={totalTipId} swipesTipId={swipesTipId} />}
+        {detail.status === 'ready' && detail.data !== null && <MealDetailView detail={detail.data} totalTipId={totalTipId} swipesTipId={swipesTipId} coverageTipId={coverageTipId} />}
       </div>
     </aside>
   )
@@ -61,10 +62,12 @@ function MealDetailView({
   detail,
   totalTipId,
   swipesTipId,
+  coverageTipId,
 }: {
   detail: NonNullable<Awaited<ReturnType<typeof getMealDetail>>>
   totalTipId: string
   swipesTipId: string
+  coverageTipId: string
 }) {
   const top = detail.items[0]
   const rest = detail.items.slice(1, 5)
@@ -82,6 +85,24 @@ function MealDetailView({
             <dt className="text-thyme">Plates scanned</dt>
             <dd className="font-medium text-ink">{formatNumber(detail.platesScanned)}</dd>
           </div>
+          {(detail.coverage.platesLeftOut > 0 || detail.coverage.itemsLeftOut > 0) && (
+            <div className="flex justify-between">
+              <dt className="text-thyme">
+                Left out of totals
+                <InfoTip
+                  id={coverageTipId}
+                  text="Plates whose analysis failed or needs review, and foods the AI couldn't match to the menu or measured above a full serving. They are left out instead of being counted as zero waste."
+                />
+              </dt>
+              <dd className="font-medium text-ink">
+                {detail.coverage.platesLeftOut > 0 &&
+                  `${formatNumber(detail.coverage.platesLeftOut)} plate${detail.coverage.platesLeftOut === 1 ? '' : 's'}`}
+                {detail.coverage.platesLeftOut > 0 && detail.coverage.itemsLeftOut > 0 && ', '}
+                {detail.coverage.itemsLeftOut > 0 &&
+                  `${formatNumber(detail.coverage.itemsLeftOut)} item${detail.coverage.itemsLeftOut === 1 ? '' : 's'}`}
+              </dd>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <dt className="text-thyme">
               Meal swipes
@@ -94,7 +115,16 @@ function MealDetailView({
         </dl>
       </div>
 
+      {!top && (
+        <EmptyState title="No waste totals for this meal yet.">
+          {detail.platesScanned === 0
+            ? 'Data appears once plates are scanned.'
+            : 'Plates were scanned, but every food estimate was left out of the totals (for example, the AI measured more than a full serving, or couldn\'t match the food to the menu). Nothing is counted as zero waste.'}
+        </EmptyState>
+      )}
+
       {/* Most wasted + Gemini-style tip */}
+      {top && (
       <div>
         <h3 className="text-base font-semibold text-ink">Most wasted</h3>
         <div className="mt-2 rounded-card border border-linen bg-oat p-4">
@@ -102,14 +132,23 @@ function MealDetailView({
           <p className="text-base text-thyme">
             {formatNumber(top.wasteUnits)} waste units · {formatPercent(top.shareOfMealWastePercent)} of meal waste
           </p>
+          {detail.tip && (
           <div className="mt-3 rounded-btn border border-basil-tint bg-basil-tint/60 p-3">
             <p className="text-sm font-semibold uppercase tracking-wide text-basil">
-              <span aria-hidden="true">✦ </span>Gemini tip · AI-generated
+              {detail.tip.source === 'gemini' ? (
+                <>
+                  <span aria-hidden="true">✦ </span>Gemini tip · AI-generated
+                </>
+              ) : (
+                'Tip · rule-based (AI unavailable)'
+              )}
             </p>
             <p className="mt-1 text-base leading-snug text-ink">{detail.tip.recommendation}</p>
           </div>
+          )}
         </div>
       </div>
+      )}
 
       {/* Next 4 most wasted with severity dots */}
       {rest.length > 0 && (

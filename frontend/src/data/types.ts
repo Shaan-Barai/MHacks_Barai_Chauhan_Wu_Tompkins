@@ -70,11 +70,18 @@ export interface MealDetail {
   meal: MealLabel
   totalWasteUnits: number
   platesScanned: number
+  /**
+   * Analysis coverage (AGENTS.md §9.7): plates whose analysis counted, and
+   * plates/food items left out of the totals (failed or needing review,
+   * unknown food, missing or above-baseline estimates). Never counted as zero.
+   */
+  coverage: { platesAnalyzed: number; platesLeftOut: number; itemsLeftOut: number }
   /** Simulated attendance (contract Attendance; source is always "simulated"). */
   mealSwipes: { count: number; source: 'simulated' }
-  /** Sorted by wasteUnits, descending. */
+  /** Sorted by wasteUnits, descending. Empty when every estimate was left out. */
   items: ItemWaste[]
-  tip: MealTip
+  /** Null when no item counted yet (nothing to ground a tip in). */
+  tip: MealTip | null
 }
 
 export interface PeriodSummary {

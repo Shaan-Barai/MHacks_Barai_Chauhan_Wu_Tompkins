@@ -1,12 +1,13 @@
 /**
- * Dashboard (UI.md, BIG-PLAN E): lookback buttons, four headline cards (total
- * waste, greenhouse gases, freshwater, waste impact), the AI recommendation,
- * foods to target (per portion), most wasted, the daily chart, recent plates
- * with their AI outline images, and nutrition lost kept apart from the score.
+ * Dashboard (UI.md, BIG-PLAN v2): lookback buttons, two headline cards (Total
+ * waste in Pixels wasted, Relative impact in points), the AI recommendation,
+ * foods to target (pixels per portion), most wasted (pixels), the daily
+ * pixels chart, recent plates with their AI outline images, and relative
+ * nutrition points kept apart from the impact score.
  */
 import { useMemo } from 'react'
 import { getCaptures, getDailyWaste, getImpactDashboard, getRecommendation } from '../data/api'
-import { chartUnit, dailyBuckets } from '../lib/grouping'
+import { dailyBuckets } from '../lib/grouping'
 import { useAsync } from '../lib/useAsync'
 import { DateRangePicker, type DateRange } from '../components/DateRangePicker'
 import { FoodsToTarget } from '../components/FoodsToTarget'
@@ -26,8 +27,7 @@ export function DashboardPage({ range, onRangeChange }: { range: DateRange; onRa
   const plates = useAsync(() => getCaptures(range.start, range.end), deps)
   const series = useAsync(() => getDailyWaste(range.start, range.end), deps)
 
-  const unit = useMemo(() => (series.data ? chartUnit(series.data) : 'pixels'), [series.data])
-  const buckets = useMemo(() => (series.data ? dailyBuckets(series.data, unit) : []), [series.data, unit])
+  const buckets = useMemo(() => (series.data ? dailyBuckets(series.data) : []), [series.data])
   const hasChartData = buckets.some((b) => b.value !== null)
   const noPlates = impact.data !== undefined && impact.data.totals.captures === 0
 
@@ -62,16 +62,14 @@ export function DashboardPage({ range, onRangeChange }: { range: DateRange; onRa
       )}
 
       <Card>
-        <h2 className="text-lg font-semibold text-ink">
-          {unit === 'grams' ? 'Food left by day (estimate)' : 'Pixels wasted by day'}
-        </h2>
+        <h2 className="text-lg font-semibold text-ink">Pixels wasted by day</h2>
         <p className="mt-1 text-sm">Hover over or tab to a bar to see the exact number.</p>
         <div className="mt-3">
           {series.status === 'loading' && !series.data && <LoadingBlock label="Loading chart" />}
           {series.status === 'error' && <EmptyState title="Couldn't load the chart.">{series.error}</EmptyState>}
           {series.data &&
             (hasChartData ? (
-              <WasteChart buckets={buckets} unit={unit} />
+              <WasteChart buckets={buckets} />
             ) : (
               <EmptyState title="No waste recorded for these days.">
                 Days show up once they have a menu and scanned plates.
@@ -82,7 +80,9 @@ export function DashboardPage({ range, onRangeChange }: { range: DateRange; onRa
 
       {plates.status === 'loading' && !plates.data && <LoadingBlock label="Loading plates" />}
       {plates.status === 'error' && <EmptyState title="Couldn't load the plates.">{plates.error}</EmptyState>}
-      {plates.data && <PlatesGallery captures={plates.data} />}
+      {plates.data && (
+        <PlatesGallery captures={plates.data} neighborExcluded={impact.data?.coverage.capturesWithNeighborFoodExcluded ?? 0} />
+      )}
 
       {impact.data && !noPlates && <NutritionLost data={impact.data} />}
     </div>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chartUnit, dailyBuckets, niceCeil } from './grouping'
+import { dailyBuckets, niceCeil } from './grouping'
 import type { DailyWastePoint } from '../data/types'
 
 const points: DailyWastePoint[] = [
@@ -16,15 +16,6 @@ describe('dailyBuckets', () => {
     expect(b.map((x) => x.key)).toEqual(points.map((p) => p.date))
     expect(b[1].value).toBeNull()
     expect(b[0].value).toBe(100)
-  })
-
-  it('uses grams only when every day with plates has them', () => {
-    expect(chartUnit(points)).toBe('pixels')
-    const withGrams: DailyWastePoint[] = points.map((p) => ({ ...p, grams: p.pixelsWasted === null ? null : p.pixelsWasted / 10 }))
-    expect(chartUnit(withGrams)).toBe('grams')
-    expect(dailyBuckets(withGrams, 'grams').map((b) => b.value)).toEqual([10, null, 5, 7])
-    const partial = withGrams.map((p, i) => (i === 2 ? { ...p, grams: null } : p))
-    expect(chartUnit(partial)).toBe('pixels')
   })
 })
 

@@ -1,48 +1,62 @@
 import { describe, expect, it } from 'vitest'
 import { getCaptureImages, getCaptures, getDailyWaste, getImpactDashboard, getRecommendation } from './api'
-import { CARBON_USD_PER_KG, MOCK_DINNER_FOODS, WATER_USD_PER_M3 } from './mockData'
+import { CO2_WEIGHT, MOCK_DINNER_FOODS, WATER_WEIGHT } from './mockData'
 import { addDays, todayIso } from '../lib/dates'
 
 const today = todayIso()
 const start = addDays(today, -29)
 
-describe('mock impact dashboard (BIG-PLAN D1-D6)', () => {
-  it('uses the 23 dinner foods, ranks targets by grams per portion and most wasted by grams', async () => {
+describe('mock impact dashboard (BIG-PLAN v2: pixels and relative points)', () => {
+  it('uses the 23 dinner foods, ranks targets by pixels per portion and most wasted by pixels', async () => {
     expect(MOCK_DINNER_FOODS).toHaveLength(23)
     const d = await getImpactDashboard(start, today)
-    expect(d.labels).toEqual({ estimate: true, demoPortions: true })
+    expect(d.labels).toEqual({ relativeImpact: true, demoPortions: true })
 
-    const ranked = d.targets.filter((r) => r.perPortion?.grams != null)
-    const grams = ranked.map((r) => r.perPortion!.grams!)
-    expect(grams).toEqual([...grams].sort((a, b) => b - a))
+    const ranked = d.targets.filter((r) => r.perPortion != null)
+    const px = ranked.map((r) => r.perPortion!.pixels)
+    expect(px).toEqual([...px].sort((a, b) => b - a))
     // unavailable rates come last
-    const firstUnranked = d.targets.findIndex((r) => r.perPortion?.grams == null)
-    expect(d.targets.slice(firstUnranked).every((r) => r.perPortion?.grams == null)).toBe(true)
+    const firstUnranked = d.targets.findIndex((r) => r.perPortion == null)
+    expect(d.targets.slice(firstUnranked).every((r) => r.perPortion == null)).toBe(true)
 
-    const mw = d.mostWasted.filter((r) => r.impact.grams !== null).map((r) => r.impact.grams!)
+    const mw = d.mostWasted.map((r) => r.impact.pixels)
     expect(mw).toEqual([...mw].sort((a, b) => b - a))
   })
 
-  it('totals add up and the impact score excludes nutrition (0.19 C + 1.50 W)', async () => {
+  it('points follow pixels/1000 x weight x factor, totals add up, and the score excludes nutrition', async () => {
     const d = await getImpactDashboard(start, today)
     const t = d.totals
     expect(t.pixels).toBe(d.mostWasted.reduce((s, r) => s + r.impact.pixels, 0))
-    expect(t.impactUsd!).toBeCloseTo(CARBON_USD_PER_KG * t.kgCo2e! + WATER_USD_PER_M3 * t.waterM3!, 6)
-    expect(t.nutrientDaysLost).not.toBeNull()
+    expect(t.impactPoints!).toBeCloseTo(CO2_WEIGHT * t.co2Points! + WATER_WEIGHT * t.waterPoints!, 6)
+    expect(t.nutritionPoints).not.toBeNull()
     expect(t.analyzedCaptures + t.excludedCaptures).toBe(t.captures)
-    // a plausible scale: a few kg to tens of kg per dinner of scanned plates
-    expect(t.grams! / 30).toBeGreaterThan(1_000)
-    expect(t.grams! / 30).toBeLessThan(60_000)
+    expect(d.coverage.capturesWithNeighborFoodExcluded).toBeGreaterThanOrEqual(0)
+
+    const steak = d.mostWasted.find((r) => r.displayName === 'Ancho Flank Steak')
+    if (steak) {
+      const f = MOCK_DINNER_FOODS.find((x) => x.food === 'Ancho Flank Steak')!
+      expect(steak.impact.co2Points!).toBeCloseTo((steak.impact.pixels / 1000) * f.weight * f.c, 6)
+      expect(steak.impact.waterPoints!).toBeCloseTo((steak.impact.pixels / 1000) * f.weight * f.w, 6)
+      expect(steak.impact.nutritionPoints!).toBeCloseTo((steak.impact.pixels / 1000) * f.weight * f.o, 6)
+    }
+    // per portion = summed pixels / summed portions
+    for (const r of d.targets) {
+      if (r.perPortion) expect(r.perPortion.pixels).toBeCloseTo(r.impact.pixels / r.portionsServed!, 6)
+    }
+    // no physical units anywhere in the payload
+    expect(JSON.stringify(d)).not.toMatch(/grams|kgCo2e|waterM3|impactUsd|nutrientDays|cm2|Calibration/)
   })
 
-  it('has explained unavailable rows: unknown food, missing portions', async () => {
+  it('has explained unavailable rows: unknown food, missing portions, no factor', async () => {
     const d = await getImpactDashboard(start, today)
     const unknown = d.mostWasted.find((r) => r.itemId === null)
     expect(unknown?.impact.unavailableReason).toBe('unknown_item')
-    expect(unknown?.impact.grams).toBeNull()
+    expect(unknown?.impact.impactPoints).toBeNull()
     const farro = d.targets.find((r) => r.displayName === 'Farro')
-    expect(farro?.portionsServed).toBeNull()
-    expect(farro?.perPortion).toBeNull()
+    if (farro) {
+      expect(farro.portionsServed).toBeNull()
+      expect(farro.perPortion).toBeNull()
+    }
   })
 })
 
@@ -68,18 +82,18 @@ describe('mock captures and images', () => {
   })
 })
 
-describe('mock recommendation and daily grams', () => {
-  it('is a labeled fallback citing numbers', async () => {
+describe('mock recommendation and daily pixels', () => {
+  it('is a labeled fallback citing pixel numbers', async () => {
     const rec = await getRecommendation(start, today)
     expect(rec.source).toBe('fallback')
     expect(rec.bullets.length).toBeGreaterThan(0)
-    expect(rec.bullets[0].metric).toMatch(/g per portion/)
+    expect(rec.bullets[0].metric).toMatch(/pixels wasted per portion/)
+    expect(JSON.stringify(rec)).not.toMatch(/\d g\b|kg|CO2e|litre|\$/)
   })
 
-  it('daily points carry grams on days with plates', async () => {
+  it('daily points carry only pixels', async () => {
     const pts = await getDailyWaste(addDays(today, -6), today)
-    for (const p of pts) {
-      if (p.pixelsWasted === null) expect(p.grams).toBeNull()
-    }
+    expect(pts).toHaveLength(7)
+    for (const p of pts) expect(Object.keys(p).sort()).toEqual(['date', 'pixelsWasted'])
   })
 })

@@ -1,12 +1,12 @@
 /**
- * "Foods to target": foods ranked by estimated grams left per portion served
- * (BIG-PLAN D5), with Pixels wasted per portion and impact $ per portion as
- * secondary numbers. Foods without a rate are listed with the reason.
+ * "Foods to target": foods ranked by Pixels wasted per portion served
+ * (BIG-PLAN v2 V1), with relative impact points per portion as a secondary
+ * number. Foods without a rate are listed with the reason.
  */
 import { useId, useState } from 'react'
 import type { ItemImpactRow } from '../data/types'
-import { formatGrams, formatNumber, formatUsd } from '../lib/format'
-import { PER_PORTION_EXPLANATION, perPortionUnavailableReason } from './impactCopy'
+import { formatNumber, formatPoints } from '../lib/format'
+import { PER_PORTION_EXPLANATION, impactUnavailableReason, perPortionUnavailableReason } from './impactCopy'
 import { Badge, Card, GhostButton, InfoTip } from './ui'
 
 const SHOW_FIRST = 8
@@ -26,23 +26,24 @@ export function FoodsToTarget({ rows, demoPortions }: { rows: ItemImpactRow[]; d
         {top ? `${top.displayName} had the most food left per portion.` : 'No food can be ranked per portion yet.'}
       </h2>
       <p className="mt-1 text-sm">
-        Ranked by estimated food left per portion served.
+        Ranked by Pixels wasted per portion served.
         <InfoTip id={tipId} text={PER_PORTION_EXPLANATION} />
       </p>
 
       {ranked.length > 0 && (
         <div className="mt-3 overflow-x-auto">
-          <table className="w-full min-w-[34rem] text-left text-base">
-            <caption className="sr-only">Foods ranked by estimated grams left per portion served</caption>
+          <table className="w-full min-w-[30rem] text-left text-base">
+            <caption className="sr-only">Foods ranked by Pixels wasted per portion served</caption>
             <thead>
               <tr className="border-b border-ink text-sm">
                 <th scope="col" className="py-1.5 pr-2">#</th>
                 <th scope="col" className="py-1.5 pr-2">Food</th>
                 <th scope="col" className="py-1.5 pr-2">
-                  Left per portion <span className="font-normal">(g, estimate)</span>
+                  Pixels wasted per portion
                 </th>
-                <th scope="col" className="py-1.5 pr-2 font-normal">Pixels wasted per portion</th>
-                <th scope="col" className="py-1.5 pr-2 font-normal">Impact per portion</th>
+                <th scope="col" className="py-1.5 pr-2 font-normal">
+                  Impact per portion <span className="block">(relative points)</span>
+                </th>
                 <th scope="col" className="py-1.5">
                   <span className="font-normal">Portions served</span>
                   {demoPortions && <span className="mt-1 block w-fit"><Badge>demo numbers</Badge></span>}
@@ -54,10 +55,11 @@ export function FoodsToTarget({ rows, demoPortions }: { rows: ItemImpactRow[]; d
                 <tr key={r.itemId ?? r.displayName} className="border-b border-ink align-top">
                   <td className="py-1.5 pr-2">{i + 1}</td>
                   <th scope="row" className="py-1.5 pr-2 font-semibold">{r.displayName}</th>
-                  <td className="py-1.5 pr-2 font-semibold">{formatGrams(r.perPortion!.grams!)}</td>
-                  <td className="py-1.5 pr-2 text-sm">{formatNumber(r.perPortion!.pixels)} pixels</td>
+                  <td className="py-1.5 pr-2 font-semibold">{formatNumber(r.perPortion!.pixels)} pixels</td>
                   <td className="py-1.5 pr-2 text-sm">
-                    {r.perPortion!.impactUsd === null ? 'Not available' : formatUsd(r.perPortion!.impactUsd)}
+                    {r.perPortion!.impactPoints == null
+                      ? (impactUnavailableReason(r) ?? 'Not available')
+                      : `${formatPoints(r.perPortion!.impactPoints)} points`}
                   </td>
                   <td className="py-1.5 text-sm">{r.portionsServed === null ? 'Not entered' : formatNumber(r.portionsServed)}</td>
                 </tr>
@@ -79,7 +81,6 @@ export function FoodsToTarget({ rows, demoPortions }: { rows: ItemImpactRow[]; d
             {unranked.map((r) => (
               <li key={r.itemId ?? r.displayName}>
                 <span className="font-semibold">{r.displayName}:</span> {perPortionUnavailableReason(r)}
-                {r.perPortion && r.perPortion.grams === null && ` (${formatNumber(r.perPortion.pixels)} pixels per portion)`}
               </li>
             ))}
           </ul>

@@ -9,7 +9,6 @@ import {
   MOCK_FUTURE_MENU_DAYS,
   mockCaptureImages,
   mockCaptures,
-  mockDailyGrams,
   mockImpactDashboard,
   mockMealDetail,
   mockMenuFor,
@@ -106,10 +105,7 @@ export async function saveUserMenu(date: IsoDate, meals: Record<MealLabel, MenuI
 export async function getDailyWaste(start: IsoDate, end: IsoDate): Promise<DailyWastePoint[]> {
   await wait()
   const today = todayIso()
-  return eachDay(start, end).map((date) => {
-    const pixelsWasted = dailyTotal(date, today)
-    return { date, pixelsWasted, grams: pixelsWasted === null ? null : mockDailyGrams(date, today) }
-  })
+  return eachDay(start, end).map((date) => ({ date, pixelsWasted: dailyTotal(date, today) }))
 }
 
 function dailyTotal(date: IsoDate, today: IsoDate): number | null {

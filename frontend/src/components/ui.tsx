@@ -62,7 +62,7 @@ export function InfoTip({ id, text }: { id: string; text: string }) {
 }
 
 export const PIXELS_WASTED_EXPLANATION =
-  'Pixels wasted counts the leftover food in each plate photo, pixel by pixel, inside outlines the AI draws around the food. The counting is exact; the outlines are an AI estimate. It is not weight, servings, or the share of food first served.'
+  'Pixels wasted counts the leftover food on the plate being scanned, pixel by pixel, inside outlines the AI draws around the food. Food on neighboring plates is left out. The counting is exact; the outlines are an AI estimate. Plates come in different sizes, so it is not weight, servings, or the share of food first served.'
 
 export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
   return (

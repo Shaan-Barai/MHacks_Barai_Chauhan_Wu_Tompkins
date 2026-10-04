@@ -128,11 +128,11 @@ export async function saveUserMenu(date: IsoDate, meals: Record<MealLabel, MenuI
 // ---------------------------------------------------------------------------
 
 export async function getDailyWaste(start: IsoDate, end: IsoDate): Promise<DailyWastePoint[]> {
-  const { days } = await call<{ days: { date: IsoDate; pixelsWasted: number | null; grams?: number | null }[] }>(
+  const { days } = await call<{ days: { date: IsoDate; pixelsWasted: number | null }[] }>(
     `/api/dashboard/daily?${q({ hallId: hallId(), start, end })}`,
   )
-  // grams is optional: when the backend sends it the chart shows estimated grams.
-  return days.map((d) => ({ date: d.date, pixelsWasted: d.pixelsWasted, ...(d.grams !== undefined ? { grams: d.grams } : {}) }))
+  // The chart is pixels only (BIG-PLAN v2); any other per-day fields are ignored.
+  return days.map((d) => ({ date: d.date, pixelsWasted: d.pixelsWasted }))
 }
 
 interface MealResponse {
@@ -267,7 +267,7 @@ export async function getImageUrl(objectId: string): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
-// Waste impact dashboard (BIG-PLAN D1-D8, contracts/types.ts waste-impact section)
+// Waste impact dashboard (BIG-PLAN v2, contracts/types.ts waste-impact section)
 // ---------------------------------------------------------------------------
 
 export async function getImpactDashboard(start: IsoDate, end: IsoDate): Promise<ImpactDashboard> {

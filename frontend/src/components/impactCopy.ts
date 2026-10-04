@@ -1,59 +1,44 @@
 /**
  * Plain-language copy and small helpers shared by the waste-impact dashboard
- * sections (UI.md writing rules: no technical terms beyond "Pixels wasted").
+ * sections (UI.md writing rules). BIG-PLAN v2: pixels are the headline unit;
+ * impact and nutrition are relative points, never kg, litres or dollars.
  */
 import type { ItemImpactRow } from '../data/types'
 
 export const HOW_MEASURED =
-  'How we measure: the AI outlines the leftover food in each plate photo and counts it pixel by pixel. We turn that into grams using the size of the plate and a typical weight for each food. Grams and everything after them are estimates, not a scale reading.'
+  'How we measure: the AI outlines the leftover food on the plate being scanned and counts its pixels. Impact points weight those pixels by each food’s typical density and its greenhouse-gas and water footprint. They are relative, for comparing foods, not a scale reading.'
 
-export const TOTAL_WASTE_EXPLANATION =
-  'Estimated weight of the food left on the plates we scanned. It comes from the counted pixels, the plate size, and a typical weight per area for each food. It is not a scale reading.'
-
-export const CO2_EXPLANATION =
-  'Greenhouse gases released to grow, make, and ship the food that was left, in kilograms of carbon dioxide equivalent. Estimate based on published figures for each food.'
-
-export const WATER_EXPLANATION =
-  'Freshwater used to produce the food that was left. Estimate based on published figures for each food. 1 cubic meter is 1,000 litres.'
+export const RELATIVE_POINTS_NOTE = 'Relative points: they compare foods with each other, not kg or litres.'
 
 export const IMPACT_EXPLANATION =
-  'A dollar value for the harm of the wasted food: $0.19 for each kg of greenhouse gases plus $1.50 for each cubic meter of freshwater it took to make (0.19 x CO₂e + 1.50 x water). It is not what the food cost, and nutrition is not part of it.'
+  'Points compare foods with each other. They are not kilograms, litres, or dollars. For each food, points = pixels ÷ 1,000 × the food’s typical density × a footprint factor. Greenhouse-gas points use its greenhouse-gas footprint, water points use its water footprint, and the impact score is 0.19 × greenhouse-gas points + 1.50 × water points. So a beef dish counts for more than the same pixels of rice. Nutrition is not part of it.'
 
 export const PER_PORTION_EXPLANATION =
-  'Estimated food left on scanned plates divided by the portions served for that food on the same days. Only some plates are scanned, so the true amount per portion can be higher. It shows where to look, not why food was left.'
+  'Pixels wasted on scanned plates divided by the portions served for that food on the same days. Only some plates are scanned, so the true amount per portion can be higher. It shows where to look, not why food was left.'
 
 export const NUTRITION_EXPLANATION =
-  'One nutrient-day is enough nutrients for one adult for one day. This is shown on its own and is not part of the waste impact score.'
+  'Relative points for the nutrients left on plates: pixels ÷ 1,000 × the food’s typical density × its nutrients per kilogram. Higher means more nutrition was thrown away. Use them to compare foods. They are shown on their own and are not part of the impact score.'
+
+export const NEIGHBOR_EXPLANATION =
+  'Only the plate being scanned is counted. Food on a neighboring plate in the same photo is outlined as "Other dish (not counted)" and left out.'
 
 /** Why a food has no per-portion number ("Foods to target"). Null = it has one. */
 export function perPortionUnavailableReason(row: ItemImpactRow): string | null {
   if (row.itemId === null || row.impact.unavailableReason === 'unknown_item') return 'Not on the menu, so it has no portions'
   if (row.portionsServed === null) return 'No portions entered'
   if (row.portionsServed === 0 || row.perPortion === null) return 'No portions served'
-  if (row.perPortion.grams === null) return weightUnavailableReason(row) ?? 'No weight estimate for this food'
   return null
 }
 
-/** Why a food has no estimated grams ("Most wasted"). Null = it has them. */
-export function weightUnavailableReason(row: ItemImpactRow): string | null {
-  if (row.impact.grams !== null) return null
-  switch (row.impact.unavailableReason) {
-    case 'unknown_item':
-      return 'Not on the menu, so there is no weight estimate'
-    case 'no_calibration':
-      return 'Plate size unknown'
-    case 'no_factor':
-    default:
-      return row.itemId === null ? 'Not on the menu, so there is no weight estimate' : 'No weight estimate for this food'
-  }
+/** Why a food has no impact points. Null = it has them. */
+export function impactUnavailableReason(row: ItemImpactRow): string | null {
+  if (row.impact.impactPoints != null) return null
+  if (row.itemId === null || row.impact.unavailableReason === 'unknown_item') return 'Not on the menu, so no impact points'
+  return 'No impact data for this food'
 }
 
-/** Split a formatted value at its first space: "1,620 kg CO2e" -> ["1,620", "kg CO2e"]. */
+/** Split a formatted value at its first space: "1.2M pixels" -> ["1.2M", "pixels"]. */
 export function splitUnit(formatted: string): [string, string] {
   const i = formatted.indexOf(' ')
   return i < 0 ? [formatted, ''] : [formatted.slice(0, i), formatted.slice(i + 1)]
-}
-
-export function formatNutrientDays(days: number): string {
-  return days < 10 ? days.toFixed(1) : String(Math.round(days))
 }

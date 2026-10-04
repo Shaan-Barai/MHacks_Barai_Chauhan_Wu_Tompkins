@@ -73,11 +73,6 @@ export interface DailyWastePoint {
   date: IsoDate
   /** Pixels wasted that day (counted mask pixels); null = no counted plates. */
   pixelsWasted: number | null
-  /**
-   * Estimated grams that day (analytics, BIG-PLAN D2/D3), when the backend
-   * supplies them. undefined = not supplied (the chart falls back to pixels).
-   */
-  grams?: number | null
 }
 
 export interface ItemWaste {
@@ -197,37 +192,37 @@ export interface SummaryCards {
 
 // ---------------------------------------------------------------------------
 // Waste impact (local copy of the contracts/types.ts waste-impact section,
-// BIG-PLAN.md D1-D8). Pixels wasted stays the raw measurement; grams, CO2e,
-// water, impact $ and nutrition are labeled ESTIMATES derived by analytics.
+// BIG-PLAN.md v2 2026-10-04). Pixels wasted is the measurement and the
+// headline unit. Relative impact points are unitless, derived by analytics,
+// and never kg, litres or dollars. No plate-size calibration, no grams.
 // ---------------------------------------------------------------------------
 
 export type CaptureSource = 'camera' | 'replay' | 'manual_upload'
 export type ProcessingState = 'pending' | 'processing' | 'succeeded' | 'needs_review' | 'failed'
 
-export type CalibrationFlag = 'calibration_default' | 'plate_cut_off' | 'bowl_size_assumed'
+export type ImpactUnavailableReason = 'no_factor' | 'unknown_item'
 
-export type ImpactUnavailableReason = 'no_calibration' | 'no_factor' | 'unknown_item'
-
-/** Derived (never stored) estimate for a set of counted pixels. */
+/**
+ * Derived (never stored) relative impact for a set of counted pixels.
+ * "Points" are UNITLESS and only comparable with each other:
+ *   points = (pixels / 1000) x weight_g_per_cm2 x factor
+ * co2Points uses C, waterPoints uses W, impactPoints uses 0.19 C + 1.50 W.
+ */
 export interface WasteImpact {
   pixels: number
-  cm2: number | null
-  grams: number | null
-  kgCo2e: number | null
-  waterM3: number | null
-  /** 0.19 x kg CO2e + 1.50 x m3 water, in dollars. */
-  impactUsd: number | null
-  /** Separate statistic. NOT part of impactUsd. */
-  nutrientDaysLost: number | null
+  co2Points: number | null
+  waterPoints: number | null
+  impactPoints: number | null
+  /** Separate statistic from nutrient-days/kg. NOT part of impactPoints. */
+  nutritionPoints: number | null
   wasteFactorsVersion: string
   unavailableReason?: ImpactUnavailableReason
 }
 
-/** Per-portion rates over the same hall/date/service/menu version (D5). */
+/** Per-portion rates over the same hall/date/service/menu version. */
 export interface PerPortion {
-  grams: number | null
   pixels: number
-  impactUsd: number | null
+  impactPoints: number | null
 }
 
 export interface ItemImpactRow {
@@ -247,17 +242,18 @@ export interface ItemImpactRow {
 export interface ImpactDashboard {
   window: { start: string; end: string; hallId?: string }
   totals: WasteImpact & { captures: number; analyzedCaptures: number; excludedCaptures: number }
-  /** Ranked by perPortion.grams desc ("Foods to target"); unavailable rates last. */
+  /** Ranked by perPortion.pixels desc ("Foods to target"); unavailable rates last. */
   targets: ItemImpactRow[]
-  /** Ranked by impact.grams desc, then pixels ("Most wasted"). */
+  /** Ranked by impact.pixels desc ("Most wasted"). */
   mostWasted: ItemImpactRow[]
   coverage: {
     itemsWithFactor: number
     itemsWithoutFactor: number
     itemsWithPortions: number
-    capturesWithDefaultCalibration: number
+    /** Captures where food outside the scanned (target) dish was excluded. */
+    capturesWithNeighborFoodExcluded: number
   }
-  labels: { estimate: true; demoPortions: boolean }
+  labels: { relativeImpact: true; demoPortions: boolean }
 }
 
 /** GET /api/captures?start&end: recent plates for the dashboard gallery. */
@@ -268,8 +264,7 @@ export interface CaptureListItem {
   source: CaptureSource
   state: ProcessingState
   pixelsWasted: number | null
-  grams: number | null
-  items: Array<{ itemId: string | null; displayName: string; pixels: number; grams: number | null }>
+  items: Array<{ itemId: string | null; displayName: string; pixels: number }>
   hasOverlay: boolean
 }
 

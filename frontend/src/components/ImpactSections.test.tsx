@@ -6,60 +6,74 @@ import { MostWasted } from './MostWasted'
 import { NutritionLost } from './NutritionLost'
 import { dashboard, impact, row } from './impactFixtures'
 
+/** BIG-PLAN v2: no grams, kilograms, litres, cubic meters, CO2e or dollars anywhere. */
+const PHYSICAL_UNITS = /\d\s?(g|kg|L|m³)(?!\w)|litres|CO₂e|\$/
+
 describe('HeadlineCards', () => {
-  it('shows estimated grams with measured pixels, CO2e, water and impact $, each labeled estimate', () => {
-    render(<HeadlineCards data={dashboard()} />)
-    expect(screen.getByLabelText('Total waste: 17.2 kg')).toBeInTheDocument()
-    expect(screen.getByText('1,450,000').closest('p')).toHaveTextContent('1,450,000 Pixels wasted')
-    expect(screen.getByText('Measured from the photos')).toBeInTheDocument()
-    expect(screen.getByLabelText('Greenhouse gases: 1,620 kg CO₂e')).toBeInTheDocument()
-    expect(screen.getByLabelText('Freshwater: 32.5 m³')).toBeInTheDocument()
-    expect(screen.getByText('32,500 litres')).toBeInTheDocument()
-    expect(screen.getByLabelText('Waste impact: $357')).toBeInTheDocument()
-    expect(screen.getAllByText('estimate')).toHaveLength(4)
+  it('shows Total waste in pixels and Relative impact in points with greenhouse-gas and water points', () => {
+    const { container } = render(<HeadlineCards data={dashboard()} />)
+    expect(screen.getByLabelText('Total waste: 1,450,000 pixels')).toBeInTheDocument()
     expect(screen.getByText('From 124 of 130 plates scanned')).toBeInTheDocument()
     expect(screen.getByText(/6 plates not counted/)).toBeInTheDocument()
-    expect(screen.getByText(/1 food has no weight estimate/)).toBeInTheDocument()
-    expect(screen.getByText(/2 plates used the standard plate size/)).toBeInTheDocument()
-    // the impact formula is explained in its help text
-    expect(screen.getByText(/0\.19 x CO₂e \+ 1\.50 x water/)).toBeInTheDocument()
+
+    expect(screen.getByLabelText('Relative impact: 18,795 points')).toBeInTheDocument()
+    expect(screen.getByText('Greenhouse gases:').nextSibling).toHaveTextContent('77,706 points')
+    expect(screen.getByText('Water:').nextSibling).toHaveTextContent('2,687 points')
+    expect(screen.getByText('relative points')).toBeInTheDocument()
+    expect(screen.getByText('Relative points: they compare foods with each other, not kg or litres.')).toBeInTheDocument()
+    // the "?" tip explains how points are made and the impact weights
+    expect(screen.getByText(/pixels ÷ 1,000 × the food’s typical density × a footprint factor/)).toBeInTheDocument()
+    expect(screen.getByText(/0\.19 × greenhouse-gas points \+ 1\.50 × water points/)).toBeInTheDocument()
+    expect(screen.getByText(/1 food has no impact data/)).toBeInTheDocument()
+    expect(screen.queryByText('estimate')).toBeNull()
+
+    // Only the explanatory "not kg or litres" sentence may name a physical unit.
+    const text = (container.textContent ?? '').replace(/not kg or litres|not kilograms, litres, or dollars/g, '')
+    expect(text).not.toMatch(PHYSICAL_UNITS)
   })
 
-  it('says Not available instead of zero when there is no weight estimate, and uses litres for small water', () => {
+  it('says Not available instead of zero when there are no impact points', () => {
     const d = dashboard()
-    d.totals = { ...d.totals, grams: null, kgCo2e: null, impactUsd: null, waterM3: 0.42 }
+    d.totals = { ...d.totals, co2Points: null, waterPoints: null, impactPoints: null }
+    d.coverage = { ...d.coverage, itemsWithoutFactor: 0 }
     render(<HeadlineCards data={d} />)
-    expect(screen.getAllByText('Not available')).toHaveLength(3)
-    expect(screen.getByLabelText('Freshwater: 420 L')).toBeInTheDocument()
-    expect(screen.getByText('No weight estimate yet for these plates.')).toBeInTheDocument()
+    expect(screen.getByText('Not available')).toBeInTheDocument()
+    expect(screen.getByText('Greenhouse gases:').nextSibling).toHaveTextContent('not available')
+    expect(screen.queryByText(/no impact data/)).toBeNull()
   })
 })
 
 describe('FoodsToTarget', () => {
-  it('ranks by grams per portion with pixels and $ per portion, demo badge, and explains unranked foods', () => {
+  it('ranks by pixels per portion with impact points per portion, demo badge, and explains unranked foods', () => {
     const d = dashboard()
     render(<FoodsToTarget rows={d.targets} demoPortions />)
     expect(screen.getByRole('heading', { name: 'Ancho Flank Steak had the most food left per portion.' })).toBeInTheDocument()
+    expect(screen.getByText(/Ranked by Pixels wasted per portion served/)).toBeInTheDocument()
     const table = screen.getByRole('table')
+    expect(within(table).getAllByRole('columnheader')[2]).toHaveTextContent('Pixels wasted per portion')
     const bodyRows = within(table).getAllByRole('row').slice(1)
-    expect(bodyRows).toHaveLength(2)
+    expect(bodyRows).toHaveLength(3)
     expect(bodyRows[0]).toHaveTextContent('Ancho Flank Steak')
-    expect(bodyRows[0]).toHaveTextContent('30 g')
     expect(bodyRows[0]).toHaveTextContent('2,857 pixels')
-    expect(bodyRows[0]).toHaveTextContent('$0.84')
+    expect(bodyRows[0]).toHaveTextContent('95.7 points')
     expect(bodyRows[0]).toHaveTextContent('140')
     expect(bodyRows[1]).toHaveTextContent('Pepperoni Pizza')
+    expect(bodyRows[1]).toHaveTextContent('8.7 points')
+    // a food without impact factors still ranks by pixels
+    expect(bodyRows[2]).toHaveTextContent("Chef's Soup of the Day")
+    expect(bodyRows[2]).toHaveTextContent('1,400 pixels')
+    expect(bodyRows[2]).toHaveTextContent('No impact data for this food')
     expect(within(table).getByText('demo numbers')).toBeInTheDocument()
 
     const unranked = screen.getByText("Can't rank yet").parentElement!
     expect(unranked).toHaveTextContent('Farro: No portions entered')
-    expect(unranked).toHaveTextContent("Chef's Soup of the Day: No weight estimate for this food (1,400 pixels per portion)")
     expect(unranked).toHaveTextContent('Food not on the menu: Not on the menu, so it has no portions')
+    expect(document.body.textContent).not.toMatch(PHYSICAL_UNITS)
   })
 
   it('hides the demo badge for real counts and collapses long lists', () => {
     const many = Array.from({ length: 10 }, (_, i) =>
-      row({ displayName: `Food ${i + 1}`, portionsSource: 'manual', perPortion: { grams: 50 - i, pixels: 1000, impactUsd: 0.1 } }),
+      row({ displayName: `Food ${i + 1}`, portionsSource: 'manual', perPortion: { pixels: 5000 - i, impactPoints: 0.1 } }),
     )
     render(<FoodsToTarget rows={many} demoPortions={false} />)
     expect(screen.queryByText('demo numbers')).toBeNull()
@@ -73,38 +87,52 @@ describe('FoodsToTarget', () => {
     expect(screen.getByRole('heading', { name: 'No food can be ranked per portion yet.' })).toBeInTheDocument()
     expect(screen.queryByRole('table')).toBeNull()
   })
+
+  it('says no portions served when the count is zero', () => {
+    render(<FoodsToTarget rows={[row({ displayName: 'Farro', portionsServed: 0, perPortion: null })]} demoPortions={false} />)
+    expect(screen.getByText("Can't rank yet").parentElement).toHaveTextContent('Farro: No portions served')
+  })
 })
 
 describe('MostWasted', () => {
-  it('lists foods by estimated weight with CO2e and water, then pixels-only foods with the reason', () => {
+  it('lists every food by pixels with relative impact points per row, or the reason it has none', () => {
     const d = dashboard()
     render(<MostWasted rows={d.mostWasted} />)
     expect(screen.getByRole('heading', { name: 'Pepperoni Pizza was the most wasted food.' })).toBeInTheDocument()
-    const items = within(screen.getByRole('list', { name: /ranked by estimated weight/ })).getAllByRole('listitem')
-    expect(items.map((li) => li.querySelector('span')?.textContent)).toEqual(['Pepperoni Pizza', 'Ancho Flank Steak', 'Farro'])
-    expect(items[0]).toHaveTextContent('12.4 kg')
-    expect(items[0]).toHaveTextContent('199 kg CO₂e')
-    expect(items[0]).toHaveTextContent('24.1 m³ water')
-    expect(items[2]).toHaveTextContent('190 L water')
-    const noWeight = screen.getByText('No weight estimate').parentElement!
-    expect(noWeight).toHaveTextContent("Chef's Soup of the Day: 70,000 Pixels wasted. No weight estimate for this food.")
-    expect(noWeight).toHaveTextContent('Food not on the menu: 30,000 Pixels wasted. Not on the menu, so there is no weight estimate.')
+    expect(screen.getByText('points are relative')).toBeInTheDocument()
+    const items = within(screen.getByRole('list', { name: 'Foods ranked by Pixels wasted' })).getAllByRole('listitem')
+    expect(items.map((li) => li.querySelector('span')?.textContent)).toEqual([
+      'Pepperoni Pizza',
+      'Ancho Flank Steak',
+      "Chef's Soup of the Day",
+      'Farro',
+      'Food not on the menu',
+    ])
+    expect(items[0]).toHaveTextContent('900,000 pixels')
+    expect(items[0]).toHaveTextContent('5,365 impact points (greenhouse gases 14,454, water 1,746)')
+    expect(items[1]).toHaveTextContent('13,396 impact points')
+    expect(items[2]).toHaveTextContent('70,000 pixels')
+    expect(items[2]).toHaveTextContent('No impact data for this food')
+    expect(items[3]).toHaveTextContent('33.5 impact points (greenhouse gases 41.3, water 17.1)')
+    expect(items[4]).toHaveTextContent('Not on the menu, so no impact points')
+    expect(document.body.textContent).not.toMatch(PHYSICAL_UNITS)
   })
 })
 
 describe('NutritionLost', () => {
-  it('is separate from the impact score and lists the top foods', () => {
+  it('shows relative nutrition points, separate from the impact score, with the top foods', () => {
     render(<NutritionLost data={dashboard()} />)
     expect(screen.getByText('not part of the impact score')).toBeInTheDocument()
-    expect(screen.getByText('13 nutrient-days')).toBeInTheDocument()
-    expect(screen.getByText(/Most from Pepperoni Pizza \(8\.6\), Ancho Flank Steak \(4\.4\), Farro \(0\.4\)/)).toBeInTheDocument()
+    expect(screen.getByText('relative points')).toBeInTheDocument()
+    expect(screen.getByText('1,159 nutrition points')).toBeInTheDocument()
+    expect(screen.getByText(/Most from Pepperoni Pizza \(621\), Ancho Flank Steak \(504\), Farro \(33\.6\)/)).toBeInTheDocument()
+    expect(screen.queryByText(/nutrient-days/)).toBeNull()
   })
 
   it('says not available when nutrition is missing', () => {
-    const d = dashboard({ mostWasted: [row({ displayName: 'X', impact: impact({ nutrientDaysLost: null }) })] })
-    d.totals = { ...d.totals, nutrientDaysLost: null }
+    const d = dashboard({ mostWasted: [row({ displayName: 'X', impact: impact({ nutritionPoints: null }) })] })
+    d.totals = { ...d.totals, nutritionPoints: null }
     render(<NutritionLost data={d} />)
     expect(screen.getByText('Not available for these days.')).toBeInTheDocument()
   })
 })
-

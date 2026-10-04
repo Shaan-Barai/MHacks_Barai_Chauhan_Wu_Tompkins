@@ -1,22 +1,12 @@
 /**
- * The one main chart (UI.md): estimated grams (or Pixels wasted when grams are
- * not available) per day, black bars, hover (and keyboard-focus) tooltip with
- * the exact value and date. Hand-rolled SVG.
+ * The one main chart (UI.md): Pixels wasted per day, black bars, hover (and
+ * keyboard-focus) tooltip with the exact value and date. Hand-rolled SVG.
  */
 import { useLayoutEffect, useRef, useState } from 'react'
-import { formatCompact, formatGrams, formatNumber } from '../lib/format'
-import { niceCeil, type ChartBucket, type ChartUnit } from '../lib/grouping'
+import { formatCompact, formatNumber } from '../lib/format'
+import { niceCeil, type ChartBucket } from '../lib/grouping'
 
-function tickLabel(v: number, unit: ChartUnit): string {
-  if (unit === 'pixels') return formatCompact(v)
-  if (v === 0) return '0'
-  // 6.3 kg / 12.5 kg: one decimal at most so quarter ticks stay distinct.
-  return v >= 1000 ? `${Number((v / 1000).toFixed(1))} kg` : `${Number(v.toFixed(1))} g`
-}
-
-function valueText(v: number, unit: ChartUnit): string {
-  return unit === 'grams' ? `${formatGrams(v)} left (estimate)` : `${formatNumber(v)} pixels wasted`
-}
+const valueText = (v: number) => `${formatNumber(v)} pixels wasted`
 
 const BAR = '#000000'
 const GRID = '#000000'
@@ -25,7 +15,7 @@ const LABEL = '#000000'
 const M = { top: 12, right: 8, bottom: 30, left: 52 }
 const HEIGHT = 300
 
-export function WasteChart({ buckets, unit = 'pixels' }: { buckets: ChartBucket[]; unit?: ChartUnit }) {
+export function WasteChart({ buckets }: { buckets: ChartBucket[] }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(720)
   const [hover, setHover] = useState<number | null>(null)
@@ -61,14 +51,14 @@ export function WasteChart({ buckets, unit = 'pixels' }: { buckets: ChartBucket[
         width={width}
         height={HEIGHT}
         role="img"
-        aria-label={unit === 'grams' ? 'Bar chart of estimated food left per day for the selected days' : 'Bar chart of pixels wasted per day for the selected days'}
+        aria-label="Bar chart of pixels wasted per day for the selected days"
       >
         {/* recessive hairline gridlines + y ticks */}
         {ticks.map((t) => (
           <g key={t}>
             <line x1={M.left} x2={width - M.right} y1={yFor(t)} y2={yFor(t)} stroke={GRID} strokeWidth={1} strokeDasharray="2 4" />
             <text x={M.left - 8} y={yFor(t) + 4} textAnchor="end" fontSize={12} fill={LABEL}>
-              {tickLabel(t, unit)}
+              {formatCompact(t)}
             </text>
           </g>
         ))}
@@ -118,7 +108,7 @@ export function WasteChart({ buckets, unit = 'pixels' }: { buckets: ChartBucket[
             tabIndex={0}
             role="img"
             aria-label={
-              b.value === null ? `${b.tooltipLabel}: no data` : `${b.tooltipLabel}: ${valueText(b.value, unit)}`
+              b.value === null ? `${b.tooltipLabel}: no data` : `${b.tooltipLabel}: ${valueText(b.value)}`
             }
             onMouseEnter={() => setHover(i)}
             onMouseLeave={() => setHover(null)}
@@ -135,7 +125,7 @@ export function WasteChart({ buckets, unit = 'pixels' }: { buckets: ChartBucket[
           style={{ left: tooltipLeft }}
         >
           <span className="font-semibold">
-            {hovered.value === null ? 'No data' : valueText(hovered.value, unit)}
+            {hovered.value === null ? 'No data' : valueText(hovered.value)}
           </span>
           <span className="ml-2">{hovered.tooltipLabel}</span>
         </div>

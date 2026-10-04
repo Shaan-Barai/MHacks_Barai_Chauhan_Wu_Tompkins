@@ -11,7 +11,7 @@ Two files hold per-food constants for the 23 items on the test dining hall's din
 - the dining hall's allergen list, an ingredient recipe and the label serving size
 - Gemini's plain description of what each dish looks like on a plate, used in the classification prompt and as the demo menu description
 
-**`menu_nutrition_factors.csv`** (reported separately, never in the impact points) gives the nutrition lost per kg (O, in nutrient-days), calories per kg and the dining hall's nutrition label. See [Nutrition points](#nutrition-points-reported-separately-not-in-the-score).
+**`menu_nutrition_factors.csv`** (reported separately, never in the impact points) gives the nutrition lost per kg (O, in nutrient-days), calories per kg and the dining hall's nutrition label. See [Nutrition lost](#nutrition-lost-not-part-of-the-score).
 
 Both files are keyed by `station` + `food`. The app matches a menu item to a row by `factorKey = slug(food)`, for example `Ancho Flank Steak` → `ancho-flank-steak`. The typed copies used by the app are generated from these CSVs (`data/scripts/generate-factors.mjs` → `data/src/factors.generated.ts`, version `waste-factors-v2`), so the CSVs stay the source of truth.
 
@@ -110,9 +110,9 @@ These are estimates from typical portions. For example, a 14-inch pizza slice co
 
 **Checking them** needs a known scale: with a fixed camera whose cm² per pixel has been measured, place one labeled serving on a plate (`label_serving_g` gives its weight), count its pixels, convert to cm², and divide grams by cm².
 
-## Nutrition points (reported separately, not in the score)
+## Nutrition lost (not part of the score)
 
-The app reports nutrition as its own relative number, from `menu_nutrition_factors.csv`: `nutritionPoints = pixels / 1000 × weight_g_per_cm2 × O`. Like the impact points it is unitless (not nutrient-days), and it is never added to `impactPoints`.
+The app reports nutrition lost as its own relative number, **nutrition points**, from `menu_nutrition_factors.csv`: `nutritionPoints = pixels / 1000 × weight_g_per_cm2 × O`. Like the impact points it is unitless (not nutrient-days), and it is never added to `impactPoints`.
 
 ### O: lost nutrition, in "nutrient-days"
 One **nutrient-day** is enough of 9 key nutrients to cover an adult's daily needs for one day. The 9 nutrients are protein, fiber, vitamins A, C and E, calcium, iron, potassium and magnesium.

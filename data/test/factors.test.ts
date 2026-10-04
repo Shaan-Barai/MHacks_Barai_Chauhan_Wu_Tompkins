@@ -107,3 +107,34 @@ test('factors: lookups by display name', () => {
   assert.match(findFactorMenuText('Farro')?.visibleComponents ?? '', /grain kernels/);
   assert.equal(findFactorMenuText('Baked Sweet Potatoes')?.visibleComponents, null);
 });
+
+/** Round half up to cents, as the CSV does (1.605 → 1.61). */
+const cents = (x: number): number => Math.floor(x * 100 + 0.5 + 1e-9) / 100;
+
+test('factors: CSV carbon/water dollars and score are 0.19·C and 1.50·W rounded half up; largest factor is carbon or water', () => {
+  for (const r of csvObjects('menu_waste_factors.csv')) {
+    const C = Number(r.C_kg_co2e_per_kg);
+    const W = Number(r.W_water_m3_per_kg);
+    assert.equal(Number(r.carbon_usd_per_kg), cents(0.19 * C), `${r.food} carbon`);
+    assert.equal(Number(r.water_usd_per_kg), cents(1.5 * W), `${r.food} water`);
+    // The score is rounded from the unrounded sum, never from the rounded parts.
+    assert.equal(Number(r.impact_score_usd_per_kg), cents(0.19 * C + 1.5 * W), `${r.food} score`);
+    assert.ok(['carbon', 'water'].includes(r.largest_factor!), `${r.food} largest_factor`);
+  }
+});
+
+test('factors: menu_waste_factors_README "Results at a glance" matches the CSV', () => {
+  const readme = readFileSync(join(repoRoot, 'menu_waste_factors_README.md'), 'utf8');
+  const glance = readme.slice(readme.indexOf('## Results at a glance'), readme.indexOf('## Caveats'));
+  const sorted = [...WASTE_FACTORS].sort((a, b) => b.impactUsdPerKg - a.impactUsdPerKg);
+  const top = sorted[0]!;
+  assert.ok(glance.includes(`${top.food}, ${top.impactUsdPerKg.toFixed(2)}`), 'highest score');
+  for (const f of sorted.slice(1, 4)) assert.ok(glance.includes(`${f.food} (${f.impactUsdPerKg.toFixed(2)})`), `next: ${f.food}`);
+  const lowest = sorted.at(-1)!;
+  assert.ok(glance.includes(`${lowest.food}, ${lowest.impactUsdPerKg.toFixed(2)}`), 'lowest score');
+  const water = WASTE_FACTORS.filter((f) => f.largestFactor === 'water').length;
+  assert.ok(glance.includes(`water for ${water} foods, carbon for ${WASTE_FACTORS.length - water}`), 'largest-factor counts');
+  // Nutrition is reported separately and never as part of the score.
+  assert.match(readme, /## Nutrition lost \(not part of the score\)/);
+  assert.doesNotMatch(readme, /claude_/);
+});

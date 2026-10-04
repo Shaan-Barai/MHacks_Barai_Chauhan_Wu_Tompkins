@@ -123,15 +123,16 @@ export interface CaptureEvent {
 /**
  * Per-scan capture details (one row per CaptureEvent, keyed by eventId).
  * The scan's status is CaptureEvent.state; its meal period comes from the
- * service. Timestamps are the computer's clock ('laptop_trigger' for the
- * camera, 'laptop_ingest' for test2/replay photos); the board clock is never
- * the scan time.
+ * service. Timestamps are the computer's clock: 'laptop_trigger' when the
+ * computer triggered the camera (take-photo), 'laptop_received' when an
+ * --auto frame arrived in the inbox, 'laptop_ingest' for test2/replay photos.
+ * The board clock is never the scan time.
  */
 export interface ScanInfo {
   eventId: string;
   /** e.g. 'uno-q-c920' or 'simulated:test2'. */
   deviceId: string;
-  timestampBasis: 'laptop_trigger' | 'laptop_ingest' | 'demo';
+  timestampBasis: 'laptop_trigger' | 'laptop_received' | 'laptop_ingest' | 'demo';
   /** The raw original's ImageObject (association kind 'original'); absent for demo scans. */
   originalImageObjectId?: string;
   /** SHA-256 of the raw original bytes, hex. */

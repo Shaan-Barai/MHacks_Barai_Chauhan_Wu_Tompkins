@@ -12,7 +12,7 @@
  * backend's authorized upload URL. Upload URLs are never logged.
  */
 
-import type { ApiError, CaptureEvent, DishMatchRequest, DishMatchResult, ProcessingState } from './contract-types.js';
+import type { ApiError, CaptureEvent, DishMatchRequest, DishMatchResult, ProcessingState, ScanSubmission } from './contract-types.js';
 import type { IngestionSink } from './ingestion.js';
 import type { FinalizedUpload, UploadAuthorization, UploadRequest, Uploader } from './uploader.js';
 
@@ -46,7 +46,10 @@ export class HttpUploader implements Uploader {
   }
 
   async authorizeUpload(req: UploadRequest): Promise<UploadAuthorization> {
-    const body = await request<{ objectId: string; uploadUrl: string; uploadHeaders?: Record<string, string> }>(
+    const body = await request<
+      | { objectId: string; uploadUrl: string; uploadHeaders?: Record<string, string>; alreadyFinalized?: false }
+      | { objectId: string; alreadyFinalized: true }
+    >(
       `${this.base}/api/images/uploads`,
       {
         method: 'POST',
@@ -62,6 +65,8 @@ export class HttpUploader implements Uploader {
       },
       'Upload authorization',
     );
+    // A retry for an upload that already finished: nothing to send again.
+    if (body.alreadyFinalized) return { uploadId: body.objectId, alreadyFinalized: true };
     // local-dev returns a backend-relative URL; R2 returns an absolute presigned URL.
     this.uploads.set(body.objectId, {
       url: new URL(body.uploadUrl, `${this.base}/`).toString(),
@@ -103,13 +108,13 @@ export class HttpIngestionSink implements IngestionSink {
     this.base = apiUrl.replace(/\/$/, '');
   }
 
-  async submitCaptureEvent(event: CaptureEvent): Promise<void> {
+  async submitCaptureEvent(event: CaptureEvent, scan?: ScanSubmission): Promise<void> {
     const body = await request<{ event: CaptureEvent; deduplicated?: boolean }>(
       `${this.base}/api/captures`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(event),
+        body: JSON.stringify(scan ? { ...event, scan } : event),
       },
       'Capture submission',
     );

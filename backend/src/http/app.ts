@@ -17,6 +17,7 @@ import type { IngestionService } from '../services/ingestionService.js';
 import type { SummaryService } from '../services/summaryService.js';
 import type { DashboardService } from '../services/dashboardService.js';
 import type { DishMatchService } from '../services/dishMatchService.js';
+import type { CameraService } from '../services/cameraService.js';
 import type { CaptureService } from '../services/captureService.js';
 import { parseWindow, CAPTURE_LIST_DEFAULT_LIMIT, CAPTURE_LIST_MAX_LIMIT, type ImpactService } from '../services/impactService.js';
 import type { MealLabel, MenuBundle } from '../types.js';
@@ -39,6 +40,8 @@ export interface AppDeps {
   dishMatch: DishMatchService;
   captures: CaptureService;
   impact: ImpactService;
+  /** Dashboard 'Take photo' (optional: tests and offline setups omit it). */
+  camera?: CameraService;
 }
 
 export function createApp(deps: AppDeps): express.Express {
@@ -348,6 +351,18 @@ export function createApp(deps: AppDeps): express.Express {
       const submission = validateCaptureSubmission(req.body);
       const result = await ingestion.submitCapture(submission);
       res.status(result.deduplicated ? 200 : 201).json(result);
+    }),
+  );
+
+  // ---- camera: the dashboard's Take photo button (same path as `npm run take-photo`) ----
+  app.get('/api/camera/status', (_req, res) => {
+    res.json(deps.camera ? deps.camera.status() : { configured: false, busy: false });
+  });
+  app.post(
+    '/api/camera/take-photo',
+    wrap(async (req, res) => {
+      if (!deps.camera) throw new HttpError(503, apiError('CAMERA_NOT_CONFIGURED', 'The camera is not available on this server.', false));
+      res.status(201).json(await deps.camera.takePhoto(req.body ?? {}));
     }),
   );
 

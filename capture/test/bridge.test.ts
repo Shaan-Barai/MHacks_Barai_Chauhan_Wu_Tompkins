@@ -8,7 +8,7 @@
 
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { test } from 'node:test';
 import sharp from 'sharp';
@@ -147,7 +147,8 @@ test('a stationary plate over many frames is one dish, with one Gemini check', a
   for (let t = 0; t < 10; t++) await s.inbox.add({ t, plate: 'A', trigger: 'interval' });
   await runAll(s.bridge);
   assert.equal(s.sink.events().length, 1);
-  assert.equal(s.uploader.finalizedCount(), 1);
+  assert.equal(s.uploader.finalizedOfKind('capture').length, 1);
+  assert.equal(s.uploader.finalizedOfKind('original').length, 1);
   assert.equal(s.matcher.calls, 1, 'only the first frame needs Gemini (plate check)');
   const [event] = s.sink.events();
   assert.equal(event!.source, 'camera');
@@ -164,7 +165,15 @@ test('a plate sliding along the belt stays one dish; its middle frame is uploade
   assert.equal(s.sink.events().length, 1);
   const group = s.grouper.groups()[0]!;
   assert.equal(group.representative, ids[1]);
-  assert.equal(s.sink.events()[0]!.capturedAt, new Date(T0 + 1000).toISOString());
+  // The scan time is this computer's clock when the frame arrived (its inbox
+  // folder's mtime), not the board timestamp in metadata.json.
+  const received = (await stat(path.join(s.inbox.dir, ids[1]!))).mtime.toISOString();
+  assert.equal(s.sink.events()[0]!.capturedAt, received);
+  assert.notEqual(received, new Date(T0 + 1000).toISOString());
+  const scan = s.sink.scans.get(s.sink.events()[0]!.eventId)!;
+  assert.equal(scan.timestampBasis, 'laptop_received');
+  assert.equal(scan.deviceId, 'uno-q-c920');
+  assert.match(scan.originalSha256!, /^[0-9a-f]{64}$/);
 });
 
 test('a short occlusion does not split a dish; a long gap then a new plate is two dishes', async () => {

@@ -35,14 +35,15 @@ test('each manifest entry is ingested exactly once, even when re-run', async () 
   assert.ok(first.every((r) => r.ok), 'all entries ingest successfully');
   assert.equal(sink.events().length, 2, 'one event per dish');
   assert.equal(sink.submissionCount, 2);
-  assert.equal(uploader.finalizedCount(), 2);
+  assert.equal(uploader.finalizedOfKind('capture').length, 2, 'one normalized image per dish');
+  assert.equal(uploader.finalizedOfKind('original').length, 2, 'one raw original per dish');
 
   // Re-run the same manifest: no new dishes, no new uploads, no re-submission.
   const second = await adapter.ingestManifestFile(manifestPath);
   assert.ok(second.every((r) => r.ok && r.alreadyIngested));
   assert.equal(sink.events().length, 2, 'still one event per dish');
   assert.equal(sink.submissionCount, 2, 'no duplicate submissions');
-  assert.equal(uploader.finalizedCount(), 2, 'no duplicate uploads');
+  assert.equal(uploader.finalizedCount(), 4, 'no duplicate uploads (raw + normalized per dish)');
 
   // Same event IDs on both runs.
   const ids = (rs: CaptureResult[]) => rs.map((r) => (r.ok ? r.event.eventId : '')).sort();

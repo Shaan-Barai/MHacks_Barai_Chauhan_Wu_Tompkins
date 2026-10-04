@@ -51,6 +51,10 @@ export interface FrameRecord {
   photoPath: string;
   /** Written by simulate-camera rather than the Uno Q (absent = real camera). */
   simulated?: boolean;
+  /** Computer clock when the frame arrived (absent in state files from before it existed). */
+  receivedAt?: string;
+  sha256?: string;
+  sourceName?: string;
   /** Dish group this frame belongs to; null for a no-plate frame. */
   groupId: string | null;
   verdict: FrameVerdict;
@@ -247,6 +251,9 @@ export class DishGrouper {
       capturedAt: frame.capturedAt,
       photoPath: frame.photoPath,
       ...(frame.simulated ? { simulated: true } : {}),
+      ...(frame.receivedAt ? { receivedAt: frame.receivedAt } : {}),
+      ...(frame.sha256 ? { sha256: frame.sha256 } : {}),
+      ...(frame.sourceName ? { sourceName: frame.sourceName } : {}),
       groupId,
       verdict,
     };

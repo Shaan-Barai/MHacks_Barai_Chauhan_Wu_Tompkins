@@ -6,6 +6,7 @@
 export type {
   ApiError,
   CaptureEvent,
+  ScanSubmission,
   CaptureSource,
   DishMatchImage,
   DishMatchRequest,
@@ -66,6 +67,7 @@ export {
 export {
   ReplayCaptureAdapter,
   type CameraCaptureOptions,
+  type IngestPhotoInput,
   type CaptureAdapterOptions,
   type CaptureResult,
   type ManualUploadOptions,
@@ -96,3 +98,35 @@ export {
   type SimulatedCapture,
   type SimulatedCaptureMetadata,
 } from './simulateCamera.js';
+
+export {
+  CameraConfigError,
+  CameraError,
+  explainSshFailure,
+  findCameraDevice,
+  loadCameraConfig,
+  parseV4l2Devices,
+  pickCameraNode,
+  runOnBoard,
+  spawnRunner,
+  sshArgs,
+  sshOptions,
+  sshTarget,
+  takePhoto,
+  type CameraConfig,
+  type CommandResult,
+  type CommandRunner,
+  type TakenPhoto,
+  type TakePhotoOptions,
+  type VideoDevice,
+} from './camera.js';
+
+export {
+  DEFAULT_MEAL_WINDOWS,
+  localDateTime,
+  parseMealWindows,
+  resolveServiceAt,
+  type MealWindow,
+  type ServiceLike,
+  type ServiceResolution,
+} from './mealService.js';

@@ -122,7 +122,7 @@ export interface CaptureSubmission {
 
 export interface ScanSubmission {
   deviceId: string;
-  timestampBasis: 'laptop_trigger' | 'laptop_ingest';
+  timestampBasis: 'laptop_trigger' | 'laptop_received' | 'laptop_ingest';
   originalImageObjectId?: string;
   originalSha256?: string;
   sourceName?: string;
@@ -163,14 +163,14 @@ function validateScan(scan: unknown): void {
     !s ||
     typeof s !== 'object' ||
     !isNonEmptyString(s.deviceId) ||
-    (s.timestampBasis !== 'laptop_trigger' && s.timestampBasis !== 'laptop_ingest') ||
+    !['laptop_trigger', 'laptop_received', 'laptop_ingest'].includes(String(s.timestampBasis)) ||
     !optionalString(s.originalImageObjectId) ||
     !optionalString(s.sourceName) ||
     (s.originalSha256 !== undefined && !/^[0-9a-f]{64}$/.test(String(s.originalSha256)))
   ) {
     throw badRequest(
       'INVALID_SCAN',
-      "scan needs deviceId, timestampBasis ('laptop_trigger' or 'laptop_ingest'), and optional originalImageObjectId, originalSha256 (64 hex), sourceName.",
+      "scan needs deviceId, timestampBasis ('laptop_trigger', 'laptop_received' or 'laptop_ingest'), and optional originalImageObjectId, originalSha256 (64 hex), sourceName.",
     );
   }
 }

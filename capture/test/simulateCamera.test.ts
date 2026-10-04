@@ -162,7 +162,8 @@ test('bridge with --no-dedupe: one dish per simulated photo and zero Gemini chec
   await s.bridge.pass();
   await s.bridge.close('flush');
   assert.equal(s.sink.events().length, 3);
-  assert.equal(s.uploader.finalizedCount(), 3);
+  assert.equal(s.uploader.finalizedOfKind('capture').length, 3);
+  assert.equal(s.uploader.finalizedOfKind('original').length, 3);
   assert.equal(matcher.calls, 0);
 });
 

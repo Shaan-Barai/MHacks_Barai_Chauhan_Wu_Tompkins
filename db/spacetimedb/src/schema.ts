@@ -375,7 +375,7 @@ const scanInfo = table(
   {
     eventId: t.string().primaryKey(),
     deviceId: t.string(),
-    timestampBasis: t.string(), // 'laptop_trigger' | 'laptop_ingest' | 'demo'
+    timestampBasis: t.string(), // 'laptop_trigger' | 'laptop_received' | 'laptop_ingest' | 'demo'
     originalImageObjectId: t.option(t.string()),
     originalSha256: t.option(t.string()),
     sourceName: t.option(t.string()),

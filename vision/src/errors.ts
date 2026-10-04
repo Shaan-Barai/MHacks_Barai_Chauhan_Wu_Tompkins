@@ -92,6 +92,15 @@ export function normalizeProviderError(err: unknown): ApiError {
       details,
     );
   }
+  // 402 / prepaid credits depleted: a billing problem, not a busy service.
+  if (status === 402 || /prepayment credits are depleted|billing/i.test(rawMessage)) {
+    return makeApiError(
+      'GEMINI_BILLING',
+      'The image analysis service account is out of credits. Top up billing for the Gemini API key.',
+      false,
+      details,
+    );
+  }
   if (status === 429) {
     return makeApiError(
       'GEMINI_RATE_LIMITED',

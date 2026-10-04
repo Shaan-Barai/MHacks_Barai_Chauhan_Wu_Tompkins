@@ -292,8 +292,10 @@ export async function generateRecommendation(
           inputVersion: recommendationInputVersion(facts),
         };
       }
-    } catch {
-      // Provider failure: fall back below (AGENTS.md 6.5).
+    } catch (err) {
+      // Provider failure: fall back below (AGENTS.md 6.5). Log the code only, never prompt data.
+      const code = (err as { apiError?: { code?: string } })?.apiError?.code ?? (err instanceof Error ? err.name : 'unknown');
+      console.warn(`[recommendation] Gemini unavailable (${code}); using rule-based fallback.`);
     }
   }
   return fallbackRecommendation(dashboard, now);

@@ -182,7 +182,10 @@ export function createApp(deps: AppDeps): express.Express {
   }));
   app.put('/api/portions-served', wrap(async (req, res) => {
     const menu = await portionsMenu(req);
-    const portions = parsePortionsServed(req.body, menu, 'manual', new Date().toISOString());
+    // `"source": "demo"` labels seeded dummy counts (BIG-PLAN D6, npm run seed);
+    // anything else is a manager's manual entry.
+    const source = req.body?.source === 'demo' ? 'demo' : 'manual';
+    const portions = parsePortionsServed(req.body, menu, 'manual', new Date().toISOString()).map((p) => ({ ...p, source }) as const);
     await repo.replacePortionsServed(menu.service.serviceId, menu.service.menuVersion, portions);
     res.json({ portions });
   }));

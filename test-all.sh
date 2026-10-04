@@ -28,9 +28,12 @@
 # Safety: secrets are never printed. Their values (ingest token, admin passcode, session secret,
 # API keys) are redacted from the suite logs. This script never stops or kills a process: the live
 # stack is started (or reused) by deploy/local.sh and left running; stop it with deploy/local.sh down.
+# The demo suite likewise starts (or reuses) the upload website (upload_demo/server.mjs, :8795) and
+# leaves it running.
 #
 # Environment (optional): SCRAP_RUN_DIR (the stack's state dir, default deploy/.run), API_PORT
-# (default 8787), SCRAP_TEST_HALL (default hall-test), SCRAP_E2E_PHOTOS (default 2), PYTHON (python3).
+# (default 8787), SCRAP_TEST_HALL (default hall-test), SCRAP_E2E_PHOTOS (default 2), PYTHON (python3),
+# UPLOAD_DEMO_PORT (the upload website, default 8795).
 set -uo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -39,6 +42,7 @@ cd "$REPO" || exit 2
 RUN_DIR="${SCRAP_RUN_DIR:-$REPO/deploy/.run}"
 API_PORT="${API_PORT:-8787}"
 API_URL="http://127.0.0.1:$API_PORT"
+UPLOAD_PORT="${UPLOAD_DEMO_PORT:-8795}"
 TEST_HALL="${SCRAP_TEST_HALL:-hall-test}"
 PYTHON="${PYTHON:-python3}"
 TODAY="$(TZ=America/Detroit date +%F)"
@@ -127,6 +131,7 @@ ln -sfn "$STAMP" "$LOG_ROOT/latest" 2>/dev/null || true
 ROWS=""        # name|result|pass|fail|skip|seconds  (one per line)
 ANY_FAIL=0
 STACK_UP=""    # "", "yes", "no"
+UPLOAD_STARTED=""   # pid of the upload website when this run started it
 
 add_row() { ROWS="${ROWS}$1|$2|$3|$4|$5|$6
 "; }
@@ -295,6 +300,23 @@ suite_seed() {
   SEED_FILE="$seed_file" SCRAP_RUN_DIR="$RUN_DIR" "$REPO/deploy/local.sh" seed "--live-dinner=$TODAY"
 }
 
+# demo.py's upload_site step needs the upload website; demo runs with --no-start, so start it here
+# (or reuse a running one). Like the stack, it is left running.
+ensure_upload_site() {
+  local url="http://127.0.0.1:$UPLOAD_PORT/api/foods" log="$LOG_DIR/upload-site.log" _
+  curl -fsS -m 3 -o /dev/null "$url" 2>/dev/null && return 0
+  UPLOAD_DEMO_PORT="$UPLOAD_PORT" node "$REPO/upload_demo/server.mjs" > "$log" 2>&1 < /dev/null &
+  UPLOAD_STARTED=$!
+  for _ in $(seq 1 40); do
+    curl -fsS -m 3 -o /dev/null "$url" 2>/dev/null && {
+      echo "  ${D}started the upload website on :$UPLOAD_PORT (pid $UPLOAD_STARTED, log ${log#"$REPO"/})${N}"; return 0; }
+    kill -0 "$UPLOAD_STARTED" 2>/dev/null || break
+    sleep 0.5
+  done
+  echo "  ${Y}the upload website did not start; see ${log#"$REPO"/}${N}"
+  UPLOAD_STARTED=""
+}
+
 stack_gate() { # live suites after `stack` need it up
   if [ "$STACK_UP" = no ]; then skip_suite "$1" "the local stack is not up (see the stack log)"; return 1; fi
   return 0
@@ -328,7 +350,7 @@ for suite in $SELECTED; do
                       SCRAP_E2E_PHOTOS="${SCRAP_E2E_PHOTOS:-2}" node --test "$REPO/tests/e2e/scrap-live.test.mjs" && ok=1; } ;;
     e2e-calibration) stack_gate e2e-calibration && { run_suite e2e-calibration node 1 env SCRAP_E2E=1 \
                       SCRAP_E2E_SERVICE="$TEST_SERVICE" node --test "$REPO/tests/e2e/calibration-live.test.mjs" && ok=1; } ;;
-    demo)           stack_gate demo && { run_suite demo demo 1 "$PYTHON" "$REPO/demo.py" --simulate --yes --no-open --no-start \
+    demo)           stack_gate demo && { ensure_upload_site; run_suite demo demo 1 "$PYTHON" "$REPO/demo.py" --simulate --yes --no-open --no-start \
                       --hall "$TEST_HALL" --api "$API_URL" && ok=1; } ;;
   esac
   if [ "$ok" = 0 ] && [ "$FAIL_FAST" = 1 ] && [ "$ANY_FAIL" = 1 ]; then
@@ -340,5 +362,8 @@ rm -f "$LOG_DIR/.check.out"
 print_table
 if [ "$STACK_UP" = yes ]; then
   echo "${D}The local stack was left running (deploy/local.sh status; stop: deploy/local.sh down).${N}"
+fi
+if [ -n "$UPLOAD_STARTED" ]; then
+  echo "${D}The upload website was left running on :$UPLOAD_PORT (stop: kill $UPLOAD_STARTED).${N}"
 fi
 [ "$ANY_FAIL" = 0 ]

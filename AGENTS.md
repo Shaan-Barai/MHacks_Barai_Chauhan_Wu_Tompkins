@@ -49,6 +49,7 @@ Do not add model training, real swipe-system integration, purchasing automation,
 10. Verify the behavior your change affects using focused checks. Report what passed and what could not be verified. Do not claim a live Gemini or camera test when only fixtures were used.
 11. Do not commit, push, deploy, or message other people unless the active user request authorizes it. When authorized, limit those actions to the requested scope.
 12. End each assignment with a handoff: changed files, contract changes, assumptions, verification results, and remaining work.
+13. **Keep `demo.py` current.** `demo.py` (repo root) is the one-command demo of the whole product: camera → laptop → R2 + SpacetimeDB → Gemini + SAM → stats → AI recommendation → dashboard. When you add or change a user-visible feature, add or update a step in its `STEPS` list (one function per step: print what it shows, prove it with live data, record `demo.check(...)`), update `python3 demo.py --list` output in the README if needed, and run `python3 demo.py --simulate --yes` (or `--events <capture ids> --only <your step>`) before handing off. A feature isn't done until the demo shows it.
 
 ## 4. Ownership layout
 

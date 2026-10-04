@@ -5,6 +5,10 @@
  * plate is counted; food on a neighboring plate is outlined as "Other dish
  * (not counted)" in the AI outline image and left out (BIG-PLAN v2 V3).
  *
+ * Tiles show the AI outline image when there is one, analyzed plates come
+ * first, and the newest analyzed plate opens side by side, so the segmented
+ * images are visible without a click (demo, 2026-10-04).
+ *
  * Image links are short-lived (GET /api/captures/:id/images). A link that is
  * expired or fails to load is renewed once by asking for the images again;
  * if the fresh link fails too, the image says it is unavailable.
@@ -17,6 +21,12 @@ import { NEIGHBOR_EXPLANATION } from './impactCopy'
 import { Badge, Card, GhostButton, InfoTip } from './ui'
 
 const SHOW_FIRST = 12
+/** Analyzed plates first (newest first within each group), failed and unchecked plates last. */
+function analyzedFirst(captures: CaptureListItem[]): CaptureListItem[] {
+  const rank = (c: CaptureListItem) => (c.state === 'succeeded' || c.state === 'needs_review' ? 0 : 1)
+  return captures.map((c, i) => ({ c, i })).sort((a, b) => rank(a.c) - rank(b.c) || a.i - b.i).map(({ c }) => c)
+}
+
 /** Renew a link this long before it expires. */
 const EXPIRY_MARGIN_MS = 30_000
 
@@ -260,9 +270,15 @@ function PlateViewer({
 }
 
 function Thumbnail({ entry, onBroken }: { entry: ImageEntry | undefined; onBroken: (url: string) => void }) {
-  const img = entry?.status === 'ready' ? entry.images.original : null
+  const overlay = entry?.status === 'ready' ? entry.images.overlay : null
+  const img = overlay ?? (entry?.status === 'ready' ? entry.images.original : null)
   if (entry?.status === 'ready' && img) {
-    return <img src={img.url} alt="" onError={() => onBroken(img.url)} className="aspect-square w-full border-b border-ink object-cover" />
+    return (
+      <span className="relative block">
+        <img src={img.url} alt="" onError={() => onBroken(img.url)} className="aspect-square w-full border-b border-ink object-cover" />
+        {overlay && <span className="absolute left-2 top-2 rounded-btn bg-ink px-2 py-0.5 text-xs font-semibold text-cream">AI outline</span>}
+      </span>
+    )
   }
   const text = !entry || entry.status === 'loading' ? 'Loading photo' : 'Photo unavailable'
   return <div className="flex aspect-square w-full items-center justify-center border-b border-dashed border-ink text-sm">{text}</div>
@@ -281,8 +297,12 @@ export function PlatesGallery({
   const neighborTip = useId()
   const { entries, ensure, renew } = useCaptureImageCache(loadImages)
   const [showAll, setShowAll] = useState(false)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const visible = showAll ? captures : captures.slice(0, SHOW_FIRST)
+  const ordered = analyzedFirst(captures)
+  // undefined = the user hasn't picked yet: show the newest analyzed plate.
+  const [picked, setPicked] = useState<string | null | undefined>(undefined)
+  const selectedId = picked === undefined ? (ordered.find((c) => c.state === 'succeeded')?.eventId ?? null) : picked
+  const setSelectedId = (id: string | null) => setPicked(id)
+  const visible = showAll ? ordered : ordered.slice(0, SHOW_FIRST)
   const selected = captures.find((c) => c.eventId === selectedId) ?? null
 
   useEffect(() => {
@@ -302,7 +322,7 @@ export function PlatesGallery({
           {formatNumber(captures.length)} recent plate{captures.length === 1 ? '' : 's'}
         </p>
       </div>
-      <p className="mt-1 text-sm">Pick a plate to see its photo next to what the AI outlined.</p>
+      <p className="mt-1 text-sm">Each tile shows the AI outlines of the leftover food. Pick a plate to see its photo next to them.</p>
       {neighborExcluded > 0 && (
         <p className="mt-1 text-sm">
           Food on neighboring plates was left out of {formatNumber(neighborExcluded)} plate{neighborExcluded === 1 ? '' : 's'}.
@@ -318,7 +338,10 @@ export function PlatesGallery({
             <li key={c.eventId}>
               <button
                 type="button"
-                onClick={() => setSelectedId(c.eventId === selectedId ? null : c.eventId)}
+                onClick={() => {
+                  setSelectedId(c.eventId)
+                  ensure(c.eventId) // renew expired links even if this plate is already open
+                }}
                 aria-pressed={c.eventId === selectedId}
                 aria-label={`Plate at ${timeLabel(c.capturedAt)}: ${tileSummary(c)}`}
                 className={`block w-full overflow-hidden rounded-card border bg-cream text-left ${c.eventId === selectedId ? 'border-[3px] border-ink' : 'border-ink'}`}

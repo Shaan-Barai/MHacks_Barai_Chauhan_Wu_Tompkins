@@ -4,6 +4,9 @@ Audience: dining-hall staff or hackathon judges. Goal: show the full Scrap loop 
 SpacetimeDB `scrap` → Gemini + SAM → pixels and relative impact → dashboard) without overstating what
 the numbers mean.
 
+**Quickest path:** `python3 demo.py` (or `python3 demo.py --simulate` without the board) runs every
+step below in order and pauses between them, so you can narrate. The script below is what to say.
+
 ## Before you start
 
 1. Start the stack as described in [runbook.md](runbook.md#start-full-stack-r2--scrap--gemini--sam):

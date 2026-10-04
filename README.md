@@ -33,6 +33,24 @@ version; re-imports replace counts. See [the portion-count guide](docs/portions-
 Attendance is **simulated**. Pixels are counted from AI masks of visible
 leftovers; they are not a weight. Impact points are relative estimates.
 
+## Demo
+
+One command runs and narrates the whole product: the Uno Q takes a photo, sends it to the laptop,
+the bridge puts it in R2 and SpacetimeDB, Gemini + SAM 2.1 segment it, and the demo prints the
+pixels, where every object is stored, total waste, waste per portion, most wasted, relative impact,
+the AI recommendation, saves a "photo | AI segmentation" picture per plate, and opens the dashboard.
+
+```bash
+python3 demo.py                  # real camera (arduino@35.1.88.76), press Enter per plate
+python3 demo.py --simulate       # no board: test2/ photos through the same path (labeled replay)
+python3 demo.py --plates 3 --yes # three plates, no pauses
+python3 demo.py --list           # the steps; --only/--skip pick some, --events cap_… re-shows captures
+```
+
+It needs the stack from [Setup](#setup) (it offers to start missing services) and writes its
+photos and logs to `images/demo-runs/` (gitignored). **Adding a feature? Add a demo step**
+(AGENTS.md §3 rule 13).
+
 ## Documents
 
 - [`BIG-PLAN.md`](BIG-PLAN.md) — the camera → impact → dashboard plan and its tracker.

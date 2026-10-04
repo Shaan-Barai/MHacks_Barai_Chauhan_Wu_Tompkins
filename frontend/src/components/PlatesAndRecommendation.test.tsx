@@ -75,6 +75,33 @@ describe('PlatesGallery', () => {
     expect(load).toHaveBeenCalledTimes(2)
   })
 
+  it('shows AI outlines on tiles, lists analyzed plates first, and opens the newest analyzed plate', async () => {
+    const load = vi.fn(async (id: string) => images(id, 1, id === 'new'))
+    render(
+      <PlatesGallery
+        captures={[
+          capture({ eventId: 'failed1', state: 'failed', pixelsWasted: null, items: [], hasOverlay: false }),
+          capture({ eventId: 'new', pixelsWasted: 30_000 }),
+          capture({ eventId: 'bare', pixelsWasted: 5_000, items: [] }),
+        ]}
+        loadImages={load}
+      />,
+    )
+    const tiles = screen.getAllByRole('button', { name: /Plate at/ })
+    expect(tiles.map((t) => t.getAttribute('aria-label'))).toEqual([
+      expect.stringMatching(/30,000 pixels wasted/),
+      expect.stringMatching(/5,000 pixels wasted/),
+      expect.stringMatching(/Check failed/),
+    ])
+    await waitFor(() => expect(screen.getAllByText('AI outline')).toHaveLength(1))
+    expect(tiles[0].querySelector('img')).toHaveAttribute('src', 'https://img.test/new/overlay-1.jpg')
+    expect(tiles[1].querySelector('img')).toHaveAttribute('src', 'https://img.test/bare/photo-1.jpg')
+    // The newest analyzed plate is open side by side without a click.
+    expect(await screen.findByAltText(/Photo of the plate/)).toHaveAttribute('src', 'https://img.test/new/photo-1.jpg')
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByAltText(/Photo of the plate/)).toBeNull()
+  })
+
   it('refetches links that have already expired when a plate is opened', async () => {
     let n = 0
     const load = vi.fn(async (id: string) => {

@@ -61,6 +61,10 @@ export function InfoTip({ id, text }: { id: string; text: string }) {
   )
 }
 
+/** Plain-words version of the Waste Impact Score (README, menu_waste_factors_README.md). */
+export const WASTE_SCORE_EXPLANATION =
+  'Waste score puts a dollar value on the hidden cost of food left on plates: the greenhouse gases and fresh water it took to grow and make it. Each kilogram of greenhouse gas counts $0.19 and each cubic meter of water counts $1.50. It is not what the food cost to buy.'
+
 export const PIXELS_WASTED_EXPLANATION =
   'Pixels wasted counts the leftover food in each plate photo, pixel by pixel, inside outlines the AI draws around the food. The counting is exact; the outlines are an AI estimate. It is not weight, servings, or the share of food first served.'
 

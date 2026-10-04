@@ -7,8 +7,8 @@
  * with their AI outline images, and nutrition lost kept apart from the score.
  */
 import { useMemo } from 'react'
-import { getCaptures, getDailyWaste, getImpactDashboard, getRecommendation, getSummaryCards } from '../data/api'
-import { chartUnit, dailyBuckets } from '../lib/grouping'
+import { DEMO_METRICS, getCaptures, getDashboardDaily, getDashboardSummary, getImpactDashboard, getRecommendation } from '../data/api'
+import { chartUnit, dailyBuckets, type ChartUnit } from '../lib/grouping'
 import { useAsync } from '../lib/useAsync'
 import { DateRangePicker, type DateRange } from '../components/DateRangePicker'
 import { FoodsToTarget } from '../components/FoodsToTarget'
@@ -20,8 +20,14 @@ import { PlatesGallery } from '../components/PlatesGallery'
 import { RecommendationCard } from '../components/RecommendationCard'
 import { SummaryCardsRow } from '../components/SummaryCards'
 import { WasteChart } from '../components/WasteChart'
-import { Card, EmptyState, LoadingBlock } from '../components/ui'
+import { Badge, Card, EmptyState, LoadingBlock } from '../components/ui'
 import type { HallLocation } from '../data/types'
+
+const CHART_TITLE: Record<ChartUnit, string> = {
+  grams: 'Food left by day (estimate)',
+  pixels: 'Pixels wasted by day',
+  score: 'Waste score by day',
+}
 
 /** `hall` is a location id, or 'all' for every location added together. */
 export function DashboardPage({
@@ -39,13 +45,13 @@ export function DashboardPage({
 }) {
   const hallIds = hall === 'all' ? locations.map((l) => l.id) : [hall]
   const deps = [range.start, range.end, hallIds.join()]
-  const summary = useAsync(() => getSummaryCards(hallIds), [hallIds.join()])
+  const summary = useAsync(() => getDashboardSummary(hallIds), [hallIds.join()])
   const impact = useAsync(() => getImpactDashboard(range.start, range.end, hallIds), deps)
   const rec = useAsync(() => getRecommendation(range.start, range.end, hallIds), deps)
   const plates = useAsync(() => getCaptures(range.start, range.end, hallIds), deps)
-  const series = useAsync(() => getDailyWaste(range.start, range.end, hallIds), deps)
+  const series = useAsync(() => getDashboardDaily(range.start, range.end, hallIds), deps)
 
-  const unit = useMemo(() => (series.data ? chartUnit(series.data) : 'pixels'), [series.data])
+  const unit: ChartUnit = useMemo(() => (DEMO_METRICS ? 'score' : series.data ? chartUnit(series.data) : 'pixels'), [series.data])
   const buckets = useMemo(() => (series.data ? dailyBuckets(series.data, unit) : []), [series.data, unit])
   const hasChartData = buckets.some((b) => b.value !== null)
   const noPlates = impact.data !== undefined && impact.data.totals.captures === 0
@@ -69,16 +75,17 @@ export function DashboardPage({
             ))}
           </select>
         )}
+        {DEMO_METRICS && <Badge>Demo numbers</Badge>}
       </div>
 
       {summary.status === 'loading' && !summary.data && <LoadingBlock label="Loading totals" />}
       {summary.status === 'error' && <EmptyState title="Couldn't load totals.">{summary.error}</EmptyState>}
-      {summary.data && <SummaryCardsRow data={summary.data} />}
+      {summary.data && <SummaryCardsRow data={summary.data} unit={DEMO_METRICS ? 'score' : 'pixels'} />}
 
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-ink">
-            {unit === 'grams' ? 'Food left by day (estimate)' : 'Pixels wasted by day'}
+            {CHART_TITLE[unit]}
           </h2>
           <DateRangePicker value={range} onChange={onRangeChange} />
         </div>

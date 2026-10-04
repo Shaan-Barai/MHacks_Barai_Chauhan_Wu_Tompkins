@@ -25,4 +25,13 @@ describe('SummaryCardsRow', () => {
     expect(screen.getByText('Down 20%').closest('p')).toHaveTextContent('from the same days last week')
     expect(screen.getByText('Nothing to compare with the same days last month yet')).toBeInTheDocument()
   })
+
+  it('shows the waste score with its explanation and plates scanned', () => {
+    const plates = { ...data.today, averagePlateWastePercent: null, platesCounted: 1234 }
+    render(<SummaryCardsRow data={{ today: plates, thisWeek: plates, thisMonth: plates }} unit="score" />)
+    expect(screen.getAllByText('Waste score')).toHaveLength(3)
+    expect(screen.getAllByText('1,234 plates scanned')).toHaveLength(3)
+    expect(screen.getAllByRole('tooltip')[0]).toHaveTextContent(/hidden cost of food left on plates/)
+    expect(screen.queryByText('Pixels wasted')).toBeNull()
+  })
 })

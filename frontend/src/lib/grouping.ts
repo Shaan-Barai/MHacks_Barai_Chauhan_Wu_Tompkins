@@ -12,7 +12,8 @@ export interface ChartBucket {
   value: number | null
 }
 
-export type ChartUnit = 'grams' | 'pixels'
+/** 'score' is the simulated waste score (data/demoMetrics.ts), carried in pixelsWasted. */
+export type ChartUnit = 'grams' | 'pixels' | 'score'
 
 /**
  * Estimated grams when every day with counted plates has them (the backend

@@ -8,15 +8,18 @@ import { formatCompact, formatGrams, formatNumber } from '../lib/format'
 import { niceCeil, type ChartBucket, type ChartUnit } from '../lib/grouping'
 
 function tickLabel(v: number, unit: ChartUnit): string {
-  if (unit === 'pixels') return formatCompact(v)
+  if (unit === 'pixels' || unit === 'score') return formatCompact(v)
   if (v === 0) return '0'
   // 6.3 kg / 12.5 kg: one decimal at most so quarter ticks stay distinct.
   return v >= 1000 ? `${Number((v / 1000).toFixed(1))} kg` : `${Number(v.toFixed(1))} g`
 }
 
 function valueText(v: number, unit: ChartUnit): string {
+  if (unit === 'score') return `Waste score ${formatNumber(v)}`
   return unit === 'grams' ? `${formatGrams(v)} left (estimate)` : `${formatNumber(v)} pixels wasted`
 }
+
+const CHART_SUBJECT: Record<ChartUnit, string> = { grams: 'estimated food left', pixels: 'pixels wasted', score: 'waste score' }
 
 const BAR = '#000000'
 const GRID = '#000000'
@@ -61,7 +64,7 @@ export function WasteChart({ buckets, unit = 'pixels' }: { buckets: ChartBucket[
         width={width}
         height={HEIGHT}
         role="img"
-        aria-label={unit === 'grams' ? 'Bar chart of estimated food left per day for the selected days' : 'Bar chart of pixels wasted per day for the selected days'}
+        aria-label={`Bar chart of ${CHART_SUBJECT[unit]} per day for the selected days`}
       >
         {/* recessive hairline gridlines + y ticks */}
         {ticks.map((t) => (

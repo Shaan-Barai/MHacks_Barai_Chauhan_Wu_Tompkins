@@ -181,7 +181,7 @@ function PlateViewer({
     <Card className="mt-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 ref={headingRef} tabIndex={-1} className="text-lg font-semibold">
+          <h3 ref={headingRef} tabIndex={-1} className="text-4xl font-semibold leading-tight">
             Plate at {when}
           </h3>
           <p className="text-sm">
@@ -317,7 +317,7 @@ export function PlatesGallery({
   return (
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-xl font-semibold text-ink">Plates</h2>
+        <h2 className="text-[40px] font-semibold text-ink leading-tight">Plates</h2>
         <p className="text-sm">
           {formatNumber(captures.length)} recent plate{captures.length === 1 ? '' : 's'}
         </p>

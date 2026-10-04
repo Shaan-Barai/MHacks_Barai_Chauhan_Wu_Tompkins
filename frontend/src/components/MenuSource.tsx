@@ -250,7 +250,7 @@ function ManualMenuPanel({
 
   return (
     <Card>
-      <h2 className="text-lg font-semibold text-ink">Add a menu{hallName ? ` for ${hallName}` : ''}</h2>
+      <h2 className="text-4xl font-semibold text-ink leading-tight">Add a menu{hallName ? ` for ${hallName}` : ''}</h2>
       <div className="mt-3 flex flex-wrap items-end gap-4">
         {hallPicker}
         <div>
@@ -402,7 +402,7 @@ function MenuApiPanel({ hallId }: { hallId: string }) {
 
   return (
     <div id="menu-api-panel" className="mt-4 space-y-3 rounded-card border border-linen p-4">
-      <h3 className="text-base font-semibold">Send menus from your own system</h3>
+      <h3 className="text-[32px] font-semibold leading-tight">Send menus from your own system</h3>
       <p className="text-sm">
         Send a POST request with JSON to the address below. Each day lists the foods for breakfast, lunch, and dinner. Sending a
         day again replaces that day's menu. For a spreadsheet file, send it as text/csv to{' '}

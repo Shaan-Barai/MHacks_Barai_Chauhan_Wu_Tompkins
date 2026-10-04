@@ -18,7 +18,7 @@ export function MenuSchedulePage({ settings, onSettingsChange }: { settings: Hal
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <h1 className="font-display text-3xl font-semibold text-ink">Menu Schedule</h1>
+        <h1 className="font-display text-6xl font-semibold text-ink leading-tight">Menu Schedule</h1>
         {settings.halls.length > 1 && (
           <div>
             <FieldLabel htmlFor="schedule-hall">Dining hall</FieldLabel>

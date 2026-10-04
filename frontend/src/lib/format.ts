@@ -14,6 +14,22 @@ export function formatCompact(n: number): string {
   return full.format(Math.round(n))
 }
 
+/**
+ * Waste units (contracts/decisions.md): 1 waste unit = 1,000 Pixels wasted.
+ * A readable scale for the same measurement, not weight or servings.
+ */
+export const PIXELS_PER_WASTE_UNIT = 1000
+
+export function toWasteUnits(pixels: number): number {
+  return pixels / PIXELS_PER_WASTE_UNIT
+}
+
+/** e.g. 238.5 (one decimal under 1,000, whole numbers above). */
+export function formatWasteUnits(pixels: number): string {
+  const units = toWasteUnits(pixels)
+  return units >= 1000 ? full.format(Math.round(units)) : new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(units)
+}
+
 function trim(n: number): string {
   const s = n.toFixed(1)
   return s.endsWith('.0') ? s.slice(0, -2) : s

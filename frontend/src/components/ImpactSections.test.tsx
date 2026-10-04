@@ -10,9 +10,9 @@ import { dashboard, impact, row } from './impactFixtures'
 const PHYSICAL_UNITS = /\d\s?(g|kg|L|m³)(?!\w)|litres|CO₂e|\$/
 
 describe('HeadlineCards', () => {
-  it('shows Total waste in pixels and Relative impact in points with greenhouse-gas and water points', () => {
+  it('shows Total waste in waste units and Relative impact in points with greenhouse-gas and water points', () => {
     const { container } = render(<HeadlineCards data={dashboard()} />)
-    expect(screen.getByLabelText('Total waste: 1,450,000 pixels')).toBeInTheDocument()
+    expect(screen.getByLabelText('Total waste: 1,450 waste units')).toBeInTheDocument()
     expect(screen.getByText('From 124 of 130 plates scanned')).toBeInTheDocument()
     expect(screen.getByText(/6 plates not counted/)).toBeInTheDocument()
 

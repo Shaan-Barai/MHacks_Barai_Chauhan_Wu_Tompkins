@@ -34,7 +34,7 @@ export function MostWasted({ rows }: { rows: ItemImpactRow[] }) {
         <p className="text-sm font-semibold uppercase tracking-wide">Most wasted</p>
         <Badge>points are relative</Badge>
       </div>
-      <h2 className="mt-1 text-xl font-semibold text-ink">
+      <h2 className="mt-1 text-[40px] font-semibold text-ink leading-tight">
         {top ? `${top.displayName} was the most wasted food.` : 'No food has been counted yet.'}
       </h2>
       <p className="mt-1 text-sm">Ranked by total Pixels wasted. Impact points compare foods with each other.</p>

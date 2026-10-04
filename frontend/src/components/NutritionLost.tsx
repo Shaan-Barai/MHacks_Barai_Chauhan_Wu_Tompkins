@@ -19,7 +19,7 @@ export function NutritionLost({ data }: { data: ImpactDashboard }) {
   return (
     <Card className="border-dashed">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-lg font-semibold text-ink">
+        <h2 className="text-4xl font-semibold text-ink leading-tight">
           Nutrition lost
           <InfoTip id={tipId} text={NUTRITION_EXPLANATION} />
         </h2>

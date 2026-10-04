@@ -23,7 +23,7 @@ export function SetupWizard({ onComplete }: { onComplete: (settings: HallSetting
 
       {step === 1 && (
         <section className="mt-8" aria-label="Step 1: your dining hall">
-          <h1 className="font-display text-3xl font-semibold">What are your dining halls called?</h1>
+          <h1 className="font-display text-6xl font-semibold leading-tight">What are your dining halls called?</h1>
           <form
             className="mt-5 max-w-md"
             onSubmit={(e) => {
@@ -74,7 +74,7 @@ export function SetupWizard({ onComplete }: { onComplete: (settings: HallSetting
 
       {step === 2 && (
         <section className="mt-8" aria-label="Step 2: add menus">
-          <h1 className="font-display text-3xl font-semibold">Add this week's menus</h1>
+          <h1 className="font-display text-6xl font-semibold leading-tight">Add this week's menus</h1>
           <p className="mt-1 text-base">We match leftovers to the foods on your menu. You can skip this and add menus later.</p>
           <div className="mt-5">
             <MenuSource halls={draft.halls} />

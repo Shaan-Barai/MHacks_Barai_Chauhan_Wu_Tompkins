@@ -70,11 +70,11 @@ export function SettingsPage({ settings, onSave }: { settings: HallSettings; onS
 
   return (
     <div className="max-w-3xl space-y-5">
-      <h1 className="font-display text-3xl font-semibold text-ink">Settings</h1>
+      <h1 className="font-display text-6xl font-semibold text-ink leading-tight">Settings</h1>
 
       <Card className="space-y-4">
         <div>
-          <h2 className="text-lg font-semibold">Dining halls</h2>
+          <h2 className="text-4xl font-semibold leading-tight">Dining halls</h2>
           <ul className="mt-2 max-w-md space-y-3">
             {hallDrafts.map((h, i) => (
               <li key={h.hallId ?? `new-${i}`}>
@@ -104,7 +104,7 @@ export function SettingsPage({ settings, onSave }: { settings: HallSettings; onS
         </div>
 
         <div className="space-y-3">
-          <h2 className="text-lg font-semibold">Special events</h2>
+          <h2 className="text-4xl font-semibold leading-tight">Special events</h2>
           <p>Add days with different crowds, like football games. They show on the Menu Schedule calendar.</p>
           {draft.events.length === 0 && <p>No events yet.</p>}
           {draft.events.map((event, i) => (
@@ -131,7 +131,7 @@ export function SettingsPage({ settings, onSave }: { settings: HallSettings; onS
       </Card>
 
       <Card>
-        <h2 className="text-lg font-semibold">Download</h2>
+        <h2 className="text-4xl font-semibold leading-tight">Download</h2>
         <p className="mt-1">The last 30 days as a spreadsheet, one row per food per meal.</p>
         <div className="mt-3">
           <GhostButton type="button" onClick={exportCsv} disabled={exporting}>

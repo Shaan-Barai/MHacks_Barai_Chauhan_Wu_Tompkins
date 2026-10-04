@@ -1,14 +1,14 @@
 /**
  * Two headline cards for the selected days (BIG-PLAN v2): Total waste in
- * Pixels wasted (the measurement), and Relative impact in unitless points
+ * waste units (1 unit = 1,000 Pixels wasted, the measurement), and Relative impact in unitless points
  * (impact score with greenhouse-gas and water points under it). Points are
  * labeled relative everywhere; there are no grams, kg, litres or dollars.
  */
 import { useId, type ReactNode } from 'react'
 import type { ImpactDashboard } from '../data/types'
-import { formatNumber, formatPoints } from '../lib/format'
+import { formatNumber, formatPoints, formatWasteUnits } from '../lib/format'
 import { IMPACT_EXPLANATION, RELATIVE_POINTS_NOTE, splitUnit } from './impactCopy'
-import { Badge, Card, InfoTip, PIXELS_WASTED_EXPLANATION } from './ui'
+import { Badge, Card, InfoTip, WASTE_UNITS_EXPLANATION } from './ui'
 
 function BigValue({ formatted, label }: { formatted: string | null; label: string }) {
   if (formatted === null) {
@@ -40,7 +40,7 @@ function HeadlineCard({
   return (
     <Card className="flex flex-col">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-base font-semibold text-ink">
+        <h3 className="text-[32px] font-semibold text-ink leading-tight">
           {title}
           <InfoTip id={tipId} text={tip} />
         </h3>
@@ -59,8 +59,8 @@ export function HeadlineCards({ data }: { data: ImpactDashboard }) {
   return (
     <section aria-label="Totals for the selected days" className="space-y-2">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <HeadlineCard title="Total waste" tip={PIXELS_WASTED_EXPLANATION} formatted={`${formatNumber(t.pixels)} pixels`}>
-          <p className="mt-1 text-sm">Pixels wasted, counted inside the AI outlines</p>
+        <HeadlineCard title="Total waste" tip={WASTE_UNITS_EXPLANATION} formatted={`${formatWasteUnits(t.pixels)} waste units`}>
+          <p className="mt-1 text-sm">1 waste unit = 1,000 pixels of leftover food ({formatNumber(t.pixels)} pixels), counted inside the AI outlines</p>
           <p className="mt-2 text-base">
             From {formatNumber(t.analyzedCaptures)} of {formatNumber(t.captures)} plate{t.captures === 1 ? '' : 's'} scanned
           </p>

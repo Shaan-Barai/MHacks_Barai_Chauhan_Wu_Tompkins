@@ -22,7 +22,7 @@ export function FoodsToTarget({ rows, demoPortions }: { rows: ItemImpactRow[]; d
   return (
     <Card>
       <p className="text-sm font-semibold uppercase tracking-wide">Foods to target</p>
-      <h2 className="mt-1 text-xl font-semibold text-ink">
+      <h2 className="mt-1 text-[40px] font-semibold text-ink leading-tight">
         {top ? `${top.displayName} had the most food left per portion.` : 'No food can be ranked per portion yet.'}
       </h2>
       <p className="mt-1 text-sm">
@@ -76,7 +76,7 @@ export function FoodsToTarget({ rows, demoPortions }: { rows: ItemImpactRow[]; d
 
       {unranked.length > 0 && (
         <div className="mt-4">
-          <h3 className="text-base font-semibold">Can't rank yet</h3>
+          <h3 className="text-[32px] font-semibold leading-tight">Can't rank yet</h3>
           <ul className="mt-1 space-y-0.5 text-sm">
             {unranked.map((r) => (
               <li key={r.itemId ?? r.displayName}>

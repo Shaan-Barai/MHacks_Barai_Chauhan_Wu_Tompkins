@@ -15,7 +15,7 @@ export function PortionsPage({ onSaved }: { onSaved?: () => void }) {
   const [savedNote, setSavedNote] = useState(false)
   const selected = useAsync(() => getPortionService(date, meal), [date, meal, revision])
   return <div className="space-y-5">
-    <h1 className="font-display text-3xl font-semibold text-ink">Portions served</h1>
+    <h1 className="font-display text-6xl font-semibold text-ink leading-tight">Portions served</h1>
     <p>Enter how many portions of each food were served at this meal, including seconds. Count served portions, not portions cooked.</p>
     {USE_MOCK && <p className="text-sm">Demo mode: counts are saved in this browser and labeled demo.</p>}
     <Card><div className="flex flex-wrap gap-4">
@@ -64,7 +64,7 @@ function PortionsEditor({ service, onSaved }: { service: PortionService; onSaved
         await savePortions(service, entries)
       })
     }} className="space-y-4">
-      <h2 className="text-lg font-semibold text-ink">Counts for this meal</h2>
+      <h2 className="text-4xl font-semibold text-ink leading-tight">Counts for this meal</h2>
       <p className="text-sm">Leave a food blank if you don’t know. Enter 0 only if none were served. Saving replaces this meal’s earlier counts.</p>
       <div className="grid gap-3 sm:grid-cols-2">{service.items.map((item, n) => <div key={item.itemId}>
         <FieldLabel htmlFor={`portion-count-${n}`}>{item.displayName}</FieldLabel>

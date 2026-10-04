@@ -21,7 +21,7 @@ export function RecommendationCard({ rec }: { rec: Recommendation }) {
   return (
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-xl font-semibold text-ink">What to try next</h2>
+        <h2 className="text-[40px] font-semibold text-ink leading-tight">What to try next</h2>
         <Badge>{SOURCE_LABEL[rec.source]}</Badge>
       </div>
       <p className="mt-2 max-w-3xl text-base">{plainText(rec.text)}</p>

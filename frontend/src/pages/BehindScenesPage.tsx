@@ -65,7 +65,7 @@ export function BehindScenesPage() {
 
   return (
     <div className="space-y-5">
-      <h1 className="font-display text-3xl font-semibold text-ink">Behind the scenes</h1>
+      <h1 className="font-display text-6xl font-semibold text-ink leading-tight">Behind the scenes</h1>
       <p className="max-w-2xl text-base">
         Every plate photo we scanned, with the foods the AI found on it and how much was left. Use it to check the numbers
         on the other pages.
@@ -95,7 +95,7 @@ export function BehindScenesPage() {
         <PlatesGallery captures={pictures.data} neighborExcluded={coverage.data?.coverage.capturesWithNeighborFoodExcluded ?? 0} />
       )}
 
-      <h2 className="font-display text-2xl font-semibold text-ink">Foods found on each plate</h2>
+      <h2 className="font-display text-5xl font-semibold text-ink leading-tight">Foods found on each plate</h2>
       {plates.status === 'loading' && <LoadingBlock label="Loading plates" />}
       {plates.status === 'error' && <EmptyState title="Couldn't load plates.">{plates.error}</EmptyState>}
       {plates.status === 'ready' && plates.data.length === 0 && (
@@ -108,7 +108,7 @@ export function BehindScenesPage() {
               <Card className="grid gap-4 sm:grid-cols-[12rem_1fr]">
                 <PlatePhoto objectId={plate.imageObjectId} alt={`Plate ${n + 1} at ${MEAL_NAME[meal].toLowerCase()}`} />
                 <div>
-                  <h2 className="text-lg font-semibold">
+                  <h2 className="text-4xl font-semibold leading-tight">
                     Plate {n + 1}:{' '}
                     {plate.plateWastePercent === null ? 'no percent' : `${formatPercent(plate.plateWastePercent)} left`}
                   </h2>

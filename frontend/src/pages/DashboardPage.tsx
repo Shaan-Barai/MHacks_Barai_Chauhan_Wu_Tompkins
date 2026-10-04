@@ -1,6 +1,6 @@
 /**
  * Dashboard (UI.md, BIG-PLAN v2): lookback buttons, two headline cards (Total
- * waste in Pixels wasted, Relative impact in points), the daily pixels chart,
+ * waste in Pixels wasted, Relative impact in points), the daily waste-units line chart,
  * the AI recommendation, foods to target (pixels per portion), most wasted
  * (pixels), and relative nutrition points kept apart from the impact score.
  * Plate photos are on Behind the scenes. A dining hall picker next
@@ -50,7 +50,7 @@ export function DashboardPage({
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="font-display text-3xl font-semibold text-ink">Dashboard</h1>
+          <h1 className="font-display text-6xl font-semibold text-ink leading-tight">Dashboard</h1>
           {halls.length > 0 && (
             <select
               aria-label="Dining hall"
@@ -81,8 +81,8 @@ export function DashboardPage({
       {impact.data && !noPlates && <HeadlineCards data={impact.data} />}
 
       <Card>
-        <h2 className="text-lg font-semibold text-ink">Pixels wasted by day</h2>
-        <p className="mt-1 text-sm">Hover over or tab to a bar to see the exact number.</p>
+        <h2 className="text-4xl font-semibold text-ink leading-tight">Waste units per day</h2>
+        <p className="mt-1 text-sm">1 waste unit = 1,000 pixels of leftover food. Hover over or tab to a day to see the exact number.</p>
         <div className="mt-3">
           {series.status === 'loading' && !series.data && <LoadingBlock label="Loading chart" />}
           {series.status === 'error' && <EmptyState title="Couldn't load the chart.">{series.error}</EmptyState>}

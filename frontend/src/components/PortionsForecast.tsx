@@ -22,7 +22,7 @@ export function PortionsForecast({ hallId, date, menuRevision = 0 }: { hallId: s
 
   return (
     <Card>
-      <h2 className="text-lg font-semibold text-ink">
+      <h2 className="text-4xl font-semibold text-ink leading-tight">
         Portions forecasted
         <InfoTip id={tip} text={FORECAST_EXPLANATION} />
       </h2>

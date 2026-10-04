@@ -1,18 +1,21 @@
 /**
- * The one main chart (UI.md): Pixels wasted per day, black bars, hover (and
- * keyboard-focus) tooltip with the exact value and date. Hand-rolled SVG.
+ * The one main chart (UI.md): waste units per day (1 unit = 1,000 Pixels
+ * wasted) as a black line with a dot on each day that has data. Days without
+ * data break the line instead of dropping to zero. Hover (and keyboard focus)
+ * shows the exact value and date. Hand-rolled SVG.
  */
 import { useLayoutEffect, useRef, useState } from 'react'
-import { formatCompact, formatNumber } from '../lib/format'
+import { formatCompact, formatWasteUnits, toWasteUnits } from '../lib/format'
 import { niceCeil, type ChartBucket } from '../lib/grouping'
 
-const valueText = (v: number) => `${formatNumber(v)} pixels wasted`
+/** Buckets carry Pixels wasted; the chart shows them in waste units. */
+const valueText = (pixels: number) => `${formatWasteUnits(pixels)} waste units`
 
-const BAR = '#000000'
+const LINE = '#000000'
 const GRID = '#000000'
 const LABEL = '#000000'
 
-const M = { top: 12, right: 8, bottom: 30, left: 52 }
+const M = { top: 12, right: 12, bottom: 30, left: 52 }
 const HEIGHT = 300
 
 export function WasteChart({ buckets }: { buckets: ChartBucket[] }) {
@@ -32,27 +35,34 @@ export function WasteChart({ buckets }: { buckets: ChartBucket[] }) {
   const n = buckets.length
   const plotW = Math.max(40, width - M.left - M.right)
   const plotH = HEIGHT - M.top - M.bottom
-  const max = niceCeil(Math.max(0, ...buckets.map((b) => b.value ?? 0)))
+  const units = buckets.map((b) => (b.value === null ? null : toWasteUnits(b.value)))
+  const max = niceCeil(Math.max(0, ...units.map((u) => u ?? 0)))
   const band = plotW / Math.max(1, n)
-  const barW = Math.min(24, Math.max(2, band - 2)) // ≤24px thick, 2px surface gap
-  const yFor = (v: number) => M.top + plotH - (v / max) * plotH
+  const xFor = (i: number) => M.left + i * band + band / 2
+  const yFor = (u: number) => M.top + plotH - (u / max) * plotH
+
+  // One path, lifting the pen over days without data.
+  let d = ''
+  let penDown = false
+  units.forEach((u, i) => {
+    if (u === null) {
+      penDown = false
+      return
+    }
+    d += `${penDown ? 'L' : 'M'} ${xFor(i)} ${yFor(u)} `
+    penDown = true
+  })
 
   // ~6 evenly spaced x labels so they never collide.
   const labelEvery = Math.max(1, Math.ceil(n / 6))
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => f * max)
 
   const hovered = hover !== null ? buckets[hover] : null
-  const hoverCenter = hover !== null ? M.left + hover * band + band / 2 : 0
-  const tooltipLeft = Math.min(Math.max(hoverCenter, 70), width - 70)
+  const tooltipLeft = hover !== null ? Math.min(Math.max(xFor(hover), 80), width - 80) : 0
 
   return (
     <div ref={containerRef} className="relative">
-      <svg
-        width={width}
-        height={HEIGHT}
-        role="img"
-        aria-label="Bar chart of pixels wasted per day for the selected days"
-      >
+      <svg width={width} height={HEIGHT} role="img" aria-label="Line graph of waste units per day for the selected days">
         {/* recessive hairline gridlines + y ticks */}
         {ticks.map((t) => (
           <g key={t}>
@@ -63,34 +73,23 @@ export function WasteChart({ buckets }: { buckets: ChartBucket[] }) {
           </g>
         ))}
 
-        {/* Black bars: square at the baseline, 4px rounded data-end */}
-        {buckets.map((b, i) => {
-          if (b.value === null) return null
-          const x = M.left + i * band + (band - barW) / 2
-          const y = yFor(b.value)
-          const h = M.top + plotH - y
-          const r = Math.min(4, barW / 2, h)
-          const d =
-            h <= 0.5
-              ? ''
-              : `M ${x} ${M.top + plotH} V ${y + r} Q ${x} ${y} ${x + r} ${y} H ${x + barW - r} Q ${x + barW} ${y} ${x + barW} ${y + r} V ${M.top + plotH} Z`
-          return <path key={b.key} d={d} fill={BAR} />
-        })}
-
         {/* baseline */}
         <line x1={M.left} x2={width - M.right} y1={M.top + plotH} y2={M.top + plotH} stroke={GRID} strokeWidth={1} />
+
+        <path d={d} fill="none" stroke={LINE} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+        {units.map((u, i) =>
+          u === null ? null : (
+            <circle key={buckets[i].key} cx={xFor(i)} cy={yFor(u)} r={hover === i ? 5 : 3} fill={LINE} />
+          ),
+        )}
+        {hover !== null && units[hover] !== null && (
+          <line x1={xFor(hover)} x2={xFor(hover)} y1={M.top} y2={M.top + plotH} stroke={GRID} strokeWidth={1} strokeDasharray="2 4" />
+        )}
 
         {/* x labels */}
         {buckets.map((b, i) =>
           i % labelEvery === 0 ? (
-            <text
-              key={b.key}
-              x={M.left + i * band + band / 2}
-              y={HEIGHT - 10}
-              textAnchor="middle"
-              fontSize={12}
-              fill={LABEL}
-            >
+            <text key={b.key} x={xFor(i)} y={HEIGHT - 10} textAnchor="middle" fontSize={12} fill={LABEL}>
               {b.label}
             </text>
           ) : null,
@@ -107,9 +106,7 @@ export function WasteChart({ buckets }: { buckets: ChartBucket[] }) {
             fill="transparent"
             tabIndex={0}
             role="img"
-            aria-label={
-              b.value === null ? `${b.tooltipLabel}: no data` : `${b.tooltipLabel}: ${valueText(b.value)}`
-            }
+            aria-label={b.value === null ? `${b.tooltipLabel}: no data` : `${b.tooltipLabel}: ${valueText(b.value)}`}
             onMouseEnter={() => setHover(i)}
             onMouseLeave={() => setHover(null)}
             onFocus={() => setHover(i)}
@@ -124,9 +121,7 @@ export function WasteChart({ buckets }: { buckets: ChartBucket[] }) {
           className="pointer-events-none absolute top-1 z-10 -translate-x-1/2 whitespace-nowrap rounded-btn bg-ink px-3 py-1.5 text-sm text-cream shadow-soft"
           style={{ left: tooltipLeft }}
         >
-          <span className="font-semibold">
-            {hovered.value === null ? 'No data' : valueText(hovered.value)}
-          </span>
+          <span className="font-semibold">{hovered.value === null ? 'No data' : valueText(hovered.value)}</span>
           <span className="ml-2">{hovered.tooltipLabel}</span>
         </div>
       ) : null}

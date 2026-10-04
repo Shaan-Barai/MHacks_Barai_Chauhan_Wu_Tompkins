@@ -6,7 +6,7 @@ export function PortionBenchmarkView({ benchmark }: { benchmark: Benchmark }) {
   const ranked = benchmark.items.filter((i) => i.pixelsWastedPerPortion !== null)
   return (
     <section aria-label="Waste per portion" className="space-y-3">
-      <h2 className="text-lg font-semibold text-ink">Waste per portion</h2>
+      <h2 className="text-4xl font-semibold text-ink leading-tight">Waste per portion</h2>
       {ranked.length === 0 ? (
         <p className="text-base">
           Not available yet. This needs counted plate scans and portion counts for the same meal. Your portion counts are saved

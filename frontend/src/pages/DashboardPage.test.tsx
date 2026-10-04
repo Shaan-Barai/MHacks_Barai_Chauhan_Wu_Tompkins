@@ -23,13 +23,13 @@ describe('DashboardPage (mock data)', () => {
     const today = todayIso()
     const { container } = render(<DashboardPage range={{ start: addDays(today, -29), end: today }} onRangeChange={() => {}} />)
 
-    expect(await screen.findByLabelText(/^Total waste: [\d,]+ pixels$/)).toBeInTheDocument()
+    expect(await screen.findByLabelText(/^Total waste: [\d,.]+ waste units$/)).toBeInTheDocument()
     expect(screen.getByLabelText(/^Relative impact: [\d,.]+ points$/)).toBeInTheDocument()
-    expect(await screen.findByRole('heading', { name: 'Pixels wasted by day' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Waste units per day' })).toBeInTheDocument()
     expect(await screen.findByText('Foods to target')).toBeInTheDocument()
     // Plate photos moved to Behind the scenes; the daily chart sits above "What to try next".
     expect(screen.queryByRole('heading', { name: 'Plates' })).toBeNull()
-    const chart = screen.getByRole('heading', { name: 'Pixels wasted by day' })
+    const chart = screen.getByRole('heading', { name: 'Waste units per day' })
     const next = await screen.findByRole('heading', { name: 'What to try next' })
     expect(chart.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByRole('heading', { name: /Nutrition lost/ })).toBeInTheDocument()

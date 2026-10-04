@@ -248,6 +248,46 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "waterM3PerKg": 0.442,
     "impactUsdPerKg": 1.14,
     "largestFactor": "water"
+  },
+  {
+    "factorKey": "halal-chicken",
+    "food": "Halal Chicken",
+    "station": "Halal Bros",
+    "weightGPerCm2": 1.2,
+    "kgCo2ePerKg": 12.16,
+    "waterM3PerKg": 0.812,
+    "impactUsdPerKg": 3.53,
+    "largestFactor": "carbon"
+  },
+  {
+    "factorKey": "yellow-rice",
+    "food": "Yellow Rice",
+    "station": "Halal Bros",
+    "weightGPerCm2": 1.6,
+    "kgCo2ePerKg": 1.8,
+    "waterM3PerKg": 0.862,
+    "impactUsdPerKg": 1.64,
+    "largestFactor": "water"
+  },
+  {
+    "factorKey": "diced-tomatoes",
+    "food": "Diced Tomatoes",
+    "station": "Halal Bros",
+    "weightGPerCm2": 0.8,
+    "kgCo2ePerKg": 2.09,
+    "waterM3PerKg": 0.37,
+    "impactUsdPerKg": 0.95,
+    "largestFactor": "water"
+  },
+  {
+    "factorKey": "shredded-lettuce",
+    "food": "Shredded Lettuce",
+    "station": "Halal Bros",
+    "weightGPerCm2": 0.4,
+    "kgCo2ePerKg": 0.53,
+    "waterM3PerKg": 0.102,
+    "impactUsdPerKg": 0.25,
+    "largestFactor": "water"
   }
 ];
 
@@ -367,6 +407,26 @@ export const NUTRITION_FACTORS: NutritionFactor[] = [
     "factorKey": "strawberry-shortcake-bar",
     "nutrientDaysPerKg": 0.55,
     "kcalPerKg": 3976
+  },
+  {
+    "factorKey": "halal-chicken",
+    "nutrientDaysPerKg": 0.73,
+    "kcalPerKg": 1903
+  },
+  {
+    "factorKey": "yellow-rice",
+    "nutrientDaysPerKg": 0.26,
+    "kcalPerKg": 1500
+  },
+  {
+    "factorKey": "diced-tomatoes",
+    "nutrientDaysPerKg": 0.63,
+    "kcalPerKg": 180
+  },
+  {
+    "factorKey": "shredded-lettuce",
+    "nutrientDaysPerKg": 0.34,
+    "kcalPerKg": 140
   }
 ];
 
@@ -599,6 +659,46 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "ingredients": "cake and crumble base (enriched wheat flour, sugar, oat flour, palm oil, soybean oil, dried egg whites, nonfat dry milk, soy lecithin, salt), strawberry layer (sugar, corn syrup, strawberry puree, gelatin [pork], citric acid, red 40, natural flavor), vanilla coating and crumb topping (sugar, enriched wheat flour, palm oil, dried strawberry crumbs)",
     "allergens": "eggs; milk; oats; pork; soy; wheat",
     "labelServingG": 41,
+    "menuCo2Label": "low"
+  },
+  {
+    "factorKey": "halal-chicken",
+    "food": "Halal Chicken",
+    "station": "Halal Bros",
+    "visibleComponents": null,
+    "ingredients": null,
+    "allergens": null,
+    "labelServingG": 226,
+    "menuCo2Label": "medium"
+  },
+  {
+    "factorKey": "yellow-rice",
+    "food": "Yellow Rice",
+    "station": "Halal Bros",
+    "visibleComponents": null,
+    "ingredients": null,
+    "allergens": null,
+    "labelServingG": 316,
+    "menuCo2Label": "low"
+  },
+  {
+    "factorKey": "diced-tomatoes",
+    "food": "Diced Tomatoes",
+    "station": "Halal Bros",
+    "visibleComponents": null,
+    "ingredients": null,
+    "allergens": null,
+    "labelServingG": 50,
+    "menuCo2Label": "low"
+  },
+  {
+    "factorKey": "shredded-lettuce",
+    "food": "Shredded Lettuce",
+    "station": "Halal Bros",
+    "visibleComponents": null,
+    "ingredients": null,
+    "allergens": null,
+    "labelServingG": 50,
     "menuCo2Label": "low"
   }
 ];

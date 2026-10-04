@@ -86,6 +86,10 @@ export interface AnalysisAttempt {
    * `promptVersion` above describe the classification stage.
    */
   segmentation?: SegmentationResult;
+  /** Per-capture pixel→cm² calibration (BIG-PLAN D2). Absent on legacy attempts. */
+  calibration?: PlateCalibration;
+  /** Object id of the segmented overlay JPEG in object storage (BIG-PLAN D7). */
+  overlayObjectId?: string;
 }
 
 /**
@@ -239,4 +243,140 @@ export interface ApiError {
   message: string;
   details?: Record<string, unknown>;
   retryable: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Waste impact (BIG-PLAN.md D1–D8, 2026-10-03). Pixels wasted stays the raw
+// stored measurement; grams and impact are labeled ESTIMATES derived at read
+// time by analytics from a per-capture plate calibration and the factor
+// tables (menu_waste_factors.csv, menu_nutrition_factors.csv).
+// ---------------------------------------------------------------------------
+
+export type CalibrationFlag = 'calibration_default' | 'plate_cut_off' | 'bowl_size_assumed';
+
+/** Per-capture pixel→area calibration. Persisted with the analysis attempt. */
+export interface PlateCalibration {
+  /** 'plate-fit-v1' = Gemini plate box → SAM plate mask → outer-rim circle fit. */
+  method: 'plate-fit-v1' | 'configured-default';
+  /** Physical plate diameter assumed for the fit (26.7 cm / 10.5"). */
+  plateDiameterCm: number;
+  plateDiameterPx: number;
+  /** (plateDiameterCm / plateDiameterPx)^2 */
+  cm2PerPx: number;
+  dishType?: 'plate' | 'bowl' | 'other';
+  fullyVisible?: boolean;
+  flags: CalibrationFlag[];
+}
+
+/** One row of menu_waste_factors.csv. Score excludes nutrition (D1). */
+export interface WasteFactor {
+  /** slug(food), e.g. 'ancho-flank-steak'; menu items match via slug(displayName) (D4). */
+  factorKey: string;
+  food: string;
+  station: string;
+  weightGPerCm2: number;
+  /** C: kg CO2e per kg of food as served. */
+  kgCo2ePerKg: number;
+  /** W: m³ freshwater withdrawn per kg. */
+  waterM3PerKg: number;
+  /** 0.19·C + 1.50·W, dollars per kg. No nutrition term. */
+  impactUsdPerKg: number;
+  largestFactor: 'carbon' | 'water';
+}
+
+/** One row of menu_nutrition_factors.csv. Reported separately; never in the score. */
+export interface NutritionFactor {
+  factorKey: string;
+  nutrientDaysPerKg: number;
+  kcalPerKg: number;
+}
+
+export type ImpactUnavailableReason = 'no_calibration' | 'no_factor' | 'unknown_item';
+
+/** Derived (never stored) estimate for a set of counted pixels. */
+export interface WasteImpact {
+  pixels: number;
+  cm2: number | null;
+  grams: number | null;
+  kgCo2e: number | null;
+  waterM3: number | null;
+  /** 0.19·C + 1.50·W applied to kg wasted. */
+  impactUsd: number | null;
+  /** Separate statistic. NOT part of impactUsd. */
+  nutrientDaysLost: number | null;
+  wasteFactorsVersion: string;
+  unavailableReason?: ImpactUnavailableReason;
+}
+
+/** Per-portion rates over the same hall/date/service/menu version (D5). */
+export interface PerPortion {
+  grams: number | null;
+  pixels: number;
+  impactUsd: number | null;
+}
+
+export interface ItemImpactRow {
+  /** null = unknown / not-on-menu food bucket. */
+  itemId: string | null;
+  displayName: string;
+  factorKey: string | null;
+  impact: WasteImpact;
+  /** Summed portions served across the window; null when missing. */
+  portionsServed: number | null;
+  portionsSource: 'manual' | 'csv' | 'demo' | null;
+  /** null when portions are missing or zero, or the item is unknown. */
+  perPortion: PerPortion | null;
+}
+
+/** GET /api/dashboard/impact?start&end[&hallId] */
+export interface ImpactDashboard {
+  window: { start: string; end: string; hallId?: string };
+  totals: WasteImpact & { captures: number; analyzedCaptures: number; excludedCaptures: number };
+  /** Ranked by perPortion.grams desc ("Foods to target"); unavailable rates last. */
+  targets: ItemImpactRow[];
+  /** Ranked by impact.grams desc, then pixels ("Most wasted"). */
+  mostWasted: ItemImpactRow[];
+  coverage: {
+    itemsWithFactor: number;
+    itemsWithoutFactor: number;
+    itemsWithPortions: number;
+    capturesWithDefaultCalibration: number;
+  };
+  labels: { estimate: true; demoPortions: boolean };
+}
+
+/** GET /api/captures?start&end — recent plates for the dashboard gallery. */
+export interface CaptureListItem {
+  eventId: string;
+  capturedAt: string;
+  serviceId: string;
+  source: CaptureSource;
+  state: ProcessingState;
+  pixelsWasted: number | null;
+  grams: number | null;
+  items: Array<{ itemId: string | null; displayName: string; pixels: number; grams: number | null }>;
+  hasOverlay: boolean;
+}
+
+export interface SignedImage {
+  objectId: string;
+  url: string;
+  expiresAt: string;
+}
+
+/** GET /api/captures/:eventId/images */
+export interface CaptureImages {
+  eventId: string;
+  original: SignedImage | null;
+  overlay: SignedImage | null;
+  masks: Array<SignedImage & { itemId: string | null; displayName: string }>;
+}
+
+/** GET /api/recommendation?start&end[&hallId] */
+export interface Recommendation {
+  text: string;
+  bullets: Array<{ text: string; metric: string }>;
+  source: 'gemini' | 'fallback';
+  generatedAt: string;
+  inputVersion: string;
 }

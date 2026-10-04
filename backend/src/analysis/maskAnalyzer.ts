@@ -37,6 +37,12 @@ export class MaskAnalyzer implements Analyzer {
       `[vision] ${input.event.eventId}: Gemini boxes ${loc.passBoxes.map((n, k) => `pass ${k + 1}=${n ?? 'failed'}`).join(', ')}, after merge=${loc.mergedBoxes}` +
         (loc.failedPasses.length ? ` (failed: ${loc.failedPasses.join(', ')})` : ''),
     );
+    const dish = result.targetDish;
+    console.log(
+      `[vision] ${input.event.eventId}: target dish ${dish.found ? dish.dishType ?? 'found' : 'not found'}, ` +
+        (dish.clipApplied ? `clipped ${dish.clippedPx} px` : `no clip (${dish.clipUnavailableReason ?? 'n/a'})`) +
+        `, other-dish boxes ${dish.excludedBoxes}, other-dish px ${dish.otherDishPx}`,
+    );
     return result;
   }
 }

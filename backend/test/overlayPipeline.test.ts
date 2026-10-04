@@ -121,3 +121,37 @@ test('PLATE_DIAMETER_PX is no longer read (BIG-PLAN v2: no plate calibration)', 
   const config = loadConfig({ PLATE_DIAMETER_PX: '0' });
   assert.equal('plateDiameterPx' in config, false);
 });
+
+// Target-dish answer (vision localize v4): eggs on the scanned plate, toast on a neighboring plate.
+const targetDishGemini = createGeminiGateway({
+  env: {},
+  mockTransport: () =>
+    JSON.stringify({
+      target_dish: { dish_type: 'plate', box_2d: [0, 0, 600, 600], fully_visible: true },
+      pieces: [
+        { ingredient: 'scrambled eggs', menu_id: 1, box_2d: [0, 0, 250, 250], on_target_dish: true },
+        { ingredient: 'toast', menu_id: 2, box_2d: [700, 700, 900, 900], on_target_dish: false },
+      ],
+    }),
+});
+
+test('target-dish counting: neighbor food is not counted and shows up in impact coverage', async (t) => {
+  const s = await startTestServer(new MaskAnalyzer(targetDishGemini, segmenter));
+  t.after(() => s.close());
+  await s.seedMenuAndBaselines();
+  const eventId = 'cap_target_dish';
+  const imageId = await uploadPng(s, eventId, png((x, y) => ((x >> 6) + (y >> 6)) % 2 ? 200 : 60));
+  const res = await s.api('POST', '/api/captures', {
+    eventId, hallId: HALL, serviceId: SERVICE, capturedAt: '2026-10-03T17:00:00Z', imageObjectId: imageId, geometry: GEOMETRY, source: 'replay',
+  });
+  assert.equal(res.status, 201, JSON.stringify(res.json));
+  assert.equal(res.json.event.state, 'succeeded');
+  assert.ok(res.json.attempt.qualityFlags.includes('neighbor_food_excluded'), JSON.stringify(res.json.attempt.qualityFlags));
+  const counted = res.json.measurements.map((m: any) => m.itemId);
+  assert.deepEqual(counted, ['item_eggs'], 'only the target dish food is counted');
+
+  const d = await s.api('GET', `/api/dashboard/impact?start=2026-10-03&end=2026-10-03&hallId=${HALL}`);
+  assert.equal(d.status, 200, JSON.stringify(d.json));
+  assert.equal(d.json.coverage.capturesWithNeighborFoodExcluded, 1);
+  assert.equal(d.json.totals.pixels, res.json.attempt.segmentation.capturePixelsWasted);
+});

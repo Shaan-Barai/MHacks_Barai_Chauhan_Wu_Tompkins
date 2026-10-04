@@ -24,7 +24,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { WASTE_FACTORS, findWasteFactor } from 'scrap-data';
 import { startTestServer, type TestServer } from './helpers.js';
-import type { GeminiGateway } from '@scrap/vision';
+import { NEIGHBOR_FOOD_EXCLUDED, type GeminiGateway } from '@scrap/vision';
 import { NEIGHBOR_FOOD_EXCLUDED_FLAG, recommendationFacts, recommendationInputVersion } from '@scrap/analytics';
 import type { MenuBundle, QualityFlag } from '../src/types.js';
 
@@ -90,6 +90,10 @@ async function seeded(opts: Parameters<typeof startTestServer>[1] = {}): Promise
   assert.equal(put.status, 200, JSON.stringify(put.json));
   return s;
 }
+
+test('analytics counts the same neighbor flag that vision emits', () => {
+  assert.equal(NEIGHBOR_FOOD_EXCLUDED, NEIGHBOR_FOOD_EXCLUDED_FLAG);
+});
 
 test('fixture factor rows exist as the hand calculation assumes', () => {
   const ham = findWasteFactor('Baked Boneless Ham');

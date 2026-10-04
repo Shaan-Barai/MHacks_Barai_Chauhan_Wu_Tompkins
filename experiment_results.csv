@@ -1,0 +1,83 @@
+photo,menu_source,run,dish,pixels,grams,unknown_pct
+IMG_2695,claude,1,Sticky Rice,167327,131.01,0.00
+IMG_2695,claude,1,Vegetable Stir Fry Blend,145580,56.99,0.00
+IMG_2696,claude,1,Cheese Pizza,332150,201.51,0.00
+IMG_2697,claude,1,Baked Sweet Potatoes,112512,123.65,0.00
+IMG_2697,claude,1,Roasted Cauliflower,105257,57.84,0.00
+IMG_2697,claude,1,Baked Boneless Ham,38879,19.23,0.00
+IMG_2698,claude,1,Vegetable Stir Fry Blend,259726,82.62,0.00
+IMG_2698,claude,1,Sticky Rice,17714,11.27,0.00
+IMG_2699,claude,1,Vegetable Stir Fry Blend,125376,49.90,0.00
+IMG_2699,claude,1,Sticky Rice,39966,31.82,0.00
+IMG_2699,claude,1,Oven Roasted Garlic Potatoes,954,0.76,0.00
+IMG_2700,claude,1,Panzanella Salad,153906,93.44,0.00
+IMG_2701,claude,1,Michigan Farmers 4 Bean Stew,24411,26.74,0.00
+IMG_2702,claude,1,Pepperoni Pizza,113760,89.48,0.00
+IMG_2703,claude,1,Vegetable Stir Fry Blend,36569,38.50,0.00
+IMG_2703,claude,1,Farro,8191,11.86,0.00
+IMG_2704,claude,1,Cheese Pizza,121533,75.39,0.00
+IMG_2705,claude,1,,0,,100.00
+IMG_2706,claude,1,Chocolate Coconut Cream Pie,126503,238.31,11.50
+IMG_2707,claude,1,Roasted Cauliflower,46363,65.94,0.00
+IMG_2707,claude,1,Baked Sweet Potatoes,35797,101.82,0.00
+IMG_2695,claude,2,Sticky Rice,167055,130.79,0.00
+IMG_2695,claude,2,Vegetable Stir Fry Blend,133664,52.33,0.00
+IMG_2696,claude,2,,0,,0.00
+IMG_2697,claude,2,Baked Sweet Potatoes,112278,123.40,0.00
+IMG_2697,claude,2,Roasted Cauliflower,107616,59.14,0.00
+IMG_2697,claude,2,Baked Boneless Ham,38902,19.24,0.00
+IMG_2698,claude,2,Vegetable Stir Fry Blend,218965,69.65,0.00
+IMG_2698,claude,2,Sticky Rice,18250,11.61,0.00
+IMG_2699,claude,2,Vegetable Stir Fry Blend,110305,43.91,0.00
+IMG_2699,claude,2,Sticky Rice,66377,52.84,0.00
+IMG_2700,claude,2,Panzanella Salad,152778,92.76,0.00
+IMG_2701,claude,2,Michigan Farmers 4 Bean Stew,25315,27.73,0.00
+IMG_2702,claude,2,Pepperoni Pizza,113738,89.47,0.00
+IMG_2703,claude,2,Vegetable Stir Fry Blend,36128,38.04,0.00
+IMG_2703,claude,2,Sticky Rice,7235,15.23,0.00
+IMG_2704,claude,2,Cheese Pizza,121548,75.40,0.00
+IMG_2705,claude,2,,0,,100.00
+IMG_2706,claude,2,Chocolate Coconut Cream Pie,126528,233.44,11.55
+IMG_2707,claude,2,Roasted Cauliflower,46384,65.97,0.00
+IMG_2707,claude,2,Baked Sweet Potatoes,36208,102.99,0.00
+IMG_2695,gemini,1,Sticky Rice,207535,162.49,0.00
+IMG_2695,gemini,1,Vegetable Stir Fry Blend,124091,48.58,0.00
+IMG_2696,gemini,1,Cheese Pizza,217317,131.84,0.00
+IMG_2696,gemini,1,Cheese Bread,111774,47.47,0.00
+IMG_2697,gemini,1,Baked Sweet Potatoes,113745,125.01,0.00
+IMG_2697,gemini,1,Roasted Cauliflower,107894,59.29,0.00
+IMG_2697,gemini,1,Baked Boneless Ham,38978,19.28,0.00
+IMG_2698,gemini,1,Vegetable Stir Fry Blend,249930,79.50,0.00
+IMG_2698,gemini,1,Sticky Rice,17610,11.20,0.00
+IMG_2699,gemini,1,Vegetable Stir Fry Blend,104456,41.58,0.00
+IMG_2699,gemini,1,Sticky Rice,62516,49.77,0.00
+IMG_2700,gemini,1,Panzanella Salad,155801,94.59,0.00
+IMG_2701,gemini,1,Michigan Farmers 4 Bean Stew,23796,26.07,0.00
+IMG_2702,gemini,1,Pepperoni Pizza,113762,89.48,0.00
+IMG_2703,gemini,1,Vegetable Stir Fry Blend,35939,37.84,0.00
+IMG_2703,gemini,1,Sticky Rice,6922,14.58,0.00
+IMG_2704,gemini,1,Cheese Pizza,121473,75.36,0.00
+IMG_2705,gemini,1,,0,,100.00
+IMG_2706,gemini,1,Chocolate Coconut Cream Pie,126521,237.85,11.56
+IMG_2707,gemini,1,Roasted Cauliflower,46312,65.86,0.00
+IMG_2707,gemini,1,Baked Sweet Potatoes,35768,101.74,0.00
+IMG_2695,gemini,2,Sticky Rice,180291,141.16,0.00
+IMG_2695,gemini,2,Vegetable Stir Fry Blend,135355,52.99,0.00
+IMG_2696,gemini,2,Pepperoni Pizza,329032,199.62,0.00
+IMG_2697,gemini,2,Baked Sweet Potatoes,112750,123.91,0.00
+IMG_2697,gemini,2,Roasted Cauliflower,107802,59.24,0.00
+IMG_2697,gemini,2,Baked Boneless Ham,38952,19.26,0.00
+IMG_2698,gemini,2,Vegetable Stir Fry Blend,230225,73.23,0.00
+IMG_2698,gemini,2,Sticky Rice,18843,11.99,0.00
+IMG_2699,gemini,2,Vegetable Stir Fry Blend,109284,43.50,0.00
+IMG_2699,gemini,2,Sticky Rice,64403,51.27,0.00
+IMG_2700,gemini,2,Panzanella Salad,149081,90.51,0.00
+IMG_2701,gemini,2,Michigan Farmers 4 Bean Stew,23902,26.18,0.00
+IMG_2702,gemini,2,Pepperoni Pizza,113765,89.49,0.00
+IMG_2703,gemini,2,Vegetable Stir Fry Blend,36672,38.61,0.00
+IMG_2703,gemini,2,Sticky Rice,13061,27.50,0.00
+IMG_2704,gemini,2,Cheese Pizza,121563,75.41,0.00
+IMG_2705,gemini,2,,0,,100.00
+IMG_2706,gemini,2,Chocolate Coconut Cream Pie,126558,234.95,11.53
+IMG_2707,gemini,2,Roasted Cauliflower,46403,65.99,0.00
+IMG_2707,gemini,2,Baked Sweet Potatoes,35792,101.81,0.00

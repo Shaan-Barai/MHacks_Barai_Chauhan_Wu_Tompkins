@@ -77,7 +77,7 @@ harmless `torch.jit.script` FutureWarning.
 
 **Settings `sam2-box-v1`:** `multimask_output=False`; binary threshold at
 logit 0.0 (the predictor's `mask_threshold`); no hole filling in the worker
-(the dish region's fill happens in TypeScript, `dish-region-v2`); no
+(the dish region's fill happens in TypeScript, `dish-region-v3`); no
 small-component removal; float32 on MPS/CPU (no CUDA autocast).
 
 ## Measured on the team MacBook (M1 Max, MPS)

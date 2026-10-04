@@ -180,7 +180,7 @@ r.localization;  // { passes, geminiCalls, passBoxes, failedPasses, mergedBoxes 
    boxes (for the overlay and diagnostics only), and the target-dish box, on
    the same image (one embedding; split into 128-box chunks only if needed).
    Masks are validated: exact size, strictly 0/255, nonempty, count matches.
-5. **Target-dish clip (`targetDish.ts`, `dish-region-v2`).** The SAM dish
+5. **Target-dish clip (`targetDish.ts`, `dish-region-v3`).** The SAM dish
    mask is cut to the Gemini dish box plus a margin (max(dilation, 5% of the
    box's longer side)), so a mask that bled onto a neighbour cannot grow the
    region. Specks are dropped, but **every significant piece is kept**
@@ -310,7 +310,9 @@ Before v2 these photos counted the neighbours' sprouts (13,919 px) and bread
 the largest piece of the dish mask; on IMG_2697 the fork split the plate, so
 the half-plate region clipped 216,760 px of real ham and sweet potato);
 `dish-region-v2` keeps every significant piece and rejects regions under 50%
-of the dish box. These are phone photos with several dishes in frame, not
+of the dish box; `dish-region-v3` also unions the ellipse inscribed in the dish box
+(grown by the dilation), so a SAM dish mask that misses part of a tilted or
+edge-touching bowl (IMG_2695, D1) cannot clip food Gemini put on the target dish. These are phone photos with several dishes in frame, not
 images from the mounted camera.
 
 `scripts/waste-impact.mjs <imagesDir> <menu_waste_factors_EastQuad.csv> [outDir]`

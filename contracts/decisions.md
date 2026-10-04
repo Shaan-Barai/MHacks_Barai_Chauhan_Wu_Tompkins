@@ -374,3 +374,40 @@ evaluation and team thresholds):
 - Frontend keeps main's ScrapSaver layout and plain-language copy, labels the
   metric **Pixels wasted** (unscaled pixels), and shows clean plates, plates
   not counted, and food not on the menu (unclassified pixels) in day details.
+
+## 2026-10-03: waste impact, waste per portion, images, recommendation (BIG-PLAN.md)
+
+User request (2026-10-03): camera → R2/SpacetimeDB → Gemini + SAM → waste
+impact → dashboard. Full plan and tracker: [BIG-PLAN.md](../BIG-PLAN.md).
+
+- **D1 score without nutrition:** `waste_impact_usd_per_kg = 0.19·C + 1.50·W`
+  (C kg CO2e/kg, W m³ freshwater/kg, `menu_waste_factors.csv`). Nutrition
+  (nutrient-days) moves to `menu_nutrition_factors.csv` and is reported
+  separately as "nutrition lost", never added to the score.
+- **D2 pixels → grams (estimate):** per-capture `cm²/px = (26.7 /
+  plate_diameter_px)²` from the `plate-fit-v1` calibration (Gemini plate box →
+  SAM plate mask → rim circle fit), falling back to `PLATE_DIAMETER_PX`
+  (flag `calibration_default`); `grams = px × cm²/px × weight_g_per_cm2`.
+  This is the independently specified calibration AGENTS.md §2/§7 required;
+  grams, CO2e, water and $ are always labeled estimates. Pixels wasted stays
+  the raw stored measurement.
+- **D3** grams/impact are derived in `analytics` at read time
+  (`wasteFactorsVersion` stamp); only pixels + calibration are persisted.
+- **D4** menu item ↔ factor row via `factorKey = slug(displayName)`; items
+  without a factor show "no impact factor", never zero.
+- **D5 waste per portion:** Σ estimated grams ÷ Σ portions served (same
+  hall/date/service/menu version), plus pixels and $ per portion. "Foods to
+  target" ranks by grams per portion; "Most wasted" by total grams. Missing or
+  zero portions ⇒ unavailable.
+- **D6** demo dinner menu = the 23 factor-table foods with Gemini visible
+  descriptions; dummy portions are seeded, source `demo`, labeled.
+- **D7** R2 holds photo, per-food masks, and a segmented overlay JPEG per
+  capture (`image_object.association.kind = 'overlay'`); dashboard reads via
+  short-lived URLs from `GET /api/captures/:id/images`.
+- **D8** AI recommendation via the Gemini gateway, grounded in the
+  per-portion ranking/totals/impact, citing numbers; labeled rule-based
+  fallback; never claims a cause.
+- Contract additions: `PlateCalibration`, `WasteFactor`, `NutritionFactor`,
+  `WasteImpact`, `PerPortion`, `ItemImpactRow`, `ImpactDashboard`,
+  `CaptureListItem`, `SignedImage`, `CaptureImages`, `Recommendation`;
+  `AnalysisAttempt.calibration` / `overlayObjectId`; association kind `overlay`.

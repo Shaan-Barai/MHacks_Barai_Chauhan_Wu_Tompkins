@@ -82,8 +82,8 @@ describe('food rows with estimates', () => {
   ]
 
   it('Most wasted puts the chips right after the food name, and explains missing ones without 0', () => {
-    render(<MostWasted rows={rows} />)
-    const items = within(screen.getByRole('list', { name: 'Foods ranked by Pixels wasted' })).getAllByRole('listitem')
+    render(<MostWasted rows={rows} initialRank="pixels" />)
+    const items = within(screen.getByRole('list', { name: 'Foods ranked by total pixels wasted' })).getAllByRole('listitem')
     expect(items[0]).toHaveTextContent('Pepperoni Pizza')
     expect(items[0]).toHaveTextContent('1,200 g19 kg CO2e2,300 L waterest.')
     expect(items[1]).toHaveTextContent('Estimated: 38 g, 1.1 kg CO2e, 18 L water.')

@@ -98,26 +98,40 @@ describe('FoodsToTarget', () => {
 })
 
 describe('MostWasted', () => {
-  it('lists every food by pixels with relative impact points per row, or the reason it has none', () => {
-    const d = dashboard()
-    render(<MostWasted rows={d.mostWasted} />)
-    expect(screen.getByRole('heading', { name: 'Pepperoni Pizza was the most wasted food.' })).toBeInTheDocument()
-    expect(screen.getByText('points are relative')).toBeInTheDocument()
-    const items = within(screen.getByRole('list', { name: 'Foods ranked by Pixels wasted' })).getAllByRole('listitem')
-    expect(items.map((li) => li.querySelector('span')?.textContent)).toEqual([
-      'Pepperoni Pizza',
-      'Ancho Flank Steak',
-      "Chef's Soup of the Day",
-      'Farro',
-      'Food not on the menu',
-    ])
+  const names = () =>
+    within(screen.getByRole('list', { name: /^Foods ranked by/ }))
+      .getAllByRole('listitem')
+      .map((li) => li.querySelector('span')?.textContent)
+
+  it('ranks by pixels per portion by default; foods without a rate follow with the reason', () => {
+    render(<MostWasted rows={dashboard().mostWasted} />)
+    expect(screen.getByRole('heading', { name: 'Ancho Flank Steak had the most food left per portion.' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Per portion', pressed: true })).toBeInTheDocument()
+    expect(names()).toEqual(['Ancho Flank Steak', 'Pepperoni Pizza', "Chef's Soup of the Day", 'Farro', 'Food not on the menu'])
+    const items = within(screen.getByRole('list', { name: /^Foods ranked by/ })).getAllByRole('listitem')
+    expect(items[0]).toHaveTextContent('2,857 pixels per portion')
+    expect(items[0]).toHaveTextContent('400,000 pixels in total')
+    expect(items[3]).toHaveTextContent('No portions entered')
+    expect(items[4]).toHaveTextContent('Not on the menu, so it has no portions')
+    expect(document.body.textContent).not.toMatch(PHYSICAL_UNITS)
+  })
+
+  it('toggles to total pixels and to impact points', () => {
+    render(<MostWasted rows={dashboard().mostWasted} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Total pixels' }))
+    expect(screen.getByRole('heading', { name: 'Pepperoni Pizza had the most food left in total.' })).toBeInTheDocument()
+    expect(names()).toEqual(['Pepperoni Pizza', 'Ancho Flank Steak', "Chef's Soup of the Day", 'Farro', 'Food not on the menu'])
+    const items = within(screen.getByRole('list', { name: /^Foods ranked by/ })).getAllByRole('listitem')
     expect(items[0]).toHaveTextContent('900,000 pixels')
-    expect(items[0]).toHaveTextContent('5,365 impact points (greenhouse gases 14,454, water 1,746)')
-    expect(items[1]).toHaveTextContent('13,396 impact points')
-    expect(items[2]).toHaveTextContent('70,000 pixels')
-    expect(items[2]).toHaveTextContent('No impact data for this food')
-    expect(items[3]).toHaveTextContent('33.5 impact points (greenhouse gases 41.3, water 17.1)')
-    expect(items[4]).toHaveTextContent('Not on the menu, so no impact points')
+    expect(items[0]).toHaveTextContent('5,365 impact points')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Impact points' }))
+    expect(screen.getByText('points are relative')).toBeInTheDocument()
+    expect(names()).toEqual(['Ancho Flank Steak', 'Pepperoni Pizza', 'Farro', "Chef's Soup of the Day", 'Food not on the menu'])
+    const impactItems = within(screen.getByRole('list', { name: /^Foods ranked by/ })).getAllByRole('listitem')
+    expect(impactItems[0]).toHaveTextContent('13,396 impact points')
+    expect(impactItems[1]).toHaveTextContent('greenhouse gases 14,454, water 1,746')
+    expect(impactItems[3]).toHaveTextContent('No impact data for this food')
     expect(document.body.textContent).not.toMatch(PHYSICAL_UNITS)
   })
 })
@@ -128,10 +142,11 @@ describe('factor source note', () => {
       row({ displayName: 'Scrambled Eggs', factorTable: 'common-500' }),
       row({ displayName: 'Ancho Flank Steak', factorTable: 'east-quad' }),
     ]
-    render(<MostWasted rows={rows} />)
-    const items = within(screen.getByRole('list', { name: 'Foods ranked by Pixels wasted' })).getAllByRole('listitem')
-    expect(items[0]).toHaveTextContent('factors: common foods table')
-    expect(items[1]).not.toHaveTextContent('common foods table')
+    render(<MostWasted rows={rows} initialRank="pixels" />)
+    const items = within(screen.getByRole('list', { name: 'Foods ranked by total pixels wasted' })).getAllByRole('listitem')
+    const item = (name: string) => items.find((li) => li.textContent?.includes(name))!
+    expect(item('Scrambled Eggs')).toHaveTextContent('factors: common foods table')
+    expect(item('Ancho Flank Steak')).not.toHaveTextContent('common foods table')
   })
 })
 

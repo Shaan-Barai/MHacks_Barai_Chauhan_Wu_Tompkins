@@ -302,7 +302,11 @@ export interface SignedImage {
 /** GET /api/captures/:eventId/images */
 export interface CaptureImages {
   eventId: string
+  /** The normalized 1024x1024 photo the AI analyzed. */
   original: SignedImage | null
+  /** The full photo exactly as the camera took it (scans from before this existed have none). */
+  raw?: SignedImage | null
+  scan?: { deviceId: string; timestampBasis: string; sourceName?: string; demo: boolean }
   overlay: SignedImage | null
   masks: Array<SignedImage & { itemId: string | null; displayName: string }>
 }
@@ -418,4 +422,41 @@ export interface AuthSession {
   signedIn: boolean
   authAvailable: boolean
   expiresAt?: string
+}
+
+/** GET /api/dashboard/totals: one headline period, in pixels (relative impact points beside it). */
+export interface WasteTotal {
+  start: IsoDate
+  end: IsoDate
+  pixels: number
+  impactPoints: number | null
+  captures: number
+  analyzedCaptures: number
+  /** Generated sample scans counted in this period. */
+  sampleCaptures: number
+  /** Calibrated estimates for the period; null when no plate in it had a calibrated camera (never 0). */
+  estimated?: { grams: number; kgCo2e: number | null; waterLitres: number | null; calibratedCaptures: number } | null
+}
+
+export interface WasteTotals {
+  today: WasteTotal
+  week: WasteTotal
+  month: WasteTotal
+}
+
+/** GET /api/camera/status */
+export interface CameraStatus {
+  configured: boolean
+  host?: string
+  busy: boolean
+}
+
+/** POST /api/camera/take-photo */
+export interface TakePhotoResult {
+  ok: true
+  eventId: string
+  serviceId: string
+  state: string
+  triggeredAt: string
+  receivedAt: string
 }

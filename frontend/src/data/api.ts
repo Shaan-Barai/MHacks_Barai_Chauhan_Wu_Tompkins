@@ -30,6 +30,10 @@ export const getCaptureImages = impl.getCaptureImages
 export const getAdminCaptures = impl.getAdminCaptures
 export const setCaptureVisibility = impl.setCaptureVisibility
 export const getRecommendation = impl.getRecommendation
+export const regenerateRecommendation = impl.regenerateRecommendation
+export const getWasteTotals = impl.getWasteTotals
+export const getCameraStatus = impl.getCameraStatus
+export const takePhoto = impl.takePhoto
 
 // IT_4: staff sign-in, camera calibration, measurement settings.
 export const getSession = impl.getSession

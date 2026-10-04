@@ -1,5 +1,10 @@
 # IT_4: production deploy + calibrated area and Depth Anything V2 volume
 
+> **Amendment (2026-10-04, user): Depth Anything V2 is removed.** Everything about depth, volume,
+> density, the depth toggle and plate thickness below is superseded. What remains: known-area
+> calibration (`reference-area-v1`), grams = area × `weight_g_per_cm2`, and estimated kg CO2e and
+> litres of water next to each food label. See §10 and `contracts/decisions.md`.
+
 **Started:** 2026-10-04 · **Branch:** work lands on `main` (each agent works in its own worktree, then
 rebases on `origin/main` and pushes) · **Coordinator:** Agent 1 (main session). This file is the live
 tracker. The coordinator updates §9 as agents report back.
@@ -314,3 +319,12 @@ remaining work.
 - 2026-10-04: V's live check: DAv2 Small doesn't resolve food height on close-up phone photos; area method is the default, depth toggle labeled experimental.
 - 2026-10-04: Gemini billing works again (B's live run, no 402).
 - 2026-10-04: user: run DAv2 + SAM locally, don't worry about Fly.io. P, B and V redirected.
+
+## 10. Amendment: remove Depth Anything V2, full test, deploy guide (2026-10-04)
+
+| WS | Owns | Task |
+| --- | --- | --- |
+| **R1** vision + backend + db | `vision/`, `backend/`, `db/` | Delete `vision/depth/`, the depth client, the volume/depth code (keep `computeAreaEstimate`), and the depth part of `runCalibration` and the pipeline. Backend: no depth worker URL, ready check, depth storage, depthEnabled or plateThickness; legacy rows read as area. DB: stop validating and writing depth fields (columns stay, defaults). Tests |
+| **R2** data + analytics + frontend | `data/`, `analytics/`, `frontend/`, `UI.md`, factor CSVs + README | Drop the density columns and the volume branch ('mixed', volumeCaptures, no_density). Frontend: remove the toggle, depth height, volume/mixed method text and mocks. Tests |
+| **R3** capture + demo + deploy + docs + tests | `capture/`, `demo.py`, `deploy/`, `docs/`, `tests/`, `BRIDGE.md`, `ARDUINO.md`, new root `test-all.sh` | Remove `--depth` flags and the depth service. The demo `volume` step becomes `area`. **`./test-all.sh`** runs every suite, and with `--live` also the stack + smoke + E2E + demo. **`docs/deploy.md`** is a complete step-by-step deploy guide (local stack + Cloudflare Tunnel + custom domain) |
+| C | `contracts/`, `IT_4.md`, `AGENTS.md`, `README.md`, `.env.example` | contracts (done first), docs, final verification |

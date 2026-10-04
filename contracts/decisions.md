@@ -469,3 +469,13 @@ Full plan and rationale: [IT_4.md](../IT_4.md) §2 (I1–I12). Summary:
   `SCRAP_INGEST_TOKEN` or an admin passcode session. Custom domain (user is buying it) via `fly certs`.
 
 **Update (2026-10-04, user):** Fly.io is dropped for now. SAM 2.1 and Depth Anything V2 run locally on the Mac, and so does the whole stack (local SpacetimeDB `scrap`, with the backend in production mode serving the dashboard via `deploy/local-up.sh`). The custom domain will later point at it through a Cloudflare Tunnel.
+
+## 2026-10-04: Depth Anything V2 removed (user decision)
+
+The user is not using Depth Anything V2. The depth worker, the depth client, the volume method
+(`volume-dav2-v1`), the depth part of calibration, the per-hall depth toggle and plate thickness, the
+`density_g_per_cm3` factor column and the `'depth'` image association are all removed. Calibration
+stays `reference-area-v1`: known area → cm²/px plus the geometric C920s camera height. Grams =
+`areaCm2 × weight_g_per_cm2`; CO2e and water follow from grams. SpacetimeDB columns added for depth
+stay in the `scrap` schema (they can't be dropped without a wipe) but are unused and written with
+defaults. Legacy rows from the brief depth trial are read as area estimates.

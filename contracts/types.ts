@@ -72,7 +72,7 @@ export interface ImageObject {
    * 'overlay' = the segmented-image JPEG for one capture (masks tinted per food,
    * plate rim outlined); `id` is the capture eventId. (BIG-PLAN D7)
    */
-  association: { kind: 'capture' | 'reference' | 'mask' | 'overlay' | 'calibration' | 'calibration_overlay' | 'depth'; id: string };
+  association: { kind: 'capture' | 'reference' | 'mask' | 'overlay' | 'calibration' | 'calibration_overlay'; id: string };
   state: UploadState;
 }
 
@@ -140,8 +140,6 @@ export interface AnalysisAttempt {
   /** IT_4 I9: calibration + physical method snapshotted at analysis time. */
   calibrationId?: string;
   physicalMethod?: PhysicalMethod;
-  /** IT_4 I4: 16-bit depth PNG (0.1 mm units) in object storage, when DAv2 ran. */
-  depthObjectId?: string;
 }
 
 /**
@@ -267,7 +265,7 @@ export interface FoodMeasurement {
   /** Only available after mask validation/counting. Legacy area estimates cannot supply it. */
   maskCount?: MaskPixelCount;
   qualityFlags: QualityFlag[];
-  /** IT_4: calibrated area / DAv2 volume. Absent when no compatible calibration was active. */
+  /** IT_4: calibrated area. Absent when no compatible calibration was active. */
   physical?: PhysicalEstimate;
 }
 
@@ -373,8 +371,6 @@ export interface WasteFactor {
   /** 0.19·C + 1.50·W, dollars per kg. No nutrition term. */
   impactUsdPerKg: number;
   largestFactor: 'carbon' | 'water';
-  /** IT_4 I7: bulk density as served (g/cm³) for the volume method; null when unsourced. */
-  densityGPerCm3: number | null;
 }
 
 /** One row of menu_nutrition_factors.csv. Reported separately; never in the score. */
@@ -404,17 +400,16 @@ export interface WasteImpact {
   wasteFactorsVersion: string;
   unavailableReason?: ImpactUnavailableReason;
   /**
-   * IT_4 I7: ESTIMATED physical amounts from calibrated area or DAv2 volume.
+   * IT_4 I7: ESTIMATED physical amounts from the calibrated area.
    * null (never 0) when unavailable; see physicalUnavailableReason.
-   *   grams: volume × densityGPerCm3, or areaCm2 × weightGPerCm2
+   *   grams = areaCm2 × weightGPerCm2
    *   kgCo2e = grams/1000 × C;  waterLitres = grams × W  (W is m³/kg)
    * Sums over mixed captures include only calibrated ones (see coverage).
    */
   grams: number | null;
   kgCo2e: number | null;
   waterLitres: number | null;
-  /** The method behind grams; 'mixed' when a total combines both methods. */
-  physicalMethod: PhysicalMethod | 'mixed' | null;
+  physicalMethod: PhysicalMethod | null;
   physicalUnavailableReason?: PhysicalUnavailableReason;
 }
 
@@ -447,7 +442,7 @@ export interface ImpactDashboard {
     analyzedCaptures: number;
     excludedCaptures: number;
     /** IT_4: analyzed captures that carried physical estimates (calibrated). */
-    physicalCoverage: { calibratedCaptures: number; volumeCaptures: number; analyzedCaptures: number };
+    physicalCoverage: { calibratedCaptures: number; analyzedCaptures: number };
   };
   /** Ranked by perPortion.pixels desc ("Foods to target"); unavailable rates last. */
   targets: ItemImpactRow[];
@@ -479,7 +474,6 @@ export interface CaptureListItem {
     grams?: number | null;
     kgCo2e?: number | null;
     waterLitres?: number | null;
-    volumeCm3?: number | null;
     areaCm2?: number | null;
   }>;
   hasOverlay: boolean;
@@ -511,15 +505,19 @@ export interface Recommendation {
 }
 
 // ---------------------------------------------------------------------------
-// IT_4 (2026-10-04): camera calibration, calibrated area, Depth Anything V2
-// volume, estimated grams / CO2e / water. See IT_4.md §2–§3.
+// IT_4 (2026-10-04): camera calibration, calibrated area, estimated
+// grams / CO2e / water. See IT_4.md. Depth Anything V2 volume was removed
+// (2026-10-04, user decision). Legacy rows written during the brief depth
+// trial may carry method 'volume-dav2-v1', volume/height fields, a
+// depthObjectId or 'depth' image objects: readers treat any stored estimate
+// with a finite areaCm2 as 'area-calibrated-v1' and ignore the rest.
 // ---------------------------------------------------------------------------
 
 export interface CameraIntrinsics {
   cameraModel: 'logitech-c920s' | 'other';
   widthPx: number;
   heightPx: number;
-  /** C920s nominal: 78° diagonal FOV ⇒ ≈1360 px at 1920 wide, scaled with width. */
+  /** C920s nominal: 78° diagonal FOV ⇒ ≈1360 px at 1920 wide; 1289.7 px for the 1024² capture crop. */
   fxPx: number;
   fyPx: number;
   cxPx: number;
@@ -531,25 +529,7 @@ export interface CameraIntrinsics {
 export type CameraCalibrationFlag =
   | 'reference_not_found'
   | 'reference_low_confidence'
-  | 'reference_touches_edge'
-  | 'depth_unavailable'
-  | 'depth_scale_disagrees';
-
-export interface CalibrationDepth {
-  /** 'depth-anything/Depth-Anything-V2-Metric-Indoor-Small-hf' (Apache-2.0; Small only). */
-  checkpoint: string;
-  /** 'dav2-metric-small-v1' */
-  settingsVersion: string;
-  /** Median raw DAv2 metric depth over the reference mask, metres, before correction. */
-  rawReferenceMedianM: number;
-  /** cameraHeightCmGeometric / (100 × rawReferenceMedianM). Multiplies raw DAv2 depth. */
-  scale: number;
-  cameraHeightCmDepth: number;
-  /** Base (table) plane in corrected depth: Z(x, y) = a·x + b·y + c, cm, pixel coords. */
-  tablePlane: { a: number; b: number; c: number };
-  /** 16-bit PNG, 0.1 mm units, in object storage. */
-  depthObjectId: string;
-}
+  | 'reference_touches_edge';
 
 /** POST /api/calibrations → this. One camera, one resolution (IT_4 I2). */
 export interface CameraCalibration {
@@ -573,9 +553,8 @@ export interface CameraCalibration {
   /** k = knownAreaCm2 / referencePixels (cm² per pixel at the base plane). */
   cm2PerPx: number;
   intrinsics: CameraIntrinsics;
-  /** f · √k */
+  /** Camera height above the base plane, f · √k (cm). */
   cameraHeightCmGeometric: number;
-  depth: CalibrationDepth | null;
   flags: CameraCalibrationFlag[];
   error?: ApiError;
 }
@@ -583,42 +562,22 @@ export interface CameraCalibration {
 /** GET/PUT /api/settings/measurement — per hall (IT_4 I9). */
 export interface MeasurementSettings {
   hallId: string;
-  /** Depth Anything V2 on/off. Off ⇒ area method. */
-  depthEnabled: boolean;
   activeCalibrationId: string | null;
-  /** Fallback plate-surface offset above the table plane (default 1.5). */
-  plateThicknessCm: number;
   updatedAt: string;
 }
 
-export type PhysicalMethod = 'area-calibrated-v1' | 'volume-dav2-v1';
-
-export type VolumeFlag =
-  | 'plate_plane_from_calibration'
-  | 'negative_heights_clipped'
-  | 'height_outliers_clipped'
-  | 'bowl_volume_unreliable'
-  | 'depth_invalid'
-  | 'depth_unavailable';
+export type PhysicalMethod = 'area-calibrated-v1';
 
 export type PhysicalUnavailableReason =
   | 'no_calibration'
   | 'incompatible_geometry'
   | 'no_factor'
-  | 'no_density'
   | 'unknown_item';
 
 /** Stored per food measurement. Pixels (remainingAreaPx) stay the raw measurement. */
 export interface PhysicalEstimate {
   calibrationId: string;
   method: PhysicalMethod;
-  /** area method: pixels × k; volume method: Σ (D/fx)(D/fy). */
+  /** pixels × k (cm²), food treated as lying on the base plane. */
   areaCm2: number;
-  /** Σ h·a over the mask; null for the area method. */
-  volumeCm3: number | null;
-  meanHeightMm: number | null;
-  maxHeightMm: number | null;
-  depthSettingsVersion?: string;
-  plateReference?: 'dish-ring-fit' | 'calibration-plane';
-  flags: VolumeFlag[];
 }

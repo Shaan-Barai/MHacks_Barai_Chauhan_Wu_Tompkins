@@ -23,6 +23,8 @@ import { badRequest, notFound, apiError } from '../errors.js';
 import { validMaskCount } from '@scrap/analytics';
 import { newId } from '../ids.js';
 import type { Analyzer } from '../analysis/analyzer.js';
+import type { DepthEstimator, LabelSuffix, PhysicalStageInput } from '@scrap/vision';
+import { log } from '../log.js';
 import type { Repository } from '../repo/repository.js';
 import type { ImageService } from './imageService.js';
 import type { CaptureSubmission } from './validation.js';
@@ -31,10 +33,14 @@ import type {
   AnalysisResult,
   CaptureEvent,
   FoodMeasurement,
+  MeasurementSettings,
   MenuBundle,
   ProcessingState,
   ReferencePortion,
 } from '../types.js';
+
+/** Builds the overlay legend suffix (grams · kg CO2e · L water) for one menu; from analytics' formatter. */
+export type LabelSuffixFactory = (menu: MenuBundle) => LabelSuffix | undefined;
 
 export interface IngestResult {
   event: CaptureEvent;
@@ -50,7 +56,38 @@ export class IngestionService {
     private readonly images: ImageService,
     private readonly analyzer: Analyzer,
     private readonly now: () => number = () => Date.now(),
+    /** IT_4: Depth Anything V2 worker client for the volume method. */
+    private readonly depth?: DepthEstimator,
+    private readonly labelSuffix?: LabelSuffixFactory,
   ) {}
+
+  /**
+   * IT_4 I9: snapshot the hall's measurement settings and active calibration.
+   * Any problem reading them means "no calibration" for this attempt: pixels
+   * are never blocked by the physical stage.
+   */
+  private async physicalContext(hallId: string): Promise<{ settings?: MeasurementSettings; input: PhysicalStageInput }> {
+    try {
+      const settings = await this.repo.getMeasurementSettings(hallId);
+      const cal = settings?.activeCalibrationId ? await this.repo.getCameraCalibration(settings.activeCalibrationId) : undefined;
+      const usable = cal && cal.status === 'succeeded' && cal.hallId === hallId ? cal : null;
+      return {
+        ...(settings ? { settings } : {}),
+        input: {
+          calibration: usable,
+          depthEnabled: settings?.depthEnabled ?? false,
+          ...(this.depth ? { depthClient: this.depth } : {}),
+          ...(settings ? { plateThicknessCm: settings.plateThicknessCm } : {}),
+        },
+      };
+    } catch (err) {
+      log.warn('measurement settings unavailable; analyzing without calibration', {
+        hallId,
+        reason: err instanceof Error ? err.message.slice(0, 160) : 'unknown',
+      });
+      return { input: { calibration: null, depthEnabled: false } };
+    }
+  }
 
   async submitCapture(submission: CaptureSubmission): Promise<IngestResult> {
     const existing = await this.repo.getCaptureEvent(submission.eventId);
@@ -120,6 +157,15 @@ export class IngestionService {
     const baselines = await this.resolveBaselines(menu);
     const attemptId = newId('att');
 
+    const physical = await this.physicalContext(event.hallId);
+    const calibrationId = physical.input.calibration?.calibrationId;
+    let labelSuffix: LabelSuffix | undefined;
+    try {
+      labelSuffix = this.labelSuffix?.(menu);
+    } catch {
+      labelSuffix = undefined; // a legend nicety never blocks analysis
+    }
+
     let attempt: AnalysisAttempt;
     let measurements: FoodMeasurement[];
     try {
@@ -129,8 +175,13 @@ export class IngestionService {
         menu,
         baselines,
         getImage: () => this.images.readImageBytes(event.imageObjectId),
+        physical: physical.input,
+        ...(labelSuffix ? { labelSuffix } : {}),
       });
       attempt = result.attempt;
+      // Only the backend assigns storage references and the settings snapshot.
+      delete attempt.depthObjectId;
+      this.snapshotPhysical(attempt, result, calibrationId);
       measurements = this.validateMeasurements(this.withMaskCounts(result), menu, attemptId, event);
       this.validateSegmentation(attempt, measurements);
       // Masks go to object storage; only their ids reach the database.
@@ -159,6 +210,9 @@ export class IngestionService {
       // Only the backend assigns storage references.
       delete attempt.overlayObjectId;
       if (result.overlay) attempt.overlayObjectId = await this.storeOverlay(event.eventId, attemptId, result.overlay);
+      if (result.physical?.depth && attempt.physicalMethod === 'volume-dav2-v1') {
+        attempt.depthObjectId = await this.storeDepth(event.eventId, result.physical.depth);
+      }
     } catch (err) {
       // Infrastructure failure: record an explicit failed attempt, never
       // silence it and never leave the event stuck in `processing`.
@@ -178,6 +232,7 @@ export class IngestionService {
         ),
         qualityFlags: [],
         createdAt: new Date(this.now()).toISOString(),
+        ...(calibrationId ? { calibrationId } : {}),
       };
       measurements = [];
     }
@@ -194,6 +249,50 @@ export class IngestionService {
     await this.repo.upsertCaptureEvent(finalEvent);
 
     return { event: finalEvent, attempt, measurements, deduplicated: false };
+  }
+
+  /**
+   * IT_4 I9 snapshot: the attempt records the calibration that was active
+   * (even when it could not be applied, e.g. a different resolution), and the
+   * method actually used. Physical estimates must use that calibration and be
+   * finite and non-negative; anything else is dropped (pixels stay).
+   */
+  private snapshotPhysical(attempt: AnalysisAttempt, result: AnalysisResult, calibrationId: string | undefined): void {
+    if (calibrationId) attempt.calibrationId = calibrationId;
+    else delete attempt.calibrationId;
+    const ok = (n: unknown) => n === null || n === undefined || (typeof n === 'number' && Number.isFinite(n) && n >= 0);
+    let applied = 0;
+    for (const m of result.measurements) {
+      const p = m.physical;
+      if (!p) continue;
+      if (
+        !calibrationId ||
+        p.calibrationId !== calibrationId ||
+        !ok(p.areaCm2) ||
+        !ok(p.volumeCm3) ||
+        !ok(p.meanHeightMm) ||
+        !ok(p.maxHeightMm) ||
+        (p.method === 'volume-dav2-v1' && (p.volumeCm3 === null || p.volumeCm3 === undefined))
+      ) {
+        delete m.physical;
+        continue;
+      }
+      applied++;
+    }
+    if (applied === 0) delete attempt.physicalMethod;
+    else if (!attempt.physicalMethod) {
+      attempt.physicalMethod = result.measurements.some((m) => m.physical?.method === 'volume-dav2-v1') ? 'volume-dav2-v1' : 'area-calibrated-v1';
+    }
+  }
+
+  /** The DAv2 depth map is provenance: a storage failure keeps the numbers, without the map. */
+  private async storeDepth(eventId: string, depth: { png: Uint8Array; widthPx: number; heightPx: number }): Promise<string | undefined> {
+    try {
+      return (await this.images.storeDerived('depth', eventId, 'depth', depth.png, 'image/png', depth.widthPx, depth.heightPx)).objectId;
+    } catch {
+      log.warn('DEPTH_STORE_FAILED; stored without the depth map', { eventId });
+      return undefined;
+    }
   }
 
   /**

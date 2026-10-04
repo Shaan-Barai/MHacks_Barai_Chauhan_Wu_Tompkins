@@ -12,6 +12,7 @@
  * through a database payload.
  */
 
+import type { LabelSuffix, PhysicalStageInput } from '@scrap/vision';
 import type {
   AnalysisResult,
   CaptureEvent,
@@ -29,6 +30,13 @@ export interface AnalyzerInput {
   baselines: ReferencePortion[];
   /** Lazily fetch the image bytes via temporary read access. */
   getImage: () => Promise<{ bytes: Buffer; mimeType: string }>;
+  /**
+   * IT_4: the hall's measurement settings + active calibration, snapshotted
+   * for this attempt (calibrated area, or DAv2 volume when depth is on).
+   */
+  physical?: PhysicalStageInput;
+  /** IT_4 I8: overlay legend text after each food (grams · kg CO2e · L water). */
+  labelSuffix?: LabelSuffix;
 }
 
 export interface Analyzer {

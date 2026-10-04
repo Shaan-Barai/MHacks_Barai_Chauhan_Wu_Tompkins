@@ -31,7 +31,18 @@ export class MaskAnalyzer implements Analyzer {
         items: input.menu.items,
       },
       baselines: input.baselines,
+      ...(input.physical ? { physical: input.physical } : {}),
+      ...(input.labelSuffix ? { labelSuffix: input.labelSuffix } : {}),
     });
+    const phys = result.physical;
+    if (phys.status !== 'not_requested') {
+      console.log(
+        `[vision] ${input.event.eventId}: physical ${phys.status}` +
+          (phys.method ? ` (${phys.method})` : '') +
+          (phys.reason ? ` reason=${phys.reason}` : '') +
+          (phys.depthError ? ` depth=${phys.depthError.code}` : ''),
+      );
+    }
     const loc = result.localization;
     console.log(
       `[vision] ${input.event.eventId}: Gemini boxes ${loc.passBoxes.map((n, k) => `pass ${k + 1}=${n ?? 'failed'}`).join(', ')}, after merge=${loc.mergedBoxes}` +

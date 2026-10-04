@@ -12,7 +12,7 @@
  * menu item that has a baseline). Same input, same output, no network.
  */
 
-import { encodeBinaryMask } from '@scrap/vision';
+import { computeAreaEstimate, encodeBinaryMask } from '@scrap/vision';
 import { apiError } from '../errors.js';
 import type { Analyzer, AnalyzerInput } from './analyzer.js';
 import type {
@@ -89,8 +89,21 @@ export class MockAnalyzer implements Analyzer {
             return m;
           });
 
+    // IT_4: the mock applies the calibrated AREA method (never volume) when a
+    // compatible calibration is active, like the real pipeline does.
+    const cal = input.physical?.calibration;
+    const compatible = !!cal && cal.widthPx === event.geometry.widthPx && cal.heightPx === event.geometry.heightPx;
+    if (cal && compatible && status !== 'failed') {
+      for (const m of measurements) {
+        m.physical = computeAreaEstimate(m.remainingAreaPx, cal, input.physical?.depthEnabled ? ['depth_unavailable'] : []);
+      }
+    }
+    const applied = cal && compatible && status !== 'failed' && measurements.length > 0;
+
     return {
+      ...(input.physical ? { physical: { status: applied ? ('applied' as const) : ('unavailable' as const), depth: null } } : {}),
       attempt: {
+        ...(applied ? { calibrationId: cal!.calibrationId, physicalMethod: 'area-calibrated-v1' as const } : {}),
         eventId: event.eventId,
         attemptId,
         menuId: menu.service.menuId,

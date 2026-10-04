@@ -81,4 +81,13 @@ export interface AnalysisResult {
   itemMasks?: { measurementId: string; png: Uint8Array; count: Omit<MaskPixelCount, 'maskObjectId'> }[];
   /** Segmented overlay JPEG (D7); stored in object storage, referenced by attempt.overlayObjectId. */
   overlay?: { jpeg: Uint8Array; widthPx: number; heightPx: number } | null;
+  /**
+   * IT_4 physical stage outcome. `depth.png` (depth-png16-v1, 0.1 mm) is stored
+   * in object storage and referenced by attempt.depthObjectId.
+   */
+  physical?: {
+    status: 'applied' | 'unavailable' | 'not_requested';
+    reason?: string;
+    depth: { png: Uint8Array; widthPx: number; heightPx: number } | null;
+  };
 }

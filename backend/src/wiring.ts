@@ -4,7 +4,15 @@
  */
 
 import { loadConfig, type BackendConfig } from './config.js';
-import { createGeminiGateway, createSamWorkerClient, type GeminiGateway, type Segmenter } from '@scrap/vision';
+import {
+  createDepthWorkerClient,
+  createGeminiGateway,
+  createSamWorkerClient,
+  type DepthEstimator,
+  type GeminiGateway,
+  type Segmenter,
+} from '@scrap/vision';
+import { VisionCalibrationRunner } from './analysis/visionCalibrationRunner.js';
 import { JsonFileRepository } from './repo/jsonFileRepository.js';
 import { SpacetimeRepository } from './repo/spacetimeRepository.js';
 import { LocalDevStorage } from './storage/localDevStorage.js';
@@ -36,6 +44,8 @@ export interface BuildOptions {
   gateway?: GeminiGateway;
   /** SAM segmenter; defaults to the worker at config.samWorkerUrl. */
   segmenter?: Segmenter;
+  /** Depth Anything V2 client; defaults to the worker at config.depthWorkerUrl. */
+  depth?: DepthEstimator;
   /** Calibration runner; defaults to vision's runCalibration when live. */
   calibrationRunner?: CalibrationRunner;
   now?: () => number;
@@ -86,12 +96,12 @@ export function buildBackend(options: BuildOptions = {}): AppDeps & { app: Retur
   // retryably; there is no fallback to Gemini-guessed areas. Without a key
   // the deterministic mock runs. Mock gateway text is never a suggestion.
   const gateway = options.gateway ?? createGeminiGateway();
-  const analyzer =
-    options.analyzer ??
-    (gateway.mode === 'live'
-      ? new MaskAnalyzer(gateway, options.segmenter ?? createSamWorkerClient(config.samWorkerUrl))
-      : new MockAnalyzer());
-  const ingestion = new IngestionService(repo, images, analyzer, now);
+  // Workers get the shared X-Worker-Token when WORKER_TOKEN is set (IT_4 I10).
+  const segmenter = options.segmenter ?? createSamWorkerClient(config.samWorkerUrl, undefined, config.workerToken ?? '');
+  const depth =
+    options.depth ?? createDepthWorkerClient({ url: config.depthWorkerUrl, ...(config.workerToken ? { token: config.workerToken } : {}) });
+  const analyzer = options.analyzer ?? (gateway.mode === 'live' ? new MaskAnalyzer(gateway, segmenter) : new MockAnalyzer());
+  const ingestion = new IngestionService(repo, images, analyzer, now, depth);
   const summary = new SummaryService(repo, ingestion);
   const dashboard = new DashboardService(repo, ingestion, config, gateway.mode === 'live' ? gateway : undefined);
   // Same-dish checks for the camera bridge never run on mock text (BRIDGE.md §4.4).
@@ -107,7 +117,10 @@ export function buildBackend(options: BuildOptions = {}): AppDeps & { app: Retur
     workerToken: config.workerToken,
     samRequired: analyzer instanceof MaskAnalyzer,
   });
-  const calibration = new CalibrationService(repo, images, options.calibrationRunner, now);
+  // Calibration needs live Gemini + SAM (no mock: a fake k would be worse than none).
+  const calibrationRunner =
+    options.calibrationRunner ?? (gateway.mode === 'live' ? new VisionCalibrationRunner(gateway, segmenter, depth) : undefined);
+  const calibration = new CalibrationService(repo, images, calibrationRunner, now);
   const deps: AppDeps = {
     config,
     repo,

@@ -14,6 +14,7 @@ import { ImageService } from './services/imageService.js';
 import { IngestionService } from './services/ingestionService.js';
 import { SummaryService } from './services/summaryService.js';
 import { DashboardService } from './services/dashboardService.js';
+import { DishMatchService } from './services/dishMatchService.js';
 import { MockAnalyzer } from './analysis/mockAnalyzer.js';
 import { GeminiAnalyzer } from './analysis/geminiAnalyzer.js';
 import { createApp, type AppDeps } from './http/app.js';
@@ -62,6 +63,8 @@ export function buildBackend(options: BuildOptions = {}): AppDeps & { app: Retur
   const ingestion = new IngestionService(repo, images, analyzer, now);
   const summary = new SummaryService(repo, ingestion);
   const dashboard = new DashboardService(repo, ingestion, config, gateway.mode === 'live' ? gateway : undefined);
-  const deps: AppDeps = { config, repo, storage, images, ingestion, summary, dashboard };
+  // Same-dish checks for the camera bridge never run on mock text (BRIDGE.md §4.4).
+  const dishMatch = new DishMatchService(gateway.mode === 'live' ? gateway : undefined);
+  const deps: AppDeps = { config, repo, storage, images, ingestion, summary, dashboard, dishMatch };
   return { ...deps, app: createApp(deps) };
 }

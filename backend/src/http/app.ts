@@ -16,6 +16,7 @@ import type { ImageService } from '../services/imageService.js';
 import type { IngestionService } from '../services/ingestionService.js';
 import type { SummaryService } from '../services/summaryService.js';
 import type { DashboardService } from '../services/dashboardService.js';
+import type { DishMatchService } from '../services/dishMatchService.js';
 import type { MealLabel, MenuBundle } from '../types.js';
 import {
   validateAttendance,
@@ -33,10 +34,11 @@ export interface AppDeps {
   ingestion: IngestionService;
   summary: SummaryService;
   dashboard: DashboardService;
+  dishMatch: DishMatchService;
 }
 
 export function createApp(deps: AppDeps): express.Express {
-  const { config, repo, storage, images, ingestion, summary, dashboard } = deps;
+  const { config, repo, storage, images, ingestion, summary, dashboard, dishMatch } = deps;
   const app = express();
   app.use(express.json({ limit: '1mb' }));
 
@@ -338,6 +340,15 @@ export function createApp(deps: AppDeps): express.Express {
       const submission = validateCaptureSubmission(req.body);
       const result = await ingestion.submitCapture(submission);
       res.status(result.deduplicated ? 200 : 201).json(result);
+    }),
+  );
+
+  // Camera bridge: is this frame the same physical dish? (BRIDGE.md §4.3)
+  // Thumbnails are transient — never stored or logged.
+  app.post(
+    '/api/dish-match',
+    wrap(async (req, res) => {
+      res.json(await dishMatch.match(req.body));
     }),
   );
 

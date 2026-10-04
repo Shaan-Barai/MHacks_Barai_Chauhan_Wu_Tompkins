@@ -27,6 +27,9 @@ export type {
   Attendance,
   Insight,
   ApiError,
+  DishMatchImage,
+  DishMatchRequest,
+  DishMatchResult,
 } from '../../contracts/types.js';
 
 import type {

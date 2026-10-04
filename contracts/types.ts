@@ -205,3 +205,29 @@ export interface ApiError {
   details?: Record<string, unknown>;
   retryable: boolean;
 }
+
+/**
+ * POST /api/dish-match (BRIDGE.md §4.3). The camera bridge asks whether a
+ * candidate frame shows the same physical dish as the open dish group's
+ * representative frame, so each dish is counted once. Thumbnails are
+ * transient: never stored, logged, or written to SpacetimeDB.
+ */
+export interface DishMatchImage {
+  mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+  base64: string;
+}
+
+export interface DishMatchRequest {
+  reference: DishMatchImage;
+  candidate: DishMatchImage;
+}
+
+/** `sameDish` is present only when a plate is visible in the candidate. */
+export type DishMatchResult = (
+  | { plateVisible: false }
+  | { plateVisible: true; sameDish: 'same' | 'different' | 'unsure' }
+) & {
+  reason: string;
+  model: string;
+  promptVersion: string;
+};

@@ -1,0 +1,30 @@
+name: Deploy scripts check
+
+# Test-only (no deploy): the local production stack scripts stay valid.
+# Package tests run in agent8-verify.yml; the stack itself runs on the team Mac
+# (docs/deploy.md), so nothing here starts services or uses secrets.
+
+on:
+  push:
+    paths: ['deploy/**', '.github/workflows/deploy-check.yml']
+  pull_request:
+    paths: ['deploy/**', '.github/workflows/deploy-check.yml']
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Shell syntax + shellcheck
+        run: |
+          bash -n deploy/local.sh deploy/local-up.sh deploy/local-down.sh
+          shellcheck -S warning deploy/local.sh deploy/local-up.sh deploy/local-down.sh
+      - name: Smoke script parses
+        run: node --check deploy/smoke.mjs
+      - name: Usage exits 2 without a command
+        run: |
+          set +e; bash deploy/local.sh; code=$?; set -e
+          test "$code" -eq 2

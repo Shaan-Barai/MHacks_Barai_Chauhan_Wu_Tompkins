@@ -20,7 +20,6 @@ export type TryImageRunner = (bytes: Buffer) => Promise<TryImageRunResult>;
 
 export const TRY_IMAGE_MAX_WAITING = 4;
 export const TRY_IMAGE_KEPT = 20;
-const MENU_KEYS = ['halal-chicken', 'halal-rice'];
 
 export function repoRoot(): string {
   const here = fileURLToPath(import.meta.url);
@@ -40,7 +39,7 @@ export function createPipelineRunner(opts: { samWorkerUrl: string; workerToken?:
     const gateway = p.createGeminiGateway();
     const sam = p.createSamWorkerClient(opts.samWorkerUrl, undefined, opts.workerToken ?? '');
     return {
-      run: (bytes: Buffer) => p.runSteps({ gateway, sam, foods, bytes, menuKeys: MENU_KEYS }) as Promise<TryImageRunResult>,
+      run: (bytes: Buffer) => p.runSteps({ gateway, sam, foods, bytes }) as Promise<TryImageRunResult>,
     };
   };
   return async (bytes) => {

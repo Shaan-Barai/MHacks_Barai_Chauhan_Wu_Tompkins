@@ -17,9 +17,10 @@ built `vision/` (`cd vision && npm run build`). There is nothing else to install
 - **Pipeline.** `pipeline.mjs` calls vision's `analyzeCaptureWithMasks`, the same measurement the
   backend uses (Gemini classify + boxes → SAM 2.1 → target-dish clip → pixel count), then renders the
   four pictures.
-- **Foods.** Every photo is matched against **Halal Chicken and Halal Rice only** (there is no menu
-  choice). Halal Chicken comes from `menu_waste_factors_halal_bros.csv`, Halal Rice from
-  `menu_waste_factors_EastQuad.csv`. Food that is neither is counted as unclassified.
+- **Foods.** Every photo is matched against **every food in the food database** (`loadFoodDatabase`
+  in `pipeline.mjs`): the 26 dinner foods in `factors/menu_waste_factors_EastQuad.csv` plus Halal
+  Chicken from `factors/menu_waste_factors_halal_bros.csv`. There is no menu choice. Food that matches
+  none of them is counted as unclassified. The Try an Image tab in the dashboard uses the same database.
 - **Numbers.** Pixels wasted is the measurement: visible leftover-food pixels in AI masks, not grams.
   `POST /api/analyze` still returns each food's relative CO2/water/nutrition points in `summary`
   (used by `demo.py`); the pages don't show them.

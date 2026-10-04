@@ -2,7 +2,7 @@
  * Upload demo website: one upload button. After the upload, /results/<id>
  * shows the original, Gemini's classification, the SAM 2.1 masks, the final
  * counted result and the total food wasted (Pixels wasted). Food is matched
- * against Halal Chicken + Halal Rice only.
+ * against every food in the food database (pipeline.mjs loadFoodDatabase).
  *
  *   node upload_demo/server.mjs            # http://localhost:8795
  *   HOST=0.0.0.0 node upload_demo/server.mjs   # reachable from phones on the LAN
@@ -33,7 +33,6 @@ const PORT = Number(process.env.UPLOAD_DEMO_PORT ?? 8795);
 const HOST = process.env.HOST ?? '127.0.0.1';
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const SAMPLE = path.join(REPO, 'demo_pictures/0_input_photo.jpg');
-const MENU_KEYS = ['halal-chicken', 'halal-rice'];
 const RESULTS_KEPT = 20;
 const results = new Map(); // id -> { summary, images }, oldest first
 
@@ -100,7 +99,7 @@ const server = http.createServer(async (req, res) => {
       const bytes = await readBody(req);
       if (!bytes.length) return apiError(res, 400, 'EMPTY_UPLOAD', 'The upload was empty.');
       const { images, summary } = await serialize(() => runSteps({
-        gateway, sam, foods, bytes, menuKeys: MENU_KEYS,
+        gateway, sam, foods, bytes,
       }));
       const result = {
         summary,

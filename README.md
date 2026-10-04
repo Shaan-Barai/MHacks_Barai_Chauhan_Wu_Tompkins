@@ -70,7 +70,7 @@ python3 demo.py --simulate --hall hall-test   # run on a test hall instead of ha
 
 **Upload website:** `node upload_demo/server.mjs` → http://localhost:8795. One "Upload a photo"
 button; after the upload, a results page shows the original, Gemini's classification, SAM 2.1's masks,
-the final result and the total food wasted (Halal Chicken + Halal Rice;
+the final result and the total food wasted (matched against every food in the food database;
 [`upload_demo/README.md`](upload_demo/README.md)).
 [`demo_pictures/`](demo_pictures/README.md) shows every step for the halal chicken + rice bowl.
 

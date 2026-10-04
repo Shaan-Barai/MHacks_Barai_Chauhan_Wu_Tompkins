@@ -209,7 +209,7 @@ export function TryImage() {
           Upload a photo of a finished plate. Gemini finds the food, SAM 2.1 outlines it, and the app counts the leftover pixels.
         </p>
         <p className="text-sm text-ink/80">
-          Foods are matched against Halal Chicken and Halal Rice only. Results are temporary and are not added to the
+          Foods are matched against every food in the food database. Results are temporary and are not added to the
           dashboard. One photo is checked at a time.
         </p>
       </div>

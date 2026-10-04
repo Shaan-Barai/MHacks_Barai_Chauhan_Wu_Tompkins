@@ -929,7 +929,7 @@ def step_upload_site(demo):
     found = {f["food"] for f in s["foods"]}
     ok = s["countStatus"] == "complete" and {"Halal Chicken", "Halal Rice"} <= found
     demo.check("PASS" if ok else "WARN", f"Sample bowl: {num(s['capturePixelsWasted'])} px, {s['countStatus']}, "
-               f"found {', '.join(sorted(found)) or 'nothing'} (matched against Halal Chicken + Halal Rice) in {s['seconds']} s")
+               f"found {', '.join(sorted(found)) or 'nothing'} (matched against the full food database) in {s['seconds']} s")
     print(f"  Results page: {url}/results/{result['id']}")
     if not demo.args.no_open:
         webbrowser.open(f"{url}/results/{result['id']}")

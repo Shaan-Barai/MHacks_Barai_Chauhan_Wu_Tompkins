@@ -25,6 +25,9 @@ import type {
   PortionEntry,
   PortionBenchmark,
   PlateRecord,
+  CameraStatus,
+  TakePhotoResult,
+  WasteTotals,
 } from './types'
 import { MEALS } from './types'
 import { todayIso } from '../lib/dates'
@@ -289,4 +292,35 @@ export async function getCaptureImages(eventId: string): Promise<CaptureImages> 
 
 export async function getRecommendation(start: IsoDate, end: IsoDate): Promise<Recommendation> {
   return call<Recommendation>(`/api/recommendation?${q({ hallId: hallId(), start, end })}`)
+}
+
+// ---------------------------------------------------------------------------
+// End-to-end pipeline: headline totals, camera, recommendation regeneration
+// ---------------------------------------------------------------------------
+
+/** Today, this week (Mon-today) and this month (1st-today), in pixels. */
+export async function getWasteTotals(today: IsoDate): Promise<WasteTotals> {
+  return call<WasteTotals>(`/api/dashboard/totals?${q({ hallId: hallId(), today })}`)
+}
+
+export async function getCameraStatus(): Promise<CameraStatus> {
+  return call<CameraStatus>('/api/camera/status')
+}
+
+/** Triggers the Uno Q camera; the plate then goes through the full analysis. */
+export async function takePhoto(): Promise<TakePhotoResult> {
+  return call<TakePhotoResult>('/api/camera/take-photo', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hallId: hallId() }),
+  })
+}
+
+/** Asks the AI for a new recommendation for these days (saved with its inputs). */
+export async function regenerateRecommendation(start: IsoDate, end: IsoDate): Promise<Recommendation> {
+  return call<Recommendation>('/api/recommendation/regenerate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hallId: hallId(), start, end }),
+  })
 }

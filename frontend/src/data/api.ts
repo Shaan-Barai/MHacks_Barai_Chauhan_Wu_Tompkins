@@ -28,6 +28,10 @@ export const getImpactDashboard = impl.getImpactDashboard
 export const getCaptures = impl.getCaptures
 export const getCaptureImages = impl.getCaptureImages
 export const getRecommendation = impl.getRecommendation
+export const regenerateRecommendation = impl.regenerateRecommendation
+export const getWasteTotals = impl.getWasteTotals
+export const getCameraStatus = impl.getCameraStatus
+export const takePhoto = impl.takePhoto
 
 /** Artificial latency for mock mode so loading states are visible; tests set 0. */
 export const setApiLatency = mock.setApiLatency

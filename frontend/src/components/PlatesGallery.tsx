@@ -5,6 +5,11 @@
  * plate is counted; food on a neighboring plate is outlined as "Other dish
  * (not counted)" in the AI outline image and left out (BIG-PLAN v2 V3).
  *
+ * The photo shown is the full original as the camera took it (raw) when the
+ * scan has one, else the normalized photo the AI checked. Any image opens
+ * larger on click. Generated sample scans (source 'demo') have no photos and
+ * are left out of the gallery.
+ *
  * Image links are short-lived (GET /api/captures/:id/images). A link that is
  * expired or fails to load is renewed once by asking for the images again;
  * if the fresh link fails too, the image says it is unavailable.
@@ -70,7 +75,7 @@ function useCaptureImageCache(load: Loader) {
       const entry = ref.current[eventId]
       if (!entry) return fetchImages(eventId, false)
       if (entry.status === 'error' && !entry.renewed) return fetchImages(eventId, true)
-      if (entry.status === 'ready' && (isExpired(entry.images.original) || isExpired(entry.images.overlay))) {
+      if (entry.status === 'ready' && (isExpired(entry.images.original) || isExpired(entry.images.overlay) || isExpired(entry.images.raw ?? null))) {
         fetchImages(eventId, false)
       }
     },
@@ -82,7 +87,7 @@ function useCaptureImageCache(load: Loader) {
     (eventId: string, failedUrl: string) => {
       const entry = ref.current[eventId]
       if (!entry || entry.status !== 'ready') return
-      const urls = [entry.images.original?.url, entry.images.overlay?.url]
+      const urls = [entry.images.original?.url, entry.images.overlay?.url, entry.images.raw?.url]
       if (!urls.includes(failedUrl)) return // already replaced by a fresh link
       if (entry.renewed) {
         setEntries((e) => ({ ...e, [eventId]: { status: 'error', renewed: true } }))
@@ -116,6 +121,7 @@ function ImageBox({
   entry,
   missingText,
   onBroken,
+  onEnlarge,
   className = '',
 }: {
   image: SignedImage | null | undefined
@@ -123,19 +129,58 @@ function ImageBox({
   entry: ImageEntry | undefined
   missingText: string
   onBroken: (url: string) => void
+  onEnlarge?: (image: SignedImage, alt: string) => void
   className?: string
 }) {
   const box = `flex aspect-square w-full items-center justify-center border border-ink p-3 text-center text-sm ${className}`
   if (!entry || entry.status === 'loading') return <div className={box} role="status">Loading photo</div>
   if (entry.status === 'error') return <div className={`${box} border-dashed`}>Photo unavailable</div>
   if (!image) return <div className={`${box} border-dashed`}>{missingText}</div>
-  return (
+  const img = (
     <img
       src={image.url}
       alt={alt}
       onError={() => onBroken(image.url)}
       className={`aspect-square w-full border border-ink bg-ink object-contain ${className}`}
     />
+  )
+  if (!onEnlarge) return img
+  return (
+    <button type="button" onClick={() => onEnlarge(image, alt)} className="block w-full cursor-zoom-in" aria-label={`Enlarge: ${alt}`}>
+      {img}
+    </button>
+  )
+}
+
+/** Full-size view of one image; Escape or the Close button closes it. */
+function Lightbox({ image, alt, onClose }: { image: SignedImage; alt: string; onClose: () => void }) {
+  const closeRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    closeRef.current?.focus()
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={alt}
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-ink/90 p-4"
+      onClick={onClose}
+    >
+      <img src={image.url} alt={alt} className="max-h-[85vh] max-w-full object-contain" onClick={(e) => e.stopPropagation()} />
+      <button
+        ref={closeRef}
+        type="button"
+        onClick={onClose}
+        className="rounded-btn border border-linen bg-cream px-5 py-2.5 text-base font-medium text-ink hover:underline"
+      >
+        Close
+      </button>
+    </div>
   )
 }
 
@@ -164,6 +209,9 @@ function PlateViewer({
   }, [capture.eventId])
 
   const images = entry?.status === 'ready' ? entry.images : null
+  const photo = images?.raw ?? images?.original
+  const isRaw = Boolean(images?.raw)
+  const [enlarged, setEnlarged] = useState<{ image: SignedImage; alt: string } | null>(null)
   const when = timeLabel(capture.capturedAt)
   const noOverlayText = capture.state === 'failed' ? 'No AI outlines: the check failed' : 'No AI outline image for this plate yet'
 
@@ -175,7 +223,7 @@ function PlateViewer({
             Plate at {when}
           </h3>
           <p className="text-sm">
-            {STATE_TEXT[capture.state]} · {capture.source === 'replay' ? 'Demo photo' : capture.source === 'camera' ? 'Camera' : 'Uploaded photo'}
+            {STATE_TEXT[capture.state]} · {capture.source === 'replay' ? 'Test photo (test2/ or replay)' : capture.source === 'camera' ? 'Camera' : 'Uploaded photo'}
           </p>
         </div>
         <GhostButton type="button" onClick={onClose}>
@@ -201,13 +249,14 @@ function PlateViewer({
         {view !== 'outlines' && (
           <figure>
             <ImageBox
-              image={images?.original}
+              image={photo}
               entry={entry}
               alt={`Photo of the plate at ${when}`}
               missingText="No photo for this plate"
               onBroken={onBroken}
+              onEnlarge={(image, alt) => setEnlarged({ image, alt })}
             />
-            <figcaption className="mt-1 text-sm">Photo</figcaption>
+            <figcaption className="mt-1 text-sm">{isRaw ? 'Original photo, as the camera took it' : 'Photo the AI checked'}</figcaption>
           </figure>
         )}
         {view !== 'photo' && (
@@ -218,6 +267,7 @@ function PlateViewer({
               alt={`The same plate with the leftover food the AI outlined, at ${when}`}
               missingText={noOverlayText}
               onBroken={onBroken}
+              onEnlarge={(image, alt) => setEnlarged({ image, alt })}
             />
             <figcaption className="mt-1 text-sm">AI outlines of the leftover food on the scanned plate</figcaption>
           </figure>
@@ -255,6 +305,7 @@ function PlateViewer({
         )}
         {capture.state === 'needs_review' && <p className="mt-2 text-sm">A person should check these labels before relying on them.</p>}
       </div>
+      {enlarged && <Lightbox image={enlarged.image} alt={enlarged.alt} onClose={() => setEnlarged(null)} />}
     </Card>
   )
 }
@@ -269,7 +320,7 @@ function Thumbnail({ entry, onBroken }: { entry: ImageEntry | undefined; onBroke
 }
 
 export function PlatesGallery({
-  captures,
+  captures: allCaptures,
   neighborExcluded = 0,
   loadImages = getCaptureImages,
 }: {
@@ -282,6 +333,9 @@ export function PlatesGallery({
   const { entries, ensure, renew } = useCaptureImageCache(loadImages)
   const [showAll, setShowAll] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // Sample scans have no photos; the gallery shows real (camera and test-photo) scans only.
+  const sampleCount = allCaptures.filter((c) => c.source === 'demo').length
+  const captures = allCaptures.filter((c) => c.source !== 'demo')
   const visible = showAll ? captures : captures.slice(0, SHOW_FIRST)
   const selected = captures.find((c) => c.eventId === selectedId) ?? null
 
@@ -302,7 +356,13 @@ export function PlatesGallery({
           {formatNumber(captures.length)} recent plate{captures.length === 1 ? '' : 's'}
         </p>
       </div>
-      <p className="mt-1 text-sm">Pick a plate to see its photo next to what the AI outlined.</p>
+      <p className="mt-1 text-sm">Pick a plate to see its photo next to what the AI outlined. Click an image to enlarge it.</p>
+      {sampleCount > 0 && (
+        <p className="mt-1 text-sm">
+          {formatNumber(sampleCount)} sample scan{sampleCount === 1 ? ' is' : 's are'} counted in the totals but not shown here (sample data has no
+          photos).
+        </p>
+      )}
       {neighborExcluded > 0 && (
         <p className="mt-1 text-sm">
           Food on neighboring plates was left out of {formatNumber(neighborExcluded)} plate{neighborExcluded === 1 ? '' : 's'}.
@@ -329,7 +389,7 @@ export function PlatesGallery({
                   <span className="block text-base font-semibold">{tileSummary(c)}</span>
                   {c.source === 'replay' && (
                     <span className="mt-1 block">
-                      <Badge>demo photo</Badge>
+                      <Badge>test photo</Badge>
                     </span>
                   )}
                 </span>

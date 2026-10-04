@@ -16,6 +16,10 @@ import {
   rng,
 } from './mockData'
 import type {
+  CameraStatus,
+  TakePhotoResult,
+  WasteTotal,
+  WasteTotals,
   CaptureImages,
   CaptureListItem,
   ImpactDashboard,
@@ -267,6 +271,43 @@ export async function getCaptureImages(eventId: string): Promise<CaptureImages> 
 }
 
 export async function getRecommendation(start: IsoDate, end: IsoDate): Promise<Recommendation> {
+  await wait()
+  return mockRecommendation(mockImpactDashboard(start, end, todayIso()), new Date())
+}
+
+// ---------------------------------------------------------------------------
+// End-to-end pipeline (mock): headline totals, camera, regeneration
+// ---------------------------------------------------------------------------
+
+function mockTotal(start: IsoDate, end: IsoDate): WasteTotal {
+  const d = mockImpactDashboard(start, end, todayIso())
+  return {
+    start,
+    end,
+    pixels: d.totals.pixels,
+    impactPoints: d.totals.impactPoints,
+    captures: d.totals.captures,
+    analyzedCaptures: d.totals.analyzedCaptures,
+    sampleCaptures: 0,
+  }
+}
+
+export async function getWasteTotals(today: IsoDate): Promise<WasteTotals> {
+  await wait()
+  return { today: mockTotal(today, today), week: mockTotal(startOfWeek(today), today), month: mockTotal(startOfMonth(today), today) }
+}
+
+export async function getCameraStatus(): Promise<CameraStatus> {
+  await wait()
+  return { configured: false, busy: false }
+}
+
+export async function takePhoto(): Promise<TakePhotoResult> {
+  await wait()
+  throw new Error('Demo mode has no camera. Run with the backend to take photos.')
+}
+
+export async function regenerateRecommendation(start: IsoDate, end: IsoDate): Promise<Recommendation> {
   await wait()
   return mockRecommendation(mockImpactDashboard(start, end, todayIso()), new Date())
 }

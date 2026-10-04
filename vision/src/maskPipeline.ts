@@ -9,6 +9,14 @@
  *   4. Masks are decoded and validated (exact size, strictly binary, nonempty).
  *   5. Pixels are counted in code (rule smallest-first-v1, masks.ts). Each bucket's
  *      exclusive mask is returned for storage and backs maskCount.
+ *   6. Plate calibration plate-fit-v1 (calibration.ts, BIG-PLAN D2): Gemini's
+ *      plate box is requested concurrently with step 1; after the food masks,
+ *      SAM masks the plate and a rim circle gives cm^2/px. Any failure falls
+ *      back to a `configured-default` calibration flagged
+ *      `calibration_default`. Calibration never changes pixel counts (food
+ *      outside the dish is reported as a diagnostic, not subtracted).
+ *   7. A segmented overlay JPEG (overlay.ts, D7) is rendered for the backend
+ *      to store; a rendering failure leaves `overlay: null`.
  *
  * Stage outcomes stay separate: classification failure, explicit empty
  * plate, partial segmentation, and total segmentation failure each produce a
@@ -17,6 +25,7 @@
 
 import type {
   AnalysisAttempt,
+  ApiError,
   AnalysisStatus,
   ClassificationRegion,
   CountStatus,
@@ -24,6 +33,7 @@ import type {
   ImageGeometry,
   MaskPixelCount,
   MenuItem,
+  PlateCalibration,
   QualityFlag,
   ReferencePortion,
   SegmentationResult,
@@ -47,6 +57,15 @@ import {
   type CountedRegion,
 } from './masks.js';
 import type { Segmenter, SegmenterInfo } from './samClient.js';
+import {
+  defaultCalibration,
+  fitPlate,
+  locatePlate,
+  pixelsOutsideCircle,
+  type CalibrationOptions,
+  type CalibrationOutcome,
+} from './calibration.js';
+import { colorForIndex, renderOverlay, UNKNOWN_COLOR, type OverlayBucket, type OverlayImage } from './overlay.js';
 
 export interface MaskAnalysisInput {
   eventId: string;
@@ -58,6 +77,22 @@ export interface MaskAnalysisInput {
   /** Optional auxiliary baselines; never required for Pixels wasted. */
   baselines?: ReferencePortion[];
   now?: () => Date;
+  /** Plate calibration (plate-fit-v1) settings; `{ enabled: false }` uses the configured default. */
+  calibration?: CalibrationOptions;
+  /** Render the segmented overlay JPEG. Default true. */
+  renderOverlay?: boolean;
+}
+
+export interface MaskAnalysisDiagnostics {
+  /** Why the configured-default calibration was used (absent after a successful fit). */
+  calibrationError?: ApiError;
+  calibrationPromptVersion: string;
+  plateRimPoints?: number;
+  plateRimInliers?: number;
+  /** Counted food pixels lying outside the fitted dish circle (diagnostic; not subtracted). */
+  pixelsOutsideDish?: number;
+  /** Why `overlay` is null, when rendering was attempted or skipped. */
+  overlayError?: string;
 }
 
 export interface MaskAnalysisResult {
@@ -71,15 +106,114 @@ export interface MaskAnalysisResult {
    * { ...count, maskObjectId }.
    */
   itemMasks: { measurementId: string; png: Uint8Array; count: Omit<MaskPixelCount, 'maskObjectId'> }[];
+  /** Per-capture pixel -> cm^2 calibration; also set on attempt.calibration. Never missing. */
+  calibration: PlateCalibration;
+  /**
+   * Segmented overlay JPEG (food masks tinted per food, plate rim, legend) for
+   * the backend to store as an `overlay` image object. null when analysis
+   * produced nothing countable or rendering failed (see diagnostics).
+   */
+  overlay: OverlayImage | null;
+  diagnostics: MaskAnalysisDiagnostics;
+}
+
+type FoodStagesResult = Omit<MaskAnalysisResult, 'calibration' | 'overlay' | 'diagnostics'>;
+interface FoodStages {
+  result: FoodStagesResult;
+  buckets: { itemId: string | null; pixels: number; bitmap: Uint8Array; regionIds: string[] }[];
 }
 
 const NOT_RUN: SegmenterInfo = { model: 'not-run', checkpoint: 'not-run', codeRevision: 'not-run', device: 'none', settingsVersion: 'not-run' };
 
+/**
+ * Classification -> segmentation -> Pixels wasted, plus plate calibration and
+ * the segmented overlay. Backward compatible: callers that ignore the new
+ * `calibration` / `overlay` / `diagnostics` fields see the same attempt,
+ * measurements, and masks as before (attempt additionally carries
+ * `calibration`).
+ */
 export async function analyzeCaptureWithMasks(
   gateway: GeminiGateway,
   segmenter: Segmenter,
   input: MaskAnalysisInput,
 ): Promise<MaskAnalysisResult> {
+  const { widthPx: W, heightPx: H } = input.geometry;
+  const calOptions = input.calibration ?? {};
+  const calibrate = calOptions.enabled !== false;
+  // Gemini's plate box runs concurrently with classification (never rejects).
+  const located = calibrate ? locatePlate(gateway, input.image, W, H) : null;
+
+  const food = await runFoodStages(gateway, segmenter, input);
+  const countStatus = food.result.attempt.segmentation?.countStatus;
+  const analyzable = countStatus === 'complete' || countStatus === 'partial' || countStatus === 'empty';
+
+  let outcome: CalibrationOutcome;
+  if (!located) outcome = defaultCalibration(calOptions);
+  else if (!analyzable) {
+    outcome = defaultCalibration(
+      calOptions,
+      makeApiError('CALIBRATION_SKIPPED', 'Plate calibration was skipped because the food analysis was unavailable.', true),
+    );
+  } else outcome = await fitPlate(segmenter, input.image, W, H, await located, calOptions);
+
+  const diagnostics: MaskAnalysisDiagnostics = {
+    calibrationPromptVersion: outcome.promptVersion,
+    ...(outcome.error ? { calibrationError: outcome.error } : {}),
+    ...(outcome.rimPoints !== undefined ? { plateRimPoints: outcome.rimPoints } : {}),
+    ...(outcome.rimInliers !== undefined ? { plateRimInliers: outcome.rimInliers } : {}),
+  };
+  if (outcome.circle && food.buckets.length > 0) {
+    const union = new Uint8Array(W * H);
+    for (const b of food.buckets) for (let i = 0; i < union.length; i++) if (b.bitmap[i]) union[i] = 1;
+    diagnostics.pixelsOutsideDish = pixelsOutsideCircle(union, W, H, outcome.circle);
+  }
+
+  let overlay: OverlayImage | null = null;
+  if (input.renderOverlay === false) diagnostics.overlayError = 'disabled';
+  else if (!analyzable) diagnostics.overlayError = 'analysis_unavailable';
+  else {
+    const menuIndex = new Map(input.menu.items.map((item, k) => [item.itemId, k]));
+    const regionLabel = new Map((food.result.attempt.segmentation?.regions ?? []).map((r) => [r.regionId, r.visualLabel]));
+    const buckets: OverlayBucket[] = [...food.buckets]
+      .sort((a, b) => b.pixels - a.pixels)
+      .map((b) => {
+        const k = b.itemId === null ? undefined : menuIndex.get(b.itemId);
+        const labels = [...new Set(b.regionIds.map((id) => regionLabel.get(id)).filter((l): l is string => !!l))];
+        return {
+          itemId: b.itemId,
+          label:
+            b.itemId === null
+              ? `Unclassified food${labels.length ? ` (${labels.slice(0, 3).join('; ')})` : ''}`
+              : (input.menu.items[k!]?.displayName ?? b.itemId),
+          pixels: b.pixels,
+          bitmap: b.bitmap,
+          color: k === undefined ? UNKNOWN_COLOR : colorForIndex(k),
+        };
+      });
+    const rendered = await renderOverlay({
+      image: input.image,
+      widthPx: W,
+      heightPx: H,
+      buckets,
+      calibration: outcome.calibration,
+      rim: outcome.circle,
+      emptyText: countStatus === 'empty' ? 'No leftover food detected' : 'No food pixels counted',
+    });
+    if (rendered.ok) overlay = rendered.overlay;
+    else diagnostics.overlayError = rendered.reason;
+  }
+
+  return {
+    ...food.result,
+    attempt: { ...food.result.attempt, calibration: outcome.calibration },
+    calibration: outcome.calibration,
+    overlay,
+    diagnostics,
+  };
+}
+
+async function runFoodStages(gateway: GeminiGateway, segmenter: Segmenter, input: MaskAnalysisInput): Promise<FoodStages> {
+  const buckets: FoodStages['buckets'] = [];
   const now = input.now ?? (() => new Date());
   const { widthPx: W, heightPx: H } = input.geometry;
   const flags = new Set<QualityFlag>(['ai_estimate']);
@@ -94,7 +228,7 @@ export async function analyzeCaptureWithMasks(
     masks: MaskAnalysisResult['masks'] = [],
     error?: AnalysisAttempt['error'],
     itemMasks: MaskAnalysisResult['itemMasks'] = [],
-  ): MaskAnalysisResult => ({
+  ): FoodStages => ({ buckets, result: {
     attempt: {
       eventId: input.eventId,
       attemptId: input.attemptId,
@@ -125,7 +259,7 @@ export async function analyzeCaptureWithMasks(
     measurements,
     masks,
     itemMasks,
-  });
+  } });
 
   // 1. Classification + localization.
   const menuIds = input.menu.items.map((i) => i.itemId);
@@ -288,6 +422,7 @@ export async function analyzeCaptureWithMasks(
       aux.unavailableReason = itemId ? 'no_baseline_auxiliary_only' : 'unclassified_food';
     }
     const measurementId = `meas_${input.attemptId}_${++seq}`;
+    buckets.push({ itemId, pixels, bitmap, regionIds });
     itemMasks.push({ measurementId, png: encodeBinaryMask(bitmap, W, H), count: { ...provenance, pixelsWasted: pixels } });
     measurements.push({
       measurementId,

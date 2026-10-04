@@ -73,6 +73,10 @@ export interface AnalysisAttempt {
    * `promptVersion` above describe the classification stage.
    */
   segmentation?: SegmentationResult;
+  /** Per-capture pixel→cm² calibration (BIG-PLAN D2). Absent on legacy attempts. */
+  calibration?: PlateCalibration;
+  /** Object id of the segmented overlay JPEG in object storage (BIG-PLAN D7). */
+  overlayObjectId?: string;
 }
 
 /**
@@ -195,4 +199,27 @@ export interface ApiError {
   message: string;
   details?: Record<string, unknown>;
   retryable: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Waste impact (BIG-PLAN.md D1–D8, 2026-10-03). Pixels wasted stays the raw
+// stored measurement; grams and impact are labeled ESTIMATES derived at read
+// time by analytics from a per-capture plate calibration and the factor
+// tables (menu_waste_factors.csv, menu_nutrition_factors.csv).
+// ---------------------------------------------------------------------------
+
+export type CalibrationFlag = 'calibration_default' | 'plate_cut_off' | 'bowl_size_assumed';
+
+/** Per-capture pixel→area calibration. Persisted with the analysis attempt. */
+export interface PlateCalibration {
+  /** 'plate-fit-v1' = Gemini plate box → SAM plate mask → outer-rim circle fit. */
+  method: 'plate-fit-v1' | 'configured-default';
+  /** Physical plate diameter assumed for the fit (26.7 cm / 10.5"). */
+  plateDiameterCm: number;
+  plateDiameterPx: number;
+  /** (plateDiameterCm / plateDiameterPx)^2 */
+  cm2PerPx: number;
+  dishType?: 'plate' | 'bowl' | 'other';
+  fullyVisible?: boolean;
+  flags: CalibrationFlag[];
 }

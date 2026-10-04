@@ -4,8 +4,10 @@
  * - createGeminiGateway: server-side Gemini transport (live or mock) with
  *   normalized errors, timeout, and bounded retries. `generateText` is the
  *   reusable interface for Agent 6's suggestions.
- * - analyzeCapture: image + menu/baseline context -> AnalysisAttempt +
- *   FoodMeasurement[] per contracts/types.ts and AGENTS.md §7.
+ * - analyzeCaptureWithMasks: Gemini classification + boxes -> SAM 2.1 masks
+ *   -> counted Pixels wasted, plus plate calibration (plate-fit-v1) and the
+ *   segmented overlay JPEG.
+ * - analyzeCapture: legacy Gemini area estimates (not the measurement path).
  */
 
 export {
@@ -31,7 +33,25 @@ export type {
 export { analyzeCapture } from './analyze.js';
 
 export { analyzeCaptureWithMasks } from './maskPipeline.js';
-export type { MaskAnalysisInput, MaskAnalysisResult } from './maskPipeline.js';
+export type { MaskAnalysisInput, MaskAnalysisResult, MaskAnalysisDiagnostics } from './maskPipeline.js';
+export {
+  CALIBRATION_METHOD,
+  DEFAULT_PLATE_DIAMETER_PX,
+  PLATE_DIAMETER_CM,
+  PLATE_LOCATE_PROMPT_VERSION,
+  calibratePlate,
+  defaultCalibration,
+  extractRimPoints,
+  fitCircle,
+  fitPlate,
+  fitRimCircle,
+  locatePlate,
+  resolveDefaultPlateDiameterPx,
+  validatePlateText,
+} from './calibration.js';
+export type { CalibrationOptions, CalibrationOutcome, Circle, LocatedPlate, LocatePlateResult, RimFit } from './calibration.js';
+export { OVERLAY_VERSION, colorForIndex, legendLines, renderOverlay } from './overlay.js';
+export type { OverlayBucket, OverlayImage, RenderOverlayInput, RenderOverlayResult } from './overlay.js';
 export { createSamWorkerClient } from './samClient.js';
 export type { Segmenter, SegmenterInfo, SegmentResponse } from './samClient.js';
 export { COUNTING_RULE_VERSION, BOX_CONVENTION, countPixels, decodeBinaryMask, encodeBinaryMask, geminiBoxToPixels } from './masks.js';

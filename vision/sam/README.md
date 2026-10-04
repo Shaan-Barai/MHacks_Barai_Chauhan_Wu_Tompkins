@@ -14,11 +14,28 @@ Python ≥ 3.10 with PyTorch ≥ 2.5.1 and Meta's `sam2` package from
 from source). Checkpoints download from Hugging Face on first start.
 
 ```bash
+# from the repo root; .venv/ is gitignored
 python3 -m venv .venv
-.venv/bin/pip install torch torchvision pillow numpy
-git clone https://github.com/facebookresearch/sam2 ../sam2 && .venv/bin/pip install -e ../sam2
+.venv/bin/pip install torch torchvision pillow numpy huggingface_hub
+git clone --depth 1 https://github.com/facebookresearch/sam2 ../sam2   # outside the repo
+(cd ../sam2 && SAM2_BUILD_CUDA=0 ../mhacks/.venv/bin/pip install -e .)
 .venv/bin/python vision/sam/worker.py        # http://127.0.0.1:8790
+curl -s http://127.0.0.1:8790/health          # {"ok": true, "model": "sam2.1-hiera-small", ...}
 ```
+
+`huggingface_hub` is required by `SAM2ImagePredictor.from_pretrained` but is
+not installed by `sam2` itself. To keep the worker running after the shell
+exits (the backend and live E2E tests share it):
+
+```bash
+nohup .venv/bin/python vision/sam/worker.py > /tmp/sam_worker.log 2>&1 &
+```
+
+**Setup verified 2026-10-04** on the team MacBook (Apple Silicon, MPS):
+Homebrew Python 3.14.6, torch 2.14.1, torchvision 0.29.1, `sam2@2b90b9f`
+(clone at `/Users/mike/sam2`), venv at `/Users/mike/mhacks/.venv`. The first
+start downloads the Small checkpoint (~28 s load). Python 3.14 prints a
+harmless `torch.jit.script` FutureWarning.
 
 | Env | Default | Meaning |
 | --- | --- | --- |

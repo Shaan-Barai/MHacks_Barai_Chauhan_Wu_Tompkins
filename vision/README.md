@@ -223,6 +223,26 @@ but burger50/60 read ~20–30 points high and are not told apart; fries are
 overcounted by ~30%. By eye, fries10 shows about 13 fries, so the labels may
 be approximate. Not yet wired into the backend pipeline or dashboard.
 
+## Live calibration/overlay smoke (2026-10-04)
+
+`node --env-file=../.env scripts/calibration-smoke.mjs <outDir> [images]`
+(needs the SAM worker). Defaults: 4 `test2/` photos normalized like capture
+(1024² center crop), the demo dinner menu with Gemini descriptions, two-pass
+localization, `gemini-3.5-flash`, and SAM 2.1 Small on MPS. All 4 succeeded
+with `plate-fit-v1`, and every ground-truth food was found:
+
+| Photo | Calibration | Foods (Pixels wasted) | vs ground_truth.csv |
+| --- | --- | --- | --- |
+| IMG_2695 | plate, 1236 px, `plate_cut_off` (plate wider than the crop) | Vegetable Stir Fry Blend 111,303; Sticky Rice 54,401 | both correct |
+| IMG_2697 | plate, 963 px, `plate_cut_off` | Sweet Potatoes 83,589; Roasted Cauliflower 72,529; Ham 28,827; Shaved Brussel Sprouts 13,919 | 3/3 correct; the sprouts are on a neighbouring plate (all 13,919 px outside the dish) |
+| IMG_2701 | plate, 844 px | 4 Bean Stew 17,560; Cheese Bread 13,707 | stew correct; the bread is outside the dish (13,707 px) |
+| IMG_2706 | bowl, 574 px, `bowl_size_assumed` | Chocolate Coconut Cream Pie 93,822; unclassified 20,143 | pie + unknown correct |
+
+Food on neighbouring dishes is the main error, and `diagnostics.pixelsOutsideDish`
+measures exactly that. Clipping counts to the fitted dish would remove it, but
+clipping is not enabled (see above). These fixture photos are phone shots
+with several dishes in frame, not images from the mounted camera.
+
 ## Live smoke test
 
 ```sh

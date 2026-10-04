@@ -9,8 +9,8 @@
  * SAM_WORKER_URL. Images are normalized exactly like capture/src/normalize.ts
  * (EXIF orientation, centered square crop, 1024x1024 Lanczos3, JPEG q90).
  * The menu is the demo dinner (data/seed/demo-seed.json, 2026-10-03), whose
- * descriptions are Gemini visible-component text. Two Gemini calls per image
- * (classification + plate box); MAX_GEMINI_CALLS (default 2 per image + 2)
+ * descriptions are Gemini visible-component text. Three Gemini calls per image
+ * (two localization passes + plate box); MAX_GEMINI_CALLS (default 3 per image + 2)
  * aborts a runaway run.
  */
 
@@ -34,7 +34,7 @@ const menu = { menuId: dinner.service.menuId, menuVersion: dinner.service.menuVe
 const gateway = createGeminiGateway();
 if (gateway.mode !== 'live') throw new Error('Set GEMINI_API_KEY: this script makes live calls.');
 const sam = createSamWorkerClient();
-const maxCalls = Number(process.env.MAX_GEMINI_CALLS ?? images.length * 2 + 2);
+const maxCalls = Number(process.env.MAX_GEMINI_CALLS ?? images.length * 3 + 2);
 
 async function normalize(file) {
   const img = sharp(readFileSync(file)).rotate();
@@ -75,11 +75,12 @@ for (const file of images) {
     diagnostics: r.diagnostics,
     foods,
     overlay: r.overlay ? { widthPx: r.overlay.widthPx, heightPx: r.overlay.heightPx, bytes: r.overlay.jpeg.length } : null,
+    localization: r.localization,
     seconds: Number(seconds.toFixed(1)),
   };
   results.push(row);
   const c = r.calibration;
-  console.log(`\n${name}: ${row.status}/${row.countStatus} ${row.error ?? ''} ${row.seconds}s  Gemini calls so far ${gateway.callCount}`);
+  console.log(`\n${name}: boxes/pass=[${r.localization.passBoxes.join(',')}] merged=${r.localization.mergedBoxes} ${row.status}/${row.countStatus} ${row.error ?? ''} ${row.seconds}s  Gemini calls so far ${gateway.callCount}`);
   console.log(`  calibration ${c.method} ${c.dishType ?? ''} d=${c.plateDiameterPx}px cm2/px=${c.cm2PerPx.toFixed(6)} flags=[${c.flags.join(',')}]` +
     (r.diagnostics.calibrationError ? ` (${r.diagnostics.calibrationError.code})` : '') +
     (r.diagnostics.pixelsOutsideDish !== undefined ? ` foodPxOutsideDish=${r.diagnostics.pixelsOutsideDish}` : ''));

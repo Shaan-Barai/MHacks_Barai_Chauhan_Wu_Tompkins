@@ -26,7 +26,7 @@ export function PortionsForecast({ hallId, date, menuRevision = 0 }: { hallId: s
         Portions forecasted
         <InfoTip id={tip} text={FORECAST_EXPLANATION} />
       </h2>
-      <p className="mt-1 text-base">{formatLong(date)}. Pick another day on the calendar below.</p>
+      <p className="mt-1 text-base">{formatLong(date)}. Change the menu date above to forecast another day.</p>
 
       <div role="tablist" aria-label="Meal to forecast" className="mt-3 flex max-w-md border border-ink">
         {MEALS.map((m) => (

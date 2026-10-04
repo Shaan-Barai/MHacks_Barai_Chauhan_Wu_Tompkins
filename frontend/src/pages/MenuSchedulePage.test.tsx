@@ -8,22 +8,26 @@ import { todayIso } from '../lib/dates'
 const settings = withHalls(DEFAULT_SETTINGS, [{ hallId: 'hall-main', name: 'South Quad' }])
 
 describe('MenuSchedulePage', () => {
-  it('stacks add a menu, meal times, and portions forecasted above the calendar, with no per-meal results box', async () => {
+  it('shows add a menu (with a meal-times row) then portions forecasted, with no calendar or per-meal results box', async () => {
     render(<MenuSchedulePage settings={settings} onSettingsChange={() => {}} />)
     const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
-    const order = ['Add a menu', 'Meal times', 'Portions forecasted'].map((t) => headings.findIndex((h) => h?.startsWith(t)))
+    const order = ['Add a menu', 'Portions forecasted'].map((t) => headings.findIndex((h) => h?.startsWith(t)))
     expect(order.every((i) => i >= 0)).toBe(true)
     expect([...order].sort((a, b) => a - b)).toEqual(order)
     expect(screen.queryByText(/No plates were scanned/)).toBeNull()
-    expect(await screen.findByRole('button', { name: /Previous month/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Previous month/ })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Meal times' })).toBeNull()
+    expect(screen.getByRole('group', { name: 'Breakfast times' })).toBeInTheDocument()
   })
 
-  it('saves meal times from the Menu Schedule page', () => {
+  it('changes when a meal runs from the row under the meal boxes, for the menu date’s days', () => {
     const onSettingsChange = vi.fn()
     render(<MenuSchedulePage settings={settings} onSettingsChange={onSettingsChange} />)
-    fireEvent.change(screen.getAllByLabelText('Lunch end time')[0], { target: { value: '15:00' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save meal times' }))
-    expect(onSettingsChange.mock.calls[0][0].timeSets[0].meals.lunch.end).toBe('15:00')
+    fireEvent.change(screen.getByLabelText('Lunch end time'), { target: { value: '15:00' } })
+    const next = onSettingsChange.mock.calls[0][0]
+    const changed = next.timeSets.find((t: { meals: { lunch: { end: string } } }) => t.meals.lunch.end === '15:00')
+    expect(changed).toBeDefined()
+    expect(next.timeSets).toHaveLength(settings.timeSets.length)
   })
 
   it('forecasts portions for each food on the day’s menu', async () => {

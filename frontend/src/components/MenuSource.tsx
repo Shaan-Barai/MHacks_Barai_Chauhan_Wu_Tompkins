@@ -5,8 +5,9 @@
  */
 import { useId, useRef, useState } from 'react'
 import { menuApiBase, saveUserMenuDays } from '../data/api'
-import type { HallRef, IsoDate, MealLabel, MenuItemLite, MenuRepeat } from '../data/types'
-import { MEALS, MEAL_NAME, MENU_REPEAT_NAME } from '../data/types'
+import type { HallRef, HallSettings, IsoDate, MealHours, MealLabel, MenuItemLite, MenuRepeat } from '../data/types'
+import { MEALS, MEAL_NAME, MENU_REPEAT_NAME, WEEKDAY_NAME } from '../data/types'
+import { DEFAULT_SETTINGS, newId, timeSetFor, weekdayOf } from '../state/settings'
 import { itemIdFor } from '../data/mockData'
 import { addDays, formatMedium, todayIso } from '../lib/dates'
 import { defaultRepeatUntil, repeatDates } from '../lib/repeat'
@@ -24,7 +25,12 @@ export function MenuSource({
   onDateChange,
   initialDate,
   onMenuSaved,
+  settings,
+  onSettingsChange,
 }: {
+  /** With settings: a row under the meal boxes to change when each meal runs. */
+  settings?: HallSettings
+  onSettingsChange?: (next: HallSettings) => void
   /** Locations the manager runs; a picker shows when there is more than one and no `hallId`. */
   halls?: HallRef[]
   /** Save to this hall (the page already picked one). */
@@ -71,7 +77,63 @@ export function MenuSource({
         ) : null
       }
       onMenuSaved={onMenuSaved}
+      mealTimes={settings && onSettingsChange ? <MealTimesRow date={date} settings={settings} onChange={onSettingsChange} /> : null}
     />
+  )
+}
+
+/**
+ * When breakfast, lunch, and dinner run on the menu date's days (its meal-time
+ * set, e.g. Weekdays). Changes save right away.
+ */
+function MealTimesRow({ date, settings, onChange }: { date: IsoDate; settings: HallSettings; onChange: (next: HallSettings) => void }) {
+  const set = timeSetFor(settings, date)
+  const meals = set?.meals ?? DEFAULT_SETTINGS.timeSets[0].meals
+  const update = (meal: MealLabel, field: keyof MealHours, value: string) => {
+    if (!value) return
+    const nextMeals = { ...meals, [meal]: { ...meals[meal], [field]: value } }
+    const timeSets = set
+      ? settings.timeSets.map((t) => (t.id === set.id ? { ...t, meals: nextMeals } : t))
+      : [...settings.timeSets, { id: newId('set'), name: WEEKDAY_NAME[weekdayOf(date)], days: [weekdayOf(date)], meals: nextMeals }]
+    onChange({ ...settings, timeSets })
+  }
+  return (
+    <div className="mt-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {MEALS.map((meal) => (
+          <fieldset key={meal} className="rounded-card border border-linen p-3">
+            <legend className="px-1 text-base font-semibold text-ink">{MEAL_NAME[meal]} times</legend>
+            <div className="flex flex-wrap items-center gap-2 text-base">
+              <label className="flex items-center gap-2">
+                from
+                <input
+                  type="time"
+                  value={meals[meal].start}
+                  onChange={(e) => update(meal, 'start', e.target.value)}
+                  aria-label={`${MEAL_NAME[meal]} start time`}
+                  className="rounded-btn border border-ink bg-cream px-2 py-1.5 text-base text-ink"
+                />
+              </label>
+              <label className="flex items-center gap-2">
+                to
+                <input
+                  type="time"
+                  value={meals[meal].end}
+                  onChange={(e) => update(meal, 'end', e.target.value)}
+                  aria-label={`${MEAL_NAME[meal]} end time`}
+                  className="rounded-btn border border-ink bg-cream px-2 py-1.5 text-base text-ink"
+                />
+              </label>
+            </div>
+          </fieldset>
+        ))}
+      </div>
+      <p className="mt-2 text-sm">
+        {set
+          ? `These hours apply to ${set.name || 'these days'} (${set.days.map((d) => WEEKDAY_NAME[d]).join(', ')}). Changes save right away.`
+          : `No meal times are set for ${WEEKDAY_NAME[weekdayOf(date)]} yet. Changing them here adds them.`}
+      </p>
+    </div>
   )
 }
 
@@ -91,7 +153,9 @@ function ManualMenuPanel({
   hallName,
   hallPicker,
   onMenuSaved,
+  mealTimes,
 }: {
+  mealTimes: React.ReactNode
   date: IsoDate
   setDate: (date: IsoDate) => void
   hall?: string
@@ -269,6 +333,8 @@ function ManualMenuPanel({
           </fieldset>
         ))}
       </div>
+
+      {mealTimes}
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <PrimaryButton type="button" onClick={save} disabled={!hasItems || saving}>

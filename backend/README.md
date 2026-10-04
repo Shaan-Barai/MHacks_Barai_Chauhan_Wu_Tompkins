@@ -13,8 +13,9 @@ cd backend
 npm install
 npm start          # build (data/vision/analytics first) + run; http://localhost:8787
 npm test           # build + node --test (in-memory repo, mock analyzer, offline R2)
-# live SpacetimeDB check (per-run ids; demo data untouched):
-set -a; . ../.env; set +a; npm test   # runs test/spacetimeRepository.live.test.ts too
+# live SpacetimeDB repository check: OPT-IN, writes throwaway hall-t… rows to a
+# separate test database (SPACETIMEDB_TEST_MODULE, default scrap-test; never scrap):
+set -a; . ../.env; set +a; SCRAP_LIVE_REPO_TEST=1 npm test
 npm run seed       # load data/seed/demo-seed.json through the API (backend running):
                    # menus (incl. the 23-food demo dinner), reference portions, and
                    # demo portions served (source "demo"); idempotent
@@ -35,9 +36,12 @@ cd backend && npm run seed
 
 `.env` must set `OBJECT_STORAGE_PROVIDER=r2`, the `R2_*` credentials,
 `GEMINI_API_KEY`, `SPACETIMEDB_URI=http://127.0.0.1:3000`, and the
-`SPACETIMEDB_TOKEN` of the identity that published the module. Live
-repository check: `node --env-file=../.env --test dist/backend/test/spacetimeRepository.live.test.js`
-(after `npm run build`; it writes per-run ids only).
+`SPACETIMEDB_TOKEN` of the identity that published the module. The live
+repository check is opt-in and never touches `scrap`: publish the module to a
+throwaway database (e.g. `scrap-test`), then
+`SCRAP_LIVE_REPO_TEST=1 node --env-file=../.env --test dist/backend/test/spacetimeRepository.live.test.js`
+(after `npm run build`; `SPACETIMEDB_TEST_MODULE` picks the database, default
+`scrap-test`; `scrap` and `scrap-bigplan` are refused).
 
 ## Environment (see root `.env.example`; all server-side, no secrets in code)
 
@@ -70,7 +74,7 @@ Every error returns the shared envelope `{ "error": { code, message, details?, r
 (contracts `ApiError`) with a matching HTTP status.
 
 ### Menus
-- `POST /api/menus` — upload a validated menu bundle.
+- `POST /api/menus` — upload a validated menu bundle. A `menuVersion` lower than the stored one is `409 MENU_VERSION_CONFLICT` (`retryable: false`); a higher one is a revision, and the superseded items stay resolvable by id (SpacetimeDB `menu_item_revision`).
   ```json
   { "service": { "serviceId": "svc_hall-main_2026-10-03_lunch", "hallId": "hall-main",
       "hallTimezone": "America/Detroit", "serviceDate": "2026-10-03", "mealLabel": "lunch",
@@ -287,6 +291,12 @@ provider-independent.
 
 - `POST /api/menus` keeps the `MenuBundle` shape check (seed/API clients);
   manager uploads go through `scrap-data` parsers on `/api/menus/upload|csv`.
+- Menu revisions: every read model names an item from the current menu, else
+  its stored row (current `menu_item`, then the `menu_item_revision`
+  archive), else a humanized id (`...dinner_jasmine-rice` → "Jasmine Rice"),
+  never the raw id (`ItemNameResolver`). The impact dashboard validates each
+  capture against the menu version its counted attempt froze and pairs it with
+  that version's portions snapshot, so a revision never drops old captures.
 - `PUT /api/attendance` and `POST /api/suggestions` are provisional write
   paths for Agent 6 (first-write-wins attendance); Agent 6 may prefer direct
   service invocation later.

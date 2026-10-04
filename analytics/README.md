@@ -84,7 +84,9 @@ calibration and there are no grams, kg CO2e, litres or dollars anywhere in the a
   `labels = { relativeImpact: true, demoPortions }`. Factor tables come in through
   `factors: { findWasteFactor, findNutritionFactor }` (from `scrap-data`).
 - `selectImpactMeasurements({ services, captures, measurements, menuItems })` chooses eligible mask measurements with
-  `validMaskCount` and returns the capture counts.
+  `validMaskCount` and returns the capture counts. Pass `attemptMenuVersions` (eventId → the menuVersion the counted
+  attempt froze) so a capture analyzed before a menu revision is validated against, and paired with the portions of, its
+  own version; `menuItems` should then include the superseded items too.
 
 Worked example (pepperoni pizza, 10,000 px, 1.0 g/cm², C 16.06, W 1.94, score 5.96): base 10 → 160.6 CO2 points,
 19.4 water points, 59.6 relative impact points, 6.9 nutrition points (separate).

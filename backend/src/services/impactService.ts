@@ -18,12 +18,14 @@ import {
   recommendationInputVersion,
   selectImpactMeasurements,
   UNKNOWN_FOOD_LABEL,
+  readableItemName,
   type TextGateway,
 } from '@scrap/analytics';
 import { findNutritionFactor, findWasteFactor, WASTE_FACTORS_VERSION } from 'scrap-data';
 import { badRequest } from '../errors.js';
 import type { Repository } from '../repo/repository.js';
 import type { IngestionService } from './ingestionService.js';
+import { ItemNameResolver } from './itemNames.js';
 import type {
   AnalysisAttempt,
   CaptureEvent,
@@ -31,6 +33,7 @@ import type {
   FoodMeasurement,
   ImpactDashboard,
   MenuBundle,
+  MenuItem,
   PortionsServed,
   Recommendation,
 } from '../types.js';
@@ -52,7 +55,12 @@ export interface ServiceRecords {
   latestAttempts: Map<string, AnalysisAttempt>;
   /** Measurements of the counted attempts only. */
   measurements: FoodMeasurement[];
-  /** Portions served for the service's current menu version. */
+  /**
+   * Current menu items plus any item an older counted attempt measured that a
+   * later revision dropped (stored row, else humanized id; ItemNameResolver).
+   */
+  items: MenuItem[];
+  /** Portions served for every menu version a counted attempt froze (and the current one). */
   portions: PortionsServed[];
 }
 
@@ -79,6 +87,7 @@ export function parseWindow(query: Record<string, unknown>): ImpactWindow {
 
 export class ImpactService {
   private readonly recommendations = new Map<string, { value: Recommendation; storedAt: number }>();
+  private readonly names: ItemNameResolver;
 
   constructor(
     private readonly repo: Repository,
@@ -86,7 +95,9 @@ export class ImpactService {
     /** Live Gemini only; mock text is never a recommendation (fallback instead). */
     private readonly gateway?: TextGateway,
     private readonly now: () => number = () => Date.now(),
-  ) {}
+  ) {
+    this.names = new ItemNameResolver(repo);
+  }
 
   /** Records for every service whose local date falls in the window. */
   async gather(window: ImpactWindow): Promise<ServiceRecords[]> {
@@ -112,8 +123,13 @@ export class ImpactService {
         countedAttempts.set(event.eventId, counted);
         measurements.push(...(await this.repo.listMeasurementsByAttempt(counted.attemptId)));
       }
-      const portions = await this.repo.listPortionsServed(service.serviceId, menu.service.menuVersion);
-      out.push({ menu, captures, countedAttempts, latestAttempts, measurements, portions });
+      // A capture counts against the menu version its attempt froze, so a
+      // later revision neither drops it nor pairs it with the wrong portions.
+      const versions = new Set([menu.service.menuVersion, ...[...countedAttempts.values()].map((a) => a.menuVersion)]);
+      const portions: PortionsServed[] = [];
+      for (const v of versions) portions.push(...(await this.repo.listPortionsServed(service.serviceId, v)));
+      const items = [...(await this.names.items(menu, measurements.map((m) => m.itemId))).values()];
+      out.push({ menu, captures, countedAttempts, latestAttempts, measurements, items, portions });
     }
     return out;
   }
@@ -129,7 +145,8 @@ export class ImpactService {
       services: records.map((r) => r.menu.service),
       captures: records.flatMap((r) => r.captures),
       measurements: records.flatMap((r) => r.measurements),
-      menuItems: records.flatMap((r) => r.menu.items),
+      menuItems: records.flatMap((r) => r.items),
+      attemptMenuVersions: new Map(records.flatMap((r) => [...r.countedAttempts].map(([eventId, a]) => [eventId, a.menuVersion] as const))),
     });
     // Counted attempts' quality flags: vision's target-dish counting marks an
     // attempt that dropped food from a neighboring dish (analytics
@@ -143,7 +160,7 @@ export class ImpactService {
       measurements: selected.measurements,
       attemptQualityFlags,
       captures: selected.captures,
-      menuItems: records.flatMap((r) => r.menu.items),
+      menuItems: records.flatMap((r) => r.items),
       portions: records.flatMap((r) => r.portions),
       factors: { findWasteFactor, findNutritionFactor },
       wasteFactorsVersion: WASTE_FACTORS_VERSION,
@@ -155,7 +172,7 @@ export class ImpactService {
     const records = await this.gather(window);
     const items: CaptureListItem[] = [];
     for (const r of records) {
-      const names = new Map(r.menu.items.map((i) => [i.itemId, i.displayName]));
+      const names = new Map(r.items.map((i) => [i.itemId, i.displayName]));
       for (const event of r.captures) {
         const attempt = r.countedAttempts.get(event.eventId);
         const rows = attempt ? r.measurements.filter((m) => m.attemptId === attempt.attemptId) : [];
@@ -173,7 +190,7 @@ export class ImpactService {
           pixelsWasted: counted ? seg!.capturePixelsWasted ?? null : null,
           items: rows.map((m) => ({
             itemId: m.itemId,
-            displayName: m.itemId === null ? UNKNOWN_FOOD_LABEL : names.get(m.itemId) ?? m.itemId,
+            displayName: m.itemId === null ? UNKNOWN_FOOD_LABEL : names.get(m.itemId) ?? readableItemName(m.itemId),
             pixels: m.remainingAreaPx,
           })),
           hasOverlay: Boolean((attempt ?? latest)?.overlayObjectId),

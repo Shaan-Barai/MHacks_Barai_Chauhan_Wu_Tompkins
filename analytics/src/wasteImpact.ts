@@ -380,7 +380,16 @@ export interface SelectImpactInput {
   captures: readonly CaptureEvent[];
   /** Measurements of the counted (latest succeeded) attempt per capture. */
   measurements: readonly FoodMeasurement[];
+  /** Items of every menu version the measurements may use (e.g. current items plus resolved older ones). */
   menuItems: readonly MenuItem[];
+  /**
+   * eventId -> the menuVersion its counted attempt froze. A capture analyzed
+   * against an earlier version of its service's menu is validated (and its
+   * per-portion snapshot looked up) against THAT version, so a later menu
+   * revision never silently drops or rewrites historical counts. Omitted ⇒
+   * the service's current version.
+   */
+  attemptMenuVersions?: ReadonlyMap<string, number>;
 }
 
 export interface SelectedImpactMeasurements {
@@ -396,7 +405,9 @@ export interface SelectedImpactMeasurements {
  * version, capture total within the image. A succeeded capture whose
  * measurements are all valid (including none: a clean plate) is analyzed;
  * every other capture is excluded and never counted as zero waste. Named
- * items must belong to the service's menu; null itemId is unknown food.
+ * items must belong to the service's menu (same menuId, any version listed in
+ * `menuItems`); null itemId is unknown food. Each output carries the menu
+ * version the capture was analyzed against (`attemptMenuVersions`).
  */
 export function selectImpactMeasurements(input: SelectImpactInput): SelectedImpactMeasurements {
   const services = new Map(input.services.map((s) => [s.serviceId, s]));
@@ -414,8 +425,10 @@ export function selectImpactMeasurements(input: SelectImpactInput): SelectedImpa
   let analyzed = 0;
   let excludedMeasurements = 0;
   for (const capture of input.captures) {
-    const service = services.get(capture.serviceId);
-    if (!service || service.hallId !== capture.hallId) continue;
+    const current = services.get(capture.serviceId);
+    if (!current || current.hallId !== capture.hallId) continue;
+    const frozen = input.attemptMenuVersions?.get(capture.eventId);
+    const service = frozen !== undefined && Number.isSafeInteger(frozen) && frozen >= 1 ? { ...current, menuVersion: frozen } : current;
     captures++;
     const rows = byEvent.get(capture.eventId) ?? [];
     if (capture.state !== 'succeeded' || new Set(rows.map((m) => m.attemptId)).size > 1) {

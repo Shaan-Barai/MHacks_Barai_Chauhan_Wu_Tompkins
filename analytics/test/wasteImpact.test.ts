@@ -451,3 +451,24 @@ test('generateRecommendation falls back on invalid or unsafe Gemini output', asy
   assert.equal((await generateRecommendation(gw, empty, NOW)).source, 'fallback');
   assert.equal(gw.prompts.length, 0);
 });
+
+test('selectImpactMeasurements validates a capture against the menu version its attempt froze', () => {
+  // The service was revised to v2; this capture was analyzed against v1 and its item left the menu.
+  const service: MealService = { serviceId: A, hallId: 'h', hallTimezone: 'America/Detroit', serviceDate: '2026-10-01', mealLabel: 'dinner', menuId: 'menu_A', menuVersion: 2 };
+  const rice = id(A, 'jasmine-rice');
+  const geometry = { widthPx: 100, heightPx: 100, coordinateSpace: 'topdown-normalized-v1' as const };
+  const capture: CaptureEvent = { eventId: 'old', hallId: 'h', serviceId: A, capturedAt: '2026-10-01T23:00:00Z', imageObjectId: 'img-old', geometry, source: 'camera', qualityFlags: [], state: 'succeeded' };
+  const fm: FoodMeasurement = {
+    measurementId: 'old-rice', eventId: 'old', attemptId: 'att-old', itemId: rice, remainingAreaPx: 300, method: 'mask_pixel_count', qualityFlags: [],
+    maskCount: { pixelsWasted: 300, maskObjectId: 'mask', geometry, menuId: 'menu_A', menuVersion: 1, classificationVersion: 'c', segmentationVersion: 's', processingVersion: 'p', assignment: 'exclusive', validated: true },
+  };
+  const menuItems: MenuItem[] = [{ itemId: rice, menuId: 'menu_A', displayName: 'Jasmine Rice' }];
+  const base = { services: [service], captures: [capture], measurements: [fm], menuItems };
+  assert.deepEqual(selectImpactMeasurements(base).captures, { captures: 1, analyzed: 0, excluded: 1 }, 'v1 mask vs current v2: excluded');
+  const r = selectImpactMeasurements({ ...base, attemptMenuVersions: new Map([['old', 1]]) });
+  assert.deepEqual(r.captures, { captures: 1, analyzed: 1, excluded: 0 });
+  assert.deepEqual(r.measurements, [{ eventId: 'old', serviceId: A, menuVersion: 1, itemId: rice, displayName: 'Jasmine Rice', pixels: 300 }]);
+  // An item from another menu is still rejected.
+  const foreign = selectImpactMeasurements({ ...base, menuItems: [{ ...menuItems[0]!, menuId: 'menu_B' }], attemptMenuVersions: new Map([['old', 1]]) });
+  assert.equal(foreign.captures.analyzed, 0);
+});

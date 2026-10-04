@@ -11,7 +11,7 @@ total Pixels wasted, **waste per portion** (pixels ÷ portions served, the
 ranking for foods to target) and most wasted. **Relative impact points** weight
 pixels by each food's typical density and its greenhouse-gas (C) and freshwater
 (W) footprint: `points = pixels/1000 × weight_g_per_cm2 × (0.19·C + 1.50·W)`
-([menu_waste_factors_README.md](menu_waste_factors_README.md)). They are
+([factors/README.md](factors/README.md)). They are
 unitless and only compare foods with each other. They are not kg, litres or dollars. Nutrition
 points are reported separately and are not in the score. Each photo counts only
 the dish being scanned: food on neighboring plates is left out (target-dish
@@ -84,8 +84,8 @@ photos and logs to `images/demo-runs/` (gitignored). **Adding a feature? Add a d
 - [`docs/deploy.md`](docs/deploy.md) — **deploy the website**: local production stack (`deploy/local.sh`) + Cloudflare Tunnel + custom domain, step by step.
 - [`BIG-PLAN.md`](docs/plans/BIG-PLAN.md) — the camera → impact → dashboard plan and its tracker.
 - [`EXPLAIN.md`](docs/EXPLAIN.md) — the whole database (SpacetimeDB + R2) in plain language.
-- [`menu_waste_factors_README.md`](menu_waste_factors_README.md) — the waste
-  impact formula and per-food factors (nutrition in `menu_nutrition_factors_EastQuad.csv`).
+- [`factors/README.md`](factors/README.md) — the waste
+  impact formula and per-food factors (nutrition in `factors/menu_nutrition_factors_EastQuad.csv`).
 - [`AGENTS.md`](AGENTS.md) — the working plan: agent roles, ownership, rules,
   measurement formulas, and completion checks.
 - [`UI.md`](docs/plans/UI.md) — dashboard spec (layout, palette, copy).
@@ -108,16 +108,14 @@ photos and logs to `images/demo-runs/` (gitignored). **Adding a feature? Add a d
 | `analytics/` | Agent 6 | Aggregates, simulated attendance, suggestions |
 | `frontend/` | Agent 7 | ScrapSaver dashboard (React + Tailwind) |
 | `docs/`, `tests/` | Agent 8 | Demo docs, fixtures, integration/e2e tests |
+| `factors/` | Agents 2+6 | Per-food waste/nutrition factor CSVs (East Quad, Halal Bros, 500 common foods), menu labels, and the formula README; `data/` generates its tables from them |
 | `docs/plans/` | Agent 1 | Planning/spec docs and trackers (BIG-PLAN, IT_4, DEBUG-PLAN, UI, AI, MVP_AI) |
 | `deploy/` | — | Local production stack, smoke test, Cloudflare Tunnel |
 | `experiments/` | — | One-off segmentation/menu experiment outputs and `test_sam.py` (not used at runtime) |
 | `test2/`, `demo_pictures/`, `upload_demo/` | — | Demo plate photos, pipeline pictures, upload demo site (used by `demo.py`) |
-| `mhacks/` | — | Earlier standalone preview app, superseded by `frontend/` + `backend/` |
+| `archive/preview-app/` | — | Earlier standalone preview app, superseded by `frontend/` + `backend/` (not used at runtime) |
 
-Root files: `demo.py` (one-command demo), `test-all.sh` (every test), and the
-EastQuad menu/factor data (`menu_waste_factors_*.csv`,
-`menu_nutrition_factors_EastQuad.csv`, `dining_hall_menu_labels_EastQuad.*`,
-`menu_waste_factors_README.md`), which `data/` and `analytics/` load by path.
+Root files: `demo.py` (one-command demo) and `test-all.sh` (every test).
 `images/` holds local, gitignored photos and demo-run logs.
 
 ## Setup

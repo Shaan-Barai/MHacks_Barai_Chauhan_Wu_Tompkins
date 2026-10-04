@@ -315,7 +315,7 @@ of the dish box; `dish-region-v3` also unions the ellipse inscribed in the dish 
 edge-touching bowl (IMG_2695, D1) cannot clip food Gemini put on the target dish. These are phone photos with several dishes in frame, not
 images from the mounted camera.
 
-`scripts/waste-impact.mjs <imagesDir> <menu_waste_factors_EastQuad.csv> [outDir]`
+`scripts/waste-impact.mjs <imagesDir> <../factors/menu_waste_factors_EastQuad.csv> [outDir]`
 (research only) runs the same pipeline on a folder of photos and prints
 pixels and **relative impact points** (`points = px/1000 × weight_g_per_cm2 ×
 factor`; co2Points C, waterPoints W, impactPoints 0.19C + 1.50W;

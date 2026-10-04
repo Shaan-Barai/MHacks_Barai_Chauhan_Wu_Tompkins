@@ -106,7 +106,7 @@ function usableNutrition(n: NutritionFactor | null): n is NutritionFactor {
  * Missing values are null, never 0. Throws RangeError when `pixels` is not a
  * finite nonnegative number: counts must be validated before analytics.
  */
-/** Waste Impact Score weights (menu_waste_factors_README.md): s per kg CO2e, t per m³ water. */
+/** Waste Impact Score weights (factors/README.md): s per kg CO2e, t per m³ water. */
 export const CARBON_WEIGHT = 0.19;
 export const WATER_WEIGHT = 1.5;
 

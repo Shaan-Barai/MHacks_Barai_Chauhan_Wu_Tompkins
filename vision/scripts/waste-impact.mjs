@@ -1,6 +1,6 @@
 /**
  * Relative waste impact for real plate photos (BIG-PLAN v2, V1/V2;
- * menu_waste_factors_README.md). Research script only: the product computes
+ * factors/README.md). Research script only: the product computes
  * impact in analytics, never in the vision library.
  *
  *   cd vision && npm run build

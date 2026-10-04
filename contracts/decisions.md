@@ -567,3 +567,13 @@ calibrated-estimate decisions above; Pixels wasted stays the primary measured me
   bucket. Its factors come from the Halal Bros table (no East Quad row, so the tables don't overlap).
   Demo portions were carried over to the new menu version, with a labeled `demo` count for the chicken.
   The demo seed (`data/seed/demo-seed.json`) is unchanged.
+
+## 2026-10-04: factor data in `factors/`, old preview app in `archive/`
+
+The per-food factor CSVs (`menu_waste_factors_EastQuad.csv`, `menu_nutrition_factors_EastQuad.csv`,
+`menu_waste_factors_halal_bros.csv`, `menu_waste_factors_500.csv`), the East Quad menu labels
+(`dining_hall_menu_labels_EastQuad.{csv,pdf}`) and `menu_waste_factors_README.md` moved from the repo
+root to `factors/` (the README is now `factors/README.md`). File names are unchanged. The generator,
+data tests, `demo.py` and `upload_demo/` read them from there. The superseded `mhacks/` preview app
+moved to `archive/preview-app/`; nothing at runtime uses it. Older plan and decision entries keep the
+old root paths as history.

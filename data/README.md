@@ -148,7 +148,7 @@ valid because `AnalysisAttempt` freezes the `menuVersion` it used.
 
 ## Waste and nutrition factors (BIG-PLAN D1, D4)
 
-`menu_waste_factors_EastQuad.csv` and `menu_nutrition_factors_EastQuad.csv` (repo root) are the
+`menu_waste_factors_EastQuad.csv` and `menu_nutrition_factors_EastQuad.csv` (in `factors/`) are the
 source of truth. `scripts/generate-factors.mjs` (`npm run factors`) turns them
 into `src/factors.generated.ts`; a test fails when the committed module drifts
 from the CSVs, and checks `impactUsdPerKg = 0.19*C + 1.50*W` (no nutrition).

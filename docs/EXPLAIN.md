@@ -86,7 +86,7 @@ The dashboard's per-portion rates and impact points are **not** saved in the dat
 
 1. **Pixels wasted** for a food (from `food_measurement`)
 2. **Portions served** of that food at that meal (from `portions_served`)
-3. **That food's factors** (from `menu_waste_factors_EastQuad.csv`: grams per cm², CO2 per kg, water per kg)
+3. **That food's factors** (from `factors/menu_waste_factors_EastQuad.csv`: grams per cm², CO2 per kg, water per kg)
 
 ```text
 waste per portion  = pixels wasted ÷ portions served

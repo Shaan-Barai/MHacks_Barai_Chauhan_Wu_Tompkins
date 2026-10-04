@@ -51,9 +51,10 @@ function parseCsv(text) {
   return body.map((r) => Object.fromEntries(head.map((h, i) => [h.replace(/^﻿/, ''), r[i] ?? ''])));
 }
 
-const readCsv = (name) => parseCsv(readFileSync(path.join(REPO, name), 'utf8'));
+const FACTORS_DIR = path.join(REPO, 'factors');
+const readCsv = (name) => parseCsv(readFileSync(path.join(FACTORS_DIR, name), 'utf8'));
 /** The dinner tables were renamed with an _EastQuad suffix (2026-10-04); accept either name. */
-const firstExisting = (...names) => names.find((n) => existsSync(path.join(REPO, n))) ?? names[0];
+const firstExisting = (...names) => names.find((n) => existsSync(path.join(FACTORS_DIR, n))) ?? names[0];
 const DINNER_FACTORS = firstExisting('menu_waste_factors_EastQuad.csv', 'menu_waste_factors.csv');
 const DINNER_NUTRITION = firstExisting('menu_nutrition_factors_EastQuad.csv', 'menu_nutrition_factors.csv');
 const num = (v) => (v === undefined || v === '' ? null : Number(v));
@@ -124,7 +125,7 @@ export function menuFromFoods(foods, keys = null) {
 
 function fail(msg) { throw new Error(msg); }
 
-/** Relative points (unitless; menu_waste_factors_README.md "Turning pixels into relative impact points"). */
+/** Relative points (unitless; factors/README.md "Turning pixels into relative impact points"). */
 export function impactFor(food, pixels) {
   if (!food || food.weightGPerCm2 == null) return null;
   const base = (pixels / PIXELS_PER_POINT_UNIT) * food.weightGPerCm2;

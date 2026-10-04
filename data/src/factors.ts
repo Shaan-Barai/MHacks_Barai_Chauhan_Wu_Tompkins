@@ -1,7 +1,7 @@
 /**
  * Waste and nutrition factor tables (BIG-PLAN D1, D4).
  *
- * The data lives in factors.generated.ts, generated from the repo-root CSVs
+ * The data lives in factors.generated.ts, generated from the CSVs in factors/
  * (menu_waste_factors_EastQuad.csv, menu_nutrition_factors_EastQuad.csv,
  * menu_waste_factors_halal_bros.csv, menu_waste_factors_500.csv) by
  * data/scripts/generate-factors.mjs. The CSVs are the source of truth.

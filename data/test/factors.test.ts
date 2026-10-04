@@ -22,7 +22,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, '..', '..', '..', '..');
 
 function csvObjects(file: string): Array<Record<string, string>> {
-  const rows = readCsvRecords(readFileSync(join(repoRoot, file), 'utf8'));
+  const rows = readCsvRecords(readFileSync(join(repoRoot, 'factors', file), 'utf8'));
   const header = rows.shift()!.fields.map((f) => f.trim());
   return rows.map((r) => Object.fromEntries(header.map((h, i) => [h, (r.fields[i] ?? '').trim()])));
 }
@@ -91,10 +91,10 @@ test('factors: committed factors.generated.ts is up to date with the CSVs', asyn
   };
   const expected = gen.renderModule(
     gen.buildTables(
-      readFileSync(join(repoRoot, 'menu_waste_factors_EastQuad.csv'), 'utf8'),
-      readFileSync(join(repoRoot, 'menu_nutrition_factors_EastQuad.csv'), 'utf8'),
-      readFileSync(join(repoRoot, 'menu_waste_factors_500.csv'), 'utf8'),
-      readFileSync(join(repoRoot, 'menu_waste_factors_halal_bros.csv'), 'utf8'),
+      readFileSync(join(repoRoot, 'factors', 'menu_waste_factors_EastQuad.csv'), 'utf8'),
+      readFileSync(join(repoRoot, 'factors', 'menu_nutrition_factors_EastQuad.csv'), 'utf8'),
+      readFileSync(join(repoRoot, 'factors', 'menu_waste_factors_500.csv'), 'utf8'),
+      readFileSync(join(repoRoot, 'factors', 'menu_waste_factors_halal_bros.csv'), 'utf8'),
     ),
   );
   const actual = readFileSync(join(repoRoot, 'data', 'src', 'factors.generated.ts'), 'utf8');

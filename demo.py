@@ -66,6 +66,7 @@ except ImportError:  # Python < 3.9
     ZoneInfo = None
 
 REPO = Path(__file__).resolve().parent
+FACTORS = REPO / "factors"
 HALL_ID = "hall-main"
 HALL_TZ = "America/Detroit"
 DEFAULT_BOARD = os.environ.get("SCRAP_BOARD", "arduino@35.1.88.76")
@@ -776,7 +777,7 @@ def step_stats(demo):
         print(dim(f"    Estimated CO2e / water: unavailable ({t.get('physicalUnavailableReason') or 'no calibrated plates'}); "
                   "pixels and points above are unaffected."))
 
-    print(f"\n  {bold('Formula')}  (menu_waste_factors_README.md)")
+    print(f"\n  {bold('Formula')}  (factors/README.md)")
     print("    base          = pixels / 1000 × weight_g_per_cm2")
     print("    impact points = base × (0.19·C + 1.50·W)     C = kg CO2e/kg, W = m³ freshwater/kg")
     print("    per portion   = Σ pixels ÷ Σ portions served (same meal)   nutrition is reported separately")
@@ -1027,9 +1028,9 @@ def load_factors():
     """Factor rows by slug, in the app's lookup order (data/src/factors.ts): the
     hall's own table (menu_waste_factors_EastQuad.csv) first, then the 500
     common foods (menu_waste_factors_500.csv) as a fallback. The hall row wins."""
-    east_quad = next((p for p in (REPO / "menu_waste_factors_EastQuad.csv", REPO / "menu_waste_factors.csv") if p.exists()), None)
+    east_quad = next((p for p in (FACTORS / "menu_waste_factors_EastQuad.csv", FACTORS / "menu_waste_factors.csv") if p.exists()), None)
     factors = {}
-    for path in (east_quad, REPO / "menu_waste_factors_500.csv"):
+    for path in (east_quad, FACTORS / "menu_waste_factors_500.csv"):
         if path is None or not path.exists():
             continue
         with path.open(newline="", encoding="utf-8-sig") as f:

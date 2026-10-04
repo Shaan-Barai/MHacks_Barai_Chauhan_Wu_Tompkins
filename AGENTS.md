@@ -327,7 +327,7 @@ impact_points_i      = base_i × (0.19·C_i + 1.50·W_i)                nutritio
 nutrition_points_i   = base_i × nutrient_days_per_kg_i               reported separately
 ```
 
-Points are unitless and only compare foods with each other. Never present them as kg, litres or dollars. Factors come from `menu_waste_factors_EastQuad.csv` (nutrition: `menu_nutrition_factors_EastQuad.csv`). Pixels wasted is the stored measurement and the headline unit; points are derived by `analytics` at read time. Items without a factor have null points, never zero. "Foods to target" ranks by pixels per portion; "Most wasted" by total pixels. Demo portion counts are labeled `demo`. No plate-size calibration is used.
+Points are unitless and only compare foods with each other. Never present them as kg, litres or dollars. Factors come from `factors/menu_waste_factors_EastQuad.csv` (nutrition: `factors/menu_nutrition_factors_EastQuad.csv`). Pixels wasted is the stored measurement and the headline unit; points are derived by `analytics` at read time. Items without a factor have null points, never zero. "Foods to target" ranks by pixels per portion; "Most wasted" by total pixels. Demo portion counts are labeled `demo`. No plate-size calibration is used.
 
 **Target-dish counting (`target-dish-v1`).** Each capture counts only the dish being scanned. Gemini marks the target dish (most centered, most fully in frame) and whether each food box is on it. Food on other dishes is dropped, and the remaining masks are clipped to the target dish's region. Flags: `neighbor_food_excluded`, or `target_dish_unavailable` when there was no clip. A neighboring plate is counted in its own capture; the bridge's same-dish judgment keeps each physical plate counted once.
 

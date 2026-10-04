@@ -66,8 +66,9 @@ export function formatLitres(m3: number): string {
   return `${formatNumber(m3 * 1000)} litres`
 }
 
-/** $342 / $12.40 / $0.06. */
+/** $342 / $12.40 / $0.06; under a cent keeps 2 significant digits ($0.0012) so small per-portion values still rank. */
 export function formatUsd(usd: number): string {
   if (Math.abs(usd) >= 100) return `$${formatNumber(usd)}`
+  if (usd !== 0 && Math.abs(usd) < 0.01) return `$${Number(usd.toPrecision(2))}`
   return `$${fixed(usd, 2)}`
 }

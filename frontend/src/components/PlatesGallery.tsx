@@ -132,7 +132,7 @@ function ImageBox({
       src={image.url}
       alt={alt}
       onError={() => onBroken(image.url)}
-      className={`aspect-square w-full border border-ink object-cover ${className}`}
+      className={`aspect-square w-full border border-ink bg-ink object-contain ${className}`}
     />
   )
 }

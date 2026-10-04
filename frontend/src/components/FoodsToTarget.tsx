@@ -44,7 +44,8 @@ export function FoodsToTarget({ rows, demoPortions }: { rows: ItemImpactRow[]; d
                 <th scope="col" className="py-1.5 pr-2 font-normal">Pixels wasted per portion</th>
                 <th scope="col" className="py-1.5 pr-2 font-normal">Impact per portion</th>
                 <th scope="col" className="py-1.5">
-                  <span className="font-normal">Portions served</span> {demoPortions && <Badge>demo numbers</Badge>}
+                  <span className="font-normal">Portions served</span>
+                  {demoPortions && <span className="mt-1 block w-fit"><Badge>demo numbers</Badge></span>}
                 </th>
               </tr>
             </thead>

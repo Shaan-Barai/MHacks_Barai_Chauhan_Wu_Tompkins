@@ -20,5 +20,8 @@ describe('impact formatting', () => {
     expect(formatUsd(342.4)).toBe('$342')
     expect(formatUsd(12.4)).toBe('$12.40')
     expect(formatUsd(0.055)).toBe('$0.06')
+    expect(formatUsd(0.00123)).toBe('$0.0012')
+    expect(formatUsd(0.0004)).toBe('$0.0004')
+    expect(formatUsd(0)).toBe('$0.00')
   })
 })

@@ -12,7 +12,6 @@ import { analyzeCaptureWithMasks, type MaskAnalysisInput } from '../src/maskPipe
 import { countPixels, decodeBinaryMask, geminiBoxToPixels } from '../src/masks.js';
 import { buildNumberedMenu, validateLocalizeText } from '../src/localize.js';
 import type { Segmenter, SegmentResponse } from '../src/samClient.js';
-import { PLATE_SYSTEM_INSTRUCTION } from '../src/calibration.js';
 
 const W = 100;
 const H = 50;
@@ -159,7 +158,7 @@ test('full pipeline: classify -> segment -> count; smaller fries mask wins its o
     assert.equal(decoded.pixels, m.remainingAreaPx);
     assert.equal(mask.count.pixelsWasted, m.remainingAreaPx);
     assert.equal(mask.count.assignment, 'exclusive');
-    assert.equal(mask.count.processingVersion, 'smallest-first-v1');
+    assert.equal(mask.count.processingVersion, 'target-dish-v1');
     decoded.bitmap.forEach((v, i) => {
       if (!v) return;
       assert.equal(owned[i], 0, 'no pixel belongs to two measurements');
@@ -274,11 +273,12 @@ test('localize v2: numbered menu from name + description; menu_id must be an int
   );
   assert.ok(ok.ok);
   assert.deepEqual(ok.regions.map((r) => [r.itemId, r.menuId, r.visualLabel]), [['stir', 1, 'carrot slice'], ['rice', 2, 'rice clump'], [null, 0, 'melon']]);
-  assert.deepEqual(validateLocalizeText('[]', ['stir']), { ok: true, plateEmpty: true, ambiguous: false, regions: [] });
+  assert.deepEqual(validateLocalizeText('[]', ['stir']), { ok: true, plateEmpty: true, ambiguous: false, regions: [], targetDish: null, targetDishReason: 'legacy_array' });
   for (const bad of [3, -1, 1.5, '1']) {
     assert.deepEqual(validateLocalizeText(JSON.stringify([{ ingredient: 'x', menu_id: bad, box_2d: [1, 2, 3, 4] }]), ['stir', 'rice']), { ok: false, reason: 'menu_id_out_of_range' });
   }
-  assert.deepEqual(validateLocalizeText('{"regions":[]}', ['stir']), { ok: false, reason: 'not_an_array' });
+  assert.deepEqual(validateLocalizeText('{"regions":[]}', ['stir']), { ok: false, reason: 'pieces_not_an_array' });
+  assert.deepEqual(validateLocalizeText('7', ['stir']), { ok: false, reason: 'not_an_object' });
 });
 
 /** Gateway whose answer depends on the pass (pass 2's prompt carries CLOSEUP_LINE). */
@@ -301,9 +301,9 @@ test('two passes: union of boxes; heavy overlaps (IoU > 0.5) keep the smaller bo
   const carrotDup = { ingredient: 'carrot', menu_id: 2, box_2d: [0, 0, 480, 480] }; // same piece in pass 2, smaller -> kept, A dropped
   const pepper = { ingredient: 'pepper strip', menu_id: 2, box_2d: [800, 800, 1000, 1000] }; // only pass 2 finds it
   const { attempt, localization } = await analyzeCaptureWithMasks(twoPass([rice, carrotA], [carrotDup, pepper]), sam, input);
-  assert.deepEqual(localization, { passes: 2, passBoxes: [2, 2], failedPasses: [], mergedBoxes: 2 });
+  assert.deepEqual(localization, { passes: 2, geminiCalls: 2, passBoxes: [2, 2], failedPasses: [], mergedBoxes: 2 });
   assert.deepEqual(attempt.segmentation!.regions.map((r) => r.visualLabel), ['carrot', 'pepper strip']);
-  assert.equal(attempt.promptVersion, 'scrap-localize-v3+closeup');
+  assert.equal(attempt.promptVersion, 'scrap-localize-v4+closeup');
   assert.equal(sam.calls.length, 1, 'SAM still runs once per plate on the merged boxes');
 });
 
@@ -330,20 +330,20 @@ test('two passes: a failed or invalid pass falls back to the other; [] loses to 
   assert.equal(bothFail.attempt.segmentation!.countStatus, 'unavailable');
 });
 
-test('GEMINI_PASSES=1 makes a single localization call with the unchanged base prompt', async () => {
+test('GEMINI_PASSES=1 makes a single Gemini call per capture with the unchanged base prompt', async () => {
   const seen: string[] = [];
   const gw = createGeminiGateway({
     env: {},
     mockTransport: (req) => {
-      // The concurrent plate-calibration request (calibration.ts) is not a localization pass.
-      if (req.systemInstruction === PLATE_SYSTEM_INSTRUCTION) return '{}';
       seen.push(req.parts.filter((p): p is { text: string } => 'text' in p).map((p) => p.text).join(''));
       return JSON.stringify([{ ingredient: 'burger', menu_id: 1, box_2d: burgerBox }]);
     },
   });
   const { attempt, localization } = await analyzeCaptureWithMasks(gw, boxFiller(), { ...input, geminiPasses: 1 });
-  assert.equal(seen.length, 1);
+  assert.equal(seen.length, 1, 'no separate plate-box call');
+  assert.equal(gw.callCount, 1);
+  assert.equal(localization.geminiCalls, 1);
   assert.ok(!seen[0]!.includes('Look especially closely'));
-  assert.equal(attempt.promptVersion, 'scrap-localize-v3');
+  assert.equal(attempt.promptVersion, 'scrap-localize-v4');
   assert.deepEqual(localization.passBoxes, [1]);
 });

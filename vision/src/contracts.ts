@@ -50,7 +50,20 @@ export type QualityFlag =
   /** A region's segmentation failed or produced an invalid mask (no pixels counted for it). */
   | 'segmentation_failed'
   /** Masks of different foods overlapped; shared pixels went to the unclassified bucket. */
-  | 'overlapping_masks';
+  | 'overlapping_masks'
+  /**
+   * Attempt-level (BIG-PLAN v2, V3). Food outside the scanned (target) dish
+   * was found and not counted: Gemini marked boxes as on another dish, or the
+   * target-dish clip removed at least 0.1% of the frame. Not an exclusion
+   * reason. PENDING in contracts/types.ts (coordinator).
+   */
+  | 'neighbor_food_excluded'
+  /**
+   * Attempt-level (BIG-PLAN v2, V3). The target dish could not be found or
+   * segmented plausibly, so food masks were not clipped; counts are kept.
+   * Not an exclusion reason. PENDING in contracts/types.ts (coordinator).
+   */
+  | 'target_dish_unavailable';
 
 export type AnalysisStatus = 'succeeded' | 'needs_review' | 'failed';
 
@@ -73,7 +86,7 @@ export interface AnalysisAttempt {
    * `promptVersion` above describe the classification stage.
    */
   segmentation?: SegmentationResult;
-  /** Per-capture pixel→cm² calibration (BIG-PLAN D2). Absent on legacy attempts. */
+  /** DEPRECATED (BIG-PLAN v2): no longer produced by vision. Legacy attempts only. */
   calibration?: PlateCalibration;
   /** Object id of the segmented overlay JPEG in object storage (BIG-PLAN D7). */
   overlayObjectId?: string;
@@ -202,15 +215,14 @@ export interface ApiError {
 }
 
 // ---------------------------------------------------------------------------
-// Waste impact (BIG-PLAN.md D1–D8, 2026-10-03). Pixels wasted stays the raw
-// stored measurement; grams and impact are labeled ESTIMATES derived at read
-// time by analytics from a per-capture plate calibration and the factor
-// tables (menu_waste_factors.csv, menu_nutrition_factors.csv).
+// Legacy plate calibration (BIG-PLAN D2, 2026-10-03). DEPRECATED by BIG-PLAN
+// v2 (2026-10-04): pixels only, no plate-size calibration, no grams. The
+// type stays so legacy attempts still parse; vision never produces it.
 // ---------------------------------------------------------------------------
 
 export type CalibrationFlag = 'calibration_default' | 'plate_cut_off' | 'bowl_size_assumed';
 
-/** Per-capture pixel→area calibration. Persisted with the analysis attempt. */
+/** DEPRECATED legacy per-capture pixel→area calibration (never produced in v2). */
 export interface PlateCalibration {
   /** 'plate-fit-v1' = Gemini plate box → SAM plate mask → outer-rim circle fit. */
   method: 'plate-fit-v1' | 'configured-default';

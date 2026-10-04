@@ -1,17 +1,19 @@
 /**
- * Live smoke test of the library pipeline: Gemini classify + boxes -> SAM 2.1
- * masks -> Pixels wasted, plus plate-fit-v1 calibration and the overlay JPEG.
+ * Live smoke test of the library pipeline with target-dish counting
+ * (BIG-PLAN v2, V3): Gemini classify + boxes + target dish -> SAM 2.1 masks
+ * -> target-dish clip -> Pixels wasted, plus the overlay JPEG. Pixels only.
  *
  *   cd vision && npm run build
- *   node --env-file=../.env scripts/calibration-smoke.mjs <outDir> [image ...]
+ *   node --env-file=../.env scripts/target-dish-smoke.mjs <outDir> [image ...]
  *
  * Needs GEMINI_API_KEY and the SAM worker (vision/sam/worker.py) on
  * SAM_WORKER_URL. Images are normalized exactly like capture/src/normalize.ts
  * (EXIF orientation, centered square crop, 1024x1024 Lanczos3, JPEG q90).
+ * Default images: test2/IMG_2697 and IMG_2701 (neighbouring plates in frame).
  * The menu is the demo dinner (data/seed/demo-seed.json, 2026-10-03), whose
- * descriptions are Gemini visible-component text. Three Gemini calls per image
- * (two localization passes + plate box); MAX_GEMINI_CALLS (default 3 per image + 2)
- * aborts a runaway run.
+ * descriptions are Gemini visible-component text. GEMINI_PASSES Gemini calls
+ * per image (default 2; there is no separate plate call); MAX_GEMINI_CALLS
+ * (default 2 per image + 1) aborts a runaway run.
  */
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -22,8 +24,8 @@ import { analyzeCaptureWithMasks, createGeminiGateway, createSamWorkerClient } f
 
 const repo = fileURLToPath(new URL('../../', import.meta.url));
 const [outDir, ...args] = process.argv.slice(2);
-if (!outDir) throw new Error('usage: calibration-smoke.mjs <outDir> [image ...]');
-const images = args.length ? args : ['IMG_2695', 'IMG_2697', 'IMG_2701', 'IMG_2706'].map((n) => path.join(repo, 'test2', `${n}.jpeg`));
+if (!outDir) throw new Error('usage: target-dish-smoke.mjs <outDir> [image ...]');
+const images = args.length ? args : ['IMG_2697', 'IMG_2701'].map((n) => path.join(repo, 'test2', `${n}.jpeg`));
 mkdirSync(outDir, { recursive: true });
 
 const seed = JSON.parse(readFileSync(path.join(repo, 'data/seed/demo-seed.json'), 'utf8'));
@@ -34,7 +36,7 @@ const menu = { menuId: dinner.service.menuId, menuVersion: dinner.service.menuVe
 const gateway = createGeminiGateway();
 if (gateway.mode !== 'live') throw new Error('Set GEMINI_API_KEY: this script makes live calls.');
 const sam = createSamWorkerClient();
-const maxCalls = Number(process.env.MAX_GEMINI_CALLS ?? images.length * 3 + 2);
+const maxCalls = Number(process.env.MAX_GEMINI_CALLS ?? images.length * 2 + 1);
 
 async function normalize(file) {
   const img = sharp(readFileSync(file)).rotate();
@@ -54,6 +56,7 @@ const results = [];
 for (const file of images) {
   const name = path.parse(file).name;
   const bytes = await normalize(file);
+  const before = gateway.callCount;
   const t0 = performance.now();
   const r = await analyzeCaptureWithMasks(gateway, sam, {
     eventId: `smoke_${name}`,
@@ -65,26 +68,34 @@ for (const file of images) {
   const seconds = (performance.now() - t0) / 1000;
   if (r.overlay) writeFileSync(path.join(outDir, `${name}_overlay.jpg`), r.overlay.jpeg);
   const foods = r.measurements.map((m) => ({ food: m.itemId ? names.get(m.itemId) ?? m.itemId : 'unclassified', pixels: m.remainingAreaPx }));
+  const excluded = (r.attempt.segmentation?.regions ?? [])
+    .filter((g) => g.error?.code === 'OTHER_DISH' || g.error?.code === 'OUTSIDE_TARGET_DISH')
+    .map((g) => ({ label: g.visualLabel, reason: g.error.details?.reason, maskPixels: g.maskPixels ?? null }));
   const row = {
     image: name,
     status: r.attempt.status,
     countStatus: r.attempt.segmentation?.countStatus,
     capturePixelsWasted: r.attempt.segmentation?.capturePixelsWasted,
+    qualityFlags: r.attempt.qualityFlags,
     error: r.attempt.error?.code,
-    calibration: r.calibration,
-    diagnostics: r.diagnostics,
+    targetDish: r.targetDish,
+    excluded,
     foods,
     overlay: r.overlay ? { widthPx: r.overlay.widthPx, heightPx: r.overlay.heightPx, bytes: r.overlay.jpeg.length } : null,
+    overlayError: r.diagnostics.overlayError,
     localization: r.localization,
+    geminiCallsThisImage: gateway.callCount - before,
     seconds: Number(seconds.toFixed(1)),
   };
   results.push(row);
-  const c = r.calibration;
-  console.log(`\n${name}: boxes/pass=[${r.localization.passBoxes.join(',')}] merged=${r.localization.mergedBoxes} ${row.status}/${row.countStatus} ${row.error ?? ''} ${row.seconds}s  Gemini calls so far ${gateway.callCount}`);
-  console.log(`  calibration ${c.method} ${c.dishType ?? ''} d=${c.plateDiameterPx}px cm2/px=${c.cm2PerPx.toFixed(6)} flags=[${c.flags.join(',')}]` +
-    (r.diagnostics.calibrationError ? ` (${r.diagnostics.calibrationError.code})` : '') +
-    (r.diagnostics.pixelsOutsideDish !== undefined ? ` foodPxOutsideDish=${r.diagnostics.pixelsOutsideDish}` : ''));
+  const td = r.targetDish;
+  console.log(`\n${name}: boxes/pass=[${r.localization.passBoxes.join(',')}] merged=${r.localization.mergedBoxes} ${row.status}/${row.countStatus} ${row.error ?? ''} ${row.seconds}s  Gemini calls this image ${row.geminiCallsThisImage}`);
+  console.log(`  target dish: ${td.found ? `${td.dishType} box=[${td.box.gemini.join(',')}]${td.fullyVisible ? '' : ' (cut off)'}` : 'not found'}` +
+    ` clip=${td.clipApplied ? `yes (${td.regionPx} px region, dilate ${td.dilatePx} px)` : `no (${td.clipUnavailableReason})`}` +
+    (td.passAgreementIoU !== undefined ? ` passIoU=${td.passAgreementIoU}` : ''));
+  console.log(`  other dish (not counted): ${td.excludedBoxes} boxes, ${td.otherDishPx} px (clipped ${td.clippedPx} px)  flags=[${r.attempt.qualityFlags.join(',')}]`);
   for (const f of foods) console.log(`  ${f.food.padEnd(34)} ${String(f.pixels).padStart(8)} px`);
+  console.log(`  TOTAL Pixels wasted: ${row.capturePixelsWasted ?? 'unavailable'} px`);
   if (!r.overlay) console.log(`  overlay: none (${r.diagnostics.overlayError})`);
   if (gateway.callCount > maxCalls) throw new Error(`Gemini call guard: ${gateway.callCount} > ${maxCalls}`);
 }

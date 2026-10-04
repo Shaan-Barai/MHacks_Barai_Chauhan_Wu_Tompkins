@@ -4,9 +4,10 @@
  * - createGeminiGateway: server-side Gemini transport (live or mock) with
  *   normalized errors, timeout, and bounded retries. `generateText` is the
  *   reusable interface for Agent 6's suggestions.
- * - analyzeCaptureWithMasks: Gemini classification + boxes -> SAM 2.1 masks
- *   -> counted Pixels wasted, plus plate calibration (plate-fit-v1) and the
- *   segmented overlay JPEG.
+ * - analyzeCaptureWithMasks: Gemini classification + boxes + target dish ->
+ *   SAM 2.1 masks -> target-dish clip -> counted Pixels wasted (rule
+ *   target-dish-v1), plus the segmented overlay JPEG. Pixels only: no plate
+ *   calibration (BIG-PLAN v2).
  * - analyzeCapture: legacy Gemini area estimates (not the measurement path).
  */
 
@@ -34,28 +35,27 @@ export { analyzeCapture } from './analyze.js';
 
 export { analyzeCaptureWithMasks } from './maskPipeline.js';
 export type { MaskAnalysisInput, MaskAnalysisResult, MaskAnalysisDiagnostics, LocalizationStats } from './maskPipeline.js';
+export { NEIGHBOR_CLIP_MIN_FRACTION } from './maskPipeline.js';
+export type { TargetDishInfo } from './maskPipeline.js';
 export {
-  CALIBRATION_METHOD,
-  DEFAULT_PLATE_DIAMETER_PX,
-  PLATE_DIAMETER_CM,
-  PLATE_LOCATE_PROMPT_VERSION,
-  calibratePlate,
-  defaultCalibration,
-  extractRimPoints,
-  fitCircle,
-  fitPlate,
-  fitRimCircle,
-  locatePlate,
-  resolveDefaultPlateDiameterPx,
-  validatePlateText,
-} from './calibration.js';
-export type { CalibrationOptions, CalibrationOutcome, Circle, LocatedPlate, LocatePlateResult, RimFit } from './calibration.js';
-export { OVERLAY_VERSION, colorForIndex, legendLines, renderOverlay } from './overlay.js';
-export type { OverlayBucket, OverlayImage, RenderOverlayInput, RenderOverlayResult } from './overlay.js';
+  DISH_REGION_VERSION,
+  MAX_REGION_FRACTION,
+  MIN_REGION_FRACTION,
+  buildDishRegion,
+  clipToRegion,
+  convexHullFill,
+  dilateSquare,
+  dishDilatePx,
+  largestComponent,
+} from './targetDish.js';
+export type { DishRegionResult } from './targetDish.js';
+export { OVERLAY_VERSION, OTHER_DISH_COLOR, colorForIndex, legendLines, legendRows, renderOverlay } from './overlay.js';
+export type { LegendLine, OverlayBucket, OverlayImage, RenderOverlayInput, RenderOverlayResult } from './overlay.js';
 export { createSamWorkerClient } from './samClient.js';
 export type { Segmenter, SegmenterInfo, SegmentResponse } from './samClient.js';
-export { COUNTING_RULE_VERSION, BOX_CONVENTION, boxIoU, countPixels, decodeBinaryMask, encodeBinaryMask, geminiBoxToPixels } from './masks.js';
-export { LOCALIZE_PROMPT_VERSION, validateLocalizeText, buildLocalizeSchema } from './localize.js';
+export { COUNTING_RULE_VERSION, SMALLEST_FIRST_RULE, BOX_CONVENTION, boxIoU, countPixels, decodeBinaryMask, encodeBinaryMask, geminiBoxToPixels } from './masks.js';
+export { LOCALIZE_PROMPT_VERSION, LOCALIZE_SYSTEM_INSTRUCTION, TARGET_DISH_LINE, validateLocalizeText, buildLocalizeSchema } from './localize.js';
+export type { LocalizedDish, LocalizedRegion, LocalizeOutcome } from './localize.js';
 
 export {
   assessLeftovers,

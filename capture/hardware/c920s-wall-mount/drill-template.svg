@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120mm" height="160mm" viewBox="0 0 120 160">
+<rect width="120" height="160" fill="white"/>
+<g fill="none" stroke="black" stroke-width="0.25"><rect x="15" y="15" width="90" height="120" rx="4"/>
+<circle cx="30" cy="30" r="2.75"/><circle cx="90" cy="30" r="2.75"/>
+<circle cx="30" cy="120" r="2.75"/><circle cx="90" cy="120" r="2.75"/>
+<path d="M26 30H34 M30 26V34 M86 30H94 M90 26V34 M26 120H34 M30 116V124 M86 120H94 M90 116V124"/>
+<path d="M35 146H85 M35 143V149 M85 143V149"/></g>
+<g font-family="Arial,sans-serif" font-size="3" fill="black"><text x="25" y="9">C920s wall mount · PRINT AT 100%</text><text x="38" y="142">Check this line measures 50 mm</text><text x="25" y="155">4 holes · 60 × 90 centres · units mm</text></g></svg>

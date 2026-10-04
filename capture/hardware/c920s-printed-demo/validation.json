@@ -1,0 +1,114 @@
+{
+  "parameters_mm": {
+    "bed_limit": 200.0,
+    "fit_clearance": 0.3,
+    "post_outer": 22.0,
+    "post_bore": 16.0,
+    "post_peg": 18.0,
+    "peg_length": 25.0,
+    "post_body_length": 165.0,
+    "foot_length": 180.0,
+    "side_spacing": 400.0,
+    "foot_socket_top": 42.0,
+    "beam_bottom": 414.0,
+    "beam_top": 438.0,
+    "cradle_deck_top": 444.0
+  },
+  "stand_piece_count": 9,
+  "added_metal_hardware": false,
+  "stl_parts": {
+    "foot": {
+      "watertight": true,
+      "consistent_winding": true,
+      "triangles": 76,
+      "print_bounds_mm": [
+        180.0,
+        57.0,
+        42.0
+      ],
+      "mesh_volume_mm3": 49407.75,
+      "quantity": 2
+    },
+    "upright": {
+      "watertight": true,
+      "consistent_winding": true,
+      "triangles": 80,
+      "print_bounds_mm": [
+        22.0,
+        22.0,
+        190.0
+      ],
+      "mesh_volume_mm3": 40146.96,
+      "quantity": 4
+    },
+    "bridge_left": {
+      "watertight": true,
+      "consistent_winding": true,
+      "triangles": 84,
+      "print_bounds_mm": [
+        91.0,
+        186.0,
+        26.0
+      ],
+      "mesh_volume_mm3": 76092.0,
+      "quantity": 1
+    },
+    "bridge_right": {
+      "watertight": true,
+      "consistent_winding": true,
+      "triangles": 84,
+      "print_bounds_mm": [
+        91.0,
+        186.0,
+        26.0
+      ],
+      "mesh_volume_mm3": 76092.0,
+      "quantity": 1
+    },
+    "camera_cradle": {
+      "watertight": true,
+      "consistent_winding": true,
+      "triangles": 188,
+      "print_bounds_mm": [
+        30.0,
+        100.0,
+        70.0
+      ],
+      "mesh_volume_mm3": 49941.5,
+      "quantity": 1
+    },
+    "fit_coupon_socket": {
+      "watertight": true,
+      "consistent_winding": true,
+      "triangles": 72,
+      "print_bounds_mm": [
+        80.0,
+        28.0,
+        8.0
+      ],
+      "mesh_volume_mm3": 9882.48,
+      "quantity": 1
+    },
+    "fit_coupon_peg": {
+      "watertight": true,
+      "consistent_winding": true,
+      "triangles": 28,
+      "print_bounds_mm": [
+        24.0,
+        24.0,
+        12.0
+      ],
+      "mesh_volume_mm3": 4896.0,
+      "quantity": 1
+    }
+  },
+  "frame_intersections": [],
+  "step_roundtrip": true,
+  "unverified": [
+    "Duderstadt printer/filament access",
+    "print time and supports",
+    "joint fit and stiffness",
+    "physical camera fit and restraint",
+    "live framing"
+  ]
+}

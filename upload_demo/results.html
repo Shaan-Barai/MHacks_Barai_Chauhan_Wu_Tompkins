@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ScrapSaver results</title>
+<style>
+  :root { --bg: #f6f5f1; --card: #fff; --ink: #1b1b1a; --line: #e3e1da; --accent: #1f7a4d; --err: #a3271b; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  main { max-width: 1120px; margin: 0 auto; padding: 24px 16px 64px; }
+  .total { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px 24px;
+           display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }
+  .total h1 { font-size: 20px; margin: 0; }
+  .total .v { font-size: 44px; font-weight: 700; line-height: 1.1; }
+  .total ul { list-style: none; margin: 8px 0 0; padding: 0; }
+  .total li { font-variant-numeric: tabular-nums; }
+  a.again { font-weight: 600; color: #fff; background: var(--accent); padding: 12px 22px; border-radius: 10px; text-decoration: none; }
+  a.again:focus-visible { outline: 3px solid #7cc3a0; outline-offset: 3px; }
+  .steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+  .step { margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .step h2 { font-size: 18px; margin: 0 0 10px; }
+  .step img { width: 100%; display: block; border-radius: 8px; background: #111; cursor: zoom-in; }
+  .step .none { aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; background: #ece9e1; border-radius: 8px; }
+  #error { color: var(--err); font-size: 18px; }
+  dialog { border: 0; padding: 0; background: transparent; max-width: 96vw; max-height: 96vh; }
+  dialog img { max-width: 96vw; max-height: 92vh; display: block; border-radius: 8px; }
+  dialog::backdrop { background: rgba(0, 0, 0, .8); }
+  @media (max-width: 720px) { .steps { grid-template-columns: 1fr; } .total .v { font-size: 34px; } }
+</style>
+</head>
+<body>
+<main>
+  <section class="total" aria-live="polite">
+    <div>
+      <h1>Total food wasted</h1>
+      <div class="v" id="total">…</div>
+      <ul id="foods"></ul>
+      <p id="error" role="alert"></p>
+    </div>
+    <a class="again" href="/">Upload another photo</a>
+  </section>
+  <div class="steps">
+    <figure class="step"><h2>Original</h2><div id="original"></div></figure>
+    <figure class="step"><h2>Gemini classification</h2><div id="boxes"></div></figure>
+    <figure class="step"><h2>SAM 2.1 masks</h2><div id="masks"></div></figure>
+    <figure class="step"><h2>Final result</h2><div id="final"></div></figure>
+  </div>
+</main>
+<dialog id="zoom" aria-label="Enlarged image"><img alt=""></dialog>
+<script>
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => Number(n).toLocaleString('en-US');
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+function show(id, src, alt) {
+  const el = $(id);
+  if (!src) { el.innerHTML = '<div class="none">Not available</div>'; return; }
+  const img = new Image();
+  img.src = src; img.alt = alt;
+  img.addEventListener('click', () => { $('zoom').querySelector('img').src = src; $('zoom').showModal(); });
+  el.replaceChildren(img);
+}
+$('zoom').addEventListener('click', () => $('zoom').close());
+
+const id = location.pathname.split('/').filter(Boolean)[1];
+fetch(`/api/results/${encodeURIComponent(id)}`)
+  .then(async (res) => {
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error?.message ?? `Server error ${res.status}`);
+    return body;
+  })
+  .then(({ summary: s, images }) => {
+    show('original', images.original, 'Original photo');
+    show('boxes', images.boxes, "Gemini's classification boxes");
+    show('masks', images.masks, 'SAM 2.1 masks');
+    show('final', images.final, 'Final counted result');
+    if (s.capturePixelsWasted == null) {
+      $('total').textContent = 'Not measured';
+      $('error').textContent = s.error?.message ?? 'The food could not be outlined.';
+      return;
+    }
+    $('total').textContent = `${fmt(s.capturePixelsWasted)} pixels`;
+    $('foods').innerHTML = s.foods.map((f) => `<li>${esc(f.food)}: ${fmt(f.pixelsWasted)} pixels</li>`).join('');
+  })
+  .catch((err) => {
+    $('total').textContent = '—';
+    $('error').textContent = err.message;
+    ['original', 'boxes', 'masks', 'final'].forEach((k) => show(k, null));
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "units": "mm",
+  "parts": {
+    "foot": 2,
+    "upright": 4,
+    "bridge_left": 1,
+    "bridge_right": 1,
+    "camera_cradle": 1
+  },
+  "fit_coupon": "Print both coupon files first; choose/test actual fit before full printing",
+  "camera_restraint": "Two plastic ties; source locally",
+  "nominal_printer_envelope_mm": [
+    200,
+    200,
+    200
+  ]
+}

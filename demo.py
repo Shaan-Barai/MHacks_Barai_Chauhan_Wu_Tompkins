@@ -832,7 +832,7 @@ def step_dashboard(demo):
 
 
 def step_upload_site(demo):
-    """Public upload website: any food photo → every pipeline stage + carbon/water factors (upload_demo/)."""
+    """Upload website: one button → results page with original, Gemini classification, SAM masks, total wasted (upload_demo/)."""
     port = int(os.environ.get("UPLOAD_DEMO_PORT", "8795"))
     url = f"http://localhost:{port}"
     up = http_ok(url + "/api/foods")[0]
@@ -850,12 +850,10 @@ def step_upload_site(demo):
     if not up:
         demo.check("FAIL", f"Upload website not reachable at {url}  (start: node upload_demo/server.mjs)")
         return
-    _, body = http_ok(url + "/api/foods")
-    foods = json.loads(body)["foods"]
-    demo.check("PASS", f"Upload website at {url}: {len(foods)} foods with carbon + water factors")
+    demo.check("PASS", f"Upload website at {url}")
     print(f"  Running the sample halal chicken + rice bowl through the website's API (2 Gemini calls)...")
     sample = urllib.request.urlopen(url + "/sample.jpg", timeout=10).read()
-    req = urllib.request.Request(url + "/api/analyze?menu=all&name=demo.py", data=sample, method="POST",
+    req = urllib.request.Request(url + "/api/analyze", data=sample, method="POST",
                                  headers={"content-type": "image/jpeg"})
     try:
         with urllib.request.urlopen(req, timeout=180) as r:
@@ -876,9 +874,10 @@ def step_upload_site(demo):
     found = {f["food"] for f in s["foods"]}
     ok = s["countStatus"] == "complete" and {"Halal Chicken", "Halal Rice"} <= found
     demo.check("PASS" if ok else "WARN", f"Sample bowl: {num(s['capturePixelsWasted'])} px, {s['countStatus']}, "
-               f"found {', '.join(sorted(found)) or 'nothing'} out of {len(foods)} foods in {s['seconds']} s")
+               f"found {', '.join(sorted(found)) or 'nothing'} (matched against Halal Chicken + Halal Rice) in {s['seconds']} s")
+    print(f"  Results page: {url}/results/{result['id']}")
     if not demo.args.no_open:
-        webbrowser.open(url)
+        webbrowser.open(f"{url}/results/{result['id']}")
 
 
 def step_deploy(demo):
@@ -918,7 +917,7 @@ STEPS = [
     ("stats", "Waste statistics", step_stats),
     ("recommendation", "AI recommendation", step_recommendation),
     ("dashboard", "Dashboard", step_dashboard),
-    ("upload_site", "Upload website: any photo → every step + carbon data", step_upload_site),
+    ("upload_site", "Upload website: photo → results page", step_upload_site),
     ("deploy", "Production URL", step_deploy),
 ]
 NEEDS_EVENTS = {"analysis", "area", "storage", "images"}

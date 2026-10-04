@@ -24,7 +24,7 @@ const sam = createSamWorkerClient();
 
 const { images, summary } = await runSteps({
   gateway, sam, foods: loadFoodDatabase(), menuKeys: LABELS,
-  bytes: readFileSync(PHOTO), sourceLabel: 'Halal chicken + rice bowl (Uno Q camera, 2026-10-04)', eventId: 'demo_halal_bowl',
+  bytes: readFileSync(PHOTO), titles: true, eventId: 'demo_halal_bowl',
 });
 
 mkdirSync(OUT, { recursive: true });

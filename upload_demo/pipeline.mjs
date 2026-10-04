@@ -152,10 +152,9 @@ const PALETTE = [
 const hex = ([r, g, b]) => `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
-function banner(W, title, subtitle) {
-  return `<rect x="0" y="0" width="${W}" height="58" fill="rgba(0,0,0,0.72)"/>
-    <text x="16" y="26" font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#fff">${esc(title)}</text>
-    <text x="16" y="48" font-family="Helvetica, Arial, sans-serif" font-size="14" fill="#ddd">${esc(subtitle)}</text>`;
+function banner(W, title) {
+  return `<rect x="0" y="0" width="${W}" height="40" fill="rgba(0,0,0,0.72)"/>
+    <text x="16" y="28" font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#fff">${esc(title)}</text>`;
 }
 
 async function compositeSvg(baseJpeg, W, H, svgBody) {
@@ -163,9 +162,11 @@ async function compositeSvg(baseJpeg, W, H, svgBody) {
   return sharp(baseJpeg).composite([{ input: svg, top: 0, left: 0 }]).jpeg({ quality: 90 }).toBuffer();
 }
 
-async function renderOriginal(img, sourceLabel) {
-  return compositeSvg(img.bytes, img.widthPx, img.heightPx,
-    banner(img.widthPx, '1 · Original photo', `${sourceLabel} · analysed at ${img.widthPx}×${img.heightPx} px`));
+/** Adds a title bar to a step picture (demo_pictures/); the website shows titles in the page instead. */
+async function titled(jpeg, title) {
+  if (!jpeg) return null;
+  const { width, height } = await sharp(jpeg).metadata();
+  return compositeSvg(jpeg, width, height, banner(width, title));
 }
 
 /** Gemini boxes: counted food in its item colour, other-dish food dashed grey, target dish dashed amber. */
@@ -187,12 +188,6 @@ async function renderBoxes(img, regions, names, colorFor, targetDish) {
       body += `<text x="${x0 + 3}" y="${y0 + 13}" font-family="Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="${color}" stroke="#000" stroke-width="3" paint-order="stroke">${esc(label)}</text>`;
     }
   }
-  const onDish = regions.filter((r) => r.error?.code !== 'OTHER_DISH');
-  const counts = [...onDish.reduce((m, r) => m.set(r.itemId, (m.get(r.itemId) ?? 0) + 1), new Map())]
-    .map(([id, n]) => `${n}× ${id ? names.get(id) ?? id : 'unclassified'}`).join(' · ');
-  const off = regions.length - onDish.length;
-  body += banner(W, '2 · Gemini classification + boxes',
-    `${onDish.length} boxes on the target dish: ${counts || 'none'}${off ? ` · ${off} off-dish (grey, not counted)` : ''}`);
   return compositeSvg(img.bytes, W, H, body);
 }
 
@@ -215,12 +210,12 @@ async function renderSamMasks(img, regions, raw) {
       out[o + 2] = rgb[o + 2] * 0.35 + cb * 0.65;
     }
   };
-  let k = 0, food = 0, off = 0;
+  let k = 0;
   for (const r of regions) {
     const bm = raw.maskFor(r.box.pixelXyxy);
     if (!bm) continue;
-    if (r.error?.code === 'OTHER_DISH') { paint(bm, UNCLASSIFIED_RGB); off++; }
-    else { paint(bm, PALETTE[k++ % PALETTE.length]); food++; }
+    if (r.error?.code === 'OTHER_DISH') paint(bm, UNCLASSIFIED_RGB);
+    else paint(bm, PALETTE[k++ % PALETTE.length]);
   }
   if (raw.dishMask) {
     const d = raw.dishMask; // amber edge of the raw dish mask
@@ -230,8 +225,7 @@ async function renderSamMasks(img, regions, raw) {
     }
   }
   const base = await sharp(out, { raw: { width: W, height: H, channels: 3 } }).jpeg({ quality: 90 }).toBuffer();
-  return compositeSvg(base, W, H, banner(W, '3 · SAM 2.1 segmentation (raw masks)',
-    `${food} food masks from Gemini boxes, one colour each${off ? ` · ${off} off-dish (grey)` : ''}${raw.dishMask ? ' · dish mask edge in amber' : ''} · sam2.1-hiera-small`));
+  return base;
 }
 
 /** Wraps the SAM client and keeps every box → mask it returned, so the step pictures show SAM's own output. */
@@ -292,16 +286,9 @@ async function renderFinal(img, r, seg, names, foodById, colorFor, raw) {
     dishRegion: raw.dishRegion,
     dishBox: r.targetDish.box?.pixelXyxy ?? null,
     emptyText: 'No leftover food: 0 pixels wasted',
-    labelSuffix: (b) => {
-      const pts = impactFor(foodById.get(b.itemId), b.pixels);
-      return pts?.co2Points != null ? `${pts.co2Points.toLocaleString('en-US')} CO2 pts` : 'no impact factor';
-    },
   });
   if (!rendered.ok) return null;
-  const off = otherPx ? ` · ${otherPx.toLocaleString('en-US')} px off the dish not counted` : '';
-  return compositeSvg(Buffer.from(rendered.overlay.jpeg), rendered.overlay.widthPx, rendered.overlay.heightPx, banner(rendered.overlay.widthPx,
-    `4 · Final result: ${(seg.capturePixelsWasted ?? 0).toLocaleString('en-US')} Pixels wasted${seg.countStatus === 'partial' ? ' (partial)' : ''}`,
-    `Each pixel counted once, target dish only${off} · CO2 points are relative, not kg`));
+  return Buffer.from(rendered.overlay.jpeg);
 }
 
 // ---------------------------------------------------------------- pipeline
@@ -310,7 +297,7 @@ async function renderFinal(img, r, seg, names, foodById, colorFor, raw) {
  * Run the full pipeline on raw image bytes. Returns the four step JPEGs and a
  * JSON summary (pixels per food, relative points, database factors, provenance).
  */
-export async function runSteps({ gateway, sam, bytes, foods, menuKeys = null, sourceLabel = 'uploaded photo', eventId = `upload_${Date.now()}` }) {
+export async function runSteps({ gateway, sam, bytes, foods, menuKeys = null, titles = false, eventId = `upload_${Date.now()}` }) {
   const img = await normalizeImage(bytes);
   const menu = menuFromFoods(foods, menuKeys);
   const names = new Map(menu.items.map((i) => [i.itemId, i.displayName]));
@@ -359,11 +346,18 @@ export async function runSteps({ gateway, sam, bytes, foods, menuKeys = null, so
   };
 
   const images = {
-    original: await renderOriginal(img, sourceLabel),
+    original: img.bytes,
     boxes: await renderBoxes(img, regions, names, colorFor, r.targetDish),
     masks: await renderSamMasks(img, regions, raw),
     final: await renderFinal(img, r, seg, names, foodById, colorFor, raw),
   };
+  if (titles) {
+    const total = `${(seg?.capturePixelsWasted ?? 0).toLocaleString('en-US')} pixels wasted${seg?.countStatus === 'partial' ? ' (partial)' : ''}`;
+    images.original = await titled(images.original, 'Original');
+    images.boxes = await titled(images.boxes, 'Gemini classification');
+    images.masks = await titled(images.masks, 'SAM 2.1 masks');
+    images.final = await titled(images.final, `Final result: ${total}`);
+  }
 
   return {
     images,

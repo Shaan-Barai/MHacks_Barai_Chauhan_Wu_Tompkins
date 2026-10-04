@@ -1,0 +1,70 @@
+{
+  "parameters_mm": {
+    "table_thickness": 25.0,
+    "camera_lens_height": 398.0,
+    "straight_stem_length": 315.0,
+    "bend_radius": 90.0,
+    "horizontal_length": 150.0,
+    "arm_diameter": 14.0,
+    "plate_diameter": 280.0
+  },
+  "parts": {
+    "clamp_reference": {
+      "valid_solid": true,
+      "volume_mm3": 116041.32
+    },
+    "upper_pad_reference": {
+      "valid_solid": true,
+      "volume_mm3": 3168.0
+    },
+    "clamp_screw_reference": {
+      "valid_solid": true,
+      "volume_mm3": 2563.54
+    },
+    "pressure_pad_reference": {
+      "valid_solid": true,
+      "volume_mm3": 1256.64
+    },
+    "clamp_knob_reference": {
+      "valid_solid": true,
+      "volume_mm3": 8171.28
+    },
+    "flexible_arm_reference": {
+      "valid_solid": true,
+      "volume_mm3": 93343.67
+    },
+    "ball_head_reference": {
+      "valid_solid": true,
+      "volume_mm3": 15000.0
+    },
+    "camera_clip_reference": {
+      "valid_solid": true,
+      "volume_mm3": 30096.0
+    },
+    "C920s_body_reference": {
+      "valid_solid": true,
+      "volume_mm3": 65094.37
+    },
+    "camera_lens_reference": {
+      "valid_solid": true,
+      "volume_mm3": 603.19
+    },
+    "table_reference": {
+      "valid_solid": true,
+      "volume_mm3": 3990000.0
+    },
+    "dish_reference": {
+      "valid_solid": true,
+      "volume_mm3": 236197.5
+    }
+  },
+  "step_roundtrip": true,
+  "solid_count": 12,
+  "purpose": "Placement reference for purchased hardware; no STL/fabrication specification",
+  "unverified": [
+    "actual stand dimensions and tilt range",
+    "clamp fit on demo table",
+    "stability",
+    "camera framing"
+  ]
+}

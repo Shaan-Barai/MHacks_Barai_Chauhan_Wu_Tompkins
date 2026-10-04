@@ -3,147 +3,33 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ScrapSaver Photo Check</title>
-<meta name="description" content="Upload a photo of a finished plate and see how ScrapSaver measures leftover food and its carbon footprint.">
+<title>ScrapSaver</title>
 <style>
-  :root {
-    --bg: #f6f5f1; --card: #fff; --ink: #1b1b1a; --muted: #5f5e59; --line: #e3e1da;
-    --accent: #1f7a4d; --accent-ink: #fff; --warn-bg: #fff4e0; --warn: #8a5300; --err-bg: #fde8e6; --err: #a3271b;
-    --bar: #2f8f5f; --bar-water: #2c78c4;
-  }
+  :root { --bg: #f6f5f1; --ink: #1b1b1a; --accent: #1f7a4d; --err: #a3271b; }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-  main { max-width: 1120px; margin: 0 auto; padding: 24px 16px 64px; }
-  h1 { font-size: 28px; margin: 0 0 4px; }
-  h2 { font-size: 20px; margin: 0 0 12px; }
-  p { margin: 0 0 12px; }
-  .muted { color: var(--muted); }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-top: 20px; }
-  .drop { border: 2px dashed #b9b6ab; border-radius: 12px; padding: 28px 16px; text-align: center; cursor: pointer; transition: background .15s, border-color .15s; }
-  .drop:hover, .drop.over { background: #eef6f1; border-color: var(--accent); }
-  .drop strong { display: block; font-size: 18px; margin-bottom: 4px; }
-  .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 16px; }
-  label.sel { display: flex; gap: 8px; align-items: center; }
-  select, button { font: inherit; border-radius: 8px; padding: 8px 14px; border: 1px solid #b9b6ab; background: #fff; color: var(--ink); }
-  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; cursor: pointer; }
-  button:disabled { opacity: .55; cursor: wait; }
-  button:focus-visible, select:focus-visible, .drop:focus-visible { outline: 3px solid #7cc3a0; outline-offset: 2px; }
-  .status { margin-top: 16px; padding: 12px 14px; border-radius: 8px; display: none; }
-  .status.show { display: block; }
-  .status.busy { background: #eef6f1; }
-  .status.warn { background: var(--warn-bg); color: var(--warn); }
-  .status.err { background: var(--err-bg); color: var(--err); }
-  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--accent); border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px; margin-right: 8px; }
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg); color: var(--ink);
+         font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  main { text-align: center; padding: 16px; }
+  button { font: inherit; font-size: 22px; font-weight: 600; padding: 18px 40px; border-radius: 12px; border: 0;
+           background: var(--accent); color: #fff; cursor: pointer; }
+  button:disabled { opacity: .6; cursor: wait; }
+  button:focus-visible { outline: 3px solid #7cc3a0; outline-offset: 3px; }
+  .spinner { display: inline-block; width: 18px; height: 18px; border: 3px solid #fff; border-right-color: transparent; border-radius: 50%;
+             animation: spin .8s linear infinite; vertical-align: -3px; margin-right: 10px; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-  .step { margin: 0; }
-  .step .frame { background: #ece9e1; border-radius: 8px; overflow: hidden; aspect-ratio: 16 / 10; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 14px; }
-  .step img { width: 100%; height: 100%; object-fit: contain; display: block; background: #111; cursor: zoom-in; }
-  .step figcaption { font-size: 14px; color: var(--muted); margin-top: 6px; }
-  .step figcaption b { color: var(--ink); }
-  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
-  .kpi { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
-  .kpi .v { font-size: 26px; font-weight: 700; }
-  .kpi .l { font-size: 13px; color: var(--muted); }
-  .table-wrap { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
-  th { font-weight: 600; color: var(--muted); font-size: 13px; }
-  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
-  tr.hit td { background: #eef6f1; font-weight: 600; }
-  .barcell { min-width: 140px; }
-  .bar { height: 10px; border-radius: 5px; background: var(--bar); }
-  .bar.water { background: var(--bar-water); }
-  .tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); }
-  .tag.high { background: #fde8e6; border-color: #f2b8b1; }
-  .tag.medium { background: #fff4e0; border-color: #f0d29c; }
-  .tag.low { background: #eaf5ee; border-color: #b7dcc6; }
-  .note { font-size: 13px; color: var(--muted); margin-top: 10px; }
-  details summary { cursor: pointer; font-weight: 600; }
-  dialog { border: 0; padding: 0; background: transparent; max-width: 96vw; max-height: 96vh; }
-  dialog img { max-width: 96vw; max-height: 92vh; display: block; border-radius: 8px; }
-  dialog::backdrop { background: rgba(0,0,0,.8); }
-  @media (max-width: 720px) { .steps { grid-template-columns: 1fr; } h1 { font-size: 24px; } }
+  #error { color: var(--err); margin-top: 16px; min-height: 24px; }
 </style>
 </head>
 <body>
 <main>
-  <h1>ScrapSaver photo check</h1>
-  <p class="muted">Upload a photo of a finished plate. We find the leftover food with Gemini, outline it with Meta's SAM 2.1, count the pixels, and look up each food's carbon and water footprint.</p>
-
-  <section class="card" aria-labelledby="upload-h">
-    <h2 id="upload-h">1. Choose a photo</h2>
-    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose a food photo to upload">
-      <strong>Drop a photo here or click to choose one</strong>
-      <span class="muted">Take it from above, with the whole plate or tray in the frame. JPEG, PNG, WebP or iPhone HEIC (in Safari).</span>
-    </div>
-    <input type="file" id="file" accept="image/*" hidden>
-    <div class="controls">
-      <label class="sel">Match food against
-        <select id="menu">
-          <option value="all">All foods in the database</option>
-          <option value="halal">Halal Chicken + Halal Rice only</option>
-        </select>
-      </label>
-      <button id="sample" type="button">Try the sample halal bowl</button>
-    </div>
-    <div class="status" id="status" role="status" aria-live="polite"></div>
-  </section>
-
-  <section class="card" aria-labelledby="steps-h">
-    <h2 id="steps-h">2. How the photo is measured</h2>
-    <div class="steps">
-      <figure class="step"><div class="frame" id="img-original">Your photo appears here</div>
-        <figcaption><b>Original.</b> Rotated upright and resized to 1024 px on the long side. Nothing is cropped.</figcaption></figure>
-      <figure class="step"><div class="frame" id="img-boxes">Gemini's boxes appear here</div>
-        <figcaption><b>Gemini classification.</b> Gemini names each piece of food from the database and draws a box around it. The dashed amber box is the dish being scanned; grey boxes are food on other dishes.</figcaption></figure>
-      <figure class="step"><div class="frame" id="img-masks">SAM masks appear here</div>
-        <figcaption><b>SAM 2.1 segmentation.</b> Each box becomes a pixel-exact outline. One colour per region, before overlaps are resolved.</figcaption></figure>
-      <figure class="step"><div class="frame" id="img-final">The result appears here</div>
-        <figcaption><b>Final result.</b> Each pixel is counted once, on the scanned dish only, and coloured by food. This count is <b>Pixels wasted</b>.</figcaption></figure>
-    </div>
-  </section>
-
-  <section class="card" id="results" aria-labelledby="results-h" hidden>
-    <h2 id="results-h">3. What was left over</h2>
-    <div class="kpis" id="kpis"></div>
-    <div class="table-wrap"><table id="foods-table"></table></div>
-    <p class="note">Pixels wasted counts visible leftover-food pixels in AI-generated masks. It is not grams, servings or a percentage of the original meal. CO2 and water <b>points</b> are relative: they let a pixel of chicken count for more than a pixel of rice, but they are not kilograms or litres. Points = pixels ÷ 1000 × the food's grams per cm² × its footprint per kg.</p>
-    <details style="margin-top:12px"><summary>Technical details</summary><pre id="raw" style="white-space:pre-wrap;font-size:12px;max-height:360px;overflow:auto"></pre></details>
-  </section>
-
-  <section class="card" aria-labelledby="db-h">
-    <h2 id="db-h">Food footprint database</h2>
-    <p class="muted">Every food Gemini can choose from, with its footprint per kilogram (Poore &amp; Nemecek life-cycle data via <code>menu_waste_factors.csv</code>). Foods found in your photo are highlighted.</p>
-    <div class="table-wrap"><table id="db-table"></table></div>
-  </section>
+  <button id="upload" type="button">Upload a photo</button>
+  <input type="file" id="file" accept="image/*" hidden>
+  <p id="error" role="alert"></p>
 </main>
-<dialog id="zoom" aria-label="Enlarged image"><img alt=""></dialog>
-
 <script>
-const $ = (id) => document.getElementById(id);
-const fmt = (n, d = 0) => n == null ? '—' : Number(n).toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: d });
-const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-let foodsDb = [];
-let found = new Set();
-let busy = false;
-
-function status(kind, html) {
-  const el = $('status');
-  el.className = `status show ${kind}`;
-  el.innerHTML = html;
-}
-
-function setStep(id, src, alt) {
-  const el = $(id);
-  if (!src) { el.textContent = 'Not available for this photo'; return; }
-  el.innerHTML = '';
-  const img = new Image();
-  img.src = src; img.alt = alt;
-  img.addEventListener('click', () => { $('zoom').querySelector('img').src = src; $('zoom').showModal(); });
-  el.appendChild(img);
-}
-$('zoom').addEventListener('click', () => $('zoom').close());
+const button = document.getElementById('upload');
+const input = document.getElementById('file');
+const error = document.getElementById('error');
 
 /** Re-encode in the browser: applies EXIF rotation, decodes HEIC in Safari, and keeps uploads small. */
 async function toJpeg(file) {
@@ -159,96 +45,26 @@ async function toJpeg(file) {
   }
 }
 
-async function analyze(blob, name) {
-  if (busy) return;
-  busy = true;
-  $('sample').disabled = true;
-  ['img-original', 'img-boxes', 'img-masks', 'img-final'].forEach((id) => { $(id).textContent = 'Working…'; });
-  setStep('img-original', URL.createObjectURL(blob), 'Uploaded photo');
-  status('busy', '<span class="spinner"></span>Analysing: Gemini is finding the food, then SAM 2.1 outlines it. This takes about 20–30 seconds.');
-  const t0 = performance.now();
+button.addEventListener('click', () => input.click());
+input.addEventListener('change', async () => {
+  const file = input.files[0];
+  input.value = '';
+  if (!file) return;
+  error.textContent = '';
+  button.disabled = true;
+  button.innerHTML = '<span class="spinner"></span>Analyzing…';
   try {
-    const res = await fetch(`/api/analyze?menu=${$('menu').value}&name=${encodeURIComponent(name)}`, {
-      method: 'POST', headers: { 'Content-Type': blob.type || 'image/jpeg' }, body: blob,
-    });
+    const blob = await toJpeg(file);
+    const res = await fetch('/api/analyze', { method: 'POST', headers: { 'Content-Type': blob.type || 'image/jpeg' }, body: blob });
     const body = await res.json().catch(() => ({ error: { message: `Server error ${res.status}` } }));
     if (!res.ok) throw new Error(body.error?.message ?? `Server error ${res.status}`);
-    render(body, (performance.now() - t0) / 1000);
+    location.href = `/results/${body.id}`;
   } catch (err) {
-    ['img-boxes', 'img-masks', 'img-final'].forEach((id) => { $(id).textContent = 'Not available'; });
-    status('err', `<b>Could not analyse this photo.</b> ${esc(err.message)}`);
-  } finally {
-    busy = false;
-    $('sample').disabled = false;
+    error.textContent = err.message;
+    button.disabled = false;
+    button.textContent = 'Upload a photo';
   }
-}
-
-function render({ summary: s, images }, seconds) {
-  setStep('img-original', images.original, 'Step 1: original photo');
-  setStep('img-boxes', images.boxes, 'Step 2: Gemini bounding boxes over the photo');
-  setStep('img-masks', images.masks, 'Step 3: SAM 2.1 segmentation masks');
-  setStep('img-final', images.final, 'Step 4: final counted masks with pixel legend');
-
-  if (s.countStatus === 'empty') status('warn', '<b>No leftover food found.</b> The plate looks empty: 0 pixels wasted.');
-  else if (s.status === 'failed' || s.capturePixelsWasted == null) status('err', `<b>No measurement.</b> ${esc(s.error?.message ?? 'The food could not be outlined.')} Missing results are never counted as zero waste.`);
-  else if (s.countStatus === 'partial') status('warn', `<b>Partial result</b> in ${fmt(seconds)} s: some pieces could not be outlined, so the count is a lower bound.`);
-  else status('busy', `Done in ${fmt(seconds)} s. ${s.foods.length} food${s.foods.length === 1 ? '' : 's'} found on the ${s.targetDish.dishType === 'plate' || s.targetDish.dishType === 'bowl' ? s.targetDish.dishType : 'dish'}.`);
-
-  found = new Set(s.foods.map((f) => f.food));
-  renderDb();
-  $('results').hidden = false;
-  const t = s.totals;
-  $('kpis').innerHTML = [
-    [fmt(s.capturePixelsWasted), 'Pixels wasted (total)'],
-    [fmt(t.co2Points, 1), 'CO2 points (relative)'],
-    [fmt(t.waterPoints, 1), 'Water points (relative)'],
-    [fmt(t.nutritionPoints, 1), 'Nutrition points lost (separate)'],
-  ].map(([v, l]) => `<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
-
-  const maxCo2 = Math.max(1, ...s.foods.map((f) => f.points?.co2Points ?? 0));
-  $('foods-table').innerHTML = `<thead><tr><th>Food</th><th class="num">Pixels wasted</th><th class="num">Pieces</th>
-      <th class="num">kg CO2e per kg</th><th class="num">Water m³ per kg</th><th class="num">CO2 points</th><th class="barcell">Share of CO2</th>
-      <th class="num">Water points</th><th>Menu CO2 label</th></tr></thead><tbody>` +
-    s.foods.map((f) => `<tr><td>${esc(f.food)}</td><td class="num">${fmt(f.pixelsWasted)}</td><td class="num">${fmt(f.boxes)}</td>
-      <td class="num">${fmt(f.factors?.co2KgPerKg, 2)}</td><td class="num">${fmt(f.factors?.waterM3PerKg, 3)}</td>
-      <td class="num">${f.points ? fmt(f.points.co2Points, 1) : 'no factor'}</td>
-      <td class="barcell"><div class="bar" style="width:${((f.points?.co2Points ?? 0) / maxCo2) * 100}%"></div></td>
-      <td class="num">${f.points ? fmt(f.points.waterPoints, 1) : '—'}</td>
-      <td>${f.factors?.co2Label ? `<span class="tag ${esc(f.factors.co2Label)}">${esc(f.factors.co2Label)}</span>` : '—'}</td></tr>`).join('') +
-    '</tbody>';
-  $('raw').textContent = JSON.stringify(s, null, 2);
-}
-
-function renderDb() {
-  const rows = [...foodsDb].sort((a, b) => (b.co2KgPerKg ?? 0) - (a.co2KgPerKg ?? 0));
-  const max = Math.max(...rows.map((f) => f.co2KgPerKg ?? 0));
-  $('db-table').innerHTML = `<thead><tr><th>Food</th><th>Station</th><th class="num">kg CO2e per kg</th><th class="barcell"></th>
-      <th class="num">Water m³ per kg</th><th class="num">g per cm²</th><th class="num">Nutrient-days per kg</th><th>Biggest impact</th><th>Menu CO2 label</th></tr></thead><tbody>` +
-    rows.map((f) => `<tr class="${found.has(f.food) ? 'hit' : ''}"><td>${esc(f.food)}</td><td>${esc(f.station)}</td>
-      <td class="num">${fmt(f.co2KgPerKg, 2)}</td><td class="barcell"><div class="bar" style="width:${((f.co2KgPerKg ?? 0) / max) * 100}%"></div></td>
-      <td class="num">${fmt(f.waterM3PerKg, 3)}</td><td class="num">${fmt(f.weightGPerCm2, 1)}</td><td class="num">${fmt(f.nutrientDaysPerKg, 2)}</td>
-      <td>${esc(f.largestFactor ?? '—')}</td><td>${f.co2Label ? `<span class="tag ${esc(f.co2Label)}">${esc(f.co2Label)}</span>` : '—'}</td></tr>`).join('') +
-    '</tbody>';
-}
-
-const pick = () => !busy && $('file').click();
-$('drop').addEventListener('click', pick);
-$('drop').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
-$('file').addEventListener('change', async () => { const f = $('file').files[0]; if (f) analyze(await toJpeg(f), f.name); $('file').value = ''; });
-$('drop').addEventListener('dragover', (e) => { e.preventDefault(); $('drop').classList.add('over'); });
-$('drop').addEventListener('dragleave', () => $('drop').classList.remove('over'));
-$('drop').addEventListener('drop', async (e) => {
-  e.preventDefault(); $('drop').classList.remove('over');
-  const f = [...e.dataTransfer.files].find((x) => x.type.startsWith('image/') || /\.hei[cf]$/i.test(x.name));
-  if (f) analyze(await toJpeg(f), f.name); else status('err', 'That file is not an image.');
 });
-$('sample').addEventListener('click', async () => {
-  const blob = await (await fetch('/sample.jpg')).blob();
-  analyze(blob, 'Sample: halal chicken + rice bowl');
-});
-
-fetch('/api/foods').then((r) => r.json()).then((d) => { foodsDb = d.foods; renderDb(); })
-  .catch(() => { $('db-table').innerHTML = '<tr><td>Could not load the food database.</td></tr>'; });
 </script>
 </body>
 </html>

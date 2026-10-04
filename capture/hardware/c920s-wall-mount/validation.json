@@ -1,0 +1,43 @@
+{
+  "parameters_mm": {
+    "wall_width": 90.0,
+    "wall_height": 120.0,
+    "thickness": 8.0,
+    "arm_reach": 200.0,
+    "arm_width": 40.0,
+    "arm_bottom": 20.0,
+    "gusset_width": 12.0,
+    "gusset_bottom": -54.0,
+    "tab_height": 60.0,
+    "tab_bottom": -32.0,
+    "camera_hole_height": -12.0,
+    "camera_hole_diameter": 6.8,
+    "wall_hole_diameter": 5.5,
+    "wall_hole_pitch_y": 60.0,
+    "wall_hole_pitch_z": 90.0
+  },
+  "cad": {
+    "valid_solid": true,
+    "solid_count": 1,
+    "step_roundtrip": true,
+    "volume_mm3": 247827.42,
+    "bounding_box_mm": [
+      208.007,
+      90.008,
+      120.008
+    ]
+  },
+  "stl": {
+    "triangles": 2816,
+    "vertices": 1400,
+    "watertight": true,
+    "consistent_winding": true,
+    "volume_mm3": 247827.72
+  },
+  "not_verified": [
+    "physical C920s clip fit",
+    "wall anchors",
+    "printed load capacity",
+    "view framing"
+  ]
+}

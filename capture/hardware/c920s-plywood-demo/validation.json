@@ -1,0 +1,82 @@
+{
+  "parameters_mm": {
+    "sheet_thickness": 6.0,
+    "slot_clearance": 0.25,
+    "bridge_height": 430.0,
+    "side_spacing": 400.0,
+    "bridge_length": 440.0,
+    "bridge_depth": 100.0,
+    "foot_depth": 240.0,
+    "tenon_width": 60.0,
+    "tenon_height": 24.0
+  },
+  "parts": {
+    "left_side": {
+      "valid_solid": true,
+      "volume_mm3": 309455.62
+    },
+    "left_side_key": {
+      "valid_solid": true,
+      "volume_mm3": 7164.0
+    },
+    "right_side": {
+      "valid_solid": true,
+      "volume_mm3": 309455.62
+    },
+    "right_side_key": {
+      "valid_solid": true,
+      "volume_mm3": 7164.0
+    },
+    "bridge": {
+      "valid_solid": true,
+      "volume_mm3": 241169.25
+    },
+    "camera_body_reference": {
+      "valid_solid": true,
+      "volume_mm3": 65094.37
+    },
+    "camera_clip_reference": {
+      "valid_solid": true,
+      "volume_mm3": 38304.0
+    },
+    "lens_reference": {
+      "valid_solid": true,
+      "volume_mm3": 603.19
+    },
+    "plastic_tie_-33": {
+      "valid_solid": true,
+      "volume_mm3": 271.08
+    },
+    "plastic_tie_33": {
+      "valid_solid": true,
+      "volume_mm3": 271.08
+    },
+    "table_reference": {
+      "valid_solid": true,
+      "volume_mm3": 7526400.0
+    },
+    "dish_reference": {
+      "valid_solid": true,
+      "volume_mm3": 236197.5
+    }
+  },
+  "stand_piece_count": 5,
+  "added_metal_hardware": false,
+  "wood_intersections": [],
+  "step_roundtrip": true,
+  "cut_paths_closed": true,
+  "cut_layout_mm": [
+    850,
+    600
+  ],
+  "unverified": [
+    "Duderstadt material stock and event access",
+    "actual plywood thickness and kerf",
+    "camera shape and clip clearance",
+    "physical stiffness and stability",
+    "live framing"
+  ],
+  "cut_loop_count": 15,
+  "cut_units": "millimetres",
+  "cut_layout_nonoverlapping": true
+}

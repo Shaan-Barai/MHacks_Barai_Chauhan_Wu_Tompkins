@@ -1,7 +1,8 @@
 /**
- * Upload demo website: anyone can upload a food photo and see every pipeline
- * stage (original → Gemini boxes → SAM 2.1 masks → Pixels wasted) plus the
- * carbon / water / nutrition factors from the food database.
+ * Upload demo website: one upload button. After the upload, /results/<id>
+ * shows the original, Gemini's classification, the SAM 2.1 masks, the final
+ * counted result and the total food wasted (Pixels wasted). Food is matched
+ * against Halal Chicken + Halal Rice only.
  *
  *   node upload_demo/server.mjs            # http://localhost:8795
  *   HOST=0.0.0.0 node upload_demo/server.mjs   # reachable from phones on the LAN
@@ -9,8 +10,10 @@
  * Needs GEMINI_API_KEY in .env and the SAM 2.1 worker (vision/sam/worker.py).
  * Uploads are analysed in memory only: nothing is written to R2 or
  * SpacetimeDB, so demo uploads never mix into the dining hall's dashboard.
+ * The last RESULTS_KEPT results stay in memory so their pages can be reloaded.
  */
 
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
@@ -22,7 +25,16 @@ const PORT = Number(process.env.UPLOAD_DEMO_PORT ?? 8795);
 const HOST = process.env.HOST ?? '127.0.0.1';
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const SAMPLE = path.join(REPO, 'demo_pictures/0_input_photo.jpg');
-const MENUS = { all: null, halal: ['halal-chicken', 'halal-rice'] };
+const MENU_KEYS = ['halal-chicken', 'halal-rice'];
+const RESULTS_KEPT = 20;
+const results = new Map(); // id -> { summary, images }, oldest first
+
+function keep(result) {
+  const id = randomUUID().slice(0, 8);
+  results.set(id, result);
+  while (results.size > RESULTS_KEPT) results.delete(results.keys().next().value);
+  return id;
+}
 
 const foods = loadFoodDatabase();
 const gateway = createGeminiGateway();
@@ -62,22 +74,28 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/') {
       return send(res, 200, readFileSync(new URL('./index.html', import.meta.url)), 'text/html; charset=utf-8');
     }
+    if (req.method === 'GET' && /^\/results\/[\w-]+\/?$/.test(url.pathname)) {
+      return send(res, 200, readFileSync(new URL('./results.html', import.meta.url)), 'text/html; charset=utf-8');
+    }
+    const stored = url.pathname.match(/^\/api\/results\/([\w-]+)$/);
+    if (req.method === 'GET' && stored) {
+      const result = results.get(stored[1]);
+      return result ? send(res, 200, result) : apiError(res, 404, 'RESULT_NOT_FOUND', 'This result is no longer available. Upload the photo again.');
+    }
     if (req.method === 'GET' && url.pathname === '/sample.jpg') return send(res, 200, readFileSync(SAMPLE), 'image/jpeg');
     if (req.method === 'GET' && url.pathname === '/api/foods') return send(res, 200, { foods });
     if (req.method === 'POST' && url.pathname === '/api/analyze') {
-      const menuKey = url.searchParams.get('menu') ?? 'all';
-      if (!(menuKey in MENUS)) return apiError(res, 400, 'BAD_MENU', `menu must be one of: ${Object.keys(MENUS).join(', ')}`);
       if (!/^image\//.test(req.headers['content-type'] ?? '')) return apiError(res, 415, 'NOT_AN_IMAGE', 'Upload a JPEG, PNG or WebP photo.');
       const bytes = await readBody(req);
       if (!bytes.length) return apiError(res, 400, 'EMPTY_UPLOAD', 'The upload was empty.');
       const { images, summary } = await serialize(() => runSteps({
-        gateway, sam, foods, bytes, menuKeys: MENUS[menuKey],
-        sourceLabel: url.searchParams.get('name')?.slice(0, 80) || 'uploaded photo',
+        gateway, sam, foods, bytes, menuKeys: MENU_KEYS,
       }));
-      return send(res, 200, {
+      const result = {
         summary,
         images: { original: dataUrl(images.original), boxes: dataUrl(images.boxes), masks: dataUrl(images.masks), final: dataUrl(images.final) },
-      });
+      };
+      return send(res, 200, { id: keep(result), ...result });
     }
     return apiError(res, 404, 'NOT_FOUND', 'Not found');
   } catch (err) {

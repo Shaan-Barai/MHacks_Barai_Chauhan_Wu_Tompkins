@@ -237,10 +237,16 @@ CORS. The R2 API token from step 1 **cannot** set CORS, so use your Cloudflare l
 
 ```bash
 npx wrangler login                   # [You] browser login to Cloudflare
+: "${DOMAIN:?export DOMAIN first (step 1)}"                    # empty DOMAIN → R2 says "JSON not well formed"
+BUCKET="$(sed -n 's/^OBJECT_STORAGE_CONTAINER=//p' .env)"; echo "bucket: $BUCKET"   # the bucket the backend uses
 sed "s/scrap\.example\.com/$DOMAIN/g" deploy/r2-cors.prod.json > deploy/.run/r2-cors.json
-npx wrangler r2 bucket cors set scrap-images --file deploy/.run/r2-cors.json
-npx wrangler r2 bucket cors list scrap-images      # shows https://$DOMAIN, https://www.$DOMAIN, localhost
+npx wrangler r2 bucket cors set "$BUCKET" --file deploy/.run/r2-cors.json
+npx wrangler r2 bucket cors list "$BUCKET"        # shows https://$DOMAIN, https://www.$DOMAIN, localhost
 ```
+
+An empty `$DOMAIN` (a new terminal) writes the origins `https://` and `https://www.`, which R2 rejects
+as "The JSON you provided was not well formed. [code: 10040]". "The specified bucket does not exist.
+[code: 10006]" means the name differs from `OBJECT_STORAGE_CONTAINER` (`npx wrangler r2 bucket list`).
 
 [deploy/r2-cors.prod.json](../deploy/r2-cors.prod.json) keeps the local origins
 ([r2-cors.local.json](../deploy/r2-cors.local.json)) and adds the domain placeholders. Without wrangler:

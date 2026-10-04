@@ -27,10 +27,14 @@
  *      flags `target_dish_unavailable` and keeps the counts): an incomplete
  *      dish mask must never shave off real food.
  *
+ * 6. Union with the ellipse inscribed in the Gemini dish box (grown by `dilatePx`), so a dish
+ *    mask that missed part of the dish (bowl at an angle / at the frame edge, live
+ *    IMG_2695) can never clip food Gemini put on the target dish.
+ *
  * Everything here is deterministic integer image code (no model calls).
  */
 
-export const DISH_REGION_VERSION = 'dish-region-v2';
+export const DISH_REGION_VERSION = 'dish-region-v3';
 /** Region smaller than this fraction of the frame-clamped dish box is incomplete (step 5). */
 export const MIN_BOX_COVERAGE = 0.5;
 /** Region smaller than this fraction of the frame is implausible (tiny). */
@@ -247,7 +251,40 @@ export function buildDishRegion(
   const boxArea =
     Math.max(0, Math.min(width, boxXyxy[2]) - Math.max(0, boxXyxy[0])) * Math.max(0, Math.min(height, boxXyxy[3]) - Math.max(0, boxXyxy[1]));
   if (regionPx < MIN_BOX_COVERAGE * boxArea) return { ok: false, reason: 'region_incomplete', regionPx, dilatePx };
-  return { ok: true, region, regionPx, dilatePx };
+  // 6. Union with the ellipse inscribed in the dish box: SAM can miss part of a bowl seen at an
+  //    angle or touching the frame edge, and the hull of what it found then cuts across real food.
+  //    The box is Gemini's own extent for the dish, so the ellipse is where the dish must be.
+  const unioned = unionInscribedEllipse(region, width, height, boxXyxy, dilatePx);
+  let unionPx = 0;
+  for (let i = 0; i < unioned.length; i++) unionPx += unioned[i]!;
+  return { ok: true, region: unioned, regionPx: unionPx, dilatePx };
+}
+
+/** `region` plus the ellipse inscribed in the (frame-clamped) box, grown by `grow` pixels. */
+function unionInscribedEllipse(
+  region: Uint8Array,
+  width: number,
+  height: number,
+  box: [number, number, number, number],
+  grow: number,
+): Uint8Array {
+  const out = region.slice();
+  const cx = (box[0] + box[2]) / 2;
+  const cy = (box[1] + box[3]) / 2;
+  const rx = (box[2] - box[0]) / 2 + grow;
+  const ry = (box[3] - box[1]) / 2 + grow;
+  if (rx <= 0 || ry <= 0) return out;
+  const y0 = Math.max(0, Math.floor(cy - ry));
+  const y1 = Math.min(height - 1, Math.ceil(cy + ry));
+  const x0 = Math.max(0, Math.floor(cx - rx));
+  const x1 = Math.min(width - 1, Math.ceil(cx + rx));
+  for (let y = y0; y <= y1; y++)
+    for (let x = x0; x <= x1; x++) {
+      const dx = (x + 0.5 - cx) / rx;
+      const dy = (y + 0.5 - cy) / ry;
+      if (dx * dx + dy * dy <= 1) out[y * width + x] = 1;
+    }
+  return out;
 }
 
 /** Keep only the pixels of `bitmap` inside `region`. Returns the clipped copy and how many pixels were removed. */

@@ -228,6 +228,24 @@ test('fork across the dish splits the dish mask in two: both halves form the reg
   assert.deepEqual(r.measurements.map((m) => [m.itemId, m.remainingAreaPx]).sort(), [['burger', BURGER_PX], ['rice', 400]]);
 });
 
+test('dish mask misses part of the dish: food Gemini put on the target dish is never clipped (live IMG_2695 regression, D1)', async () => {
+  // SAM segmented only x >= 70 of the disk (about 60% of the dish box, so it passes the 50% plausibility check).
+  // Food on the missing part of the dish (px [45,95,65,115] = 400 px) is inside the disk and inside Gemini's dish box.
+  const LEFT_G = [475, 225, 575, 325];
+  const partial: Fill = (x, y) => dishDisk()(x, y) && x >= 70;
+  const r = await analyzeCaptureWithMasks(
+    gemini(answer([piece('burger bite', 1, BURGER_G), piece('rice on the left of the dish', 3, LEFT_G), piece('fries on the next plate', 2, NEIGHBOR_G, true)])),
+    fakeSam(partial),
+    await input(),
+  );
+  const seg = r.attempt.segmentation!;
+  const rice = seg.regions.find((x) => x.itemId === 'rice')!;
+  assert.equal(rice.segmentationStatus, 'succeeded', 'on-target food inside the dish box must be counted');
+  assert.equal(rice.maskPixels, 400);
+  assert.equal(seg.capturePixelsWasted, BURGER_PX + 400);
+  assert.equal(seg.regions.find((x) => x.itemId === 'fries')!.error?.code, 'OUTSIDE_TARGET_DISH', 'neighbour food is still clipped');
+});
+
 test('dish not found: no clip, target_dish_unavailable, counts kept (spill not clipped)', async () => {
   for (const [name, target, reason] of [
     ['null target', null, 'not_found'],

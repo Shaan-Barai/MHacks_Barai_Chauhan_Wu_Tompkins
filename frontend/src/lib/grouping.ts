@@ -1,6 +1,6 @@
 /** Chart helpers: one bar per day. */
 import { formatMedium, formatShort } from './dates'
-import type { DailyWastePoint } from '../data/types'
+import type { DailyImpactPoint, DailyWastePoint } from '../data/types'
 
 export interface ChartBucket {
   key: string
@@ -8,7 +8,7 @@ export interface ChartBucket {
   label: string
   /** Full label for the tooltip. */
   tooltipLabel: string
-  /** Pixels wasted; null = no data that day. */
+  /** The day's value (kg CO2e or pixels); null = no data that day. */
   value: number | null
 }
 
@@ -19,6 +19,16 @@ export function dailyBuckets(points: DailyWastePoint[]): ChartBucket[] {
     label: formatShort(p.date),
     tooltipLabel: formatMedium(p.date),
     value: p.pixelsWasted,
+  }))
+}
+
+/** One bar per day of estimated kg CO2e. */
+export function carbonBuckets(points: DailyImpactPoint[]): ChartBucket[] {
+  return points.map((p) => ({
+    key: p.date,
+    label: formatShort(p.date),
+    tooltipLabel: formatMedium(p.date),
+    value: p.kgCo2e,
   }))
 }
 

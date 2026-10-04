@@ -1,5 +1,5 @@
 /** Settings -> Camera calibration against the mock layer (VITE_USE_MOCK data). */
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { CameraCalibrationPanel, flagText } from './CameraCalibration'
 import { getMeasurementSettings, login, MOCK_PASSCODE } from '../data/api'
@@ -16,15 +16,16 @@ function renderPanel(status: 'signedIn' | 'signedOut') {
 
 const photo = () => new File([new Uint8Array([0xff, 0xd8, 0xff])], 'card.jpg', { type: 'image/jpeg' })
 
-describe('CameraCalibrationPanel signed out', () => {
-  it('shows the how-to, the active calibration with its scale and camera height, and history, but no write controls', async () => {
-    renderPanel('signedOut')
-    expect(screen.getByText(/Lock the camera in place/)).toBeInTheDocument()
-    expect(screen.getByText(/Don't move the camera afterwards/)).toBeInTheDocument()
-    expect(screen.getByText('Sign in to change this.')).toBeInTheDocument()
+beforeEach(() => localStorage.clear())
 
-    expect(screen.getByText(/mounted camera at its usual position/)).toBeInTheDocument()
-    expect(screen.getByText(/each food's typical weight per cm² turns that area into grams/)).toBeInTheDocument()
+describe('CameraCalibrationPanel without a session', () => {
+  it('shows the active calibration with its scale and camera height, history, and the write controls (no sign-in gate)', async () => {
+    renderPanel('signedOut')
+    expect(screen.getByRole('heading', { name: 'Camera calibration' })).toBeInTheDocument()
+    expect(screen.queryByText(/sign in/i)).toBeNull()
+    // editors are always shown; the backend decides whether a save needs the passcode
+    expect(screen.getByRole('form', { name: 'New calibration' })).toBeInTheDocument()
+
     // Depth Anything V2 is gone: no toggle, no plate thickness, no second height.
     expect(screen.queryByRole('switch')).toBeNull()
     expect(screen.queryByText(/Depth Anything|depth|volume|thickness/i)).toBeNull()
@@ -41,8 +42,8 @@ describe('CameraCalibrationPanel signed out', () => {
     expect(within(result).getByText('1024 × 1024 pixels')).toBeInTheDocument()
     expect(await within(result).findByAltText(/credit card outlined by the AI/)).toBeInTheDocument()
 
-    expect(screen.queryByRole('form', { name: 'New calibration' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Activate' })).toBeNull()
+    // the active calibration has nothing to activate
+    expect(within(result).queryByRole('button', { name: 'Activate' })).toBeNull()
 
     // history: four entries, the active one marked
     const history = screen.getByText('Past calibrations').parentElement!
@@ -67,7 +68,7 @@ describe('CameraCalibrationPanel signed out', () => {
   })
 })
 
-describe('CameraCalibrationPanel signed in', () => {
+describe('CameraCalibrationPanel with a session', () => {
   it('uses the credit-card preset, uploads a photo, shows the result, and activates it', async () => {
     await login(MOCK_PASSCODE)
     renderPanel('signedIn')
@@ -111,17 +112,29 @@ describe('CameraCalibrationPanel signed in', () => {
     expect(Object.keys(settings).sort()).toEqual(['activeCalibrationId', 'hallId', 'updatedAt'])
   })
 
-  it('a refused change (401) opens the staff sign-in dialog', async () => {
-    // The page thinks it is signed in, but the session has ended.
-    renderPanel('signedIn')
+  it('a refused change (401) opens the passcode prompt; after unlocking, the same change saves', async () => {
+    // No session: the editors are shown, but the save comes back 401.
+    renderPanel('signedOut')
     const buttons = await screen.findAllByRole('button', { name: /Show the calibration from/ })
     fireEvent.click(buttons[1])
     fireEvent.click(await screen.findByRole('button', { name: 'Activate' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Staff sign-in' })
-    expect(dialog).toHaveTextContent('Sign in to save this change.')
-    expect(within(dialog).getByLabelText('Staff passcode')).toHaveFocus()
-    // signed out now: write controls are hidden
-    await waitFor(() => expect(screen.queryByRole('form', { name: 'New calibration' })).toBeNull())
+    const dialog = await screen.findByRole('dialog', { name: 'Passcode' })
+    expect(dialog).not.toHaveTextContent(/sign in/i)
+    const input = within(dialog).getByLabelText('Passcode')
+    expect(input).toHaveFocus()
+    // the refused change was not saved, and the editors stay visible
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(screen.getByRole('form', { name: 'New calibration' })).toBeInTheDocument()
+    const before = await getMeasurementSettings()
+
+    fireEvent.change(input, { target: { value: MOCK_PASSCODE } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Unlock' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+
+    fireEvent.click(screen.getByRole('button', { name: 'Activate' }))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('This calibration is now active for new plates.'))
+    const after = await getMeasurementSettings()
+    expect(after.activeCalibrationId).not.toBe(before.activeCalibrationId)
   })
 })
 

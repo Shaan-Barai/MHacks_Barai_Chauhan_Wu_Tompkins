@@ -533,3 +533,19 @@ estimates in grams, kg CO2e and litres, labeled est., null not 0; the ingest-tok
 
 The pixels-only wording of that branch (no cm², everything relative) is superseded by the
 calibrated-estimate decisions above; Pixels wasted stays the primary measured metric.
+
+## 2026-10-04 — Dashboard redesign (product owner request)
+
+- Landing page at `/` (ScrapSaver + Get started); dashboard moves to `/dashboard`. Helvetica site-wide.
+  Subtitles, helper paragraphs and visible "Loading" text are removed.
+- Dashboard: Today / This week. Headline cards and the per-day chart lead with **estimated carbon
+  emissions** (kg CO2e, calibrated plates only, "est." badge, "—" when unavailable) instead of pixels.
+  New `GET /api/dashboard/impact/daily?start&end[&hallId]` → `{ days: DailyImpactPoint[] }`
+  (`contracts/types.ts`; ≤ 366 days). Pixels wasted remain the stored measurement and are shown per
+  plate on Behind the scenes and in the per-portion rankings on Statistics.
+- The Schedule page is replaced by **Statistics** (Last 30 / 90 days: cards, carbon chart,
+  recommendations, foods to target, most wasted, nutrition lost). `/schedule` redirects there.
+- The plates gallery moves to Behind the scenes.
+- No staff sign-in in the UI. Editors are always shown; the backend still enforces
+  `SCRAP_ADMIN_PASSCODE` when set (a 401 opens a passcode prompt). `/admin` is unlisted and unlocks
+  inline with the passcode.

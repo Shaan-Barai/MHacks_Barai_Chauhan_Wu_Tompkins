@@ -75,6 +75,17 @@ export interface DailyWastePoint {
   pixelsWasted: number | null
 }
 
+/** GET /api/dashboard/impact/daily: one day of the carbon chart. Nulls mean no data, never 0. */
+export interface DailyImpactPoint {
+  date: IsoDate
+  pixels: number | null
+  /** Estimated kg CO2e from calibrated plates only. */
+  kgCo2e: number | null
+  co2Points: number | null
+  analyzedCaptures: number
+  calibratedCaptures: number
+}
+
 export interface ItemWaste extends PhysicalAmounts {
   itemId: string
   displayName: string

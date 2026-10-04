@@ -1,19 +1,18 @@
 /**
  * "Most wasted foods": a bar list ranked by Pixels wasted per portion served
  * (default, to find what to target), with a toggle to rank by total Pixels
- * wasted or by relative impact points. Each row keeps the other numbers
- * beside the one it is ranked by, the calibrated estimates (grams, CO2e,
- * water; labeled est.) when there are any, and the factor-table source.
- * Foods without the chosen number are listed after the ranked ones, with the
+ * wasted or by relative impact points, plus the calibrated estimates (grams,
+ * CO2e, water; labeled est.) and the factor-table source per row. Foods
+ * without the chosen number are listed after the ranked ones with the
  * reason; they are never shown as zero.
  */
-import { useId, useState } from 'react'
+import { useState } from 'react'
 import type { ItemImpactRow } from '../data/types'
 import { formatNumber, formatPoints } from '../lib/format'
 import { impactUnavailableReason, perPortionUnavailableReason } from './impactCopy'
-import { ESTIMATE_EXPLANATION, PhysicalChips, hasPhysical } from './PhysicalChips'
+import { PhysicalChips, hasPhysical } from './PhysicalChips'
 import { FactorSource } from './FactorSource'
-import { Badge, Card, GhostButton, InfoTip } from './ui'
+import { Badge, Card, GhostButton } from './ui'
 
 const SHOW_FIRST = 8
 
@@ -39,16 +38,6 @@ function label(r: ItemImpactRow, by: RankBy): string {
   return `${formatNumber(v)} pixels`
 }
 
-function detail(r: ItemImpactRow, by: RankBy): string {
-  const parts: string[] = []
-  if (by !== 'pixels') parts.push(`${formatNumber(r.impact.pixels)} pixels in total`)
-  if (by !== 'perPortion' && perPortionUnavailableReason(r) === null) parts.push(`${formatNumber(r.perPortion!.pixels)} per portion`)
-  if (by !== 'impact') parts.push(impactUnavailableReason(r) ?? `${formatPoints(r.impact.impactPoints!)} impact points`)
-  if (by === 'impact' && r.impact.co2Points != null && r.impact.waterPoints != null) {
-    parts.push(`greenhouse gases ${formatPoints(r.impact.co2Points)}, water ${formatPoints(r.impact.waterPoints)}`)
-  }
-  return parts.join(' · ')
-}
 
 /** Ranked rows first (highest value first), then foods without the number. */
 export function rankFoods(rows: ItemImpactRow[], by: RankBy): { ranked: ItemImpactRow[]; unranked: ItemImpactRow[] } {
@@ -60,7 +49,6 @@ export function rankFoods(rows: ItemImpactRow[], by: RankBy): { ranked: ItemImpa
 export function MostWasted({ rows, initialRank = 'perPortion' }: { rows: ItemImpactRow[]; initialRank?: RankBy }) {
   const [by, setBy] = useState<RankBy>(initialRank)
   const [showAll, setShowAll] = useState(false)
-  const estTip = useId()
   const anyEstimate = rows.some((r) => hasPhysical(r.impact))
   const { ranked, unranked } = rankFoods(rows, by)
   const all = [...ranked, ...unranked]
@@ -68,41 +56,27 @@ export function MostWasted({ rows, initialRank = 'perPortion' }: { rows: ItemImp
   const max = Math.max(1e-9, ...ranked.map((r) => valueOf(r, by)!))
   const top = ranked[0]
   const ranking = RANKINGS.find((r) => r.key === by)!
-  const headline: Record<RankBy, string> = {
-    perPortion: 'had the most food left per portion.',
-    pixels: 'had the most food left in total.',
-    impact: 'had the highest impact points.',
-  }
 
   return (
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-semibold uppercase tracking-wide">Most wasted foods</p>
-        {by === 'impact' && <Badge>points are relative</Badge>}
+        <h2 className="text-lg font-semibold text-ink">Most wasted foods</h2>
+        {by === 'impact' && <Badge>relative</Badge>}
       </div>
-      <h2 className="mt-1 text-xl font-semibold text-ink">
-        {top ? `${top.displayName} ${headline[by]}` : 'No food can be ranked this way yet.'}
-      </h2>
-      <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Rank foods by">
+      {!top && <p className="mt-2 text-base">Nothing to rank yet.</p>}
+      <div className="mt-2 inline-flex rounded-full border border-ink p-0.5" role="group" aria-label="Rank foods by">
         {RANKINGS.map((r) => (
           <button
             key={r.key}
             type="button"
             aria-pressed={by === r.key}
             onClick={() => setBy(r.key)}
-            className={`rounded-btn border border-ink px-3 py-1.5 text-base ${by === r.key ? 'bg-ink font-semibold text-cream' : 'bg-cream text-ink hover:underline'}`}
+            className={`rounded-full px-3 py-1 text-sm font-medium ${by === r.key ? 'bg-ink text-cream' : 'bg-cream text-ink hover:opacity-70'}`}
           >
             {r.label}
           </button>
         ))}
       </div>
-      <p className="mt-2 text-sm">{ranking.caption}</p>
-      {anyEstimate && (
-        <p className="mt-1 text-sm">
-          Grams, CO2e and water are estimates (est.).
-          <InfoTip id={estTip} text={ESTIMATE_EXPLANATION} />
-        </p>
-      )}
 
       {all.length > 0 && (
         <ol className="mt-3 space-y-3" aria-label={`Foods ${ranking.caption.toLowerCase().replace(/\.$/, '')}`}>
@@ -123,7 +97,6 @@ export function MostWasted({ rows, initialRank = 'perPortion' }: { rows: ItemImp
                     <div className="h-full rounded-r-[4px] bg-ink" style={{ width: `${Math.max(1, (v / max) * 100)}%` }} />
                   </div>
                 )}
-                <p className="mt-0.5 text-sm">{detail(r, by)}</p>
               </li>
             )
           })}

@@ -1,7 +1,7 @@
 /**
  * "Take photo": triggers the Uno Q camera through the backend (the same path
  * as `npm run take-photo`). The plate then appears in the gallery once the
- * AI has checked it. Disabled with a hint when no camera is set up.
+ * AI has checked it. Disabled when no camera is set up.
  */
 import { useEffect, useState } from 'react'
 import { getCameraStatus, takePhoto } from '../data/api'
@@ -42,12 +42,11 @@ export function TakePhotoButton({ onTaken }: { onTaken: () => void }) {
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <PrimaryButton type="button" onClick={onClick} disabled={!configured || state.kind === 'busy'} aria-describedby="take-photo-status">
-        {state.kind === 'busy' ? 'Taking photo…' : 'Take photo'}
+      <PrimaryButton type="button" onClick={onClick} disabled={!configured || state.kind === 'busy'} aria-busy={state.kind === 'busy'} aria-describedby="take-photo-status">
+        Take photo
       </PrimaryButton>
       <p id="take-photo-status" className="max-w-xs text-right text-sm" role="status" aria-live="polite">
-        {status && !configured && 'No camera set up (CAMERA_HOST in .env).'}
-        {state.kind === 'busy' && 'Taking the photo and checking it. This takes up to a minute.'}
+        {status && !configured && 'No camera set up.'}
         {state.kind === 'done' && state.text}
         {state.kind === 'error' && state.text}
       </p>

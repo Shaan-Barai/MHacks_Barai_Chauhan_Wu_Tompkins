@@ -2,16 +2,17 @@
  * Admin: choose which plates the dashboard shows (2026-10-04). Lists every
  * plate in the chosen days, hidden ones included, with a Shown/Hidden toggle
  * per plate and bulk Show/Hide for the plates listed. Hiding never deletes a
- * plate; it only leaves it out of every dashboard number and gallery. Needs a
- * staff session.
+ * plate; it only leaves it out of every dashboard number and gallery.
+ * Unlisted: the owner opens /admin directly. When the backend requires the
+ * passcode, the page asks for it inline.
  */
 import { useEffect, useMemo, useState } from 'react'
 import { getAdminCaptures, getCaptureImages, setCaptureVisibility } from '../data/api'
 import type { AdminCaptureItem, CaptureImages } from '../data/types'
 import { formatNumber } from '../lib/format'
 import { useAuth } from '../state/auth'
-import { DateRangePicker, rangeForDays, type DateRange } from '../components/DateRangePicker'
-import { Card, EmptyState, GhostButton, LoadingBlock, PrimaryButton } from '../components/ui'
+import { DateRangePicker, rangeForDays, STATISTICS_PRESETS, type DateRange } from '../components/DateRangePicker'
+import { Card, EmptyState, GhostButton, LoadingBlock, PrimaryButton, inputClass } from '../components/ui'
 
 type Filter = 'all' | 'shown' | 'hidden'
 const FILTERS: { filter: Filter; label: string }[] = [
@@ -59,7 +60,8 @@ function useImages(ids: string[]): Record<string, CaptureImages | 'error'> {
 }
 
 export function AdminPage() {
-  const { canEdit, status, openSignIn } = useAuth()
+  const { status, signIn } = useAuth()
+  const unlocked = status === 'signedIn'
   const [range, setRange] = useState<DateRange>(() => rangeForDays(90))
   const [plates, setPlates] = useState<AdminCaptureItem[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -67,7 +69,7 @@ export function AdminPage() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    if (!canEdit) return
+    if (!unlocked) return
     let alive = true
     setPlates(null)
     setError(null)
@@ -78,7 +80,7 @@ export function AdminPage() {
     return () => {
       alive = false
     }
-  }, [canEdit, range.start, range.end])
+  }, [unlocked, range.start, range.end])
 
   const visible = useMemo(
     () => (plates ?? []).filter((p) => filter === 'all' || (filter === 'hidden') === p.hidden),
@@ -101,19 +103,8 @@ export function AdminPage() {
     }
   }
 
-  if (status === 'checking') return <LoadingBlock label="Checking sign-in" />
-  if (!canEdit) {
-    return (
-      <div className="space-y-5">
-        <h1 className="font-display text-3xl font-semibold text-ink">Admin</h1>
-        <Card>
-          <PrimaryButton type="button" onClick={() => openSignIn('Sign in to choose which plates are shown.')}>
-            Sign in
-          </PrimaryButton>
-        </Card>
-      </div>
-    )
-  }
+  if (status === 'checking') return <LoadingBlock label="Checking access" />
+  if (!unlocked) return <Unlock onUnlock={signIn} />
 
   const counts = {
     all: plates?.length ?? 0,
@@ -124,8 +115,8 @@ export function AdminPage() {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-display text-3xl font-semibold text-ink">Admin</h1>
-        <DateRangePicker value={range} onChange={setRange} />
+        <h1 className="font-display text-3xl font-bold tracking-tight text-ink">Admin</h1>
+        <DateRangePicker value={range} onChange={setRange} presets={STATISTICS_PRESETS} />
       </div>
 
       <Card>
@@ -171,7 +162,7 @@ export function AdminPage() {
                     <img src={src} alt={`Plate at ${when(p.capturedAt)}`} className="aspect-square w-full border-b border-ink object-cover" />
                   ) : (
                     <div className="flex aspect-square w-full items-center justify-center border-b border-dashed border-ink text-sm">
-                      {img === 'error' ? 'Photo unavailable' : 'Loading photo'}
+                      {img === 'error' ? 'Photo unavailable' : ''}
                     </div>
                   )}
                   <div className="space-y-2 p-2">
@@ -196,6 +187,52 @@ export function AdminPage() {
           </ul>
         )}
       </Card>
+    </div>
+  )
+}
+
+function Unlock({ onUnlock }: { onUnlock: (passcode: string) => Promise<void> }) {
+  const [passcode, setPasscode] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  return (
+    <div className="space-y-5">
+      <h1 className="font-display text-3xl font-bold tracking-tight text-ink">Admin</h1>
+      <form
+        className="flex max-w-sm flex-wrap gap-3"
+        onSubmit={async (e) => {
+          e.preventDefault()
+          setBusy(true)
+          setError(null)
+          try {
+            await onUnlock(passcode)
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "That didn't work.")
+            setBusy(false)
+          }
+        }}
+      >
+        <label htmlFor="admin-passcode" className="sr-only">
+          Passcode
+        </label>
+        <input
+          id="admin-passcode"
+          type="password"
+          autoComplete="current-password"
+          placeholder="Passcode"
+          value={passcode}
+          onChange={(e) => setPasscode(e.target.value)}
+          className={`${inputClass} flex-1`}
+        />
+        <PrimaryButton type="submit" disabled={busy || !passcode}>
+          Unlock
+        </PrimaryButton>
+        {error && (
+          <p role="alert" className="w-full font-semibold">
+            {error}
+          </p>
+        )}
+      </form>
     </div>
   )
 }

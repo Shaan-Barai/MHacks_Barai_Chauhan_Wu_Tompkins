@@ -1,34 +1,36 @@
 import { useCallback, useEffect, useState } from 'react'
-import { defaultRange, type DateRange } from './components/DateRangePicker'
-import { SetupWizard } from './components/SetupWizard'
 import { AdminPage } from './pages/AdminPage'
 import { BehindScenesPage } from './pages/BehindScenesPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { LandingPage } from './pages/LandingPage'
 import { MenusPage } from './pages/MenusPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { PortionsPage } from './pages/PortionsPage'
-import { SchedulePage } from './pages/SchedulePage'
 import { SettingsPage } from './pages/SettingsPage'
-import { AuthProvider, StaffSignIn, useAuth } from './state/auth'
+import { StatisticsPage } from './pages/StatisticsPage'
+import { AuthProvider } from './state/auth'
 import { DEFAULT_SETTINGS, useHallSettings } from './state/settings'
 
-type Page = 'dashboard' | 'schedule' | 'menus' | 'portions' | 'behind' | 'settings' | 'admin'
+type Page = 'landing' | 'dashboard' | 'statistics' | 'menus' | 'portions' | 'behind' | 'settings' | 'admin'
 
 const NAV: { page: Page; label: string; path: string }[] = [
-  { page: 'dashboard', label: 'Dashboard', path: '/' },
-  { page: 'schedule', label: 'Schedule', path: '/schedule' },
+  { page: 'dashboard', label: 'Dashboard', path: '/dashboard' },
+  { page: 'statistics', label: 'Statistics', path: '/statistics' },
   { page: 'menus', label: 'Menus', path: '/menus' },
   { page: 'portions', label: 'Portions served', path: '/portions' },
   { page: 'behind', label: 'Behind the scenes', path: '/behind-the-scenes' },
   { page: 'settings', label: 'Settings', path: '/settings' },
-  { page: 'admin', label: 'Admin', path: '/admin' },
 ]
+
+/** Unlisted: the owner opens /admin directly to choose which plates are counted. */
+const HIDDEN: { page: Page; label: string; path: string }[] = [{ page: 'admin', label: 'Admin', path: '/admin' }]
 
 /** Path -> page; null = no such page (404). The server sends index.html for every non-API path. */
 export function pageForPath(pathname: string): Page | null {
   const path = pathname.replace(/\/+$/, '') || '/'
-  if (path === '/' || path === '/dashboard' || path === '/index.html') return 'dashboard'
-  return NAV.find((n) => n.path === path)?.page ?? null
+  if (path === '/' || path === '/index.html') return 'landing'
+  if (path === '/schedule') return 'statistics'
+  return [...NAV, ...HIDDEN].find((n) => n.path === path)?.page ?? null
 }
 
 function usePath(): [string, (path: string) => void] {
@@ -55,21 +57,16 @@ export default function App() {
 
 function Shell() {
   const { settings, update } = useHallSettings()
-  const { canEdit } = useAuth()
   const [path, go] = usePath()
   const page = pageForPath(path)
-  const [range, setRange] = useState<DateRange>(defaultRange)
   const [dataRevision, setDataRevision] = useState(0)
 
-  const title = page ? NAV.find((n) => n.page === page)!.label : 'Page not found'
+  const title = page === 'landing' ? null : page ? [...NAV, ...HIDDEN].find((n) => n.page === page)!.label : 'Page not found'
   useEffect(() => {
-    document.title = `${title} · ScrapSaver`
+    document.title = title ? `${title} · ScrapSaver` : 'ScrapSaver'
   }, [title])
 
-  // First-time setup is for staff. Visitors see the dashboard with default meal times.
-  if (!settings && canEdit) {
-    return <SetupWizard onComplete={update} />
-  }
+  if (page === 'landing') return <LandingPage onStart={() => go('/dashboard')} />
   const hall = settings ?? DEFAULT_SETTINGS
 
   return (
@@ -78,13 +75,18 @@ function Shell() {
         Skip to content
       </a>
       {/* Left: narrow nav, black with white text */}
-      <nav className="flex w-full shrink-0 flex-col bg-ink p-4 text-cream lg:w-48" aria-label="Main">
-        <p className="font-display text-2xl font-semibold">ScrapSaver</p>
-        {hall.name && (
-          <p className="mt-0.5 truncate text-sm" title={hall.name}>
-            {hall.name}
-          </p>
-        )}
+      <nav className="flex w-full shrink-0 flex-col bg-ink p-4 text-cream lg:w-56" aria-label="Main">
+        <a
+          href="/"
+          onClick={(e) => {
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
+            e.preventDefault()
+            go('/')
+          }}
+          className="font-display text-2xl font-bold tracking-tight"
+        >
+          ScrapSaver
+        </a>
         <ul className="mt-3 flex flex-wrap gap-1 lg:mt-6 lg:block lg:space-y-1">
           {NAV.map((item) => (
             <li key={item.page}>
@@ -105,24 +107,17 @@ function Shell() {
             </li>
           ))}
         </ul>
-        <div className="mt-4 lg:mt-6">
-          <StaffSignIn />
-        </div>
-        <p className="mt-auto hidden pt-6 text-xs leading-snug lg:block">
-          Pixels wasted come from AI outlines of plate photos. Impact points are relative; grams, CO2e and water are estimates. Meal
-          swipes are simulated for the demo.
-        </p>
       </nav>
 
       <main id="main" className="min-w-0 flex-1 overflow-y-auto bg-cream p-4 sm:p-6">
-        {page === 'dashboard' && <DashboardPage range={range} onRangeChange={setRange} />}
-        {page === 'schedule' && <SchedulePage settings={hall} dataRevision={dataRevision} />}
+        {page === 'dashboard' && <DashboardPage />}
+        {page === 'statistics' && <StatisticsPage dataRevision={dataRevision} />}
         {page === 'menus' && <MenusPage />}
         {page === 'portions' && <PortionsPage onSaved={() => setDataRevision((r) => r + 1)} />}
         {page === 'behind' && <BehindScenesPage />}
         {page === 'settings' && <SettingsPage settings={hall} onSave={update} />}
         {page === 'admin' && <AdminPage />}
-        {page === null && <NotFoundPage onHome={() => go('/')} />}
+        {page === null && <NotFoundPage onHome={() => go('/dashboard')} />}
       </main>
     </div>
   )

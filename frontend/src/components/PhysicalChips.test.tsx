@@ -34,7 +34,8 @@ describe('PhysicalChips', () => {
     const svgs = container.querySelectorAll('svg')
     expect(svgs).toHaveLength(2)
     svgs.forEach((s) => expect(s).toHaveAttribute('aria-hidden', 'true'))
-    expect(container.firstElementChild).toHaveAttribute('title', expect.stringMatching(/area comes from the camera calibration .* grams from the food’s typical weight per cm²/))
+    // no hover tooltip; the screen-reader sentence carries the estimate
+    expect(container.firstElementChild).not.toHaveAttribute('title')
   })
 
   it('never shows 0 for a missing estimate: a muted reason, or nothing', () => {

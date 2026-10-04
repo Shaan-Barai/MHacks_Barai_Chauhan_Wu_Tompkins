@@ -1,48 +1,23 @@
 /**
- * End-to-end pipeline additions: period totals, Take photo, regenerating the
- * recommendation, the raw photo + enlarge in the gallery, and sample data.
+ * End-to-end pipeline additions: Take photo, regenerating the recommendation,
+ * the raw photo + enlarge in the gallery, and sample data left out of it.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import * as api from '../data/api'
-import { PeriodTotals } from './PeriodTotals'
 import { PlatesGallery } from './PlatesGallery'
 import { RecommendationCard } from './RecommendationCard'
 import { TakePhotoButton } from './TakePhotoButton'
-import type { CaptureImages, CaptureListItem, Recommendation, WasteTotal } from '../data/types'
+import type { CaptureImages, CaptureListItem, Recommendation } from '../data/types'
 
 afterEach(() => vi.restoreAllMocks())
 
 const future = () => new Date(Date.now() + 10 * 60_000).toISOString()
 
-function total(over: Partial<WasteTotal> = {}): WasteTotal {
-  return { start: '2026-10-04', end: '2026-10-04', pixels: 0, impactPoints: null, captures: 0, analyzedCaptures: 0, sampleCaptures: 0, ...over }
-}
-
-describe('PeriodTotals', () => {
-  it('shows today, this week and this month in pixels, labeling sample data', () => {
-    render(
-      <PeriodTotals
-        totals={{
-          today: total({ pixels: 12_345, analyzedCaptures: 3, captures: 3, impactPoints: 10.5 }),
-          week: total({ pixels: 98_765, analyzedCaptures: 20, captures: 21, sampleCaptures: 15 }),
-          month: total(),
-        }}
-      />,
-    )
-    expect(screen.getByLabelText('Today: 12,345 pixels wasted')).toBeInTheDocument()
-    expect(screen.getByLabelText('This week: 98,765 pixels wasted')).toBeInTheDocument()
-    expect(screen.getByLabelText('This month: 0 pixels wasted')).toBeInTheDocument()
-    expect(screen.getByText('includes sample data')).toBeInTheDocument()
-    expect(screen.getByText('No plates counted yet')).toBeInTheDocument()
-    expect(screen.getByText(/From 3 plates · 10.5 impact points/)).toBeInTheDocument()
-  })
-})
-
 describe('TakePhotoButton', () => {
   it('is disabled with a hint when no camera is set up', async () => {
     render(<TakePhotoButton onTaken={() => {}} />)
-    expect(await screen.findByText(/No camera set up/)).toBeInTheDocument()
+    expect(await screen.findByText('No camera set up.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Take photo' })).toBeDisabled()
   })
 
@@ -88,16 +63,33 @@ describe('RecommendationCard', () => {
   it('asks again on demand', async () => {
     const regenerate = vi.fn(async () => {})
     render(<RecommendationCard rec={REC} onRegenerate={regenerate} />)
-    expect(screen.getAllByText('Based on:', { exact: false })).toHaveLength(2)
+    expect(screen.getByRole('heading', { name: 'Recommendations' })).toBeInTheDocument()
+    // each bullet keeps the number it rests on
+    expect(screen.getByText('Baked Sweet Potatoes: 1,234 pixels wasted per portion')).toBeInTheDocument()
+    expect(screen.getByText('12 of 12 plates analyzed')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Ask again' }))
     await waitFor(() => expect(regenerate).toHaveBeenCalledTimes(1))
     expect(await screen.findByRole('button', { name: 'Ask again' })).toBeEnabled()
   })
 
+  it('shows the error and stays usable when asking again fails', async () => {
+    const regenerate = vi.fn(async () => {
+      throw new Error('The AI is unavailable right now.')
+    })
+    render(<RecommendationCard rec={REC} onRegenerate={regenerate} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Ask again' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('The AI is unavailable right now.')
+    expect(screen.getByRole('button', { name: 'Ask again' })).toBeEnabled()
+    expect(screen.getByText(REC.text)).toBeInTheDocument()
+  })
+
   it('labels the last saved recommendation when the AI is unavailable', () => {
-    render(<RecommendationCard rec={{ ...REC, stale: true }} />)
+    const { rerender } = render(<RecommendationCard rec={REC} />)
+    expect(screen.queryByText('saved earlier')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Ask again' })).toBeNull()
+    rerender(<RecommendationCard rec={{ ...REC, stale: true }} />)
     expect(screen.getByText('saved earlier')).toBeInTheDocument()
-    expect(screen.getByRole('note')).toHaveTextContent(/last saved recommendation \(for Sep 21 to Oct 4\)/)
+    expect(screen.getByText('AI')).toBeInTheDocument()
   })
 })
 
@@ -133,12 +125,12 @@ describe('PlatesGallery (end-to-end additions)', () => {
         loadImages={load}
       />,
     )
-    expect(screen.getByText('1 recent plate')).toBeInTheDocument()
-    expect(screen.getByText(/2 sample scans are counted in the totals but not shown here/)).toBeInTheDocument()
+    // only the real scan is listed; sample scans have no photos
+    expect(screen.getAllByRole('button', { name: /^Plate at / })).toHaveLength(1)
 
-    fireEvent.click(screen.getByRole('button', { name: /Plate at .*5,000 pixels wasted/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Plate at .*: 5,000 pixels$/ }))
     expect(await screen.findByAltText(/Photo of the plate/)).toHaveAttribute('src', 'https://img.test/real/raw.jpg')
-    expect(screen.getByText('Original photo, as the camera took it')).toBeInTheDocument()
+    expect(screen.getByText('Original')).toBeInTheDocument()
     expect(screen.getByAltText(/leftover food the AI outlined/)).toHaveAttribute('src', 'https://img.test/real/overlay.jpg')
 
     fireEvent.click(screen.getByRole('button', { name: /Enlarge: The same plate with the leftover food/ }))
@@ -153,6 +145,7 @@ describe('PlatesGallery (end-to-end additions)', () => {
     render(<PlatesGallery captures={[capture({ eventId: 'old' })]} loadImages={async (id) => images(id, false)} />)
     fireEvent.click(screen.getByRole('button', { name: /Plate at/ }))
     expect(await screen.findByAltText(/Photo of the plate/)).toHaveAttribute('src', 'https://img.test/old/normalized.jpg')
-    expect(screen.getByText('Photo the AI checked')).toBeInTheDocument()
+    expect(screen.getByText('Photo', { selector: 'figcaption' })).toBeInTheDocument()
+    expect(screen.queryByText('Original')).toBeNull()
   })
 })

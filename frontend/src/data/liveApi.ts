@@ -22,6 +22,7 @@ import type {
   CaptureListItem,
   ImpactDashboard,
   Recommendation,
+  DailyImpactPoint,
   DailyWastePoint,
   DayMenu,
   IsoDate,
@@ -299,6 +300,11 @@ export async function getImageUrl(objectId: string): Promise<string> {
 
 export async function getImpactDashboard(start: IsoDate, end: IsoDate): Promise<ImpactDashboard> {
   return call<ImpactDashboard>(`/api/dashboard/impact?${q({ hallId: hallId(), start, end })}`)
+}
+
+export async function getDailyImpact(start: IsoDate, end: IsoDate): Promise<DailyImpactPoint[]> {
+  const { days } = await call<{ days: DailyImpactPoint[] }>(`/api/dashboard/impact/daily?${q({ hallId: hallId(), start, end })}`)
+  return days
 }
 
 /** Accepts a bare array or `{ captures: [...] }`. */

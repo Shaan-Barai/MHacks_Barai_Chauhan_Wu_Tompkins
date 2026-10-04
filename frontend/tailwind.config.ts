@@ -1,8 +1,7 @@
 import type { Config } from 'tailwindcss'
 
 /**
- * MVP theme (UI.md): black and white only, Times New Roman. Styling comes
- * later. The token names are kept from the earlier palette so components
+ * Theme: black and white only, Helvetica (2026-10-04). The token names are kept from the earlier palette so components
  * didn't change; every color token is now black or white.
  */
 export default {
@@ -18,8 +17,8 @@ export default {
         basil: { DEFAULT: '#000000', tint: '#FFFFFF' }, // nav, buttons, selected / hover
       },
       fontFamily: {
-        sans: ['"Times New Roman"', 'Times', 'serif'],
-        display: ['"Times New Roman"', 'Times', 'serif'],
+        sans: ['Helvetica', '"Helvetica Neue"', 'Arial', 'sans-serif'],
+        display: ['Helvetica', '"Helvetica Neue"', 'Arial', 'sans-serif'],
       },
       borderRadius: {
         card: '4px',

@@ -86,7 +86,7 @@ export function PhysicalChips({
   if (hasValue(amounts.kgCo2e)) parts.push(formatKgCo2e(amounts.kgCo2e))
   if (hasValue(amounts.waterLitres)) parts.push(`${formatLitres(amounts.waterLitres)} water`)
   return (
-    <span className={`inline-flex flex-wrap items-center gap-1.5 text-sm ${className}`} title={ESTIMATE_EXPLANATION}>
+    <span className={`inline-flex flex-wrap items-center gap-1.5 text-sm ${className}`}>
       <span className="sr-only">Estimated: {parts.join(', ')}.</span>
       {hasValue(amounts.grams) && (
         <span aria-hidden="true" className={chip}>

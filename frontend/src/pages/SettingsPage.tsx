@@ -7,7 +7,6 @@ import type { HallSettings, MealTimeSet, SpecialEvent, Weekday } from '../data/t
 import { WEEKDAYS, WEEKDAY_NAME } from '../data/types'
 import { buildWasteCsv, downloadCsv } from '../lib/csv'
 import { todayIso } from '../lib/dates'
-import { SignInHint, useAuth } from '../state/auth'
 import { DEFAULT_SETTINGS, newId } from '../state/settings'
 
 function TimeSetEditor({
@@ -75,7 +74,6 @@ function EventRow({ event, onChange, onRemove }: { event: SpecialEvent; onChange
 }
 
 export function SettingsPage({ settings, onSave }: { settings: HallSettings; onSave: (next: HallSettings) => void }) {
-  const { canEdit } = useAuth()
   const [draft, setDraft] = useState<HallSettings>(settings)
   const [saved, setSaved] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -106,12 +104,10 @@ export function SettingsPage({ settings, onSave }: { settings: HallSettings; onS
 
   return (
     <div className="max-w-3xl space-y-5">
-      <h1 className="font-display text-3xl font-semibold text-ink">Settings</h1>
-
-      {!canEdit && <SignInHint>Staff can change the hall, meal times, events and camera calibration.</SignInHint>}
+      <h1 className="font-display text-3xl font-bold tracking-tight text-ink">Settings</h1>
 
       <Card>
-      <fieldset disabled={!canEdit} className="min-w-0 space-y-4">
+      <fieldset className="min-w-0 space-y-4">
         <legend className="sr-only">Dining hall settings</legend>
         <div>
           <h2 className="text-lg font-semibold">Dining hall</h2>
@@ -123,7 +119,6 @@ export function SettingsPage({ settings, onSave }: { settings: HallSettings; onS
 
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">Meal times</h2>
-          <p>Set different hours for different days, like weekdays and weekends.</p>
           {draft.timeSets.map((set, i) => (
             <TimeSetEditor
               key={set.id}
@@ -146,7 +141,6 @@ export function SettingsPage({ settings, onSave }: { settings: HallSettings; onS
 
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">Special events</h2>
-          <p>Add days with different crowds, like football games. They show on the Schedule calendar.</p>
           {draft.events.length === 0 && <p>No events yet.</p>}
           {draft.events.map((event, i) => (
             <EventRow key={event.id} event={event} onChange={(next) => setEvent(i, next)} onRemove={() => edit({ ...draft, events: draft.events.filter((_, j) => j !== i) })} />
@@ -159,18 +153,16 @@ export function SettingsPage({ settings, onSave }: { settings: HallSettings; onS
           </GhostButton>
         </div>
 
-        {canEdit && (
-          <div className="flex items-center gap-3 border-t border-ink pt-4">
-            <PrimaryButton type="button" onClick={save}>
-              Save settings
-            </PrimaryButton>
-            {saved && (
-              <p role="status" className="font-semibold">
-                Saved.
-              </p>
-            )}
-          </div>
-        )}
+        <div className="flex items-center gap-3 border-t border-ink pt-4">
+          <PrimaryButton type="button" onClick={save}>
+            Save settings
+          </PrimaryButton>
+          {saved && (
+            <p role="status" className="font-semibold">
+              Saved.
+            </p>
+          )}
+        </div>
       </fieldset>
       </Card>
 
@@ -178,10 +170,9 @@ export function SettingsPage({ settings, onSave }: { settings: HallSettings; onS
 
       <Card>
         <h2 className="text-lg font-semibold">Download</h2>
-        <p className="mt-1">The last 30 days as a spreadsheet, one row per food per meal.</p>
         <div className="mt-3">
           <GhostButton type="button" onClick={exportCsv} disabled={exporting}>
-            {exporting ? 'Preparing' : 'Download last 30 days'}
+            Download last 30 days
           </GhostButton>
         </div>
       </Card>

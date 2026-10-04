@@ -36,6 +36,7 @@ function ManualMenuPanel({
   const [saving, setSaving] = useState(false)
   const [savedDates, setSavedDates] = useState<IsoDate[]>([])
   const [csvNote, setCsvNote] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const setItem = (meal: MealLabel, i: number, value: string) =>
@@ -54,12 +55,19 @@ function ManualMenuPanel({
 
   const save = async () => {
     setSaving(true)
-    await saveUserMenu(date, {
-      breakfast: toItems(meals.breakfast),
-      lunch: toItems(meals.lunch),
-      dinner: toItems(meals.dinner),
-    })
-    setSaving(false)
+    setError(null)
+    try {
+      await saveUserMenu(date, {
+        breakfast: toItems(meals.breakfast),
+        lunch: toItems(meals.lunch),
+        dinner: toItems(meals.dinner),
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't save the menu.")
+      return
+    } finally {
+      setSaving(false)
+    }
     setSavedDates((d) => [...d, date])
     onMenuSaved?.(date)
     // "Allow adding several days at once": keep the form, advance the date.
@@ -92,12 +100,18 @@ function ManualMenuPanel({
       setCsvNote('No foods found. Use one row per food: meal, food (or date, meal, food).')
       return
     }
+    setError(null)
     for (const [d, m] of byDate) {
-      await saveUserMenu(d, {
-        breakfast: toItems(m.breakfast),
-        lunch: toItems(m.lunch),
-        dinner: toItems(m.dinner),
-      })
+      try {
+        await saveUserMenu(d, {
+          breakfast: toItems(m.breakfast),
+          lunch: toItems(m.lunch),
+          dinner: toItems(m.dinner),
+        })
+      } catch (err) {
+        setError(err instanceof Error ? err.message : `Couldn't save the menu for ${d}.`)
+        return
+      }
       setSavedDates((prev) => [...prev, d])
       onMenuSaved?.(d)
     }
@@ -156,7 +170,7 @@ function ManualMenuPanel({
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <PrimaryButton type="button" onClick={save} disabled={!hasItems || saving}>
-          {saving ? 'Saving…' : 'Save this day'}
+          Save this day
         </PrimaryButton>
         <GhostButton type="button" onClick={() => fileRef.current?.click()}>
           Upload a spreadsheet instead
@@ -173,9 +187,13 @@ function ManualMenuPanel({
             e.target.value = ''
           }}
         />
-        <p className="text-sm">Save the spreadsheet as .csv with one food per row: meal, food. Add a date column first to fill several days.</p>
       </div>
 
+      {error && (
+        <p role="alert" className="mt-3 text-base font-semibold">
+          {error}
+        </p>
+      )}
       {csvNote && (
         <p role="status" className="mt-3 text-base font-semibold">
           {csvNote}
@@ -183,7 +201,7 @@ function ManualMenuPanel({
       )}
       {savedDates.length > 0 && (
         <p role="status" className="mt-2 text-base">
-          Saved: {savedDates.join(', ')}. Add another day above, or move on when you're done.
+          Saved: {savedDates.join(', ')}.
         </p>
       )}
     </Card>

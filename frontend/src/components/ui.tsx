@@ -64,19 +64,19 @@ export function InfoTip({ id, text }: { id: string; text: string }) {
 export const PIXELS_WASTED_EXPLANATION =
   'Pixels wasted counts the leftover food on the plate being scanned, pixel by pixel, inside outlines the AI draws around the food. Food on neighboring plates is left out. The counting is exact; the outlines are an AI estimate. Plates come in different sizes, so it is not weight, servings, or the share of food first served.'
 
-export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
+export function EmptyState({ title }: { title: string; children?: ReactNode }) {
   return (
     <div className="rounded-card border border-dashed border-linen bg-cream p-8 text-center">
-      <p className="text-lg font-medium text-ink">{title}</p>
-      {children ? <p className="mt-2 text-base text-thyme">{children}</p> : null}
+      <p className="text-base text-ink">{title}</p>
     </div>
   )
 }
 
+/** Quiet placeholder while data loads: no visible text, the label is for screen readers only. */
 export function LoadingBlock({ label = 'Loading' }: { label?: string }) {
   return (
-    <div role="status" aria-live="polite" className="rounded-card border border-linen bg-cream p-8 text-center text-base text-thyme">
-      {label}
+    <div role="status" aria-busy="true" className="h-24 animate-pulse rounded-card bg-ink/5">
+      <span className="sr-only">{label}</span>
     </div>
   )
 }

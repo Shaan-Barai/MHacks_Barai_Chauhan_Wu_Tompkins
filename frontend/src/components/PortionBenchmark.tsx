@@ -8,10 +8,7 @@ export function PortionBenchmarkView({ benchmark }: { benchmark: Benchmark }) {
     <section aria-label="Waste per portion" className="space-y-3">
       <h2 className="text-lg font-semibold text-ink">Waste per portion</h2>
       {ranked.length === 0 ? (
-        <p className="text-base">
-          Not available yet. This needs counted plate scans and portion counts for the same meal. Your portion counts are saved
-          and will be used once plates are counted.
-        </p>
+        <p className="text-base">Not available yet.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -37,8 +34,7 @@ export function PortionBenchmarkView({ benchmark }: { benchmark: Benchmark }) {
             </tbody>
           </table>
           <p className="mt-2 text-sm">
-            Based on {benchmark.measuredDishes} of {benchmark.capturedDishes} scanned plates. Fewer plates means a rougher number,
-            and it does not show why food was left.
+            Based on {benchmark.measuredDishes} of {benchmark.capturedDishes} scanned plates.
           </p>
         </div>
       )}

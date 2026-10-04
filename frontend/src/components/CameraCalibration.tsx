@@ -5,7 +5,6 @@
  * the photo geometry). The active calibration is the only source of food
  * area (pixels × cm² per pixel); with each food's typical weight per cm² it
  * turns Pixels wasted into ESTIMATED grams, CO2e and water.
- * Reads are public; every change needs a staff session.
  */
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import {
@@ -19,8 +18,7 @@ import {
 import type { CameraCalibration, CameraCalibrationFlag, MeasurementSettings } from '../data/types'
 import { formatNumber } from '../lib/format'
 import { useAsync } from '../lib/useAsync'
-import { SignInHint, useAuth } from '../state/auth'
-import { Badge, Card, EmptyState, FieldLabel, GhostButton, InfoTip, LoadingBlock, PrimaryButton, inputClass } from './ui'
+import { Badge, Card, EmptyState, FieldLabel, GhostButton, PrimaryButton, inputClass } from './ui'
 
 export const CREDIT_CARD_CM2 = 46.21
 export const DEFAULT_CAMERA_ID = 'uno-q-c920s-1'
@@ -58,7 +56,6 @@ const STATUS_TEXT: Record<CameraCalibration['status'], string> = {
 }
 
 export function CameraCalibrationPanel() {
-  const { canEdit } = useAuth()
   const [revision, setRevision] = useState(0)
   const refresh = useCallback(() => setRevision((r) => r + 1), [])
   const settings = useAsync(getMeasurementSettings, [revision])
@@ -92,18 +89,7 @@ export function CameraCalibrationPanel() {
 
   return (
     <Card className="space-y-5">
-      <div>
-        <h2 className="text-lg font-semibold">Camera calibration</h2>
-        <p className="mt-1">
-          Calibration lets ScrapSaver estimate grams, CO2e and water from the pixels it counts. The reference object of known area gives
-          the area of each pixel, and each food's typical weight per cm² turns that area into grams. Pixels wasted stay the measurement;
-          the rest are estimates.
-        </p>
-      </div>
-
-      <HowTo />
-
-      {!canEdit && <SignInHint>Staff can calibrate the camera and change these settings.</SignInHint>}
+      <h2 className="text-lg font-semibold">Camera calibration</h2>
 
       {settings.status === 'error' && <EmptyState title="Couldn't load the measurement settings.">{settings.error}</EmptyState>}
 
@@ -118,23 +104,23 @@ export function CameraCalibrationPanel() {
         </p>
       )}
 
-      {canEdit && (
-        <NewCalibrationForm
-          cameraId={calibrations[0]?.cameraId ?? DEFAULT_CAMERA_ID}
-          onCreated={(cal) => {
-            setPicked(cal.calibrationId)
-            setNote(null)
-            refresh()
-          }}
-        />
-      )}
+      <NewCalibrationForm
+        cameraId={calibrations[0]?.cameraId ?? DEFAULT_CAMERA_ID}
+        onCreated={(cal) => {
+          setPicked(cal.calibrationId)
+          setNote(null)
+          refresh()
+        }}
+      />
 
-      {list.status === 'loading' && !list.data && <LoadingBlock label="Loading calibrations" />}
+      {list.status === 'loading' && !list.data && (
+        <div aria-busy="true" className="min-h-24 rounded-card border border-linen bg-cream">
+          <span className="sr-only">Loading calibrations</span>
+        </div>
+      )}
       {list.status === 'error' && <EmptyState title="Couldn't load the calibrations.">{list.error}</EmptyState>}
       {list.data && calibrations.length === 0 && (
-        <EmptyState title="The camera hasn't been calibrated yet.">
-          Until it is, the dashboard shows pixels and relative points only.
-        </EmptyState>
+        <EmptyState title="The camera hasn't been calibrated yet." />
       )}
 
       {shown && (
@@ -142,7 +128,6 @@ export function CameraCalibrationPanel() {
           key={shown.calibrationId}
           calibration={shown}
           active={shown.calibrationId === activeId}
-          canEdit={canEdit}
           busy={busy}
           onActivate={() => void save({ activeCalibrationId: shown.calibrationId }, 'This calibration is now active for new plates.')}
           onSettled={refresh}
@@ -153,20 +138,6 @@ export function CameraCalibrationPanel() {
         <CalibrationHistory calibrations={calibrations} activeId={activeId} shownId={shownId} onPick={setPicked} />
       )}
     </Card>
-  )
-}
-
-function HowTo() {
-  return (
-    <div>
-      <h3 className="text-base font-semibold">How to calibrate</h3>
-      <ol className="mt-1 list-decimal space-y-1 pl-6">
-        <li>Lock the camera in place and keep its focus fixed.</li>
-        <li>Lay a credit card (or another flat object you have measured) flat where the plates go.</li>
-        <li>Take the photo with the mounted camera at its usual position, then upload it below.</li>
-        <li>Don't move the camera afterwards. If it moves, or its picture size changes, calibrate again.</li>
-      </ol>
-    </div>
   )
 }
 
@@ -256,7 +227,6 @@ function NewCalibrationForm({ cameraId, onCreated }: { cameraId: string; onCreat
           Credit card (46.21 cm²)
         </GhostButton>
       </div>
-      <p className="text-sm">A bank or ID card is 8.56 × 5.398 cm = 46.21 cm². For anything else, measure it and type its area.</p>
       <div className="max-w-xs">
         <FieldLabel htmlFor={labelId}>What is it?</FieldLabel>
         <input id={labelId} className={inputClass} value={label} placeholder="e.g. credit card" disabled={busy} onChange={(e) => setLabel(e.target.value)} />
@@ -272,20 +242,11 @@ function NewCalibrationForm({ cameraId, onCreated }: { cameraId: string; onCreat
           onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
           className="block max-w-full text-base file:mr-3 file:rounded-btn file:border file:border-solid file:border-ink file:bg-cream file:px-3 file:py-1 file:font-sans file:text-ink"
         />
-        <p className="mt-1 text-sm">
-          It must come from the mounted camera that scans the plates, at its usual position. The photo is cropped to the same 1024 × 1024
-          centre square as plate photos.
-        </p>
       </div>
       <div className="flex flex-wrap items-center gap-3">
-        <PrimaryButton type="submit" disabled={busy}>
-          {busy ? 'Measuring' : 'Calibrate'}
+        <PrimaryButton type="submit" disabled={busy} aria-busy={busy}>
+          Calibrate
         </PrimaryButton>
-        {busy && (
-          <p role="status" className="text-base">
-            Uploading the photo and measuring the {label.trim() || 'reference'}. This can take up to a minute.
-          </p>
-        )}
       </div>
       {error && (
         <p role="alert" className="font-semibold">
@@ -302,7 +263,12 @@ function CalibrationPicture({ calibration }: { calibration: CameraCalibration })
   const images = useAsync(() => getCalibrationImages(calibration.calibrationId), [calibration.calibrationId, attempt])
   const [broken, setBroken] = useState(false)
   const box = 'flex aspect-video w-full items-center justify-center border border-dashed border-ink p-3 text-center text-sm'
-  if (images.status === 'loading' && !images.data) return <div className={box} role="status">Loading picture</div>
+  if (images.status === 'loading' && !images.data)
+    return (
+      <div className={box} aria-busy="true">
+        <span className="sr-only">Loading picture</span>
+      </div>
+    )
   if (images.status === 'error' || broken) return <div className={box}>Picture unavailable</div>
   const img = images.data?.outline ?? images.data?.photo ?? null
   if (!img) return <div className={box}>No picture for this calibration</div>
@@ -316,7 +282,11 @@ function CalibrationPicture({ calibration }: { calibration: CameraCalibration })
         className="aspect-video w-full border border-ink bg-ink object-contain"
         onError={() => (attempt === 0 ? setAttempt(1) : setBroken(true))}
       />
-      <figcaption className="mt-1 text-sm">{isOutline ? `The ${thing} as the AI outlined it` : 'Calibration photo'}</figcaption>
+      {isOutline && (
+        <figcaption className="mt-1">
+          <Badge>AI outline</Badge>
+        </figcaption>
+      )}
     </figure>
   )
 }
@@ -324,20 +294,16 @@ function CalibrationPicture({ calibration }: { calibration: CameraCalibration })
 function CalibrationResult({
   calibration,
   active,
-  canEdit,
   busy,
   onActivate,
   onSettled,
 }: {
   calibration: CameraCalibration
   active: boolean
-  canEdit: boolean
   busy: boolean
   onActivate: () => void
   onSettled: () => void
 }) {
-  const scaleTip = useId()
-  const heightTip = useId()
   const [latest, setLatest] = useState(calibration)
   useEffect(() => setLatest(calibration), [calibration])
 
@@ -383,14 +349,9 @@ function CalibrationResult({
         </span>
       </div>
 
-      {cal.status === 'processing' && (
-        <p role="status" className="mt-2">
-          Still measuring the {thing}. This page checks again every few seconds.
-        </p>
-      )}
       {cal.status === 'failed' && (
         <p className="mt-2">
-          This calibration didn't work{cal.error?.message ? `: ${cal.error.message}` : '.'} Take a new photo and try again.
+          This calibration didn't work{cal.error?.message ? `: ${cal.error.message}` : '.'}
         </p>
       )}
 
@@ -404,15 +365,9 @@ function CalibrationResult({
             </dd>
             <dt>In the photo</dt>
             <dd className="font-semibold">{formatNumber(cal.referencePixels)} pixels</dd>
-            <dt>
-              Scale
-              <InfoTip id={scaleTip} text="The area one pixel covers on the tray: the reference area divided by its pixels. Food area = its pixels × this." />
-            </dt>
+            <dt>Scale</dt>
             <dd className="font-semibold">{Number(cal.cm2PerPx.toPrecision(3))} cm² per pixel</dd>
-            <dt>
-              Camera height, from the photo
-              <InfoTip id={heightTip} text="From the camera's lens (a Logitech C920s) and how big the reference looks in the photo. A check on the setup; it does not change the estimates." />
-            </dt>
+            <dt>Camera height</dt>
             <dd className="font-semibold">{cm(cal.cameraHeightCmGeometric)}</dd>
             <dt>Picture size</dt>
             <dd className="font-semibold">
@@ -433,15 +388,13 @@ function CalibrationResult({
         </div>
       )}
 
-      {cal.status === 'succeeded' && !active && canEdit && (
-        <div className="mt-3 flex flex-wrap items-center gap-3">
+      {cal.status === 'succeeded' && !active && (
+        <div className="mt-3">
           <PrimaryButton type="button" onClick={onActivate} disabled={busy}>
             Activate
           </PrimaryButton>
-          <p className="text-sm">New plates use the active calibration. Plates already scanned keep the one they were measured with.</p>
         </div>
       )}
-      {active && <p className="mt-3 text-sm">New plates are measured with this calibration.</p>}
     </section>
   )
 }

@@ -1,19 +1,20 @@
 /**
- * Staff sign-in (IT_4 I11). Everyone can read the dashboard; changes (menus,
- * portions served, settings, camera calibration) need a staff session. The
- * backend keeps the session in an httpOnly cookie, so this only tracks
- * whether one is active. A 401 from any change opens the sign-in dialog.
+ * Owner access (2026-10-04). There is no staff sign-in in the UI: every
+ * editing control is shown. A backend run without SCRAP_ADMIN_PASSCODE is
+ * open, so saves just work. When the backend does require the passcode, a
+ * save that comes back 401 opens a small passcode prompt, and the unlisted
+ * /admin page unlocks with it. The session lives in an httpOnly cookie.
  */
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
-import { getSession, login, logout, MOCK_PASSCODE, USE_MOCK } from '../data/api'
+import { getSession, login, logout } from '../data/api'
 import { AUTH_REQUIRED_EVENT } from '../data/authEvents'
 
 export type AuthStatus = 'checking' | 'signedIn' | 'signedOut'
 
 export interface AuthValue {
   status: AuthStatus
-  /** True when changes are allowed (signed in, or the backend has no sign-in). */
-  canEdit: boolean
+  /** Editing controls are always shown; the backend decides whether a save needs the passcode. */
+  canEdit: true
   /** False when the backend has no sign-in at all (older local backends). */
   authAvailable: boolean
   signIn: (passcode: string) => Promise<void>
@@ -24,7 +25,7 @@ export interface AuthValue {
 
 const SIGNED_OUT: AuthValue = {
   status: 'signedOut',
-  canEdit: false,
+  canEdit: true,
   authAvailable: true,
   signIn: async () => {},
   signOut: async () => {},
@@ -75,7 +76,7 @@ export function AuthProvider({
   useEffect(() => {
     const onRequired = () => {
       setStatus('signedOut')
-      openSignIn('Sign in to save this change.')
+      openSignIn()
     }
     window.addEventListener(AUTH_REQUIRED_EVENT, onRequired)
     return () => window.removeEventListener(AUTH_REQUIRED_EVENT, onRequired)
@@ -104,7 +105,7 @@ export function AuthProvider({
   }, [])
 
   const value = useMemo<AuthValue>(
-    () => ({ status, canEdit: status === 'signedIn', authAvailable, signIn, signOut, openSignIn }),
+    () => ({ status, canEdit: true as const, authAvailable, signIn, signOut, openSignIn }),
     [status, authAvailable, signIn, signOut, openSignIn],
   )
 
@@ -139,7 +140,7 @@ function SignInDialog({
 
   const submit = async () => {
     if (!passcode) {
-      setError('Enter the staff passcode.')
+      setError('Enter the passcode.')
       return
     }
     setBusy(true)
@@ -147,7 +148,7 @@ function SignInDialog({
     try {
       await onSignIn(passcode)
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't sign in. Try again.")
+      setError(e instanceof Error ? e.message : "That didn't work. Try again.")
       setBusy(false)
     }
   }
@@ -184,9 +185,9 @@ function SignInDialog({
         className="w-full max-w-sm rounded-card border-2 border-ink bg-cream p-5 text-ink"
       >
         <h2 id={titleId} className="text-xl font-semibold">
-          Staff sign-in
+          Passcode
         </h2>
-        <p className="mt-1 text-base">{reason ?? 'Sign in to change menus, portions, settings and the camera calibration.'}</p>
+        {reason && <p className="mt-1 text-base">{reason}</p>}
         <form
           className="mt-4"
           onSubmit={(e) => {
@@ -194,8 +195,8 @@ function SignInDialog({
             void submit()
           }}
         >
-          <label htmlFor={inputId} className="mb-1 block text-base font-medium">
-            Staff passcode
+          <label htmlFor={inputId} className="sr-only">
+            Passcode
           </label>
           <input
             ref={inputRef}
@@ -208,7 +209,6 @@ function SignInDialog({
             onChange={(e) => setPasscode(e.target.value)}
             className="w-full rounded-btn border border-ink bg-cream px-3 py-2 text-base text-ink"
           />
-          {USE_MOCK && <p className="mt-1 text-sm">Demo mode: the passcode is {MOCK_PASSCODE}.</p>}
           {error && (
             <p role="alert" className="mt-2 font-semibold">
               {error}
@@ -220,7 +220,7 @@ function SignInDialog({
               disabled={busy}
               className="rounded-btn bg-ink px-5 py-2.5 text-base font-semibold text-cream hover:underline disabled:cursor-not-allowed"
             >
-              {busy ? 'Signing in' : 'Sign in'}
+              Unlock
             </button>
             <button type="button" onClick={onClose} className="rounded-btn border border-ink px-5 py-2.5 text-base hover:underline">
               Cancel
@@ -228,43 +228,6 @@ function SignInDialog({
           </div>
         </form>
       </div>
-    </div>
-  )
-}
-
-/** Nav control: "Staff sign-in", or "Signed in as staff" with "Sign out". */
-export function StaffSignIn() {
-  const { status, authAvailable, signOut, openSignIn } = useAuth()
-  if (!authAvailable) return null
-  if (status === 'checking') return <p className="text-sm">Checking sign-in</p>
-  if (status === 'signedIn') {
-    return (
-      <div className="text-sm">
-        <p>Signed in as staff</p>
-        <button type="button" onClick={() => void signOut()} className="mt-1 rounded-btn border border-cream px-3 py-1.5 text-base hover:underline">
-          Sign out
-        </button>
-      </div>
-    )
-  }
-  return (
-    <button type="button" onClick={() => openSignIn()} className="rounded-btn border border-cream px-3 py-1.5 text-base hover:underline">
-      Staff sign-in
-    </button>
-  )
-}
-
-/** Shown in place of a write control when signed out. */
-export function SignInHint({ children }: { children?: ReactNode }) {
-  const { openSignIn } = useAuth()
-  return (
-    <div className="flex flex-wrap items-center gap-3 rounded-card border border-dashed border-ink p-4">
-      <p className="text-base">
-        <span className="font-semibold">Sign in to change this.</span> {children}
-      </p>
-      <button type="button" onClick={() => openSignIn()} className="rounded-btn border border-ink px-3 py-1.5 text-base hover:underline">
-        Staff sign-in
-      </button>
     </div>
   )
 }

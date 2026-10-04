@@ -92,7 +92,7 @@ describe('dashboard smoke test', () => {
     await stack?.close();
   });
 
-  it('shows total waste, per-portion waste, most wasted foods, original + segmented images, and a recommendation', async () => {
+  it('landing → dashboard (carbon), statistics (per-portion, most wasted, recommendation), behind the scenes (original + segmented images)', async () => {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
@@ -101,18 +101,27 @@ describe('dashboard smoke test', () => {
     }, HALL);
     await page.goto(url);
 
-    await page.getByRole('heading', { name: 'Total waste' }).waitFor({ timeout: 30_000 });
-    const today = page.getByLabel(/^Today: [\d,]+ pixels wasted$/);
-    await today.waitFor();
-    assert.match(await today.getAttribute('aria-label'), /^Today: [1-9][\d,]* pixels wasted$/, 'today has counted pixels');
-    await page.getByLabel(/^Total waste: [\d,]+ pixels$/).waitFor();
+    // Landing → Dashboard
+    await page.getByRole('heading', { name: 'ScrapSaver' }).waitFor({ timeout: 30_000 });
+    await page.getByRole('link', { name: 'Get started' }).click();
+    await page.getByRole('heading', { name: 'Dashboard' }).waitFor({ timeout: 30_000 });
+    const plates = page.getByLabel(/^Plates scanned: [\d,]+ plates$/);
+    await plates.waitFor({ timeout: 30_000 });
+    assert.match(await plates.getAttribute('aria-label'), /^Plates scanned: [1-9][\d,]* plates$/, 'today has counted plates');
+    await page.getByLabel(/^Carbon emissions: /).waitFor();
+    await page.getByRole('heading', { name: 'Carbon emissions by day' }).waitFor();
 
-    await page.getByText('Foods to target').waitFor();
+    // Statistics: per-portion waste, most wasted foods, recommendation
+    await page.getByRole('link', { name: 'Statistics' }).click();
+    await page.getByRole('heading', { name: 'Foods to target' }).waitFor({ timeout: 30_000 });
     await page.getByRole('columnheader', { name: 'Pixels wasted per portion' }).waitFor();
-    await page.getByText('Most wasted foods').waitFor();
+    await page.getByRole('heading', { name: 'Most wasted foods' }).waitFor();
     for (const name of ['Per portion', 'Total pixels', 'Impact points']) await page.getByRole('button', { name }).waitFor();
+    await page.getByRole('heading', { name: 'Recommendations' }).waitFor({ timeout: 30_000 });
 
-    await page.getByRole('heading', { name: 'Plates' }).waitFor();
+    // Behind the scenes: original + segmented images
+    await page.getByRole('link', { name: 'Behind the scenes' }).click();
+    await page.getByRole('heading', { name: 'Plates' }).waitFor({ timeout: 30_000 });
     await page.getByRole('button', { name: /^Plate at / }).first().click();
     const original = page.getByAltText(/^Photo of the plate/);
     const overlay = page.getByAltText(/leftover food the AI outlined/);
@@ -123,7 +132,6 @@ describe('dashboard smoke test', () => {
     assert.ok(await loaded(original), 'the original photo loaded');
     assert.ok(await loaded(overlay), 'the segmented overlay loaded');
 
-    await page.getByRole('heading', { name: 'What to try next' }).waitFor({ timeout: 30_000 });
     mkdirSync(path.join(REPO, 'images', 'smoke'), { recursive: true });
     await page.screenshot({ path: path.join(REPO, 'images', 'smoke', 'dashboard.png'), fullPage: true });
     assert.deepEqual(errors, [], 'no uncaught page errors');

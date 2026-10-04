@@ -7,7 +7,7 @@ export const COMMON_FACTORS_EXPLANATION =
 export function FactorSource({ row }: { row: Pick<ItemImpactRow, 'factorTable'> }) {
   if (row.factorTable !== 'common-500') return null
   return (
-    <span className="text-xs font-normal italic" title={COMMON_FACTORS_EXPLANATION}>
+    <span className="text-xs font-normal italic">
       factors: common foods table
     </span>
   )

@@ -17,19 +17,18 @@ npm run build     # tsc -b + vite build (must pass)
 npm test          # vitest (data layer, formatting, dashboard page and sections, gallery, recommendation)
 ```
 
-Reads are public; changes need **staff sign-in** (IT_4 I11): the nav's
-"Staff sign-in" posts the passcode to `POST /api/auth/login` and the backend
-sets an httpOnly session cookie (`GET /api/auth/me`, `POST /api/auth/logout`).
-Signed out, write controls are hidden or disabled with a "Sign in to change
-this." hint; any 401 from a change opens the sign-in dialog. In mock mode the
-passcode is `scrapsaver` (shown in the dialog). A backend whose `/api/auth/me`
-says `authRequired: false` (or has no auth route) leaves editing open.
+Pages (2026-10-04 redesign: Helvetica, no subtitles or helper text, no
+visible "Loading" text): `/` landing (ScrapSaver + Get started),
+`/dashboard`, `/statistics` (`/schedule` redirects here), `/menus`,
+`/portions`, `/behind-the-scenes`, `/settings`. `/admin` is unlisted.
 
-First launch for signed-in staff shows the 2-step setup (hall name, then menus; meal hours start
-from defaults and are edited in Settings; visitors skip it);
-completion is persisted to `localStorage` (`scrap.hallSettings.v1`). To see
-setup again, clear site data or run
-`localStorage.clear()` in the console.
+There is no staff sign-in in the UI: every editor is shown. A backend run
+without `SCRAP_ADMIN_PASSCODE` is open, so saves just work. When the backend
+sets a passcode, a save that comes back 401 opens a small passcode prompt
+(`POST /api/auth/login`, httpOnly cookie), and `/admin` unlocks inline with
+the same passcode. In mock mode the passcode is `scrapsaver`. Meal times
+start from defaults (`scrap.hallSettings.v1` in `localStorage`) and are
+edited in Settings; there is no first-run wizard.
 
 ## Where the data comes from
 
@@ -95,40 +94,26 @@ origin). Pages have their own paths (`/`, `/schedule`, `/menus`, `/portions`,
   (active card at 30,730 px = 0.0015 cm²/px and 50.0 cm, an older card, an
   index card at the edge, failed).
 
-## Dashboard (UI.md, BIG-PLAN v2 + IT_4)
+## Dashboard and Statistics
 
-Pixels are the measurement; impact and nutrition are relative points;
-grams, kg CO2e and litres of water are labeled estimates from calibrated
-plates only. Top to bottom, all driven by the lookback buttons:
+Pixels wasted stay the stored measurement (shown on Behind the scenes); the
+dashboard leads with estimated carbon emissions. Grams, kg CO2e and litres
+of water come from calibrated plates only, carry an "est." badge, and show
+"—" when unavailable (never 0).
 
-1. One-line "how we measure" note (the AI outlines the leftover food on the
-   plate being scanned and counts its pixels; impact points weight pixels by
-   each food's typical weight per cm² and greenhouse-gas / water footprint; relative, not a
-   scale reading).
-2. Four headline cards (IT_4 added Estimated CO2e and Estimated water between these two): **Total waste** (Pixels wasted, unit "pixels", "from X
-   of Y plates scanned", plates not counted) and **Relative impact**
-   ("relative points" badge: impactPoints with co2Points and waterPoints
-   under it; the "?" tip gives points = pixels/1000 x weight per cm² x factor and
-   0.19 x CO2 + 1.50 x water). Missing points say "Not available", never 0.
-3. **What to try next**: recommendation text + bullets with their supporting
-   metric, "AI" / "Rule-based fallback" badge, generated time.
-4. **Foods to target** (Pixels wasted per portion, impact points per portion,
-   portions served + "demo numbers" badge) beside **Most wasted** (bar list by
-   pixels with each food's impact / greenhouse-gas / water points).
-   Unrankable foods are listed with the reason.
-5. Daily chart: Pixels wasted per day.
-6. **Plates** gallery: thumbnail grid of recent captures (pixels wasted per
-   plate); a note when `coverage.capturesWithNeighborFoodExcluded > 0` ("Food
-   on neighboring plates was left out of N plates"); opening one shows the
-   photo and the AI outline image side by side or one at a time, plus a
-   per-food Pixels wasted table. Failed / needs-review / processing / clean
-   plates are explained. Expired or broken links are renewed once via
-   `/api/captures/:id/images`, then "Photo unavailable".
-7. **Nutrition lost**: separate dashed card, relative nutrition points, "not
-   part of the impact score".
-
-Schedule, Menus, Portions served, Behind the scenes, and Settings pages are
-unchanged.
+- **Dashboard** (Today / This week): cards for Carbon emissions, Water, Food
+  wasted (estimates) and Plates scanned; **Carbon emissions by day** chart
+  (`GET /api/dashboard/impact/daily`; "Today" charts the last 7 days); Take
+  photo.
+- **Statistics** (Last 30 / Last 90 days): the same cards and chart,
+  **Recommendations** (AI or rule-based fallback badge, each bullet with its
+  supporting number, Ask again), **Foods to target** (pixels per portion,
+  impact points per portion, portions served, "Demo portions" badge), **Most
+  wasted foods** (per portion / total pixels / impact points), **Nutrition
+  lost** (relative points, separate from the impact score).
+- **Behind the scenes** (Today / This week / Last 30 days): the plates
+  gallery. Opening a plate shows the photo and AI outlines side by side with
+  a per-food Pixels wasted table; expired links are renewed once.
 
 ## Deferred / out of scope here
 
@@ -152,4 +137,3 @@ unchanged.
   labeled `simulated` in the UI.
 - Summary-card comparisons use the same-length window immediately before the
   card's window (e.g. week-to-date vs the previous week's same days).
-- There is no right-hand panel; day details live on the Schedule page.

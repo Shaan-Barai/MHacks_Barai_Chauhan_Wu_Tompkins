@@ -35,9 +35,11 @@ describe('PlatesGallery', () => {
   it('opens a plate with photo and AI outlines side by side, toggles views, and lists foods with pixels only', async () => {
     const load = vi.fn(async (id: string) => images(id))
     render(<PlatesGallery captures={[capture({ eventId: 'a' })]} loadImages={load} />)
-    expect(screen.getByText('30,000 pixels wasted')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Plates' }).nextSibling).toHaveTextContent('1')
+    expect(screen.getByText('30,000 pixels')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /Plate at .*30,000 pixels wasted/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Plate at .*: 30,000 pixels$/ }))
+    expect(screen.getByRole('button', { name: 'Side by side' })).toHaveAttribute('aria-pressed', 'true')
     expect(await screen.findByAltText(/Photo of the plate/)).toHaveAttribute('src', 'https://img.test/a/photo-1.jpg')
     expect(screen.getByAltText(/leftover food the AI outlined/)).toHaveAttribute('src', 'https://img.test/a/overlay-1.jpg')
 
@@ -54,7 +56,7 @@ describe('PlatesGallery', () => {
     expect(table.querySelectorAll('thead th')).toHaveLength(2)
     expect(table).toHaveTextContent('FoodPixels wasted')
     expect(table).toHaveTextContent('Pepperoni Pizza20,000')
-    expect(table).toHaveTextContent('Unknown food (not on the menu)10,000')
+    expect(table).toHaveTextContent('Unknown food (not on menu)10,000')
     expect(table).not.toHaveTextContent(/weight|estimate|\d g\b/i)
     // one request per plate, shared by the thumbnail and the viewer
     expect(load).toHaveBeenCalledTimes(1)
@@ -89,9 +91,9 @@ describe('PlatesGallery', () => {
     )
     const tiles = screen.getAllByRole('button', { name: /Plate at/ })
     expect(tiles.map((t) => t.getAttribute('aria-label'))).toEqual([
-      expect.stringMatching(/30,000 pixels wasted/),
-      expect.stringMatching(/5,000 pixels wasted/),
-      expect.stringMatching(/Check failed/),
+      expect.stringMatching(/: 30,000 pixels$/),
+      expect.stringMatching(/: 5,000 pixels$/),
+      expect.stringMatching(/: Check failed$/),
     ])
     await waitFor(() => expect(screen.getAllByText('AI outline')).toHaveLength(1))
     expect(tiles[0].querySelector('img')).toHaveAttribute('src', 'https://img.test/new/overlay-1.jpg')
@@ -128,35 +130,27 @@ describe('PlatesGallery', () => {
         loadImages={load}
       />,
     )
-    expect(screen.getByText('Check failed. Not in the totals.')).toBeInTheDocument()
-    expect(screen.getByText('Clean plate')).toBeInTheDocument()
-    expect(screen.getByText('Being checked')).toBeInTheDocument()
+    // tiles: a failed check is not shown as 0 pixels; a clean plate is a real zero
+    expect(screen.getByRole('button', { name: /: Check failed$/ })).not.toHaveTextContent(/pixels/)
+    expect(screen.getByRole('button', { name: /: Clean plate$/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /: Being checked$/ })).toBeInTheDocument()
+    expect(screen.queryByText(/^0 pixels$/)).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: /Check failed/ }))
-    expect(await screen.findByText(/couldn't check this plate, so it is not in the totals/)).toBeInTheDocument()
+    // the clean plate (the only finished one) opens first
+    expect(await screen.findByText('Clean plate.')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /: Check failed$/ }))
+    expect(await screen.findByText('Check failed.')).toBeInTheDocument()
     expect(await screen.findByText('No AI outlines: the check failed')).toBeInTheDocument()
+    expect(screen.queryByRole('table')).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: /Clean plate/ }))
-    expect(await screen.findByText('Clean plate. No food left.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /: Being checked$/ }))
+    expect(await screen.findByText('Being checked.')).toBeInTheDocument()
     unmount()
 
     render(<PlatesGallery captures={[]} loadImages={load} />)
-    expect(screen.getByText('No plates were scanned in these days.')).toBeInTheDocument()
-  })
-
-  it('notes when food on neighboring plates was left out, and stays quiet when none was', () => {
-    const load = vi.fn(async (id: string) => images(id))
-    const { unmount } = render(<PlatesGallery captures={[capture({ eventId: 'n' })]} neighborExcluded={3} loadImages={load} />)
-    expect(screen.getByText(/Food on neighboring plates was left out of 3 plates\./)).toBeInTheDocument()
-    expect(screen.getByText(/outlined as "Other dish \(not counted\)"/)).toBeInTheDocument()
-    unmount()
-    render(<PlatesGallery captures={[capture({ eventId: 'n' })]} neighborExcluded={1} loadImages={load} />)
-    expect(screen.getByText(/left out of 1 plate\./)).toBeInTheDocument()
-  })
-
-  it('shows no neighbor note by default', () => {
-    render(<PlatesGallery captures={[capture({ eventId: 'z' })]} loadImages={vi.fn(async (id: string) => images(id))} />)
-    expect(screen.queryByText(/neighboring plates/)).toBeNull()
+    expect(screen.getByText('No plates.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Plate at/ })).toBeNull()
   })
 })
 
@@ -174,16 +168,17 @@ describe('RecommendationCard', () => {
     expect(screen.getByText('AI')).toBeInTheDocument()
     expect(screen.getByText('Ancho Flank Steak had the most food left per portion, try a smaller serving.')).toBeInTheDocument()
     expect(screen.getByText('Serve a smaller steak portion.')).toBeInTheDocument()
-    expect(screen.getByText('2,857 pixels wasted per portion over 140 portions').closest('p')).toHaveTextContent(
-      'Based on: 2,857 pixels wasted per portion over 140 portions',
+    expect(screen.getByText('Serve a smaller steak portion.').closest('li')).toHaveTextContent(
+      'Serve a smaller steak portion.2,857 pixels wasted per portion over 140 portions',
     )
-    expect(screen.getByText(/^Written by AI on/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Recommendations' })).toBeInTheDocument()
+    expect(document.body.textContent).not.toMatch(/—/)
   })
 
   it('labels the rule-based fallback', () => {
     render(<RecommendationCard rec={{ ...rec, source: 'fallback' }} />)
     expect(screen.getByText('Rule-based fallback')).toBeInTheDocument()
-    expect(screen.getByText(/^Basic rule, AI unavailable on/)).toBeInTheDocument()
+    expect(screen.getByText('Serve a smaller steak portion.')).toBeInTheDocument()
     expect(screen.queryByText('AI')).toBeNull()
   })
 })

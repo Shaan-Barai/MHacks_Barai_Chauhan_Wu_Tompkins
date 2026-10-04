@@ -39,7 +39,7 @@ The captures it creates are real rows in the configured database (default `scrap
 
 import argparse
 import base64
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import csv
 import json
 import os
@@ -148,7 +148,7 @@ class Demo:
         self.api = args.api.rstrip("/")
         self.token, self.token_source = resolve_token(args.token_env)
         self.auth_warned = False
-        self.run = args.out or REPO / "images" / "demo-runs" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        self.run = args.out.resolve() if args.out else REPO / "images" / "demo-runs" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         self.inbox = self.run / "inbox"
         self.state = self.run / "bridge-state"
         self.date = args.date or hall_today()
@@ -831,7 +831,23 @@ def step_recommendation(demo):
 
 
 def step_dashboard(demo):
-    """Open the ScrapSaver dashboard."""
+    """Open ScrapSaver: landing page → Dashboard (carbon by day) → Statistics → Behind the scenes."""
+    end = demo.date
+    start = (datetime.fromisoformat(end) - timedelta(days=6)).date().isoformat()
+    q = urllib.parse.urlencode({"hallId": HALL_ID, "start": start, "end": end})
+    status, d = demo.get(f"/api/dashboard/impact/daily?{q}", timeout=30)
+    if status != 200:
+        demo.check("FAIL", f"/api/dashboard/impact/daily HTTP {status} (restart the backend to load the route)")
+    else:
+        print(f"  {bold('Carbon emissions by day')} ({start} to {end}, estimated kg CO2e, calibrated plates only)")
+        for day in d["days"]:
+            kg = day["kgCo2e"]
+            bar = "█" * max(1, round(kg * 20)) if kg else ""
+            print(f"    {day['date']}  {num(kg, 2) + ' kg' if kg is not None else dim('—'):>10}  {bar}")
+        with_kg = [x for x in d["days"] if x["kgCo2e"] is not None]
+        demo.check("PASS" if with_kg else "WARN",
+                   f"{len(with_kg)} of {len(d['days'])} day(s) have estimated CO2e"
+                   + ("" if with_kg else " (calibrate the camera for kg CO2e)"))
     url = demo.args.dashboard_url
     parsed = urllib.parse.urlparse(url)
     if not (port_open(parsed.port or 80, parsed.hostname or "localhost")):
@@ -840,9 +856,8 @@ def step_dashboard(demo):
         else:
             demo.check("FAIL", f"Dashboard not running at {url} (cd frontend && npm run dev, or deploy/local.sh up)")
             return
-    print("  Dashboard → last 7 days: Total waste, Relative impact, AI recommendation, Foods to target")
-    print("  (pixels per portion), Most wasted, Pixels by day, and Plates (toggle photo ↔ AI outline).")
-    print(dim("  First visit in a browser asks for the dining hall name once."))
+    print("  ScrapSaver → Get started → Dashboard (Today / This week: carbon, water, food, plates; carbon by day),")
+    print("  Statistics (Last 30 / 90 days, recommendations, foods to target, most wasted), Behind the scenes (plates).")
     if not demo.args.no_open:
         webbrowser.open(url)
     demo.check("PASS", f"Opened {url}")
@@ -865,7 +880,7 @@ def step_admin(demo):
     else:
         demo.check("FAIL", f"/api/admin/captures HTTP {status}")
     url = demo.args.dashboard_url.rstrip("/") + "/admin"
-    print(f"  Admin page: {url}  (Staff sign-in, then Shown/Hidden per plate or Hide/Show all listed)")
+    print(f"  Admin page (unlisted): {url}  (passcode if the backend sets one, then Shown/Hidden per plate)")
     if not demo.args.no_open:
         webbrowser.open(url)
 

@@ -17,10 +17,23 @@ function renderAdmin(status: 'signedIn' | 'signedOut') {
 describe('AdminPage', () => {
   beforeEach(() => localStorage.clear())
 
-  it('asks a signed-out visitor to sign in and lists nothing', () => {
+  it('asks a locked visitor for the passcode inline, lists nothing, and unlocks with it (wrong one first)', async () => {
     renderAdmin('signedOut')
-    expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument()
+    const unlock = screen.getByRole('button', { name: 'Unlock' })
+    const input = screen.getByLabelText('Passcode')
+    expect(input).toHaveAttribute('type', 'password')
+    expect(unlock).toBeDisabled()
     expect(screen.queryByRole('button', { name: /Hide the plate/ })).toBeNull()
+
+    fireEvent.change(input, { target: { value: 'wrong' } })
+    fireEvent.click(unlock)
+    expect(await screen.findByRole('alert')).toHaveTextContent("That passcode didn't work.")
+    expect(screen.queryByRole('button', { name: /Hide the plate/ })).toBeNull()
+
+    fireEvent.change(input, { target: { value: MOCK_PASSCODE } })
+    fireEvent.click(screen.getByRole('button', { name: 'Unlock' }))
+    expect((await screen.findAllByRole('button', { name: /Hide the plate/ })).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: 'Unlock' })).toBeNull()
   })
 
   it('hides a plate from the dashboard, filters by Shown/Hidden, and shows it again', async () => {

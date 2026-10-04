@@ -27,7 +27,6 @@ export function MonthCalendar({
   selected,
   onPick,
   note,
-  footer,
 }: {
   monthStart: IsoDate
   onShift: (delta: number) => void
@@ -35,6 +34,7 @@ export function MonthCalendar({
   onPick: (date: IsoDate) => void
   /** Short text under the day number, e.g. "No menu" or an event name. */
   note?: (date: IsoDate) => string | undefined
+  /** Ignored: kept so older callers still compile. */
   footer?: React.ReactNode
 }) {
   const year = Number(monthStart.slice(0, 4))
@@ -86,7 +86,6 @@ export function MonthCalendar({
           )
         })}
       </div>
-      {footer && <div className="mt-3 text-sm">{footer}</div>}
     </Card>
   )
 }

@@ -38,6 +38,7 @@ import type {
   CaptureListItem,
   ImpactDashboard,
   Recommendation,
+  DailyImpactPoint,
   DailyWastePoint,
   DayMenu,
   IsoDate,
@@ -270,6 +271,22 @@ export async function getImageUrl(_objectId: string): Promise<string> {
 export async function getImpactDashboard(start: IsoDate, end: IsoDate): Promise<ImpactDashboard> {
   await wait()
   return mockImpactDashboard(start, end, todayIso())
+}
+
+export async function getDailyImpact(start: IsoDate, end: IsoDate): Promise<DailyImpactPoint[]> {
+  await wait()
+  const today = todayIso()
+  return eachDay(start, end).map((date) => {
+    const t = mockImpactDashboard(date, date, today).totals
+    return {
+      date,
+      pixels: t.analyzedCaptures > 0 ? t.pixels : null,
+      kgCo2e: t.kgCo2e ?? null,
+      co2Points: t.co2Points,
+      analyzedCaptures: t.analyzedCaptures,
+      calibratedCaptures: t.physicalCoverage?.calibratedCaptures ?? 0,
+    }
+  })
 }
 
 export async function getCaptures(start: IsoDate, end: IsoDate): Promise<CaptureListItem[]> {

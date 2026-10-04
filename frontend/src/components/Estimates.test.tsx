@@ -1,19 +1,16 @@
 /**
  * IT_4 I8: estimated grams / kg CO2e / litres of water on the headline cards,
- * the food rows and the plate viewer. Pixels stay first; estimates are labeled;
- * missing estimates are never 0.
+ * the food rows and the plate viewer. Estimates are labeled (est.); missing
+ * estimates are never 0.
  */
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, within } from '@testing-library/react'
-import { DayDetails } from './DayDetails'
+import { render, screen, within } from '@testing-library/react'
 import { FoodsToTarget } from './FoodsToTarget'
 import { HeadlineCards } from './HeadlineCards'
 import { MostWasted } from './MostWasted'
 import { PlatesGallery } from './PlatesGallery'
 import { dashboard, farro, impact, pizza, row, soup, steak, unknownFood } from './impactFixtures'
 import type { CaptureImages, CaptureListItem, ImpactDashboard, ItemImpactRow } from '../data/types'
-import { DEFAULT_SETTINGS } from '../state/settings'
-import { todayIso } from '../lib/dates'
 
 function calibrated(over: Partial<ImpactDashboard['totals']> = {}): ImpactDashboard {
   const d = dashboard()
@@ -30,40 +27,35 @@ function calibrated(over: Partial<ImpactDashboard['totals']> = {}): ImpactDashbo
 }
 
 describe('HeadlineCards with estimates', () => {
-  it('keeps Pixels wasted first and adds Estimated CO2e and water with calibrated-plate coverage', () => {
+  it('shows carbon, water and food wasted as estimates (est.) and plates scanned as a count', () => {
     render(<HeadlineCards data={calibrated()} />)
-    const titles = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent?.split('?')[0].trim())
-    expect(titles).toEqual(['Total waste', 'Estimated CO2e', 'Estimated water', 'Relative impact'])
-    expect(screen.getByLabelText('Estimated CO2e: 310 kg CO2e')).toBeInTheDocument()
-    expect(screen.getByLabelText('Estimated water: 19,000 L')).toBeInTheDocument()
-    expect(screen.getAllByText('From 12 of 14 plates (calibrated)')).toHaveLength(2)
-    // No method breakdown: area from the calibration is the only method.
-    expect(screen.queryByText(/^Method:/)).toBeNull()
+    const titles = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
+    expect(titles).toEqual(['Carbon emissions', 'Water', 'Food wasted', 'Plates scanned'])
+    expect(screen.getByLabelText('Carbon emissions: 310 kg CO2e')).toBeInTheDocument()
+    expect(screen.getByLabelText('Water: 19,000 L')).toBeInTheDocument()
+    expect(screen.getByLabelText('Food wasted: 42 kg')).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Plates scanned: [\d,]+ plates$/)).toBeInTheDocument()
+    // the three estimates carry est.; the plate count is a count, not an estimate
+    expect(screen.getAllByText('est.')).toHaveLength(3)
+    // no method breakdown: area from the calibration is the only method
     expect(screen.queryByText(/depth|volume|mixed/i)).toBeNull()
-    expect(screen.getByText(/about 42 kg of food/)).toBeInTheDocument()
-    expect(screen.getAllByText('estimate')).toHaveLength(2)
-    expect(screen.getAllByText(/An estimate, not a scale reading/)).toHaveLength(2)
   })
 
-  it('explains that area comes from the camera calibration and grams from typical weight per cm²', () => {
-    render(<HeadlineCards data={calibrated({ physicalCoverage: { calibratedCaptures: 5, analyzedCaptures: 5 } })} />)
-    expect(screen.getAllByText('From 5 of 5 plates (calibrated)')).toHaveLength(2)
-    const tip = screen.getAllByText(/An estimate, not a scale reading/)[0]
-    expect(tip).toHaveTextContent('The camera calibration (a reference object of known area) turns pixels into square centimetres')
-    expect(tip).toHaveTextContent('typical weight per cm² turns that into grams')
-  })
-
-  it('calibrated plates without footprint data say Not available, never 0', () => {
+  it('calibrated plates without footprint data show a dash, never 0, and no est. badge', () => {
     render(<HeadlineCards data={calibrated({ kgCo2e: null, waterLitres: null, grams: null })} />)
-    expect(screen.getAllByText('Not available')).toHaveLength(2)
-    expect(screen.getAllByText('None of the foods on those plates has footprint data.')).toHaveLength(2)
-    expect(screen.queryByText(/^0 kg/)).toBeNull()
+    expect(screen.getByLabelText('Carbon emissions: not available')).toHaveTextContent('—')
+    expect(screen.getByLabelText('Water: not available')).toHaveTextContent('—')
+    expect(screen.getByLabelText('Food wasted: not available')).toHaveTextContent('—')
+    expect(screen.queryByText('est.')).toBeNull()
+    expect(screen.queryByText(/^0 (kg|g|L)\b/)).toBeNull()
   })
 
-  it('an older backend without physical fields shows the uncalibrated state', () => {
+  it('an older backend without physical fields shows dashes for the estimates', () => {
     const d = dashboard()
     render(<HeadlineCards data={d} />)
-    expect(screen.getAllByText(/Calibrate the camera in Settings/)).toHaveLength(2)
+    expect(screen.getByLabelText('Carbon emissions: not available')).toBeInTheDocument()
+    expect(screen.getByLabelText('Water: not available')).toBeInTheDocument()
+    expect(screen.getByLabelText('Food wasted: not available')).toBeInTheDocument()
   })
 })
 
@@ -90,16 +82,18 @@ describe('food rows with estimates', () => {
     expect(items[2]).toHaveTextContent('no estimate for this food')
     expect(items[3]).toHaveTextContent('not calibrated')
     expect(items[4]).not.toHaveTextContent(/est\.|not calibrated|\b0 g/)
-    expect(screen.getByText(/Grams, CO2e and water are estimates \(est\.\)/)).toBeInTheDocument()
   })
 
-  it('Foods to target shows chips under the name and grams per portion as an estimate', () => {
+  it('Foods to target shows grams per portion as an estimate, without per-row chips', () => {
     const ranked = [{ ...withPhysical(steak, 38, 1.1, 18), perPortion: { pixels: 2857.14, impactPoints: 95.69, grams: 0.27 } }, withPhysical(pizza, 1_200, 19.3, 2_328)]
     render(<FoodsToTarget rows={ranked} demoPortions />)
     const body = within(screen.getByRole('table')).getAllByRole('row').slice(1)
     expect(body[0]).toHaveTextContent('Ancho Flank Steak')
-    expect(body[0]).toHaveTextContent('38 g')
+    expect(body[0]).toHaveTextContent('2,857 pixels')
     expect(body[0]).toHaveTextContent('about 0.27 g est.')
+    // the food's total estimate chips stay in Most wasted, not here
+    expect(body[0]).not.toHaveTextContent('38 g')
+    expect(body[0]).not.toHaveTextContent('kg CO2e')
     // no per-portion grams: nothing, not 0
     expect(body[1]).not.toHaveTextContent('about')
   })
@@ -134,7 +128,7 @@ function plate(over: Partial<CaptureListItem>): CaptureListItem {
 }
 
 describe('plate viewer with estimates', () => {
-  it('adds an Estimated amount column and says where the estimate comes from', async () => {
+  it('adds an Estimate column with labeled chips, and the reason when a food has none', async () => {
     const c = plate({
       physicalMethod: 'area-calibrated-v1',
       calibrationId: 'cal_1',
@@ -148,38 +142,36 @@ describe('plate viewer with estimates', () => {
     expect(within(table).getAllByRole('columnheader').map((h) => h.textContent?.split('?')[0].trim())).toEqual([
       'Food',
       'Pixels wasted',
-      'Estimated amount',
+      'Estimate',
     ])
     const rowsEl = within(table).getAllByRole('row').slice(1)
     expect(rowsEl[0]).toHaveTextContent('Ancho Flank Steak20,000')
     expect(rowsEl[0]).toHaveTextContent('38 g1.1 kg CO2e18 L waterest.')
     expect(rowsEl[1]).toHaveTextContent('no estimate for this food')
-    expect(screen.getByText('Estimated from the camera calibration (area) and each food’s typical weight per cm² (grams).')).toBeInTheDocument()
+    expect(rowsEl[1]).not.toHaveTextContent(/\b0 g/)
   })
 
-  it('an uncalibrated plate keeps two columns and says why there are no estimates', async () => {
+  it('an uncalibrated plate keeps two columns and shows no amounts', async () => {
     const c = plate({ items: [{ itemId: 'x', displayName: 'Rice', pixels: 5_000, grams: null, kgCo2e: null, waterLitres: null }] })
     render(<PlatesGallery captures={[c]} loadImages={vi.fn(async (id: string) => images(id))} />)
     const table = await screen.findByRole('table')
     expect(within(table).getAllByRole('columnheader')).toHaveLength(2)
-    expect(screen.getByText(/the camera was not calibrated when it was scanned/)).toBeInTheDocument()
+    expect(table).toHaveTextContent('Rice5,000')
+    expect(screen.queryByText('est.')).toBeNull()
     expect(table).not.toHaveTextContent(/\d g\b/)
   })
 
-  it('a plate at another picture size says so', async () => {
-    const c = plate({ source: 'replay', items: [{ itemId: 'x', displayName: 'Rice', pixels: 5_000, grams: null, physicalUnavailableReason: 'incompatible_geometry' }] })
+  it('a food at another picture size says so next to it', async () => {
+    const c = plate({
+      source: 'replay',
+      items: [
+        { itemId: 'item_steak', displayName: 'Ancho Flank Steak', pixels: 20_000, grams: 38, kgCo2e: 1.1, waterLitres: 18 },
+        { itemId: 'x', displayName: 'Rice', pixels: 5_000, grams: null, physicalUnavailableReason: 'incompatible_geometry' },
+      ],
+    })
     render(<PlatesGallery captures={[c]} loadImages={vi.fn(async (id: string) => images(id))} />)
-    expect(await screen.findByText(/picture size differs from the camera calibration/)).toBeInTheDocument()
-  })
-})
-
-describe('day details with estimates (mock data)', () => {
-  it('shows chips next to each food for a calibrated day', async () => {
-    render(<DayDetails date={todayIso()} settings={{ ...DEFAULT_SETTINGS, name: 'Test Hall' }} />)
-    fireEvent.click(screen.getByRole('tab', { name: 'Dinner' }))
-    expect(await screen.findByText('Left on plates')).toBeInTheDocument()
-    expect(screen.getAllByText('est.').length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/kg CO2e$/).length).toBeGreaterThan(0)
+    const table = await screen.findByRole('table')
+    expect(within(table).getAllByRole('row')[2]).toHaveTextContent('photo size differs from the calibration')
   })
 })
 

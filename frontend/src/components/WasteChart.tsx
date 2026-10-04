@@ -1,12 +1,13 @@
 /**
- * The one main chart (UI.md): Pixels wasted per day, black bars, hover (and
- * keyboard-focus) tooltip with the exact value and date. Hand-rolled SVG.
+ * Per-day bar chart: estimated carbon emissions (kg CO2e) by day, black bars,
+ * hover (and keyboard-focus) tooltip with the exact value and date. Hand-rolled SVG.
  */
 import { useLayoutEffect, useRef, useState } from 'react'
-import { formatCompact, formatNumber } from '../lib/format'
+import { formatKgCo2e } from '../lib/format'
 import { niceCeil, type ChartBucket } from '../lib/grouping'
 
-const valueText = (v: number) => `${formatNumber(v)} pixels wasted`
+const valueText = (v: number) => formatKgCo2e(v)
+const axisText = (v: number) => (v === 0 ? '0' : v >= 0.1 ? `${+v.toFixed(2)} kg` : `${Math.round(v * 1000)} g`)
 
 const BAR = '#000000'
 const GRID = '#000000'
@@ -51,14 +52,14 @@ export function WasteChart({ buckets }: { buckets: ChartBucket[] }) {
         width={width}
         height={HEIGHT}
         role="img"
-        aria-label="Bar chart of pixels wasted per day for the selected days"
+        aria-label="Bar chart of estimated carbon emissions per day"
       >
         {/* recessive hairline gridlines + y ticks */}
         {ticks.map((t) => (
           <g key={t}>
             <line x1={M.left} x2={width - M.right} y1={yFor(t)} y2={yFor(t)} stroke={GRID} strokeWidth={1} strokeDasharray="2 4" />
             <text x={M.left - 8} y={yFor(t) + 4} textAnchor="end" fontSize={12} fill={LABEL}>
-              {formatCompact(t)}
+              {axisText(t)}
             </text>
           </g>
         ))}

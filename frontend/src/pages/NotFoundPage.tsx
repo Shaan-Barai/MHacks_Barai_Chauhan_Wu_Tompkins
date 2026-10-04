@@ -7,12 +7,11 @@ export function NotFoundPage({ onHome }: { onHome: () => void }) {
   useEffect(() => heading.current?.focus(), [])
   return (
     <div className="max-w-xl space-y-4">
-      <h1 ref={heading} tabIndex={-1} className="font-display text-3xl font-semibold text-ink">
-        We couldn't find that page.
+      <h1 ref={heading} tabIndex={-1} className="font-display text-3xl font-bold tracking-tight text-ink">
+        Page not found
       </h1>
-      <p className="text-base">The link may be old or mistyped. Everything is on the dashboard and the pages on the left.</p>
       <PrimaryButton type="button" onClick={onHome}>
-        Go to the dashboard
+        Dashboard
       </PrimaryButton>
     </div>
   )

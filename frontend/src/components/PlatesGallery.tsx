@@ -18,13 +18,12 @@
  * expired or fails to load is renewed once by asking for the images again;
  * if the fresh link fails too, the image says it is unavailable.
  */
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { getCaptureImages } from '../data/api'
 import type { CaptureImages, CaptureListItem, ProcessingState, SignedImage } from '../data/types'
 import { formatNumber } from '../lib/format'
-import { NEIGHBOR_EXPLANATION } from './impactCopy'
-import { ESTIMATE_EXPLANATION, PhysicalChips, hasPhysical } from './PhysicalChips'
-import { Badge, Card, GhostButton, InfoTip } from './ui'
+import { PhysicalChips, hasPhysical } from './PhysicalChips'
+import { Badge, Card, GhostButton } from './ui'
 
 const SHOW_FIRST = 12
 /** Analyzed plates first (newest first within each group), failed and unchecked plates last. */
@@ -118,13 +117,13 @@ function timeLabel(iso: string): string {
 }
 
 function tileSummary(c: CaptureListItem): string {
-  if (c.state === 'failed') return 'Check failed. Not in the totals.'
+  if (c.state === 'failed') return 'Check failed'
   if (c.state === 'pending' || c.state === 'processing') return 'Being checked'
   if (c.state === 'needs_review') return 'Needs a person to look'
-  if (c.notCountedReason) return 'Not counted. Its pixel counts could not be verified.'
+  if (c.notCountedReason) return 'Not counted'
   if (c.pixelsWasted === 0) return 'Clean plate'
-  if (c.pixelsWasted !== null) return `${formatNumber(c.pixelsWasted)} pixels wasted`
-  return 'Only partly checked. Not in the totals.'
+  if (c.pixelsWasted !== null) return `${formatNumber(c.pixelsWasted)} pixels`
+  return 'Partly checked'
 }
 
 function ImageBox({
@@ -145,7 +144,7 @@ function ImageBox({
   className?: string
 }) {
   const box = `flex aspect-square w-full items-center justify-center border border-ink p-3 text-center text-sm ${className}`
-  if (!entry || entry.status === 'loading') return <div className={box} role="status">Loading photo</div>
+  if (!entry || entry.status === 'loading') return <div className={box} role="status" aria-busy="true"><span className="sr-only">Loading photo</span></div>
   if (entry.status === 'error') return <div className={`${box} border-dashed`}>Photo unavailable</div>
   if (!image) return <div className={`${box} border-dashed`}>{missingText}</div>
   const img = (
@@ -208,19 +207,21 @@ function PlateViewer({
   entry,
   onBroken,
   onClose,
+  focusOnOpen = true,
 }: {
   capture: CaptureListItem
   entry: ImageEntry | undefined
   onBroken: (url: string) => void
   onClose: () => void
+  /** False for the plate opened automatically on load, so the page doesn't scroll to it. */
+  focusOnOpen?: boolean
 }) {
   const [view, setView] = useState<View>('both')
-  const estTip = useId()
   const anyEstimate = capture.items.some(hasPhysical)
   const headingRef = useRef<HTMLHeadingElement>(null)
   useEffect(() => {
-    headingRef.current?.focus()
-  }, [capture.eventId])
+    if (focusOnOpen) headingRef.current?.focus()
+  }, [capture.eventId, focusOnOpen])
 
   const images = entry?.status === 'ready' ? entry.images : null
   const photo = images?.raw ?? images?.original
@@ -237,7 +238,7 @@ function PlateViewer({
             Plate at {when}
           </h3>
           <p className="text-sm">
-            {STATE_TEXT[capture.state]} · {capture.source === 'replay' ? 'Test photo (test2/ or replay)' : capture.source === 'camera' ? 'Camera' : 'Uploaded photo'}
+            {STATE_TEXT[capture.state]} · {capture.source === 'replay' ? 'Test photo' : capture.source === 'camera' ? 'Camera' : 'Uploaded photo'}
           </p>
         </div>
         <GhostButton type="button" onClick={onClose}>
@@ -245,14 +246,14 @@ function PlateViewer({
         </GhostButton>
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="How to show the plate">
+      <div className="mt-3 inline-flex rounded-full border border-ink p-0.5" role="group" aria-label="How to show the plate">
         {VIEWS.map((v) => (
           <button
             key={v.view}
             type="button"
             aria-pressed={view === v.view}
             onClick={() => setView(v.view)}
-            className={`rounded-btn border border-ink px-3 py-1.5 text-base ${view === v.view ? 'bg-ink font-semibold text-cream' : 'bg-cream text-ink hover:underline'}`}
+            className={`rounded-full px-3 py-1 text-sm font-medium ${view === v.view ? 'bg-ink text-cream' : 'bg-cream text-ink hover:opacity-70'}`}
           >
             {v.label}
           </button>
@@ -270,7 +271,7 @@ function PlateViewer({
               onBroken={onBroken}
               onEnlarge={(image, alt) => setEnlarged({ image, alt })}
             />
-            <figcaption className="mt-1 text-sm">{isRaw ? 'Original photo, as the camera took it' : 'Photo the AI checked'}</figcaption>
+            <figcaption className="mt-1 text-sm">{isRaw ? 'Original' : 'Photo'}</figcaption>
           </figure>
         )}
         {view !== 'photo' && (
@@ -283,18 +284,18 @@ function PlateViewer({
               onBroken={onBroken}
               onEnlarge={(image, alt) => setEnlarged({ image, alt })}
             />
-            <figcaption className="mt-1 text-sm">AI outlines of the leftover food on the scanned plate</figcaption>
+            <figcaption className="mt-1 text-sm">AI outlines</figcaption>
           </figure>
         )}
       </div>
 
       <div className="mt-4">
         {capture.state === 'failed' ? (
-          <p>The AI couldn't check this plate, so it is not in the totals.</p>
+          <p>Check failed.</p>
         ) : capture.state === 'pending' || capture.state === 'processing' ? (
-          <p>This plate is still being checked.</p>
+          <p>Being checked.</p>
         ) : capture.items.length === 0 ? (
-          <p>{capture.pixelsWasted === 0 ? 'Clean plate. No food left.' : 'No foods found yet.'}</p>
+          <p>{capture.pixelsWasted === 0 ? 'Clean plate.' : 'No foods found.'}</p>
         ) : (
           <table className="w-full max-w-2xl text-left text-base">
             <caption className="sr-only">Foods left on this plate</caption>
@@ -304,8 +305,7 @@ function PlateViewer({
                 <th scope="col" className="py-1 pr-2">Pixels wasted</th>
                 {anyEstimate && (
                   <th scope="col" className="py-1 font-normal">
-                    Estimated amount
-                    <InfoTip id={estTip} text={ESTIMATE_EXPLANATION} />
+                    Estimate
                   </th>
                 )}
               </tr>
@@ -315,7 +315,7 @@ function PlateViewer({
                 <tr key={`${it.itemId ?? 'unknown'}-${i}`} className="border-b border-ink">
                   <th scope="row" className="py-1 pr-2 font-semibold">
                     {it.displayName}
-                    {it.itemId === null && <span className="font-normal"> (not on the menu)</span>}
+                    {it.itemId === null && <span className="font-normal"> (not on menu)</span>}
                   </th>
                   <td className="py-1 pr-2">{formatNumber(it.pixels)}</td>
                   {anyEstimate && (
@@ -328,27 +328,12 @@ function PlateViewer({
             </tbody>
           </table>
         )}
-        {anyEstimate && capture.physicalMethod && (
-          <p className="mt-2 text-sm">Estimated from the camera calibration (area) and each food’s typical weight per cm² (grams).</p>
-        )}
-        {!anyEstimate && capture.items.length > 0 && (
-          <p className="mt-2 text-sm italic">{noEstimateText(capture)}</p>
-        )}
-        {capture.state === 'needs_review' && <p className="mt-2 text-sm">A person should check these labels before relying on them.</p>}
       </div>
       {enlarged && <Lightbox image={enlarged.image} alt={enlarged.alt} onClose={() => setEnlarged(null)} />}
     </Card>
   )
 }
 
-/** Why a plate has no gram / CO2e / water estimates. */
-function noEstimateText(capture: CaptureListItem): string {
-  if (capture.items.some((i) => i.physicalUnavailableReason === 'incompatible_geometry')) {
-    return 'No grams, CO2e or water for this plate: its picture size differs from the camera calibration.'
-  }
-  if (capture.physicalMethod) return 'No grams, CO2e or water for the foods on this plate.'
-  return 'No grams, CO2e or water for this plate: the camera was not calibrated when it was scanned.'
-}
 
 function Thumbnail({ entry, onBroken }: { entry: ImageEntry | undefined; onBroken: (url: string) => void }) {
   const overlay = entry?.status === 'ready' ? entry.images.overlay : null
@@ -361,25 +346,26 @@ function Thumbnail({ entry, onBroken }: { entry: ImageEntry | undefined; onBroke
       </span>
     )
   }
-  const text = !entry || entry.status === 'loading' ? 'Loading photo' : 'Photo unavailable'
-  return <div className="flex aspect-square w-full items-center justify-center border-b border-dashed border-ink text-sm">{text}</div>
+  if (!entry || entry.status === 'loading') {
+    return (
+      <div className="aspect-square w-full animate-pulse border-b border-ink bg-ink/5" aria-busy="true">
+        <span className="sr-only">Loading photo</span>
+      </div>
+    )
+  }
+  return <div className="flex aspect-square w-full items-center justify-center border-b border-dashed border-ink text-sm">Photo unavailable</div>
 }
 
 export function PlatesGallery({
   captures: allCaptures,
-  neighborExcluded = 0,
   loadImages = getCaptureImages,
 }: {
   captures: CaptureListItem[]
-  /** coverage.capturesWithNeighborFoodExcluded for the same days. */
-  neighborExcluded?: number
   loadImages?: Loader
 }) {
-  const neighborTip = useId()
   const { entries, ensure, renew } = useCaptureImageCache(loadImages)
   const [showAll, setShowAll] = useState(false)
   // Sample scans have no photos; the gallery shows real (camera and test-photo) scans only.
-  const sampleCount = allCaptures.filter((c) => c.source === 'demo').length
   const captures = allCaptures.filter((c) => c.source !== 'demo')
   const ordered = analyzedFirst(captures)
   // undefined = the user hasn't picked yet: show the newest analyzed plate.
@@ -401,27 +387,12 @@ export function PlatesGallery({
   return (
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-xl font-semibold text-ink">Plates</h2>
-        <p className="text-sm">
-          {formatNumber(captures.length)} recent plate{captures.length === 1 ? '' : 's'}
-        </p>
+        <h2 className="text-lg font-semibold text-ink">Plates</h2>
+        <p className="text-sm">{formatNumber(captures.length)}</p>
       </div>
-      <p className="mt-1 text-sm">Each tile shows the AI outlines of the leftover food. Pick a plate to see its photo next to them; click an image to enlarge it.</p>
-      {sampleCount > 0 && (
-        <p className="mt-1 text-sm">
-          {formatNumber(sampleCount)} sample scan{sampleCount === 1 ? ' is' : 's are'} counted in the totals but not shown here (sample data has no
-          photos).
-        </p>
-      )}
-      {neighborExcluded > 0 && (
-        <p className="mt-1 text-sm">
-          Food on neighboring plates was left out of {formatNumber(neighborExcluded)} plate{neighborExcluded === 1 ? '' : 's'}.
-          <InfoTip id={neighborTip} text={NEIGHBOR_EXPLANATION} />
-        </p>
-      )}
 
       {captures.length === 0 ? (
-        <p className="mt-3 rounded-card border border-dashed border-ink p-6 text-center">No plates were scanned in these days.</p>
+        <p className="mt-3 rounded-card border border-dashed border-ink p-6 text-center">No plates.</p>
       ) : (
         <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {visible.map((c) => (
@@ -463,6 +434,7 @@ export function PlatesGallery({
           entry={entries[selected.eventId]}
           onBroken={(url) => renew(selected.eventId, url)}
           onClose={() => setSelectedId(null)}
+          focusOnOpen={picked !== undefined}
         />
       )}
     </Card>

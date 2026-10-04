@@ -75,10 +75,32 @@ assert the analysis, storage, and dashboard results.
 `node --test`: `node --test tests/e2e` treats the folder as one script and fails; use
 `node --test tests/e2e/*.test.mjs` or the npm scripts.
 
+## IT_4 calibration flow (`calibration-live.test.mjs`)
+
+Skipped unless `SCRAP_E2E=1`; skips itself when the backend has no `/api/settings/measurement`.
+`npm run test:e2e:calibration` (loads `../.env`; mutations need `SCRAP_INGEST_TOKEN` in production mode).
+
+1. `simulate-camera --calibrate` with the **synthetic** card fixture → `POST /api/calibrations`:
+   `succeeded`, 1024² geometry, `k = knownAreaCm2 / referencePixels`, N_ref within 15% of the drawn
+   card, crop-aware fx ≈ 1289.7 px, geometric height ≈ 45 cm; activated with DAv2 off.
+2. Depth OFF capture (one `test2/` photo): `physicalMethod = area-calibrated-v1`, `areaCm2 = pixels × k`
+   (±1%), grams / kg CO2e / L water numbers or null, unknown food null; some food has grams, so the
+   overlay legend carries the `g · kg CO2e · L water (est.)` suffix (the JPEG text is not OCR'd); overlay
+   downloads.
+3. Depth ON capture (skipped when the calibration has no DAv2 scale): `volume-dav2-v1` with volumes, or
+   the area method with `depth_unavailable`/`depth_invalid`.
+4. `GET /api/dashboard/impact`: `kgCo2e`/`waterLitres` totals and `physicalCoverage`.
+
+The hall's previous measurement settings are restored afterwards. Last live run: 2026-10-04, 4/4
+(docs/verification-report.md, IT_4 section).
+
+The fake-backend counterpart (no services needed) is `tests/integration/calibrate-capture.test.mjs`.
+
 ## Run
 
 ```bash
 cd tests
 npm test                          # fixture + placeholder
 SCRAP_E2E=1 npm run test:e2e      # needs the running stack (README setup)
+SCRAP_E2E=1 npm run test:e2e:calibration   # IT_4 calibration → area/volume → totals
 ```

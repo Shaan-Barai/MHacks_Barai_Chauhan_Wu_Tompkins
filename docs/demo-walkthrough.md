@@ -9,9 +9,11 @@ step below in order and pauses between them, so you can narrate. The script belo
 
 ## Before you start
 
-1. Start the stack as described in [runbook.md](runbook.md#start-full-stack-r2--scrap--gemini--sam):
-   SpacetimeDB, the SAM worker on :8790, the backend on :8787 against `scrap` with R2, and the frontend
-   on :5173. Run `cd backend && npm run seed -- --live-dinner` once: it seeds the 26-food dinner menus
+1. Start the stack: `deploy/local.sh up` ([deploy.md](deploy.md)) starts SpacetimeDB, the SAM worker on
+   :8790, the Depth Anything V2 worker on :8791, and the backend serving the dashboard on :8787 in
+   production mode. Writes then need `SCRAP_INGEST_TOKEN`, which demo.py reads from `.env` or
+   `deploy/.run/local-secrets.env`. The dev setup in [runbook.md](runbook.md#start-full-stack-r2--scrap--gemini--sam)
+   (frontend on :5173) works too. Run `cd backend && npm run seed -- --live-dinner` once: it seeds the 26-food dinner menus
    (2026-10-01..03 and today), demo portions, and leaves old analyses on the menu version they used.
 2. Decide which capture path you will show:
    - **Real camera:** the Uno Q with the C920s (`capture/uno-q/README.md`, [BRIDGE.md](../BRIDGE.md)) into
@@ -20,8 +22,12 @@ step below in order and pauses between them, so you can narrate. The script belo
      the board uses. These dishes are labeled **`replay`**, so don't call them live camera captures.
 3. Keep the copy honest:
    - **Pixels wasted** is the measurement: pixels inside AI-drawn masks of the leftover food on the
-     scanned plate. There is no plate-size calibration, so there are **no grams, kg CO2e, litres or
-     dollars**.
+     scanned plate.
+   - **Grams, kg CO2e and litres of water are estimates.** They exist only for captures analysed with
+     an active **camera calibration** (a credit card of known area on the tray; [calibration.md](calibration.md)).
+     They come from `area = pixels × cm²/px` and per-food weight factors. Otherwise they show "—", never
+     0. Depth Anything V2 volume is experimental and off by default: on close phone photos it put food
+     below the plate. Never show dollars.
    - **Relative impact points** weigh pixels by each food's density and environmental factors
      (`points = pixels / 1000 × weight_g_per_cm2 × factor`; CO2 points, water points, and impact points
      from 0.19·C + 1.50·W). They are unitless and only compare foods with each other: a pixel of beef
@@ -37,6 +43,19 @@ step below in order and pauses between them, so you can narrate. The script belo
 > tonight's menu, boxes them, and marks which plate is the one being scanned. SAM 2.1 draws a mask for
 > each food and for that plate; our code drops food on other plates, clips the masks to the scanned
 > plate, and counts the pixels. Per-food factors turn pixels into relative impact points.
+
+### 1b. Camera calibration (1 min)
+
+`python3 demo.py --only calibration` shows the hall's active calibration. With none active, it offers to
+take one: the credit card under the board, or the **synthetic** card fixture with `--simulate`.
+
+> We lay a credit card, 46.21 cm², on the tray. The AI finds it and counts its pixels: about 38,000. So
+> one pixel is about 0.0012 cm². From the camera's focal length that also says the camera hangs about
+> 45 cm above the tray, which we can check with a tape measure. Focus is locked, because autofocus would
+> change the scale. If the camera moves, we recalibrate.
+
+Point out the two camera heights (geometric vs Depth Anything V2) and the `depth_scale_disagrees` flag
+when they differ. That disagreement is why volume stays off.
 
 ### 2. Capture (1.5 min)
 
@@ -84,7 +103,11 @@ attempt carries `target_dish_unavailable` instead.
 
 Open http://localhost:5173 and choose the dinner dates.
 
-1. **Headline cards:** total Pixels wasted and the relative impact points, labeled relative.
+1. **Headline cards:** total Pixels wasted and the relative impact points, labeled relative, plus
+   **Estimated CO2e** (kg) and **Estimated water** (L) with coverage ("from 1 of 7 calibrated plates").
+   Plates analysed before the calibration have no estimate. Food labels show
+   `38 g · 1.1 kg CO2e · 18 L water (est.)`, and the overlay legend carries the same suffix.
+   `python3 demo.py --only volume,stats --events cap_…` prints the same numbers in the terminal.
 2. **Foods to target:** ranked by **pixels wasted per portion served** (sum of pixels ÷ sum of portions;
    the portions are demo counts).
 3. **Most wasted:** ranked by total pixels. Items without an impact factor show "no impact factor",
@@ -114,6 +137,9 @@ unavailable, the card says it is a **rule-based fallback**.
   reported. See [verification-report.md](verification-report.md).
 - v2 live results (`scrap`, target-dish counting, the real Uno Q) are recorded in
   [verification-report.md](verification-report.md) when they are run.
+- 2026-10-04 (IT_4, synthetic card calibration, k = 0.001213 cm²/px, 44.9 cm): a test2 plate gave
+  Vegetable Stir Fry Blend 91,894 px → 111.4 cm² · 89 g and Sticky Rice 74,900 px → 90.8 cm² · 145 g,
+  totalling 0.30 kg CO2e and 138 L water (estimates; iPhone photo, not the calibrated C920s).
 
 ## After the demo
 

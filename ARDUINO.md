@@ -254,6 +254,36 @@ Actual image: 1920 x 1080 pixels
 
 Open the printed `photo.jpg` path in Finder/File Explorer. Confirm that it is the current dish, the shutter is open, and the image is usable. A checksum verifies transfer integrity; it does not prove correct focus, exposure, plate detection, or food-mask quality.
 
+### 8.1 Focus lock and calibration (IT_4)
+
+Before each capture (and once per `--auto` stream), the board script locks the C920s focus, because
+autofocus changes the scale that a calibration measures:
+
+```bash
+v4l2-ctl -d /dev/video0 -c focus_automatic_continuous=0    # then:
+v4l2-ctl -d /dev/video0 -c focus_absolute=0                # focus_auto=0 on older kernels
+```
+
+The two settings go in separate calls. While autofocus is on, the C920 refuses `focus_absolute`
+(`Permission denied`), so a combined call fails (seen live on the Uno Q, 2026-10-04). The laptop prints the
+result, e.g. `Focus: locked (focus_automatic_continuous=0, focus_absolute=0)`, and `metadata.json` stores it
+as `focus`. A missing `v4l2-ctl` (`sudo apt install v4l-utils`) or a failing control only warns; the photo
+is still taken.
+
+| Laptop flag | Meaning |
+| --- | --- |
+| `--focus-absolute N` | Fixed focus 0–255 (the C920 steps by 5; default 0 = far). Use the same value for the calibration and every capture |
+| `--no-focus-lock` | Leave autofocus on (estimates become unreliable) |
+| `--calibrate` | Take one **calibration frame** (a credit card flat on the tray, no plate on it) and exit. It is marked `capturePurpose: "calibration"`, so the bridge never counts it as a dish. The laptop then prints the `npm run calibrate -- …` command |
+
+The resolution stays fixed at 1920 × 1080. A calibration holds for that resolution, camera height and
+focus only. The board warns if the camera delivers another size. Full procedure: [docs/calibration.md](docs/calibration.md).
+
+The flags need the current board script (§7). An older board script still captures, without a focus
+lock, and the laptop prints `Focus: unknown (… copy the new uno_q_camera.py …)`.
+
+To give autofocus back to other camera apps afterwards: `v4l2-ctl -d /dev/video0 -c focus_automatic_continuous=1`.
+
 For repeated manual captures, omit `--once`:
 
 ```bash
@@ -356,7 +386,10 @@ Do not delete cached pending photos; doing so removes the ability to retrieve th
 | Different settings error | `.pending.json` records the previous settings. Resume using them; inspect/recover a cached photo before deliberately abandoning the request. |
 | ZIP parse or JPEG checksum failure | Retry the same pending ID. Keep all board logs on stderr; do not add stdout banners to the board script or noninteractive shell startup files. Inspect the cached ZIP if repeated retries fail. |
 | Image is smaller than requested | The driver negotiated another mode. Inspect `--list-formats-ext`; actual dimensions are printed and saved. |
-| Image is blurry/dark or plate is clipped | Improve lighting/framing, hold the dish still, and allow warmup. Inspect the center-square framing used by project normalization. |
+| Image is blurry/dark or plate is clipped | Improve lighting/framing, hold the dish still, and allow warmup. Inspect the center-square framing used by project normalization. With the focus lock, a soft image may need another `--focus-absolute` (then recalibrate). |
+| `Focus: NOT locked (failed …)` | `v4l2-ctl -d /dev/video0 -l \| grep focus` shows the controls. `Permission denied` on `focus_absolute` means an old board script set both controls in one call: copy the current `uno_q_camera.py`. |
+| `Focus: NOT locked (unavailable …)` | `sudo apt install v4l-utils` on the board. |
+| Upload `401` from the bridge / `npm run calibrate` | The backend runs in production mode: set `SCRAP_INGEST_TOKEN` (or put it in `.env`). See [BRIDGE.md](BRIDGE.md) "Auth". |
 | Disk fills up | Check board cache and laptop inbox sizes. Remove only verified, transferred captures under an agreed retention policy. |
 
 If event Wi-Fi prevents device-to-device access, use a hotspot/router that allows it, or connect the board through the hub's Ethernet port to the same reachable LAN as the laptop. SSH needs local connectivity; it does not require a cloud service to transfer photos. Initial software installation still needs package access.
@@ -378,7 +411,7 @@ Before using this in the demonstration:
 OpenCV imports deliberately blocked. It covers manual and timed capture,
 actual JPEG dimensions, warmup, missing/disconnected camera errors, empty and
 malformed packets, bounded camera padding, cached transfer retries, locking,
-and bundle validation. Run `python3 -B -m unittest discover -s capture/uno-q -v`
+and bundle validation, plus the C920s focus lock (fake `v4l2-ctl`) and `--calibrate`. Run `python3 -B -m unittest discover -s capture/uno-q -v`
 from the repository root. These checks do not exercise live hardware or
 networking. [The camera-capture guide](capture/uno-q/README.md) records the
 prior automatic-mode hardware smoke check; the new FFmpeg manual path still

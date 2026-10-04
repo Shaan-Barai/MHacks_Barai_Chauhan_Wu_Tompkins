@@ -36,10 +36,40 @@ cd capture && npm run ingest-inbox -- --service svc_hall-main_2026-10-04_dinner 
 | `--poll <s>` / `--idle <s>` | Scan interval (default 2) / close the open dish after this long with no new photos (default 10) |
 | `--no-dedupe` | One dish per manual photo, no Gemini; `--auto` frames are skipped. Prints a warning |
 | `--state-dir <dir>` | Where `.inbox-groups.json` / `.inbox-ingest.json` live. Default `capture/` |
-| `API_URL` | Backend, default `http://localhost:8787` |
+| `--token-env <NAME>` | Variable that holds the ingest token (default `SCRAP_INGEST_TOKEN`) |
+| `SCRAP_API_URL` | Backend, default `http://localhost:8787`; `https://…` for a remote one. `API_URL` still works |
+| `SCRAP_INGEST_TOKEN` | Bearer token for uploads, captures and dish checks (IT_4 I11). If it is not set in the environment, it is read from `.env`, then `deploy/.run/local-secrets.env`. Never printed |
 
 Output: `+` new dish, `■` dish closed, `✓ dish … → <eventId> (<state>)` ingested, `?` an unsure
-merge, `✗` a bad capture or failed upload, `⏸` paused because dish comparison is unavailable.
+merge, `✗` a bad capture or failed upload, `⏸` paused because dish comparison is unavailable,
+`◇` a calibration frame (skipped, see below), `!` focus not locked like the calibration (once per run).
+
+### Auth (production mode)
+
+A backend started in production mode (`deploy/local.sh up`, [docs/deploy.md](docs/deploy.md)) refuses
+every mutation without `Authorization: Bearer $SCRAP_INGEST_TOKEN`. The bridge sends the token to the
+backend only, never to the presigned R2 upload URL. Without it the first upload fails with:
+
+```text
+✗ the backend refused the upload (401). Set SCRAP_INGEST_TOKEN to the backend's ingest token. Backend: https://… (no token)
+```
+
+The line shows where the token came from (`token from SCRAP_INGEST_TOKEN in .env`), never the value.
+
+### Calibration frames
+
+`laptop_capture.py --calibrate` (or `npm run simulate-camera -- --calibrate`) puts one frame in the
+inbox with `capturePurpose: "calibration"`. The bridge lists it as `◇ … is a calibration frame` and never
+ingests it as a dish. Upload it with:
+
+```bash
+cd capture && npm run calibrate -- --known-area-cm2 46.21 --reference-label "credit card" [--camera-id uno-q-c920s-1] [--hall hall-main] [--depth on|off] [--frame <captureId>] [--no-activate]
+```
+
+`npm run calibrate` is `ingest-inbox --calibrate`. It normalizes the frame exactly like a dish (1024²),
+uploads it through presign → PUT → finalize with association kind `calibration`, calls
+`POST /api/calibrations`, prints k, both camera heights and the flags, and makes it the hall's active
+calibration. See [docs/calibration.md](docs/calibration.md).
 
 ### Run it without the board: `simulate-camera`
 

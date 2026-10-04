@@ -1,8 +1,9 @@
 # Minimal runbook
 
-The demo database is **`scrap`** (BIG-PLAN v2). Pixels wasted is the only measurement; impact is shown
+The demo database is **`scrap`** (BIG-PLAN v2). Pixels wasted is the stored measurement; impact is shown
 as unitless **relative impact points**; each capture counts only the **target dish** (the plate being
-scanned). `scrap-bigplan` is retired: don't point new runs at it.
+scanned). With an active camera calibration (IT_4, [calibration.md](calibration.md)), captures also get
+**estimated** grams, kg CO2e and litres of water. `scrap-bigplan` is retired: don't point new runs at it.
 
 ## Start (fixture-only machine)
 
@@ -76,6 +77,36 @@ SCRAP_E2E=1 SCRAP_E2E_START=2026-10-03 SCRAP_E2E_END=2026-10-04 \
 
 From the main checkout, `npm run test:e2e:scrap` loads `../.env` on its own. Pass test files to
 `node --test`, never the `tests/e2e` folder.
+
+### IT_4: production mode, ingest token, calibration
+
+The local production stack (`deploy/local.sh up`, [deploy.md](deploy.md)) needs `SCRAP_INGEST_TOKEN`
+for every mutation. The bridge, `npm run calibrate`, `simulate-camera`, `replay`, `live_camera_test.py`
+and `demo.py` read it from the environment, then `.env`, then `deploy/.run/local-secrets.env` (another
+variable name: `--token-env NAME`). They send `Authorization: Bearer …` and never print it. A 401 means the
+token is missing or different from the backend's. Point them at another backend with
+`SCRAP_API_URL=https://…` (`API_URL` still works).
+
+```bash
+# Calibrate once per camera position (docs/calibration.md)
+python3 capture/uno-q/laptop_capture.py --target arduino@35.1.88.76 --identity ~/.ssh/scrap_unoq --calibrate
+cd capture && npm run calibrate -- --known-area-cm2 46.21 --reference-label "credit card"
+#   no card / no board:  npm run simulate-camera -- --calibrate        (SYNTHETIC fixture)
+python3 demo.py --only calibration          # k, heights, flags, DAv2 on/off
+python3 demo.py --only deploy               # SCRAP_PROD_URL: /api/health, /api/ready, dashboard HTML
+
+# Live E2E for calibration → area / volume → totals (~3 Gemini calls + 1 calibration)
+cd tests && SCRAP_E2E=1 npm run test:e2e:calibration
+```
+
+The calibration E2E switches the service's hall (default hall-main) to its new calibration and back.
+It restores the previous `activeCalibrationId` and depth toggle when it finishes. If it is interrupted,
+reset with `PUT /api/settings/measurement {"hallId":"hall-main","activeCalibrationId":null,"depthEnabled":false}`
+using the token.
+
+The board script must be the current one for the focus lock:
+`scp capture/uno-q/uno_q_camera.py arduino@BOARD:scrap-camera/` (ARDUINO.md). An older board script still
+captures; `laptop_capture.py` then prints `Focus: unknown`.
 
 ### Real camera live test
 

@@ -1,6 +1,6 @@
 # Verification report — Agent 8
 
-**Date:** 2026-10-04. The newest section is BIG-PLAN v2 (`scrap`: pixels only, relative impact points,
+**Date:** 2026-10-04. The newest section is IT_4 (calibration, estimated grams / CO2e / water, auth). Then BIG-PLAN v2 (`scrap`: pixels only, relative impact points,
 target-dish counting). Below it: the v1 BIG-PLAN end-to-end run (retired `scrap-bigplan`), the Phase 3
 vertical slice, and the mask pipeline.
 **Scope:** fixture/unit suites, live Gemini smoke test, live API e2e against a
@@ -14,6 +14,41 @@ portions → replay capture → object storage → live Gemini analysis →
 SpacetimeDB persistence → analytics + simulated attendance → grounded
 suggestion → dashboard. Camera hardware and a cloud object-storage provider
 are **not** tested (neither exists yet).
+
+## IT_4: camera calibration, estimated grams / CO2e / water, auth — 2026-10-04 (workstream K)
+
+What K checked for the capture side, the cross-system flow and demo.py. The backend (B), vision (V) and
+analytics (A) have their own unit suites. Fixture and live results are kept apart below.
+
+### Fixture / unit (no Gemini, SAM, depth, R2 or SpacetimeDB)
+
+| Check | Result |
+| --- | --- |
+| `python3 -m unittest discover -s capture/uno-q` | 66/66. New: C920s focus lock with a fake `v4l2-ctl` that behaves like the real C920 (autofocus off first, then `focus_absolute`; `focus_auto` fallback on older kernels; `--focus-absolute N`; `--no-focus-lock`; failure and a missing `v4l2-ctl` never fail the capture; focus recorded in `metadata.json`; one lock per `--auto` stream); `laptop_capture.py --calibrate` marks one frame `capturePurpose: "calibration"` |
+| `cd capture && npm test` | 53/53. New: `SCRAP_API_URL` resolution, token from env → `.env` → `deploy/.run/local-secrets.env`, `Authorization: Bearer` on every backend request and **never** on a presigned PUT to another origin, 401/403 → message naming `SCRAP_INGEST_TOKEN` (token never in messages); calibration client (normalized 1024² upload, association `calibration` with the client-picked `cal_` id, polling, rerun reuse, failed → new attempt, activation keeps/sets the depth toggle); calibration frames listed apart and never ingested; focus-mismatch warning; synthetic fixture sanity |
+| `cd tests && npm test` | 22/22. New `integration/calibrate-capture.test.mjs`: the real `simulate-camera` / `ingest-inbox` CLIs against a fake backend that mirrors `calibrationService` → 401 without a token, calibration uploaded at 1024², activated, rerun reuses, a later dish is one `replay` capture and the calibration frame is never a dish |
+
+### Live (local stack: SpacetimeDB `scrap`, SAM 2.1 :8790, DAv2 :8791, R2, Gemini; backend built from the K worktree on :8798 with `NODE_ENV=production`, so mutations need the token)
+
+| Check | Result |
+| --- | --- |
+| `simulate-camera --calibrate` without a token | exit 1: `Upload authorization failed (401): the backend needs an ingest token. Set SCRAP_INGEST_TOKEN …`; nothing created |
+| Calibration from the **synthetic** card fixture (real Gemini box + SAM mask) | `succeeded`: N_ref **38,102 px** (drawn ≈ 37,875, +0.6%), k = 0.001213 cm²/px, fx 1289.7 px (crop-aware), geometric height **44.9 cm** (designed 45). DAv2 read 82.0 cm, scale 0.548, `depth_scale_disagrees` (the image is flat, so the depth number means nothing) |
+| `SCRAP_E2E=1 npm run test:e2e:calibration` | **4/4**: calibrate → depth OFF capture (`area-calibrated-v1`; Vegetable Stir Fry Blend 117,707 px → 142.8 cm² · 114 g · 0.055 kg CO2e · 9.1 L; Sticky Rice 70,002 px → 84.9 cm² · 136 g · 0.242 kg CO2e · 122.1 L; areaCm2 = px × k within 1%) → depth ON capture (Cheese Pizza: method `volume-dav2-v1`, `negative_heights_clipped`, grams by area because pizza has no density) → impact totals with `physicalCoverage`. Settings restored afterwards |
+| `python3 demo.py --simulate --yes` against :8798 | 23 PASS, 1 WARN (`depth_scale_disagrees`), 1 FAIL (`deploy`: that backend ran without `SERVE_FRONTEND`). Rerun with the built dashboard served: `services,calibration,volume,dashboard,deploy` 13 PASS / 1 WARN / 0 FAIL. `--only deploy` without `SCRAP_PROD_URL` → WARN. hall-main's settings were reset to no active calibration afterwards |
+| **Real Uno Q + C920** (`arduino@35.1.88.76`, test copy of the board script) | The first try showed that a combined `v4l2-ctl -c focus_automatic_continuous=0 -c focus_absolute=0` fails on the real C920 (`focus_absolute: Permission denied`). After the fix: `--calibrate` saved a 1920×1080 frame with `focus: locked (focus_automatic_continuous=0, focus_absolute=0)`; `--auto --count 2 --focus-absolute 40` locked once at 40, and `v4l2-ctl -l` read back `focus_absolute=40, focus_automatic_continuous=0`. Board autofocus was restored afterwards and the test copy removed; **the deployed `scrap-camera/uno_q_camera.py` on the board is still the old version** |
+
+Observed and reported to the owners:
+
+- A depth-on capture (before V's `8afadc5` fallback landed in this backend build) reported Cheese Pizza
+  `volumeCm3: 0` with only `negative_heights_clipped`. That was a numeric zero, not null. V's later
+  fallback adds `depth_invalid` and uses the area method for such foods. Not re-verified live after
+  that commit.
+
+**Not verified live:** a real credit card under the mounted C920s (the room was dark and no card was
+placed; the only calibration photo is synthetic); volume against an object of measured volume (IT_4 §6.4);
+physical accuracy of any gram / CO2e / water number (test2/ photos are from an iPhone at 22–30 cm, not
+the calibrated C920s); the production URL (no custom domain or tunnel yet).
 
 ## BIG-PLAN v2: `scrap` database, menu revisions, seed — 2026-10-04
 

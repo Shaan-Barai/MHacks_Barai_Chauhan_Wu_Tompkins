@@ -184,6 +184,26 @@ packets fail explicitly, preserving the laptop's pending ID. Retry with the
 same settings and dish in place. If the board already cached that ID, it sends
 the cached photo without requiring FFmpeg or the camera to be available.
 
+## 7. Focus lock and the calibration frame (IT_4)
+
+The board locks the C920s focus before every manual capture and once per `--auto` stream: first
+`v4l2-ctl -c focus_automatic_continuous=0` (or `focus_auto=0`), then `-c focus_absolute=N` in a second
+call. The real C920 refuses `focus_absolute` while autofocus is on. The result goes into `metadata.json`
+as `focus: {lock, control, absolute}`, and the laptop prints it. A missing `v4l2-ctl` or a failed control only
+warns. The resolution stays at 1920 × 1080.
+
+```bash
+python3 capture/uno-q/laptop_capture.py --target arduino@YOUR_BOARD_IP --calibrate              # one calibration frame
+python3 capture/uno-q/laptop_capture.py --target arduino@YOUR_BOARD_IP --auto --focus-absolute 40
+python3 capture/uno-q/laptop_capture.py --target arduino@YOUR_BOARD_IP --once --no-focus-lock
+```
+
+`--calibrate` saves one frame marked `capturePurpose: "calibration"` (lay a credit card flat on the tray
+first). The bridge skips it, and `cd capture && npm run calibrate -- --known-area-cm2 46.21` uploads it.
+Use the same `--focus-absolute` for the calibration and every capture. Default values are not sent to the
+board, so an older board script still works, just without the lock. Copy the current script (§4) to
+get it. See [docs/calibration.md](../../docs/calibration.md).
+
 ## Boundaries and verification
 
 - This timer captures **frames**, not unique dishes. Metadata marks

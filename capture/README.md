@@ -164,8 +164,35 @@ Each `CaptureResult` is either
 ```bash
 npm run replay                          # every fixtures/replay/demo-*.json
 npm run replay -- path/to/manifest.json
-API_URL=http://host:8787 npm run replay
+SCRAP_API_URL=https://host npm run replay   # API_URL still works
 ```
+
+### Backend URL and ingest token (IT_4)
+
+Every script here (`replay`, `ingest-inbox`, `calibrate`, `simulate-camera --service/--calibrate`) uses
+`resolveBackend()` (`src/backendConfig.ts`). The backend URL comes from `SCRAP_API_URL`, else `API_URL`,
+else `http://localhost:8787`. The bearer token comes from `SCRAP_INGEST_TOKEN` (or `--token-env NAME`),
+else `.env`, else `deploy/.run/local-secrets.env`. `HttpUploader`/`HttpIngestionSink`/`HttpDishMatcher`/
+`HttpCalibrationClient` send `Authorization: Bearer …` to the backend's own origin only, never to a
+presigned R2 URL. A 401/403 becomes `BackendRequestError` with `unauthorized === true` and a message that
+names the variable. Logs show where the token came from, never its value.
+
+## Calibration (IT_4, [docs/calibration.md](../docs/calibration.md))
+
+```bash
+npm run calibrate -- --known-area-cm2 46.21 --reference-label "credit card"   # newest calibration frame in the inbox
+npm run simulate-camera -- --calibrate [--hall hall-main] [--depth off]        # SYNTHETIC card fixture
+npm run calibration-fixture                                                    # regenerate that fixture
+```
+
+`src/calibration.ts` (`calibrateFromFrame`, `activateCalibration`, `describeCalibration`) normalizes the
+calibration frame like every dish (`topdown-normalized-v1`, 1024²). It mints a `cal_<ULID>` id, uploads
+with association `{kind: 'calibration', id}` (the backend's calibration id is the upload's association
+id), calls `POST /api/calibrations`, and polls while `processing`. `PUT /api/settings/measurement`
+then activates it. State lives in `<state-dir>/.inbox-calibrations.json`: a rerun with the same frame,
+area and label shows the existing calibration, and a failed one is retried with a new id. Inbox frames
+with `capturePurpose: "calibration"` appear in `scanInbox().calibrations` and never in `frames`, so the
+bridge never ingests them as dishes.
 
 Demo manifests and AI-generated synthetic plate images (provenance in
 `fixtures/replay/README.md`) cover four services on 2026-10-02/03.

@@ -440,3 +440,30 @@ User direction (2026-10-04):
 - **Database:** everything lives in the `scrap` database (additive schema
   publish in place, menu revision for the dinners whose items changed).
   `scrap-bigplan` is retired.
+
+## 2026-10-04: IT_4: production deploy, calibrated area, Depth Anything V2 volume
+
+Full plan and rationale: [IT_4.md](../IT_4.md) §2 (I1–I12). Summary:
+
+- **Physical units via calibration (I1).** A per-camera calibration (user-entered known reference area,
+  `reference-area-v1`) plus per-food density factors is the independently specified conversion
+  AGENTS.md §2 asked for. Pixels wasted stays the stored raw measurement and is always shown. Grams,
+  kg CO2e and litres of water are **estimates**, derived in `analytics` at read time, and `null` (never
+  0) without a compatible calibration, factor or density.
+- **Calibration (I2/I3).** `k = knownAreaCm2 / N_ref` (cm²/px at the base plane), tied to one camera and
+  one resolution. Logitech C920s nominal intrinsics: `f ≈ 1360 px` at 1920 wide (78° diagonal FOV).
+  Geometric camera height `f·√k`. With Depth Anything V2 on, `scale = height / DAv2 reference depth`
+  and a table plane. Focus must be locked on the C920s.
+- **Depth model (I4).** `Depth-Anything-V2-Metric-Indoor-Small-hf` only (Apache-2.0; Base/Large are
+  non-commercial), served by `vision/depth/worker.py` on :8791.
+- **Volume (I5) / area (I6).** `volume-dav2-v1`: heights above a plate plane fitted to the dish ring
+  outside food masks, integrated with per-pixel footprints. `area-calibrated-v1`: `pixels × k`. Bowls
+  and liquids flag `bowl_volume_unreliable` and use area for grams.
+- **CO2 / water (I7/I8).** volume × `density_g_per_cm3` (new CSV column) or area × `weight_g_per_cm2`
+  → grams. `kgCo2e = g/1000 × C`, `L = g × W`. Shown next to each food label and as totals with
+  calibrated-plate coverage.
+- **Setting (I9).** Per hall `depthEnabled` + `activeCalibrationId`, snapshotted on each analysis
+  attempt.
+- **Production (I10–I12).** Fly.io: `scrap-api` (backend + built dashboard, one origin) and private
+  `scrap-ml` (SAM 2.1 + DAv2 CPU). SpacetimeDB maincloud, R2 prod prefix. Public reads; mutations need
+  `SCRAP_INGEST_TOKEN` or an admin passcode session. Custom domain (user is buying it) via `fly certs`.

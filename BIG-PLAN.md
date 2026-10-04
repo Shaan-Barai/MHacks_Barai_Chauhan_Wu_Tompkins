@@ -122,6 +122,8 @@ itself. It never force-pushes, and it never edits another agent's directory with
 | **E** | Dashboard (Agent 7) | `frontend/`, `UI.md` | New dashboard: headline cards **Total waste** (est. g + pixels), **CO2e**, **Water**, **Waste impact $**. **Foods to target** (waste per portion), **Most wasted** table, nutrition lost as a separate labeled note, **Plates** gallery (original ↔ segmented toggle, per-food legend), **AI recommendation** card. Mock data first, then the live API. Tests |
 | **F** | Capture + E2E + docs (Agents 3/8) | `capture/`, `tests/`, `docs/`, `BRIDGE.md`, `ARDUINO.md` | Verify Uno Q → inbox → bridge → backend against the new pipeline. Add a `simulate-camera` script that writes `test2/` photos into an inbox-shaped dir (same layout and metadata as `laptop_capture.py`) so the full path runs without the board. Live E2E: inbox → R2 → SpacetimeDB → Gemini+SAM → overlay in R2 → dashboard API. Demo walkthrough update |
 
+**Final step (user request):** after everything lands, the coordinator writes `EXPLAIN.md`, a simple explanation of the whole database (SpacetimeDB tables + R2 objects and how they link).
+
 **Order:** M → C (contracts) → A, B, E start in parallel against the §3 shapes → D starts once A's
 analytics API and B's vision API are exported (stubs allowed earlier) → F runs the live end-to-end
 once D lands → C does the final review, updates README/AGENTS, and merges `big-plan` → `main`.

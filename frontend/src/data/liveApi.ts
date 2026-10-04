@@ -38,6 +38,9 @@ import type {
   CameraStatus,
   TakePhotoResult,
   WasteTotals,
+  TryImageJob,
+  TryImageStatus,
+  TryImageSubmitted,
 } from './types'
 import { MEALS } from './types'
 import { todayIso } from '../lib/dates'
@@ -529,6 +532,35 @@ export async function takePhoto(): Promise<TakePhotoResult> {
 }
 
 /** Asks the AI for a new recommendation for these days (saved with its inputs). */
+// Try an Image: one-off analysis of an uploaded photo (nothing is added to the dashboard).
+export async function getTryImageStatus(): Promise<TryImageStatus> {
+  return call<TryImageStatus>('/api/try-image/status')
+}
+
+export async function getTryImageSample(): Promise<Blob> {
+  let res: Response
+  try {
+    res = await fetch(`${API_BASE}/api/try-image/sample.jpg`)
+  } catch {
+    throw new Error("Can't reach ScrapSaver right now. Try again in a minute.")
+  }
+  if (!res.ok) throw new Error('The sample photo is not available right now.')
+  return res.blob()
+}
+
+/** Raw image body (no JSON); the backend reads the type from Content-Type. */
+export async function submitTryImage(blob: Blob): Promise<TryImageSubmitted> {
+  return call<TryImageSubmitted>('/api/try-image', {
+    method: 'POST',
+    headers: { 'Content-Type': blob.type || 'application/octet-stream' },
+    body: blob,
+  })
+}
+
+export async function getTryImageJob(id: string): Promise<TryImageJob> {
+  return call<TryImageJob>(`/api/try-image/${encodeURIComponent(id)}`)
+}
+
 export async function regenerateRecommendation(start: IsoDate, end: IsoDate): Promise<Recommendation> {
   return call<Recommendation>('/api/recommendation/regenerate', {
     method: 'POST',

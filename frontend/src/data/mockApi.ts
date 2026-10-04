@@ -51,6 +51,9 @@ import type {
   PortionEntry,
   PortionBenchmark,
   PlateRecord,
+  TryImageJob,
+  TryImageStatus,
+  TryImageSubmitted,
 } from './types'
 import { MEALS } from './types'
 
@@ -332,6 +335,48 @@ export async function getCaptureImages(eventId: string): Promise<CaptureImages> 
   const images = mockCaptureImages(eventId, todayIso(), new Date())
   if (!images) throw new Error('This plate is no longer available.')
   return images
+}
+
+// Try an Image (demo fixture: tiny placeholder pictures, not a real analysis).
+const PLACEHOLDER_PNG =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+const tryPolls = new Map<string, number>()
+
+export async function getTryImageStatus(): Promise<TryImageStatus> {
+  await wait()
+  return { available: true, waiting: 0, running: false, maxWaiting: 3, hourlyRemaining: 20 }
+}
+
+export async function getTryImageSample(): Promise<Blob> {
+  await wait()
+  return new Blob(['demo'], { type: 'image/jpeg' })
+}
+
+export async function submitTryImage(_blob: Blob): Promise<TryImageSubmitted> {
+  await wait()
+  const id = `try_demo_${tryPolls.size + 1}`
+  tryPolls.set(id, 0)
+  return { id, status: 'queued', position: 1 }
+}
+
+export async function getTryImageJob(id: string): Promise<TryImageJob> {
+  await wait()
+  const n = (tryPolls.get(id) ?? 0) + 1
+  tryPolls.set(id, n)
+  if (n < 2) return { id, status: 'running' }
+  return {
+    id,
+    status: 'done',
+    summary: {
+      countStatus: 'complete',
+      capturePixelsWasted: 42_000,
+      foods: [
+        { itemId: 'item_halal-rice', food: 'Halal Rice (demo)', pixelsWasted: 30_000 },
+        { itemId: 'item_halal-chicken', food: 'Halal Chicken (demo)', pixelsWasted: 12_000 },
+      ],
+    },
+    images: { original: PLACEHOLDER_PNG, boxes: PLACEHOLDER_PNG, masks: PLACEHOLDER_PNG, final: PLACEHOLDER_PNG },
+  }
 }
 
 export async function getRecommendation(start: IsoDate, end: IsoDate): Promise<Recommendation> {

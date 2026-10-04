@@ -473,3 +473,38 @@ export interface TakePhotoResult {
   triggeredAt: string
   receivedAt: string
 }
+
+// "Try an Image": one-off analysis of an uploaded plate photo (not stored on the dashboard).
+export interface TryImageStatus {
+  available: boolean
+  reason?: string
+  waiting: number
+  running: boolean
+  maxWaiting: number
+  hourlyRemaining: number
+}
+
+export interface TryImageSubmitted {
+  id: string
+  status: 'queued'
+  position: number
+}
+
+/** Tolerant: every field may be missing; the UI shows an em dash, never 0. */
+export interface TryImageSummary {
+  countStatus?: string
+  capturePixelsWasted?: number | null
+  foods?: { itemId?: string | null; food?: string; pixelsWasted?: number | null }[]
+  seconds?: number
+  [key: string]: unknown
+}
+
+export interface TryImageJob {
+  id: string
+  status: 'queued' | 'running' | 'done' | 'failed'
+  position?: number
+  error?: { code: string; message: string }
+  summary?: TryImageSummary
+  /** Data URLs (or null when a step could not be drawn). */
+  images?: { original: string | null; boxes: string | null; masks: string | null; final: string | null }
+}

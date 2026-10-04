@@ -35,6 +35,11 @@ export const regenerateRecommendation = impl.regenerateRecommendation
 export const getWasteTotals = impl.getWasteTotals
 export const getCameraStatus = impl.getCameraStatus
 export const takePhoto = impl.takePhoto
+// Try an Image: one-off analysis of an uploaded plate photo.
+export const getTryImageStatus = impl.getTryImageStatus
+export const getTryImageSample = impl.getTryImageSample
+export const submitTryImage = impl.submitTryImage
+export const getTryImageJob = impl.getTryImageJob
 
 // IT_4: staff sign-in, camera calibration, measurement settings.
 export const getSession = impl.getSession

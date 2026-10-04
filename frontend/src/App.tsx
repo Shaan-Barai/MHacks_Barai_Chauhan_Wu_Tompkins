@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AdminPage } from './pages/AdminPage'
-import { BehindScenesPage } from './pages/BehindScenesPage'
+import { BehindScenesPage, TRY_PATH } from './pages/BehindScenesPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { LandingPage } from './pages/LandingPage'
 import { MenusPage } from './pages/MenusPage'
@@ -30,6 +30,7 @@ export function pageForPath(pathname: string): Page | null {
   const path = pathname.replace(/\/+$/, '') || '/'
   if (path === '/' || path === '/index.html') return 'landing'
   if (path === '/schedule') return 'statistics'
+  if (path === TRY_PATH) return 'behind'
   return [...NAV, ...HIDDEN].find((n) => n.path === path)?.page ?? null
 }
 
@@ -114,7 +115,7 @@ function Shell() {
         {page === 'statistics' && <StatisticsPage dataRevision={dataRevision} />}
         {page === 'menus' && <MenusPage />}
         {page === 'portions' && <PortionsPage onSaved={() => setDataRevision((r) => r + 1)} />}
-        {page === 'behind' && <BehindScenesPage />}
+        {page === 'behind' && <BehindScenesPage path={path} onNavigate={go} />}
         {page === 'settings' && <SettingsPage settings={hall} onSave={update} />}
         {page === 'admin' && <AdminPage />}
         {page === null && <NotFoundPage onHome={() => go('/dashboard')} />}

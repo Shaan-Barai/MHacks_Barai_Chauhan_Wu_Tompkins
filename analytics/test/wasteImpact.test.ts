@@ -8,6 +8,7 @@ import {
   generateRecommendation,
   buildRecommendationPrompt,
   recommendationFacts,
+  recommendationInputVersion,
   parseRecommendationOutput,
   selectImpactMeasurements,
   sumImpacts,
@@ -379,7 +380,7 @@ test('fallback recommendation is labeled, grounded in pixels, and causal-claim f
   assert.equal(parseRecommendationOutput(JSON.stringify({ text: rec.text, bullets: rec.bullets }), facts) !== null, true, 'fallback passes the Gemini validator too');
   assert.deepEqual(rec.bullets.map((b) => b.metric), [STEAK_RATE, 'Pepperoni Pizza: 1,000 pixels wasted per portion', PLATES]);
   for (const b of rec.bullets) assert.ok(facts.allowedMetrics.includes(b.metric), b.metric);
-  assert.match(rec.inputVersion, /^impact-rec-v2\|waste-factors-v2\|[0-9a-f]{8}$/);
+  assert.match(rec.inputVersion, /^impact-rec-v3\|waste-factors-v2\|[0-9a-f]{8}$/);
   assert.equal(fallbackRecommendation(d, NOW).inputVersion, rec.inputVersion);
 
   // Only pizza has a portion rate: the steak shows up through its relative impact points.
@@ -408,8 +409,8 @@ test('generateRecommendation accepts valid Gemini JSON', async () => {
       JSON.stringify({
         text: 'Ancho Flank Steak has the most food left per portion and the highest relative impact points. The sample is small.',
         bullets: [
-          { text: 'Try a smaller steak portion and compare next week.', metric: STEAK_RATE },
-          { text: 'Steak leftovers weigh most on the relative impact points score.', metric: 'Ancho Flank Steak: 352 relative impact points' },
+          { text: 'Try a smaller Ancho Flank Steak portion and compare next week.', metric: STEAK_RATE },
+          { text: 'Ancho Flank Steak leftovers weigh most on the relative impact points score.', metric: 'Ancho Flank Steak: 352 relative impact points' },
           { text: 'Keep scanning plates.', metric: PLATES },
         ],
       }) +
@@ -424,7 +425,7 @@ test('generateRecommendation accepts valid Gemini JSON', async () => {
 
 test('generateRecommendation falls back on invalid or unsafe Gemini output', async () => {
   const d = buildImpactDashboard(dashInput());
-  const ok = { text: 'Steak leads per portion. Small sample.', bullets: [{ text: 'Watch steak.', metric: STEAK_RATE }, { text: 'Scan more.', metric: PLATES }] };
+  const ok = { text: 'Steak leads per portion. Small sample.', bullets: [{ text: 'Watch Ancho Flank Steak.', metric: STEAK_RATE }, { text: 'Scan more.', metric: PLATES }] };
   const bad: Array<string | Error> = [
     'Serve less steak.', // not JSON
     '{"text": "x"}', // no bullets
@@ -437,6 +438,8 @@ test('generateRecommendation falls back on invalid or unsafe Gemini output', asy
     JSON.stringify({ ...ok, text: 'Steak wasted 40 liters of water.' }), // litres
     JSON.stringify({ ...ok, text: 'Steak scored 352 points.' }), // bare "points"
     JSON.stringify({ ...ok, text: '' }),
+    JSON.stringify({ ...ok, bullets: [{ text: 'Serve a smaller portion.', metric: STEAK_RATE }, ok.bullets[1]] }), // food metric, dish not named
+    JSON.stringify({ ...ok, bullets: [ok.bullets[0], ok.bullets[1], ok.bullets[1], ok.bullets[1]] }), // more than 3
     new Error('provider timeout'),
   ];
   for (const raw of bad) {
@@ -471,4 +474,25 @@ test('selectImpactMeasurements validates a capture against the menu version its 
   // An item from another menu is still rejected.
   const foreign = selectImpactMeasurements({ ...base, menuItems: [{ ...menuItems[0]!, menuId: 'menu_B' }], attemptMenuVersions: new Map([['old', 1]]) });
   assert.equal(foreign.captures.analyzed, 0);
+});
+
+test('trend fact: pixels per plate, earlier vs later half, citable and in the input version', () => {
+  const d = buildImpactDashboard(dashInput());
+  const halves = {
+    earlier: { start: '2026-09-20', end: '2026-09-26', pixels: 140_000, analyzedPlates: 10 },
+    later: { start: '2026-09-27', end: '2026-10-03', pixels: 99_000, analyzedPlates: 9 },
+  };
+  const facts = recommendationFacts(d, halves);
+  assert.equal(facts.trend?.direction, 'down');
+  assert.equal(facts.trend?.metric, 'Pixels wasted per plate: 14,000 pixels (Sep 20 to Sep 26) vs 11,000 pixels (Sep 27 to Oct 3)');
+  assert.ok(facts.allowedMetrics.includes(facts.trend!.metric));
+  assert.notEqual(recommendationInputVersion(facts), recommendationInputVersion(recommendationFacts(d)));
+  // No trend without analyzed plates in both halves.
+  assert.equal(recommendationFacts(d, { ...halves, later: { ...halves.later, analyzedPlates: 0 } }).trend, undefined);
+  assert.equal(recommendationFacts(d, { ...halves, later: { ...halves.later, pixels: 139_000, analyzedPlates: 10 } }).trend?.direction, 'flat');
+  // The prompt asks for 2-3 bullets that name their food; the fallback has at most 3.
+  const prompt = buildRecommendationPrompt(facts);
+  assert.match(prompt, /2 or 3 bullets/);
+  assert.match(prompt, /names that food/);
+  assert.ok(fallbackRecommendation(d, NOW, halves).bullets.length <= 3);
 });

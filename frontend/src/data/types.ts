@@ -291,4 +291,11 @@ export interface Recommendation {
   source: 'gemini' | 'fallback'
   generatedAt: string
   inputVersion: string
+  /**
+   * The reporting window this recommendation was generated for. When Gemini
+   * fails, the last saved recommendation is returned with `stale: true` and
+   * its own (possibly different) window.
+   */
+  window?: { start: string; end: string }
+  stale?: boolean
 }

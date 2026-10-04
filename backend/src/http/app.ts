@@ -558,6 +558,14 @@ export function createApp(deps: AppDeps): express.Express {
     }),
   );
 
+  // Regenerate on demand (dashboard button): always asks Gemini again and saves the result.
+  app.post(
+    '/api/recommendation/regenerate',
+    wrap(async (req, res) => {
+      res.json(await impact.recommendation(parseWindow(req.body ?? {}), { regenerate: true }));
+    }),
+  );
+
   // ---- suggestions (stored Insights; generation is Agent 6's) ----
   app.get(
     '/api/suggestions',

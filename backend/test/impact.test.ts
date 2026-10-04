@@ -206,7 +206,7 @@ test('GET /api/recommendation: labeled fallback without Gemini, grounded in pixe
     '2 of 3 plates analyzed',
   ]);
   assert.doesNotMatch(JSON.stringify(r), /\b(g|kg|grams?|litres?|liters?)\b|\$/);
-  assert.match(r.inputVersion, /^impact-rec-v2\|/);
+  assert.match(r.inputVersion, /^impact-rec-v3\|/);
   assert.ok(Number.isFinite(Date.parse(r.generatedAt)));
   assert.equal((await s.api('GET', '/api/recommendation?start=x&end=y')).status, 400);
 });
@@ -256,7 +256,7 @@ test('GET /api/recommendation: valid Gemini answer is served as source gemini an
         JSON.stringify({
           text: 'Ham leaves the most pixels per portion and the highest relative impact points; try a smaller ham portion for a week.',
           bullets: [
-            { text: 'Ham waste per portion.', metric: metrics.find((m) => m.includes('per portion')) },
+            { text: 'Try a smaller Baked Boneless Ham portion.', metric: metrics.find((m) => m.includes('per portion')) },
             { text: 'Plates analyzed.', metric: metrics[0] },
           ],
         }),
@@ -317,4 +317,61 @@ test('impact totals, capture list, daily: missing points stay null, clean plates
   assert.equal(cleanItem.pixelsWasted, 0);
   const cleanDay = await s.api('GET', `/api/dashboard/daily?hallId=${HALL}&start=${DATE}&end=${DATE}`);
   assert.equal(cleanDay.json.days[0].pixelsWasted, 0);
+});
+
+test('recommendations are saved with their inputs; regenerate asks again; Gemini failure shows the last saved one', async (t) => {
+  const calls = { n: 0 };
+  let metrics: string[] = [];
+  let fail = false;
+  const s = await seeded({
+    gateway: liveGateway(async () => {
+      if (fail) throw new Error('provider down');
+      return JSON.stringify({
+        text: `Answer ${calls.n}: Baked Boneless Ham leaves the most pixels per portion.`,
+        bullets: [
+          { text: 'Try a smaller Baked Boneless Ham portion.', metric: metrics.find((m) => m.includes('per portion')) },
+          { text: 'Keep scanning plates.', metric: metrics[0] },
+        ],
+      });
+    }, calls),
+  });
+  t.after(() => s.close());
+  metrics = recommendationFacts((await s.api('GET', `/api/dashboard/impact?start=${DATE}&end=${DATE}`)).json).allowedMetrics;
+
+  const first = await s.api('GET', `/api/recommendation?start=${DATE}&end=${DATE}`);
+  assert.equal(first.json.source, 'gemini');
+  assert.deepEqual(first.json.window, { start: DATE, end: DATE });
+  const saved = (await s.repo.listInsights()).filter((i) => i.metrics.kind === 'impact-recommendation');
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0]!.source, 'gemini');
+  assert.equal(saved[0]!.dataVersion, first.json.inputVersion);
+  assert.equal(saved[0]!.windowStart, DATE);
+  const inputs = JSON.parse(String(saved[0]!.metrics.facts));
+  assert.ok(inputs.allowedMetrics.includes(first.json.bullets[0].metric), 'the stored inputs contain every cited number');
+
+  // Regenerate on demand: a new Gemini call and a second saved row.
+  const regenerated = await s.api('POST', '/api/recommendation/regenerate', { start: DATE, end: DATE });
+  assert.equal(regenerated.status, 200, JSON.stringify(regenerated.json));
+  assert.equal(regenerated.json.source, 'gemini');
+  assert.equal(calls.n, 2);
+  assert.equal((await s.repo.listInsights()).filter((i) => i.metrics.kind === 'impact-recommendation').length, 2);
+
+  // Gemini fails: the last saved Gemini recommendation is shown, marked stale.
+  fail = true;
+  const stale = await s.api('POST', '/api/recommendation/regenerate', { start: DATE, end: DATE });
+  assert.equal(stale.json.source, 'gemini');
+  assert.equal(stale.json.stale, true);
+  assert.equal(stale.json.text, regenerated.json.text);
+});
+
+test('the recommendation trend compares pixels per plate in the two halves of the window', async (t) => {
+  const s = await seeded();
+  t.after(() => s.close());
+  const res = await s.api('GET', `/api/recommendation?start=2026-10-01&end=${DATE}`);
+  assert.equal(res.status, 200);
+  const saved = await s.api('POST', '/api/recommendation/regenerate', { start: '2026-10-01', end: DATE });
+  const row = (await s.repo.listInsights()).find((i) => i.metrics.kind === 'impact-recommendation' && i.generatedAt === saved.json.generatedAt)!;
+  const facts = JSON.parse(String(row.metrics.facts));
+  assert.equal(facts.trend, undefined, 'no plates in the earlier half -> no trend claim');
+  assert.equal(row.source, 'fallback_rules', 'a fallback is saved (labeled) when regenerated without Gemini');
 });

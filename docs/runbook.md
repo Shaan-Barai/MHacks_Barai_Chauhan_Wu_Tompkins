@@ -127,3 +127,14 @@ throwaway experiments, publish the module to a new local database name and delet
   points are unitless and only compare foods with each other; nutrition points are separate and never in
   the impact score
 - Present simulated attendance as swipe data, or demo portions as real serving counts
+
+## Re-run failed analyses (e.g. Gemini credits ran out)
+
+Captures whose analysis failed keep their photo in R2 and their row in `scrap`. After fixing the cause
+(top up Gemini billing, restart the SAM worker), re-run them. Each one gets a new analysis attempt on the
+**same** capture, so nothing is double-counted:
+
+```bash
+cd backend && node scripts/retry-failed.mjs --start 2026-10-04 --end 2026-10-04 --dry-run   # list
+cd backend && node scripts/retry-failed.mjs --start 2026-10-04 --end 2026-10-04             # retry
+```

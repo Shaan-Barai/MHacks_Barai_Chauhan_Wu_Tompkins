@@ -19,6 +19,12 @@
  * served over the same service / menu version / item. Missing or zero
  * portions make the rate unavailable; unknown food has no rate.
  *
+ * IT_4 I7: every WasteImpact also carries ESTIMATED grams / kg CO2e / litres
+ * of water when the measurement has a calibrated PhysicalEstimate (see
+ * physical.ts). They are null with `physicalUnavailableReason`, never 0, when
+ * the capture is uncalibrated, the food is unknown, or it has no factor.
+ * Points are unchanged and nutrition never enters CO2/water.
+ *
  * Pure functions only: the factor tables live in scrap-data and are passed in
  * by the caller, so this package has no dependency on them.
  */
@@ -33,17 +39,21 @@ import type {
   MenuItem,
   NutritionFactor,
   PerPortion,
+  PhysicalEstimate,
+  PhysicalMethod,
+  PhysicalUnavailableReason,
   PortionsServed,
   WasteFactor,
   WasteImpact,
 } from './contracts.js';
 import { validMaskCount } from './portions.js';
+import { computePhysicalAmounts, usablePhysical, VOLUME_METHOD, type CapturePhysicalReason } from './physical.js';
 
 /**
  * Must equal scrap-data's WASTE_FACTORS_VERSION (the factor tables it stamps).
  * Callers may override it per call when they pass a different table version.
  */
-export const WASTE_FACTORS_VERSION = 'waste-factors-v2';
+export const WASTE_FACTORS_VERSION = 'waste-factors-v3';
 
 /** Display name for the unclassified / not-on-the-menu food bucket. */
 export const UNKNOWN_FOOD_LABEL = 'Food not on the menu';
@@ -61,8 +71,12 @@ export const NEIGHBOR_FOOD_EXCLUDED_FLAG = 'neighbor_food_excluded';
 
 export interface ComputeImpactOptions {
   /** True for unclassified food: it keeps its pixels but never gets a factor. */
-  unknownItem?: boolean;
+  unknownItem?: boolean | undefined;
   wasteFactorsVersion?: string;
+  /** IT_4: the measurement's calibrated estimate (FoodMeasurement.physical). Absent ⇒ physical fields null. */
+  physical?: PhysicalEstimate | null | undefined;
+  /** Why `physical` is absent (default 'no_calibration'). */
+  physicalUnavailableReason?: CapturePhysicalReason | undefined;
 }
 
 const finiteNonNeg = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && n >= 0;
@@ -76,14 +90,18 @@ function usableNutrition(n: NutritionFactor | null): n is NutritionFactor {
 }
 
 /**
- * Relative impact for one set of counted pixels.
+ * Relative impact (and, when calibrated, estimated physical amounts) for one
+ * set of counted pixels.
  *
  * - Unknown food: pixels only, reason `unknown_item`.
  * - No usable waste factor: pixels only, reason `no_factor`.
  * - Nutrition is optional and never affects `impactPoints`; without a
  *   nutrition row `nutritionPoints` is null.
+ * - grams / kgCo2e / waterLitres / physicalMethod come from `opts.physical`
+ *   (physical.ts `computePhysicalAmounts`); null + `physicalUnavailableReason`
+ *   otherwise.
  *
- * Missing points are null, never 0. Throws RangeError when `pixels` is not a
+ * Missing values are null, never 0. Throws RangeError when `pixels` is not a
  * finite nonnegative number: counts must be validated before analytics.
  */
 export function computeWasteImpact(
@@ -96,6 +114,12 @@ export function computeWasteImpact(
     throw new RangeError(`pixels must be a finite nonnegative number (got ${String(pixels)})`);
   }
   const version = opts.wasteFactorsVersion ?? WASTE_FACTORS_VERSION;
+  const physical = computePhysicalAmounts({
+    physical: opts.physical,
+    factor,
+    unknownItem: opts.unknownItem,
+    captureReason: opts.physicalUnavailableReason,
+  });
   const unavailable = (reason: ImpactUnavailableReason): WasteImpact => ({
     pixels,
     co2Points: null,
@@ -104,6 +128,7 @@ export function computeWasteImpact(
     nutritionPoints: null,
     wasteFactorsVersion: version,
     unavailableReason: reason,
+    ...physical,
   });
   if (opts.unknownItem === true) return unavailable('unknown_item');
   if (!usableFactor(factor)) return unavailable('no_factor');
@@ -116,11 +141,16 @@ export function computeWasteImpact(
     impactPoints: base * factor.impactUsdPerKg,
     nutritionPoints: usableNutrition(nutrition) ? base * nutrition.nutrientDaysPerKg : null,
     wasteFactorsVersion: version,
+    ...physical,
   };
 }
 
 type PointKey = 'co2Points' | 'waterPoints' | 'impactPoints' | 'nutritionPoints';
 const POINT_KEYS: PointKey[] = ['co2Points', 'waterPoints', 'impactPoints', 'nutritionPoints'];
+type PhysicalKey = 'grams' | 'kgCo2e' | 'waterLitres';
+const PHYSICAL_KEYS: PhysicalKey[] = ['grams', 'kgCo2e', 'waterLitres'];
+/** Tie order for a sum's physicalUnavailableReason (capture-level reasons first). */
+const PHYSICAL_REASONS: PhysicalUnavailableReason[] = ['no_calibration', 'incompatible_geometry', 'unknown_item', 'no_factor', 'no_density'];
 
 /**
  * Sum several impacts.
@@ -133,6 +163,13 @@ const POINT_KEYS: PointKey[] = ['co2Points', 'waterPoints', 'impactPoints', 'nut
  * `impactCoverage` / dashboard coverage. So a total's points cover only the
  * pixels of foods that have a factor, while its pixels cover everything.
  * An empty list has pixels 0 and null points (nothing to score).
+ *
+ * Physical (IT_4): grams / kgCo2e / waterLitres sum only the calibrated
+ * inputs (same rule as points). `physicalMethod` is the one method behind the
+ * summed grams, 'mixed' when they combine area and volume, null when no input
+ * has grams. `physicalUnavailableReason` is the most common reason among
+ * inputs without grams (ties: no_calibration, incompatible_geometry,
+ * unknown_item, no_factor, no_density); see `physicalImpactCoverage`.
  */
 export function sumImpacts(list: readonly WasteImpact[], wasteFactorsVersion?: string): WasteImpact {
   const version = wasteFactorsVersion ?? list[0]?.wasteFactorsVersion ?? WASTE_FACTORS_VERSION;
@@ -143,23 +180,60 @@ export function sumImpacts(list: readonly WasteImpact[], wasteFactorsVersion?: s
     impactPoints: null,
     nutritionPoints: null,
     wasteFactorsVersion: version,
+    grams: null,
+    kgCo2e: null,
+    waterLitres: null,
+    physicalMethod: null,
   };
   // Nothing to score: pixels are a true 0, but every points field stays null
   // (missing is never zero). A caller that KNOWS zero was measured (e.g.
   // analyzed clean plates) sets the zeros itself.
   if (list.length === 0) return out;
+  const methods = new Set<PhysicalMethod | 'mixed'>();
   for (const impact of list) {
     out.pixels += impact.pixels;
     for (const k of POINT_KEYS) {
       const v = impact[k];
       if (v !== null) out[k] = (out[k] ?? 0) + v;
     }
+    if (impact.grams != null) {
+      for (const k of PHYSICAL_KEYS) {
+        const v = impact[k];
+        if (v != null) out[k] = (out[k] ?? 0) + v;
+      }
+      if (impact.physicalMethod != null) methods.add(impact.physicalMethod);
+    }
   }
   const missing = impactCoverage(list).unavailable;
   const reasons = (['unknown_item', 'no_factor'] as const).filter((r) => missing[r] > 0);
   const top = reasons.sort((a, b) => missing[b] - missing[a])[0];
   if (top !== undefined) out.unavailableReason = top;
+
+  out.physicalMethod = methods.size === 0 ? null : methods.size > 1 || methods.has('mixed') ? 'mixed' : [...methods][0]!;
+  const physMissing = physicalImpactCoverage(list).unavailable;
+  const physTop = PHYSICAL_REASONS.filter((r) => physMissing[r] > 0).sort((a, b) => physMissing[b] - physMissing[a])[0];
+  if (physTop !== undefined) out.physicalUnavailableReason = physTop;
   return out;
+}
+
+/** How many impacts have estimated grams, and why the rest do not (IT_4). */
+export function physicalImpactCoverage(list: readonly WasteImpact[]): {
+  withGrams: number;
+  unavailable: Record<PhysicalUnavailableReason, number>;
+} {
+  const unavailable: Record<PhysicalUnavailableReason, number> = {
+    no_calibration: 0,
+    incompatible_geometry: 0,
+    unknown_item: 0,
+    no_factor: 0,
+    no_density: 0,
+  };
+  let withGrams = 0;
+  for (const i of list) {
+    if (i.grams != null) withGrams++;
+    else unavailable[i.physicalUnavailableReason ?? 'no_calibration']++;
+  }
+  return { withGrams, unavailable };
 }
 
 /** How many impacts have impact points, and why the rest do not. */
@@ -190,6 +264,19 @@ export interface ImpactMeasurementInput {
   displayName: string;
   /** Validated mask pixel count (integer, ≥ 0). */
   pixels: number;
+  /** IT_4: the measurement's calibrated estimate; absent/null ⇒ uncalibrated. */
+  physical?: PhysicalEstimate | null | undefined;
+  /** IT_4: why `physical` is absent (default 'no_calibration'). */
+  physicalUnavailableReason?: CapturePhysicalReason | undefined;
+}
+
+/** IT_4: ImpactDashboard.totals.physicalCoverage. */
+export interface PhysicalCoverage {
+  /** Analyzed captures measured with a compatible calibration (area or volume). */
+  calibratedCaptures: number;
+  /** Calibrated captures measured with Depth Anything V2 volume. */
+  volumeCaptures: number;
+  analyzedCaptures: number;
 }
 
 /** Factor lookups by menu display name, e.g. scrap-data's findWasteFactor / findNutritionFactor. */
@@ -214,6 +301,14 @@ export interface ImpactDashboardInput {
    */
   attemptQualityFlags?: AttemptFlagMap;
   wasteFactorsVersion?: string;
+  /**
+   * IT_4: calibrated / volume capture counts, normally
+   * `selectImpactMeasurements(...).physicalCoverage` (which also sees
+   * calibrated clean plates). Omitted ⇒ derived from the measurements:
+   * distinct eventIds with a usable `physical` (volume when any is volume).
+   * `analyzedCaptures` always comes from `captures.analyzed`.
+   */
+  physicalCoverage?: Pick<PhysicalCoverage, 'calibratedCaptures' | 'volumeCaptures'>;
 }
 
 /** Captures whose counted attempt carries NEIGHBOR_FOOD_EXCLUDED_FLAG. */
@@ -241,7 +336,16 @@ const portionKey = (serviceId: string, menuVersion: number, itemId: string) =>
  * of them has no (or an ambiguous) snapshot; `perPortion` is null when
  * portions are missing or any contributing snapshot is zero.
  * `perPortion.impactPoints` is null unless every measurement in the row has
- * impact points (a food without a factor has none).
+ * impact points (a food without a factor has none). Likewise
+ * `perPortion.grams` = Σ grams ÷ Σ portions only when EVERY measurement in the
+ * row has estimated grams; a row mixing calibrated and uncalibrated captures
+ * gets null, because dividing partial grams by all portions would understate
+ * the rate.
+ *
+ * Totals (IT_4): grams / kgCo2e / waterLitres sum the calibrated measurements
+ * only, with `totals.physicalCoverage` saying how many analyzed captures that
+ * is. When calibrated captures exist but none has a measurement with an
+ * estimate (all clean plates), the physical totals are a measured 0.
  *
  * `targets` ("Foods to target") lists named foods only, ranked by pixels per
  * portion desc; rows with no rate follow. `mostWasted` lists every row
@@ -272,7 +376,12 @@ export function buildImpactDashboard(input: ImpactDashboardInput): ImpactDashboa
     const unknown = m.itemId === null;
     const factor = unknown ? null : input.factors.findWasteFactor(m.displayName);
     const nutrition = unknown ? null : input.factors.findNutritionFactor(m.displayName);
-    const impact = computeWasteImpact(m.pixels, factor, nutrition, { unknownItem: unknown, wasteFactorsVersion: version });
+    const impact = computeWasteImpact(m.pixels, factor, nutrition, {
+      unknownItem: unknown,
+      wasteFactorsVersion: version,
+      physical: m.physical,
+      physicalUnavailableReason: m.physicalUnavailableReason,
+    });
     allImpacts.push(impact);
 
     const key = unknown ? '\u0000unknown' : factor ? `f:${factor.factorKey}` : `n:${m.displayName.trim().toLowerCase()}`;
@@ -312,9 +421,11 @@ export function buildImpactDashboard(input: ImpactDashboardInput): ImpactDashboa
         if (portionsSource === 'demo') demoPortions = true;
         if (portionsServed > 0 && snaps.every((p) => p.count > 0)) {
           const pointsComplete = g.impacts.every((i) => i.impactPoints !== null);
+          const gramsComplete = g.impacts.every((i) => i.grams != null);
           perPortion = {
             pixels: impact.pixels / portionsServed,
             impactPoints: pointsComplete && impact.impactPoints !== null ? impact.impactPoints / portionsServed : null,
+            grams: gramsComplete && impact.grams !== null ? impact.grams / portionsServed : null,
           };
         }
       }
@@ -351,6 +462,25 @@ export function buildImpactDashboard(input: ImpactDashboardInput): ImpactDashboa
   if (allImpacts.length === 0 && input.captures.analyzed > 0) {
     for (const k of POINT_KEYS) totalsImpact[k] = 0;
   }
+  const physicalCoverage: PhysicalCoverage = {
+    ...(input.physicalCoverage ?? derivePhysicalCoverage(input.measurements)),
+    analyzedCaptures: input.captures.analyzed,
+  };
+  // Calibrated captures without any calibrated measurement are clean plates: a measured 0.
+  if (
+    totalsImpact.grams === null &&
+    physicalCoverage.calibratedCaptures > 0 &&
+    !input.measurements.some((m) => usablePhysical(m.physical))
+  ) {
+    for (const k of PHYSICAL_KEYS) totalsImpact[k] = 0;
+    totalsImpact.physicalMethod =
+      physicalCoverage.volumeCaptures === 0
+        ? 'area-calibrated-v1'
+        : physicalCoverage.volumeCaptures === physicalCoverage.calibratedCaptures
+          ? VOLUME_METHOD
+          : 'mixed';
+    delete totalsImpact.physicalUnavailableReason;
+  }
   return {
     window: { ...input.window },
     totals: {
@@ -358,6 +488,7 @@ export function buildImpactDashboard(input: ImpactDashboardInput): ImpactDashboa
       captures: input.captures.captures,
       analyzedCaptures: input.captures.analyzed,
       excludedCaptures: input.captures.excluded,
+      physicalCoverage,
     },
     targets,
     mostWasted,
@@ -369,6 +500,20 @@ export function buildImpactDashboard(input: ImpactDashboardInput): ImpactDashboa
     },
     labels: { relativeImpact: true, demoPortions },
   };
+}
+
+/** Capture counts from the measurements alone (cannot see calibrated clean plates). */
+function derivePhysicalCoverage(
+  measurements: readonly ImpactMeasurementInput[],
+): Pick<PhysicalCoverage, 'calibratedCaptures' | 'volumeCaptures'> {
+  const calibrated = new Set<string>();
+  const volume = new Set<string>();
+  for (const m of measurements) {
+    if (!usablePhysical(m.physical)) continue;
+    calibrated.add(m.eventId);
+    if (m.physical.method === VOLUME_METHOD) volume.add(m.eventId);
+  }
+  return { calibratedCaptures: calibrated.size, volumeCaptures: volume.size };
 }
 
 // ---------------------------------------------------------------------------
@@ -390,12 +535,29 @@ export interface SelectImpactInput {
    * the service's current version.
    */
   attemptMenuVersions?: ReadonlyMap<string, number>;
+  /**
+   * IT_4: eventId -> the counted attempt's physical snapshot
+   * (AnalysisAttempt.physicalMethod; null when it had no compatible
+   * calibration, with the reason). Omitted for a capture ⇒ derived from its
+   * measurements' `physical`.
+   */
+  capturePhysical?: ReadonlyMap<string, CapturePhysicalContext>;
+}
+
+/** IT_4: a counted attempt's physical snapshot (I9). */
+export interface CapturePhysicalContext {
+  /** null = no compatible calibration at analysis time: its measurements get no grams. */
+  physicalMethod: PhysicalMethod | null;
+  /** Why physicalMethod is null (default 'no_calibration'); e.g. 'incompatible_geometry' for a resolution mismatch. */
+  unavailableReason?: CapturePhysicalReason;
 }
 
 export interface SelectedImpactMeasurements {
   measurements: ImpactMeasurementInput[];
   captures: { captures: number; analyzed: number; excluded: number };
   excludedMeasurements: number;
+  /** IT_4: pass to buildImpactDashboard({ physicalCoverage }); counts calibrated clean plates too. */
+  physicalCoverage: PhysicalCoverage;
 }
 
 /**
@@ -424,6 +586,8 @@ export function selectImpactMeasurements(input: SelectImpactInput): SelectedImpa
   let captures = 0;
   let analyzed = 0;
   let excludedMeasurements = 0;
+  let calibratedCaptures = 0;
+  let volumeCaptures = 0;
   for (const capture of input.captures) {
     const current = services.get(capture.serviceId);
     if (!current || current.hallId !== capture.hallId) continue;
@@ -447,16 +611,35 @@ export function selectImpactMeasurements(input: SelectImpactInput): SelectedImpa
     }
     analyzed++;
     excludedMeasurements += rows.length - valid.length;
+    const ctx = input.capturePhysical?.get(capture.eventId);
+    const uncalibrated = ctx !== undefined && ctx.physicalMethod === null;
+    let method: PhysicalMethod | null = null;
+    if (!uncalibrated) {
+      const usable = valid.filter((m) => usablePhysical(m.physical));
+      method =
+        ctx?.physicalMethod ??
+        (usable.some((m) => m.physical!.method === VOLUME_METHOD) ? VOLUME_METHOD : usable.length > 0 ? 'area-calibrated-v1' : null);
+    }
+    if (method !== null) calibratedCaptures++;
+    if (method === VOLUME_METHOD) volumeCaptures++;
     for (const m of valid) {
-      out.push({
+      const row: ImpactMeasurementInput = {
         eventId: m.eventId,
         serviceId: service.serviceId,
         menuVersion: service.menuVersion,
         itemId: m.itemId,
         displayName: m.itemId === null ? UNKNOWN_FOOD_LABEL : names.get(m.itemId)!.displayName,
         pixels: m.maskCount!.pixelsWasted,
-      });
+      };
+      if (uncalibrated) row.physicalUnavailableReason = ctx.unavailableReason ?? 'no_calibration';
+      else if (m.physical != null) row.physical = m.physical;
+      out.push(row);
     }
   }
-  return { measurements: out, captures: { captures, analyzed, excluded: captures - analyzed }, excludedMeasurements };
+  return {
+    measurements: out,
+    captures: { captures, analyzed, excluded: captures - analyzed },
+    excludedMeasurements,
+    physicalCoverage: { calibratedCaptures, volumeCaptures, analyzedCaptures: analyzed },
+  };
 }

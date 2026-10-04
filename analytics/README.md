@@ -60,8 +60,8 @@ simulated attendance. Cache by `dataVersion` and regenerate when aggregates chan
 
 ## Waste impact in pixels and relative impact points (BIG-PLAN v2, V1/V2)
 
-`src/wasteImpact.ts`, pure. **Pixels wasted** is the measurement and the headline unit. There is no plate
-calibration and there are no grams, kg CO2e, litres or dollars anywhere in the app.
+`src/wasteImpact.ts`, pure. **Pixels wasted** is the measurement and the headline unit. Points are never kg,
+litres or dollars. Estimated grams / kg CO2e / litres exist only for camera-calibrated captures (IT_4, next section).
 
 - `computeWasteImpact(pixels, factor, nutrition, { unknownItem? })` returns a contract `WasteImpact`.
   With `base = pixels / 1000 × weightGPerCm2`: `co2Points = base × C`, `waterPoints = base × W`,
@@ -91,6 +91,44 @@ calibration and there are no grams, kg CO2e, litres or dollars anywhere in the a
 Worked example (pepperoni pizza, 10,000 px, 1.0 g/cm², C 16.06, W 1.94, score 5.96): base 10 → 160.6 CO2 points,
 19.4 water points, 59.6 relative impact points, 6.9 nutrition points (separate).
 
+## Estimated grams, kg CO2e and water (IT_4 I7/I8)
+
+`src/physical.ts` + `src/wasteImpact.ts`, pure. Derived at read time from the measurement's stored
+`FoodMeasurement.physical` (`PhysicalEstimate`) and the factor row; **always labeled estimates**; Pixels wasted is
+unchanged. Missing is `null` with `physicalUnavailableReason`, never 0.
+
+| Case | grams | `physicalMethod` |
+| --- | --- | --- |
+| `volume-dav2-v1`, `volumeCm3` non-null, no `bowl_volume_unreliable` / `depth_invalid` / `depth_unavailable` flag, factor has `densityGPerCm3` | `volumeCm3 × densityGPerCm3` | `volume-dav2-v1` |
+| same, but `densityGPerCm3` is null (pizzas, Cheese Bread) **or** a flagged volume | `areaCm2 × weightGPerCm2` (fallback) | `area-calibrated-v1` |
+| `area-calibrated-v1` | `areaCm2 × weightGPerCm2` | `area-calibrated-v1` |
+
+`kgCo2e = grams / 1000 × C`, `waterLitres = grams × W` (W is m³/kg). Reasons, in precedence order: `unknown_item`
+(unclassified food) → `no_calibration` / `incompatible_geometry` (no usable estimate on the capture; the second is
+passed by the caller for a resolution mismatch; an estimate with a non-finite area or negative volume counts as absent)
+→ `no_factor` (no usable C/W) → `no_density` (neither volume×density nor area×weight possible).
+
+API for the backend (names and signatures are stable):
+
+| Export | Use |
+| --- | --- |
+| `computeWasteImpact(pixels, factor, nutrition, { unknownItem?, physical?, physicalUnavailableReason? })` | `WasteImpact` incl. `grams`, `kgCo2e`, `waterLitres`, `physicalMethod`, `physicalUnavailableReason` |
+| `selectImpactMeasurements({ ..., capturePhysical? })` | copies each eligible `FoodMeasurement.physical` onto the output; `capturePhysical: Map<eventId, { physicalMethod: PhysicalMethod \| null, unavailableReason? }>` is the counted attempt's snapshot (`AnalysisAttempt.physicalMethod`; `null` + `'incompatible_geometry'` strips estimates). Returns `physicalCoverage` |
+| `buildImpactDashboard({ ..., physicalCoverage? })` | pass `selected.physicalCoverage` (it sees calibrated clean plates). `totals.grams/kgCo2e/waterLitres` sum **calibrated measurements only**; `totals.physicalMethod` is `'mixed'` when area and volume combine; `totals.physicalCoverage = { calibratedCaptures, volumeCaptures, analyzedCaptures }` |
+| `captureItemPhysical({ physical, factor, unknownItem?, captureReason? })` | gallery row: `{ grams, kgCo2e, waterLitres, volumeCm3, areaCm2, physicalMethod, physicalUnavailableReason? }` for `CaptureListItem.items[]` (area/volume shown even for unknown food; a flagged volume is `null`) |
+| `formatPhysicalLabel({ grams, kgCo2e, waterLitres }, { estimated = true })` | overlay/label suffix `"38 g · 1.1 kg CO2e · 18 L water (est.)"`, or `null` when grams are unavailable. Rounding: whole grams; CO2e 2 significant digits, in g below 0.1 kg; litres 2 significant digits (`formatGrams`, `formatCo2e`, `formatWaterLitres`) |
+| `computePhysicalAmounts`, `physicalImpactCoverage`, `usablePhysical`, `volumeUsable` | lower-level helpers |
+
+Totals and per portion: sums include only calibrated measurements (like points). `perPortion.grams = Σ grams ÷ Σ
+portions` only when **every** measurement in the row has grams; a food seen on both calibrated and uncalibrated
+plates gets `null`, since partial grams over all portions would understate the rate. When calibrated captures exist
+but none has a calibrated measurement (all clean plates), the physical totals are a measured 0.
+
+Worked examples (the unit tests in `test/physical.test.ts`):
+- Area: Ancho Flank Steak, 20 cm² × 1.2 g/cm² = **24 g** → 24/1000 × 131.69 = **3.16 kg CO2e**, 24 × 1.925 = **46.2 L**.
+- Volume: Sticky Rice, 50 cm³ × 0.73 g/cm³ = **36.5 g** → **0.065 kg CO2e** (65 g), **32.8 L**.
+- Soup volume flagged `bowl_volume_unreliable` (200 cm³, 80 cm²) → area: 80 × 1.5 = **120 g**.
+
 ## AI recommendation (BIG-PLAN D8, v2)
 
 `src/recommendation.ts`: `recommendationFacts(dashboard)` produces compact facts plus `allowedMetrics`, the exact metric
@@ -99,7 +137,16 @@ strings the dashboard shows, e.g. `Ancho Flank Steak: 1,750 pixels wasted per po
 `buildRecommendationPrompt(facts)` asks for JSON. `generateRecommendation(gateway | null, dashboard, now)` validates the
 model output: 2–4 bullets, each citing an allowed metric; no causal claims, no markdown, no physical units (kg, grams,
 litres, dollars, CO2e) and no bare "points" (always "relative impact points"). Otherwise it returns
-`fallbackRecommendation(dashboard, now)` (`source: 'fallback'`). `inputVersion = impact-rec-v2|waste-factors-v2|<facts hash>`.
+`fallbackRecommendation(dashboard, now)` (`source: 'fallback'`). `inputVersion = impact-rec-v2|waste-factors-v3|<facts hash>`.
+
+IT_4: when `totals.physicalCoverage.calibratedCaptures > 0` and estimates exist, `facts.estimated` adds the estimated
+totals (grams, kg CO2e, litres, plate coverage, method) and the top 3 foods by kg CO2e, with metric strings such as
+`Estimated total: 3.2 kg CO2e (2 of 3 plates calibrated)`, `Estimated total: 79 L water (2 of 3 plates calibrated)`,
+`Ancho Flank Steak: estimated 3.2 kg CO2e and 46 L water`. The prompt and system instruction then allow kg / g / litres
+/ CO2e only in a sentence that says "estimated" (money is never allowed), and the fallback cites the estimated totals
+(`Calibrated plates (2 of 3): an estimated 3.2 kg CO2e and 79 L water.`) plus a bullet on the top CO2e food. That prompt
+is versioned `impact-rec-v3-physical` (`recommendationPromptVersion(facts)`); without calibrated plates the facts,
+prompt and version are exactly v2.
 
 ## Handoff
 

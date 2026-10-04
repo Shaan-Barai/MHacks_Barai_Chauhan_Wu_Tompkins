@@ -94,6 +94,11 @@ export interface AnalysisAttempt {
   calibration?: PlateCalibration;
   /** Object id of the segmented overlay JPEG in object storage (BIG-PLAN D7). */
   overlayObjectId?: string;
+  /** IT_4 I9: calibration + physical method snapshotted at analysis time. */
+  calibrationId?: string;
+  physicalMethod?: PhysicalMethod;
+  /** IT_4 I4: 16-bit depth PNG (0.1 mm units) in object storage, when DAv2 ran. */
+  depthObjectId?: string;
 }
 
 /**
@@ -216,6 +221,8 @@ export interface FoodMeasurement {
   method: MeasurementMethod;
   maskCount?: MaskPixelCount;
   qualityFlags: QualityFlag[];
+  /** IT_4: calibrated area / DAv2 volume. Absent when no compatible calibration was active. */
+  physical?: PhysicalEstimate;
 }
 
 export interface Attendance {
@@ -289,6 +296,8 @@ export interface WasteFactor {
   /** 0.19·C + 1.50·W, dollars per kg. No nutrition term. */
   impactUsdPerKg: number;
   largestFactor: 'carbon' | 'water';
+  /** IT_4 I7: bulk density as served (g/cm³) for the volume method; null when unsourced. */
+  densityGPerCm3: number | null;
 }
 
 /** One row of menu_nutrition_factors.csv. Reported separately; never in the score. */
@@ -317,12 +326,27 @@ export interface WasteImpact {
   nutritionPoints: number | null;
   wasteFactorsVersion: string;
   unavailableReason?: ImpactUnavailableReason;
+  /**
+   * IT_4 I7: ESTIMATED physical amounts from calibrated area or DAv2 volume.
+   * null (never 0) when unavailable; see physicalUnavailableReason.
+   *   grams: volume × densityGPerCm3, or areaCm2 × weightGPerCm2
+   *   kgCo2e = grams/1000 × C;  waterLitres = grams × W  (W is m³/kg)
+   * Sums over mixed captures include only calibrated ones (see coverage).
+   */
+  grams: number | null;
+  kgCo2e: number | null;
+  waterLitres: number | null;
+  /** The method behind grams; 'mixed' when a total combines both methods. */
+  physicalMethod: PhysicalMethod | 'mixed' | null;
+  physicalUnavailableReason?: PhysicalUnavailableReason;
 }
 
 /** Per-portion rates over the same hall/date/service/menu version. */
 export interface PerPortion {
   pixels: number;
   impactPoints: number | null;
+  /** IT_4: estimated grams per portion (sum-then-divide over calibrated captures); null when unavailable. */
+  grams: number | null;
 }
 
 export interface ItemImpactRow {
@@ -341,7 +365,13 @@ export interface ItemImpactRow {
 /** GET /api/dashboard/impact?start&end[&hallId] */
 export interface ImpactDashboard {
   window: { start: string; end: string; hallId?: string };
-  totals: WasteImpact & { captures: number; analyzedCaptures: number; excludedCaptures: number };
+  totals: WasteImpact & {
+    captures: number;
+    analyzedCaptures: number;
+    excludedCaptures: number;
+    /** IT_4: analyzed captures that carried physical estimates (calibrated). */
+    physicalCoverage: { calibratedCaptures: number; volumeCaptures: number; analyzedCaptures: number };
+  };
   /** Ranked by perPortion.pixels desc ("Foods to target"); unavailable rates last. */
   targets: ItemImpactRow[];
   /** Ranked by impact.pixels desc ("Most wasted"). */
@@ -364,8 +394,20 @@ export interface CaptureListItem {
   source: CaptureSource;
   state: ProcessingState;
   pixelsWasted: number | null;
-  items: Array<{ itemId: string | null; displayName: string; pixels: number }>;
+  items: Array<{
+    itemId: string | null;
+    displayName: string;
+    pixels: number;
+    /** IT_4 I8: estimated physical numbers shown next to the food label; null when unavailable. */
+    grams?: number | null;
+    kgCo2e?: number | null;
+    waterLitres?: number | null;
+    volumeCm3?: number | null;
+    areaCm2?: number | null;
+  }>;
   hasOverlay: boolean;
+  calibrationId?: string | null;
+  physicalMethod?: PhysicalMethod | null;
 }
 
 export interface SignedImage {
@@ -389,4 +431,117 @@ export interface Recommendation {
   source: 'gemini' | 'fallback';
   generatedAt: string;
   inputVersion: string;
+}
+
+// ---------------------------------------------------------------------------
+// IT_4 (2026-10-04): camera calibration, calibrated area, Depth Anything V2
+// volume, estimated grams / CO2e / water. See IT_4.md §2–§3.
+// ---------------------------------------------------------------------------
+
+export interface CameraIntrinsics {
+  cameraModel: 'logitech-c920s' | 'other';
+  widthPx: number;
+  heightPx: number;
+  /** C920s nominal: 78° diagonal FOV ⇒ ≈1360 px at 1920 wide, scaled with width. */
+  fxPx: number;
+  fyPx: number;
+  cxPx: number;
+  cyPx: number;
+  source: 'nominal-fov' | 'checkerboard' | 'configured';
+}
+
+/** Distinct from the legacy plate-fit CalibrationFlag above. */
+export type CameraCalibrationFlag =
+  | 'reference_not_found'
+  | 'reference_low_confidence'
+  | 'reference_touches_edge'
+  | 'depth_unavailable'
+  | 'depth_scale_disagrees';
+
+export interface CalibrationDepth {
+  /** 'depth-anything/Depth-Anything-V2-Metric-Indoor-Small-hf' (Apache-2.0; Small only). */
+  checkpoint: string;
+  /** 'dav2-metric-small-v1' */
+  settingsVersion: string;
+  /** Median raw DAv2 metric depth over the reference mask, metres, before correction. */
+  rawReferenceMedianM: number;
+  /** cameraHeightCmGeometric / (100 × rawReferenceMedianM). Multiplies raw DAv2 depth. */
+  scale: number;
+  cameraHeightCmDepth: number;
+  /** Base (table) plane in corrected depth: Z(x, y) = a·x + b·y + c, cm, pixel coords. */
+  tablePlane: { a: number; b: number; c: number };
+  /** 16-bit PNG, 0.1 mm units, in object storage. */
+  depthObjectId: string;
+}
+
+/** POST /api/calibrations → this. One camera, one resolution (IT_4 I2). */
+export interface CameraCalibration {
+  calibrationId: string;
+  hallId: string;
+  /** e.g. 'uno-q-c920s-1' */
+  cameraId: string;
+  createdAt: string;
+  status: 'processing' | 'succeeded' | 'failed';
+  method: 'reference-area-v1';
+  imageObjectId: string;
+  overlayObjectId?: string;
+  referenceMaskObjectId?: string;
+  widthPx: number;
+  heightPx: number;
+  /** User input; finite and > 0. Credit card = 46.21 cm². */
+  knownAreaCm2: number;
+  referenceLabel: string;
+  /** N_ref: integer foreground pixels of the reference mask. */
+  referencePixels: number;
+  /** k = knownAreaCm2 / referencePixels (cm² per pixel at the base plane). */
+  cm2PerPx: number;
+  intrinsics: CameraIntrinsics;
+  /** f · √k */
+  cameraHeightCmGeometric: number;
+  depth: CalibrationDepth | null;
+  flags: CameraCalibrationFlag[];
+  error?: ApiError;
+}
+
+/** GET/PUT /api/settings/measurement — per hall (IT_4 I9). */
+export interface MeasurementSettings {
+  hallId: string;
+  /** Depth Anything V2 on/off. Off ⇒ area method. */
+  depthEnabled: boolean;
+  activeCalibrationId: string | null;
+  /** Fallback plate-surface offset above the table plane (default 1.5). */
+  plateThicknessCm: number;
+  updatedAt: string;
+}
+
+export type PhysicalMethod = 'area-calibrated-v1' | 'volume-dav2-v1';
+
+export type VolumeFlag =
+  | 'plate_plane_from_calibration'
+  | 'negative_heights_clipped'
+  | 'height_outliers_clipped'
+  | 'bowl_volume_unreliable'
+  | 'depth_invalid'
+  | 'depth_unavailable';
+
+export type PhysicalUnavailableReason =
+  | 'no_calibration'
+  | 'incompatible_geometry'
+  | 'no_factor'
+  | 'no_density'
+  | 'unknown_item';
+
+/** Stored per food measurement. Pixels (remainingAreaPx) stay the raw measurement. */
+export interface PhysicalEstimate {
+  calibrationId: string;
+  method: PhysicalMethod;
+  /** area method: pixels × k; volume method: Σ (D/fx)(D/fy). */
+  areaCm2: number;
+  /** Σ h·a over the mask; null for the area method. */
+  volumeCm3: number | null;
+  meanHeightMm: number | null;
+  maxHeightMm: number | null;
+  depthSettingsVersion?: string;
+  plateReference?: 'dish-ring-fit' | 'calibration-plane';
+  flags: VolumeFlag[];
 }

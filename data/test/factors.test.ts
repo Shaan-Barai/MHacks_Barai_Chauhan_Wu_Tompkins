@@ -66,7 +66,7 @@ test('factors: score is 0.19*C + 1.50*W with no nutrition term', () => {
   for (const col of Object.keys(rows[0]!)) {
     assert.doesNotMatch(col, /nutri|^O_|kcal|quality/i, `nutrition column ${col} in the waste file`);
   }
-  assert.equal(WASTE_FACTORS_VERSION, 'waste-factors-v6');
+  assert.equal(WASTE_FACTORS_VERSION, 'waste-factors-v7');
 });
 
 test('factors: generated nutrition table matches menu_nutrition_factors_EastQuad.csv', () => {

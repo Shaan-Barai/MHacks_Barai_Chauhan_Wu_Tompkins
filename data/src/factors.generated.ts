@@ -167,7 +167,7 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "factorKey": "halal-rice",
     "food": "Halal Rice",
     "station": "Halal",
-    "weightGPerCm2": 1.3,
+    "weightGPerCm2": 0.9,
     "kgCo2ePerKg": 1.9,
     "waterM3PerKg": 0.866,
     "impactUsdPerKg": 1.66,

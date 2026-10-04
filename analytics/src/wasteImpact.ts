@@ -55,7 +55,7 @@ import { AREA_METHOD, computePhysicalAmounts, usablePhysical, type CapturePhysic
  * Must equal scrap-data's WASTE_FACTORS_VERSION (the factor tables it stamps).
  * Callers may override it per call when they pass a different table version.
  */
-export const WASTE_FACTORS_VERSION = 'waste-factors-v6';
+export const WASTE_FACTORS_VERSION = 'waste-factors-v7';
 
 /** Display name for the unclassified / not-on-the-menu food bucket. */
 export const UNKNOWN_FOOD_LABEL = 'Food not on the menu';

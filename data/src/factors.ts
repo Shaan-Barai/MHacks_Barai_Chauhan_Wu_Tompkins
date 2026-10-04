@@ -34,7 +34,7 @@ export {
 };
 
 /** Stamp on every derived impact so a factor edit is traceable (D3). */
-export const WASTE_FACTORS_VERSION = 'waste-factors-v6';
+export const WASTE_FACTORS_VERSION = 'waste-factors-v7';
 
 /** Score weights (D1): dollars per kg CO2e and per m³ freshwater. No nutrition term. */
 export const CARBON_USD_PER_KG_CO2E = 0.19;

@@ -189,11 +189,11 @@ Halal Rice, Tomatoes and Lettuce were added to the demo dinner so plates from th
 
 | Food | Station | g/cm² | C | W | Score | Recipe and source |
 |---|---|---|---|---|---|---|
-| Halal Rice | Halal | 1.3 | 1.90 | 0.866 | 1.66 | Yellow long-grain rice: 0.38 kg raw rice per kg cooked (as Sticky Rice), 3% vegetable (soybean) oil, 3% onion, 0.6% salt. Rice, soybean oil and onion from Poore & Nemecek |
+| Halal Rice | Halal | 0.9 | 1.90 | 0.866 | 1.66 | Yellow long-grain rice: 0.38 kg raw rice per kg cooked (as Sticky Rice), 3% vegetable (soybean) oil, 3% onion, 0.6% salt. Rice, soybean oil and onion from Poore & Nemecek |
 | Tomatoes | Salad Bar | 0.8 | 2.09 | 0.370 | 0.95 | Raw tomatoes, Poore & Nemecek global median (includes heated greenhouses, so C is upper-range) |
 | Lettuce | Salad Bar | 0.3 | 0.53 | 0.103 | 0.26 | Poore & Nemecek has no lettuce row, so "Other Vegetables" is used. Shredded leaves are airy, hence the low weight per area |
 
-Nutrition (in `menu_nutrition_factors_EastQuad.csv`, separate from the score) uses the same O formula with USDA values per 100 g: Halal Rice 0.23 (unenriched cooked long-grain rice, oil, onion, salt), Tomatoes 0.44 (raw red tomatoes), Lettuce 0.57 (raw romaine and iceberg, 50/50). The method reproduces the existing Baked Sweet Potatoes row (O 1.80). The densities are estimates like the others: Halal Rice is looser than Sticky Rice (1.6), and a layer of diced tomato is about 0.8 g/cm².
+Nutrition (in `menu_nutrition_factors_EastQuad.csv`, separate from the score) uses the same O formula with USDA values per 100 g: Halal Rice 0.23 (unenriched cooked long-grain rice, oil, onion, salt), Tomatoes 0.44 (raw red tomatoes), Lettuce 0.57 (raw romaine and iceberg, 50/50). The method reproduces the existing Baked Sweet Potatoes row (O 1.80). The densities are estimates like the others: Halal Rice is looser than Sticky Rice (1.6); it was lowered from 1.3 to 0.9 g/cm² after the first live demo plate, where leftover rice lay in a thin loose layer and 1.3 read too heavy (`waste-factors-v7`), and a layer of diced tomato is about 0.8 g/cm².
 
 ## Caveats
 - **Relative impact points are not physical quantities.** They are pixels weighted by the weight-per-area constants and the factors, so they rank foods against each other but are not kg, litres or dollars. Pixel area also depends on the camera distance and plate size. Accurate pixel counting does not guarantee accurate segmentation.

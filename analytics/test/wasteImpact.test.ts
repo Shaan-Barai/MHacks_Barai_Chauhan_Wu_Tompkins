@@ -390,7 +390,7 @@ test('fallback recommendation is labeled, grounded in pixels, and causal-claim f
   assert.equal(parseRecommendationOutput(JSON.stringify({ text: rec.text, bullets: rec.bullets }), facts) !== null, true, 'fallback passes the Gemini validator too');
   assert.deepEqual(rec.bullets.map((b) => b.metric), [STEAK_RATE, 'Pepperoni Pizza: 1,000 pixels wasted per portion', PLATES]);
   for (const b of rec.bullets) assert.ok(facts.allowedMetrics.includes(b.metric), b.metric);
-  assert.match(rec.inputVersion, /^impact-rec-v4\|waste-factors-v6\|[0-9a-f]{8}$/);
+  assert.match(rec.inputVersion, /^impact-rec-v4\|waste-factors-v7\|[0-9a-f]{8}$/);
   assert.equal(fallbackRecommendation(d, NOW).inputVersion, rec.inputVersion);
 
   // Only pizza has a portion rate: the steak shows up through its relative impact points.

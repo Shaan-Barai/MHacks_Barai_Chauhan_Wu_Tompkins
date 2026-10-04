@@ -556,3 +556,14 @@ calibrated-estimate decisions above; Pixels wasted stays the primary measured me
   nutrition points; nothing else changes.
 - The camera calibration panel (credit-card reference photos) is removed from Settings. The backend
   calibration API is unchanged; calibrate with `python3 demo.py --recalibrate`.
+
+## 2026-10-04: Halal Rice 0.9 g/cm², Halal Chicken on today's hall-main dinner
+
+- Halal Rice `weight_g_per_cm2` 1.3 → 0.9 (product owner: the first live demo plate read too heavy;
+  leftover rice lies in a thin loose layer). Factor version `waste-factors-v7`. Grams, CO2e, water and
+  points for Halal Rice drop by ~31%; pixels are unchanged.
+- Halal Chicken was added to the live hall-main dinner for 2026-10-04 as a menu revision (POST
+  /api/menus, next menuVersion) so Gemini can classify it instead of putting it in the unclassified
+  bucket. Its factors come from the Halal Bros table (no East Quad row, so the tables don't overlap).
+  Demo portions were carried over to the new menu version, with a labeled `demo` count for the chicken.
+  The demo seed (`data/seed/demo-seed.json`) is unchanged.

@@ -59,7 +59,7 @@ const fail = (n, d) => record('FAIL', n, d);
 const warn = (n, d) => record(strict ? 'FAIL' : 'WARN', n, d);
 const skip = (n, d) => record('SKIP', n, d);
 
-async function http(method, path, { body, headers = {}, auth = false, raw = false } = {}) {
+async function http(method, path, { body, headers = {}, auth = false, raw = false, timeoutMs = 30_000 } = {}) {
   const h = { ...headers };
   if (body !== undefined && !raw) h['Content-Type'] = 'application/json';
   if (auth && token) h.Authorization = `Bearer ${token}`;
@@ -68,7 +68,7 @@ async function http(method, path, { body, headers = {}, auth = false, raw = fals
     headers: h,
     body: body === undefined ? undefined : raw ? body : JSON.stringify(body),
     redirect: 'manual',
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   const text = await res.text();
   let json;
@@ -224,8 +224,10 @@ async function roundTrip() {
   pass('image uploaded + finalized', `${objectId} (${bytes.length} bytes)`);
 
   const started = Date.now();
+  // POST /api/captures runs Gemini + SAM inline (usually 20-25 s, slower when Gemini is busy).
   const cap = await http('POST', '/api/captures', {
     auth: true,
+    timeoutMs: 120_000,
     body: {
       eventId,
       hallId: SMOKE_HALL,

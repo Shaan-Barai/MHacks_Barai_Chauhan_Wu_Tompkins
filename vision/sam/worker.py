@@ -48,7 +48,7 @@ PORT = int(os.environ.get("SAM_PORT", "8790"))
 SETTINGS_VERSION = "sam2-box-v1"
 MAX_BODY_BYTES = 25 * 1024 * 1024
 MAX_PIXELS = 4096 * 4096
-MAX_BOXES = 32
+MAX_BOXES = 128
 
 
 def code_revision() -> str:

@@ -2,15 +2,16 @@
  * Box conversion, mask decoding/validation, and Pixels wasted counting
  * (contracts/measurement.md, MVP_AI.md steps 3, 5, 6, 7).
  *
- * Counting rule "union-v1":
- *  - An item's pixels = union of its own regions' masks (multiple regions of
- *    one item, e.g. scattered fries, never double-count).
- *  - A pixel claimed by two different named items is attributed to neither:
- *    it goes to the unclassified bucket and the capture is flagged
- *    'overlapping_masks' — no pixel is awarded to two items.
- *  - Regions classified as unknown food (itemId null) feed the unclassified bucket.
- *  - Capture total = union of every valid mask, so it always equals the sum
- *    of the per-item counts plus the unclassified bucket.
+ * Counting rule "smallest-first-v1":
+ *  - Region masks are sorted by their own foreground size, smallest first
+ *    (ties keep classification order). Each mask claims only the pixels no
+ *    earlier mask has claimed, so where masks overlap the smaller mask wins
+ *    (a carrot slice on rice keeps its pixels; the rice mask loses them).
+ *  - Claimed pixels go to the region's bucket: its menu item, or the
+ *    unclassified bucket for menu_id 0 (itemId null).
+ *  - Item pixels = sum of what its regions claimed, so multiple regions of
+ *    one item never double-count. Any overlap flags 'overlapping_masks'.
+ *  - Capture total = union of every valid mask = sum of all buckets.
  *  - The pixels assigned to each bucket form an exclusive mask (no pixel in
  *    two buckets); these back FoodMeasurement.maskCount.
  */
@@ -19,7 +20,7 @@ import { PNG } from 'pngjs';
 import type { RegionBox } from './contracts.js';
 
 export const BOX_CONVENTION = 'gemini-yxyx-1000_to_xyxy-px_v1' as const;
-export const COUNTING_RULE_VERSION = 'union-v1';
+export const COUNTING_RULE_VERSION = 'smallest-first-v1';
 
 export type BoxResult = { ok: true; box: RegionBox } | { ok: false; reason: string };
 
@@ -92,78 +93,67 @@ export interface PixelCounts {
   perItem: Map<string, number>;
   /** itemId -> contributing regionIds. */
   regionsPerItem: Map<string, string[]>;
-  /** Unknown-food pixels plus pixels contested between different items. */
+  /** Pixels claimed by unclassified (menu_id 0) regions. */
   unclassifiedPx: number;
   unclassifiedRegionIds: string[];
-  /** Pixels claimed by two or more different named items. */
-  contestedPx: number;
+  /** Pixels covered by more than one mask (each counted once, for the smallest). */
+  overlapPx: number;
   /** Union of all valid masks. */
   capturePx: number;
   /** itemId -> bitmap of exactly the pixels assigned to that item. */
   itemBitmaps: Map<string, Uint8Array>;
-  /** Bitmap of the unclassified bucket (unknown food + contested pixels). */
+  /** Bitmap of the unclassified bucket. */
   unclassifiedBitmap: Uint8Array;
 }
 
-/** Apply counting rule union-v1 to validated, equally sized bitmaps. */
+/** Apply counting rule smallest-first-v1 to validated, equally sized bitmaps. */
 export function countPixels(regions: CountedRegion[], size: number): PixelCounts {
-  const UNCLAIMED = -1;
-  const CONTESTED = -2;
-  const UNKNOWN = -3;
-  const itemIndex = new Map<string, number>();
-  const owner = new Int32Array(size).fill(UNCLAIMED);
-  let unknown = new Uint8Array(0);
-  const regionsPerItem = new Map<string, string[]>();
-  const unclassifiedRegionIds: string[] = [];
+  const sized = regions.map((r, order) => {
+    let px = 0;
+    for (let i = 0; i < size; i++) if (r.bitmap[i]) px++;
+    return { r, order, px };
+  });
+  sized.sort((a, b) => a.px - b.px || a.order - b.order);
 
-  for (const region of regions) {
-    if (region.itemId === null) {
-      if (unknown.length === 0) unknown = new Uint8Array(size);
-      for (let i = 0; i < size; i++) if (region.bitmap[i]) unknown[i] = 1;
-      unclassifiedRegionIds.push(region.regionId);
-      continue;
-    }
-    let idx = itemIndex.get(region.itemId);
-    if (idx === undefined) {
-      idx = itemIndex.size;
-      itemIndex.set(region.itemId, idx);
-    }
-    regionsPerItem.set(region.itemId, [...(regionsPerItem.get(region.itemId) ?? []), region.regionId]);
-    for (let i = 0; i < size; i++) {
-      if (!region.bitmap[i]) continue;
-      const current = owner[i]!;
-      if (current === UNCLAIMED) owner[i] = idx;
-      else if (current >= 0 && current !== idx) owner[i] = CONTESTED;
-    }
-  }
-
-  const perItemCounts = new Array<number>(itemIndex.size).fill(0);
-  const bitmaps = Array.from({ length: itemIndex.size }, () => new Uint8Array(size));
-  const unclassifiedBitmap = new Uint8Array(size);
-  let unclassifiedPx = 0;
-  let contestedPx = 0;
-  let capturePx = 0;
-  for (let i = 0; i < size; i++) {
-    let o = owner[i]!;
-    if (o === UNCLAIMED && unknown.length > 0 && unknown[i]) o = UNKNOWN;
-    if (o === UNCLAIMED) continue;
-    capturePx++;
-    if (o >= 0) {
-      perItemCounts[o]!++;
-      bitmaps[o]![i] = 1;
-    } else {
-      unclassifiedPx++;
-      unclassifiedBitmap[i] = 1;
-      if (o === CONTESTED) contestedPx++;
-    }
-  }
+  const claimed = new Uint8Array(size);
   const perItem = new Map<string, number>();
+  const regionsPerItem = new Map<string, string[]>();
   const itemBitmaps = new Map<string, Uint8Array>();
-  for (const [itemId, idx] of itemIndex) {
-    perItem.set(itemId, perItemCounts[idx]!);
-    itemBitmaps.set(itemId, bitmaps[idx]!);
+  const unclassifiedBitmap = new Uint8Array(size);
+  const unclassifiedRegionIds: string[] = [];
+  let unclassifiedPx = 0;
+  let overlapPx = 0;
+  let capturePx = 0;
+  // Regions keep classification order in regionsPerItem; claiming follows size order.
+  for (const r of regions) {
+    if (r.itemId === null) unclassifiedRegionIds.push(r.regionId);
+    else regionsPerItem.set(r.itemId, [...(regionsPerItem.get(r.itemId) ?? []), r.regionId]);
   }
-  return { perItem, regionsPerItem, unclassifiedPx, unclassifiedRegionIds, contestedPx, capturePx, itemBitmaps, unclassifiedBitmap };
+  for (const { r } of sized) {
+    let target: Uint8Array;
+    if (r.itemId === null) target = unclassifiedBitmap;
+    else {
+      target = itemBitmaps.get(r.itemId) ?? new Uint8Array(size);
+      itemBitmaps.set(r.itemId, target);
+      if (!perItem.has(r.itemId)) perItem.set(r.itemId, 0);
+    }
+    let won = 0;
+    for (let i = 0; i < size; i++) {
+      if (!r.bitmap[i]) continue;
+      if (claimed[i]) {
+        if (claimed[i] === 1) overlapPx++; // count each overlapped pixel once
+        claimed[i] = 2;
+        continue;
+      }
+      claimed[i] = 1;
+      target[i] = 1;
+      won++;
+      capturePx++;
+    }
+    if (r.itemId === null) unclassifiedPx += won;
+    else perItem.set(r.itemId, perItem.get(r.itemId)! + won);
+  }
+  return { perItem, regionsPerItem, unclassifiedPx, unclassifiedRegionIds, overlapPx, capturePx, itemBitmaps, unclassifiedBitmap };
 }
 
 /** Encode a 0/1 bitmap as a binary greyscale PNG (255 = food) that decodeBinaryMask accepts. */

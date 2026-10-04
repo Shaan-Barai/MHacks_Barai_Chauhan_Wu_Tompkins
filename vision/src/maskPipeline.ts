@@ -7,7 +7,7 @@
  *      XYXY on the exact analyzed image; invalid boxes fail their region.
  *   3. SAM 2.1 segments every valid box on that same image (one embedding).
  *   4. Masks are decoded and validated (exact size, strictly binary, nonempty).
- *   5. Pixels are counted in code (rule union-v1, masks.ts). Each bucket's
+ *   5. Pixels are counted in code (rule smallest-first-v1, masks.ts). Each bucket's
  *      exclusive mask is returned for storage and backs maskCount.
  *
  * Stage outcomes stay separate: classification failure, explicit empty
@@ -128,21 +128,21 @@ export async function analyzeCaptureWithMasks(
   });
 
   // 1. Classification + localization.
-  const allowed = new Set(input.menu.items.map((i) => i.itemId));
+  const menuIds = input.menu.items.map((i) => i.itemId);
   let text: string;
   try {
     const imagePart = await imageInputToPart({ kind: 'bytes', bytes: input.image.bytes, mimeType: input.image.mimeType });
     text = await gateway.generateStructured({
       parts: [imagePart, { text: buildLocalizePrompt(input.menu.items, input.geometry) }],
       systemInstruction: LOCALIZE_SYSTEM_INSTRUCTION,
-      responseSchema: buildLocalizeSchema([...allowed]),
+      responseSchema: buildLocalizeSchema(menuIds.length),
       temperature: 0,
     });
   } catch (err) {
     const error = err instanceof GatewayError ? err.apiError : makeApiError('VISION_INTERNAL', 'Unexpected classification error.', false);
     return finish('failed', { info: NOT_RUN, status: 'skipped', countStatus: 'unavailable', regions: [] }, [], [], error);
   }
-  const located = validateLocalizeText(text, allowed);
+  const located = validateLocalizeText(text, menuIds);
   if (!located.ok) {
     return finish(
       'failed',
@@ -256,7 +256,7 @@ export async function analyzeCaptureWithMasks(
 
   // 5. Count pixels.
   const counts = countPixels(counted, W * H);
-  if (counts.contestedPx > 0) flags.add('overlapping_masks');
+  if (counts.overlapPx > 0) flags.add('overlapping_masks');
   const baselineFor = new Map((input.baselines ?? []).filter((b) => b.expectedAreaPx > 0).map((b) => [b.itemId, b]));
   const measurements: FoodMeasurement[] = [];
   const itemMasks: MaskAnalysisResult['itemMasks'] = [];
@@ -302,10 +302,11 @@ export async function analyzeCaptureWithMasks(
     });
   };
   for (const [itemId, pixels] of counts.perItem) {
+    if (pixels === 0) continue; // every pixel went to smaller overlapping masks
     push(itemId, pixels, counts.regionsPerItem.get(itemId) ?? [], counts.itemBitmaps.get(itemId)!);
   }
   if (counts.unclassifiedPx > 0) {
-    push(null, counts.unclassifiedPx, counts.unclassifiedRegionIds, counts.unclassifiedBitmap, counts.contestedPx > 0 ? ['overlapping_masks'] : []);
+    push(null, counts.unclassifiedPx, counts.unclassifiedRegionIds, counts.unclassifiedBitmap);
   }
 
   const partial = failed > 0;

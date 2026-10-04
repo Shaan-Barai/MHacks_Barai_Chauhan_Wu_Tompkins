@@ -10,6 +10,7 @@ import { PNG } from 'pngjs';
 import { createGeminiGateway } from '../src/gateway.js';
 import { analyzeCaptureWithMasks, type MaskAnalysisInput } from '../src/maskPipeline.js';
 import { countPixels, decodeBinaryMask, geminiBoxToPixels } from '../src/masks.js';
+import { buildNumberedMenu, validateLocalizeText } from '../src/localize.js';
 import type { Segmenter, SegmentResponse } from '../src/samClient.js';
 
 const W = 100;
@@ -70,7 +71,7 @@ const input: MaskAnalysisInput = {
 
 // Boxes in Gemini [ymin, xmin, ymax, xmax] 0-1000. On 100x50: x = v/10, y = v/20.
 const burgerBox = [0, 0, 400, 200]; // x 0-20, y 0-20  -> 400 px
-const friesBox = [0, 100, 400, 300]; // x 10-30, y 0-20 -> overlaps burger at x 10-20 (200 px)
+const friesBox = [0, 100, 200, 300]; // x 10-30, y 0-10 = 200 px -> overlaps burger at x 10-20, y 0-10 (100 px)
 const friesBox2 = [600, 800, 1000, 1000]; // x 80-100, y 30-50 -> 400 px
 
 test('box conversion: Gemini [ymin,xmin,ymax,xmax]/1000 -> pixel [x0,y0,x1,y1] (no XY/YX swap)', () => {
@@ -97,11 +98,11 @@ test('mask decoding: known foreground count; misaligned, soft, and non-PNG masks
   assert.deepEqual(decodeBinaryMask(new Uint8Array([1, 2, 3]), W, H), { ok: false, reason: 'mask_not_png' });
 });
 
-test('counting: overlap between foods is counted once and attributed to neither item', () => {
-  const a = new Uint8Array(10).fill(1, 0, 6); // pixels 0-5
-  const b = new Uint8Array(10).fill(1, 4, 8); // pixels 4-7 (overlap 4-5)
-  const c = new Uint8Array(10).fill(1, 0, 2); // second region of item a (inside a)
-  const u = new Uint8Array(10).fill(1, 7, 10); // unknown food 7-9 (7 also in b)
+test('counting smallest-first-v1: where masks overlap the smaller mask wins; each pixel counted once', () => {
+  const a = new Uint8Array(10).fill(1, 0, 6); // item a, pixels 0-5 (6 px)
+  const b = new Uint8Array(10).fill(1, 4, 8); // item b, pixels 4-7 (4 px)
+  const c = new Uint8Array(10).fill(1, 0, 2); // item a again, pixels 0-1 (2 px)
+  const u = new Uint8Array(10).fill(1, 7, 10); // unclassified, pixels 7-9 (3 px)
   const counts = countPixels(
     [
       { regionId: 'r1', itemId: 'a', bitmap: a },
@@ -111,42 +112,40 @@ test('counting: overlap between foods is counted once and attributed to neither 
     ],
     10,
   );
-  assert.equal(counts.perItem.get('a'), 4); // 0-3
-  assert.equal(counts.perItem.get('b'), 2); // 6-7
-  assert.equal(counts.contestedPx, 2); // 4-5
-  assert.equal(counts.unclassifiedPx, 4); // 4-5 contested + 8-9 unknown
+  // Claim order by size: c(2) -> 0,1 ; u(3) -> 7,8,9 ; b(4) -> 4,5,6 ; a(6) -> 2,3.
+  assert.equal(counts.perItem.get('a'), 4); // 0,1 (via c) + 2,3
+  assert.equal(counts.perItem.get('b'), 3); // 4,5,6 — b beats a on 4,5 (smaller), loses 7 to u
+  assert.equal(counts.unclassifiedPx, 3); // 7,8,9
+  assert.equal(counts.overlapPx, 5); // 0,1,4,5,7
   assert.equal(counts.capturePx, 10);
-  assert.equal(counts.capturePx, 4 + 2 + counts.unclassifiedPx, 'capture union = items + unclassified');
+  assert.equal(counts.capturePx, 4 + 3 + counts.unclassifiedPx, 'capture union = items + unclassified');
+  assert.deepEqual(counts.regionsPerItem.get('a'), ['r1', 'r3']);
 });
 
-test('full pipeline: classify -> segment -> count, with union across regions and overlap flag', async () => {
+test('full pipeline: classify -> segment -> count; smaller fries mask wins its overlap with the burger', async () => {
   const sam = boxFiller();
   const { attempt, measurements, masks, itemMasks } = await analyzeCaptureWithMasks(
-    gemini({
-      plateEmpty: false,
-      ambiguous: false,
-      regions: [
-        { itemId: 'burger', visualLabel: 'bitten burger', box_2d: burgerBox },
-        { itemId: 'fries', visualLabel: 'fries', box_2d: friesBox },
-        { itemId: 'fries', visualLabel: 'stray fries', box_2d: friesBox2 },
-      ],
-    }),
+    gemini([
+        { ingredient: 'bitten burger', menu_id: 1, box_2d: burgerBox },
+        { ingredient: 'fries', menu_id: 2, box_2d: friesBox },
+        { ingredient: 'stray fries', menu_id: 2, box_2d: friesBox2 },
+      ]),
     sam,
     { ...input, baselines: [{ baselineId: 'b1', baselineVersion: 1, itemId: 'burger', expectedAreaPx: 400, geometry: input.geometry, source: 'manual_area' }] },
   );
-  assert.deepEqual(sam.calls, [[[0, 0, 20, 20], [10, 0, 30, 20], [80, 30, 100, 50]]]);
+  assert.deepEqual(sam.calls, [[[0, 0, 20, 20], [10, 0, 30, 10], [80, 30, 100, 50]]]);
   assert.equal(attempt.status, 'succeeded');
   const seg = attempt.segmentation!;
   assert.equal(seg.countStatus, 'complete');
-  assert.equal(seg.capturePixelsWasted, 400 + 400 + 400 - 200); // union
+  assert.equal(seg.capturePixelsWasted, 400 + 200 + 400 - 100); // union
   const by = Object.fromEntries(measurements.map((m) => [m.itemId ?? 'unclassified', m]));
-  assert.equal(by.burger!.remainingAreaPx, 200);
+  assert.equal(by.burger!.remainingAreaPx, 400 - 100, 'burger loses the overlap to the smaller fries mask');
   assert.equal(by.fries!.remainingAreaPx, 200 + 400);
-  assert.equal(by.unclassified!.remainingAreaPx, 200);
+  assert.equal(by.unclassified, undefined, 'overlaps no longer go to the unclassified bucket');
   assert.deepEqual(by.fries!.regionIds, ['att_1_r2', 'att_1_r3']);
   assert.ok(attempt.qualityFlags.includes('overlapping_masks'));
   assert.ok(measurements.every((m) => m.method === 'mask_pixel_count' && Number.isInteger(m.remainingAreaPx)));
-  assert.equal(by.burger!.displayWastePercent, 50, 'optional baseline adds an auxiliary percent');
+  assert.equal(by.burger!.displayWastePercent, 75, 'optional baseline adds an auxiliary percent');
   assert.equal(by.fries!.unavailableReason, 'no_baseline_auxiliary_only', 'missing baseline never blocks the count');
   assert.equal(masks.length, 3);
   // One exclusive mask per measurement: disjoint, each counting to its own pixels.
@@ -159,7 +158,7 @@ test('full pipeline: classify -> segment -> count, with union across regions and
     assert.equal(decoded.pixels, m.remainingAreaPx);
     assert.equal(mask.count.pixelsWasted, m.remainingAreaPx);
     assert.equal(mask.count.assignment, 'exclusive');
-    assert.equal(mask.count.processingVersion, 'union-v1');
+    assert.equal(mask.count.processingVersion, 'smallest-first-v1');
     decoded.bitmap.forEach((v, i) => {
       if (!v) return;
       assert.equal(owned[i], 0, 'no pixel belongs to two measurements');
@@ -171,7 +170,7 @@ test('full pipeline: classify -> segment -> count, with union across regions and
 
 test('explicit empty plate is a valid zero; segmentation is not called', async () => {
   const sam = boxFiller();
-  const { attempt, measurements } = await analyzeCaptureWithMasks(gemini({ plateEmpty: true, ambiguous: false, regions: [] }), sam, input);
+  const { attempt, measurements } = await analyzeCaptureWithMasks(gemini([]), sam, input);
   assert.equal(attempt.status, 'succeeded');
   assert.equal(attempt.segmentation!.countStatus, 'empty');
   assert.equal(attempt.segmentation!.capturePixelsWasted, 0);
@@ -194,7 +193,7 @@ test('segmentation unavailable: retryable failure, never zero pixels', async () 
     },
   };
   const { attempt, measurements } = await analyzeCaptureWithMasks(
-    gemini({ plateEmpty: false, ambiguous: false, regions: [{ itemId: 'burger', visualLabel: 'burger', box_2d: burgerBox }] }),
+    gemini([{ ingredient: 'burger', menu_id: 1, box_2d: burgerBox }]),
     down,
     input,
   );
@@ -208,15 +207,11 @@ test('segmentation unavailable: retryable failure, never zero pixels', async () 
 test('partial: one malformed mask and one invalid box -> lower-bound count, needs review', async () => {
   const sam = boxFiller((k) => (k === 1 ? { maskPng: maskPng(W, H, () => 128) } : {}));
   const { attempt, measurements } = await analyzeCaptureWithMasks(
-    gemini({
-      plateEmpty: false,
-      ambiguous: false,
-      regions: [
-        { itemId: 'burger', visualLabel: 'burger', box_2d: burgerBox },
-        { itemId: 'fries', visualLabel: 'fries', box_2d: friesBox2 },
-        { itemId: 'fries', visualLabel: 'fries', box_2d: [500, 500, 400, 600] },
-      ],
-    }),
+    gemini([
+      { ingredient: 'burger', menu_id: 1, box_2d: burgerBox },
+      { ingredient: 'fries', menu_id: 2, box_2d: friesBox2 },
+      { ingredient: 'fries', menu_id: 2, box_2d: [500, 500, 400, 600] },
+    ]),
     sam,
     input,
   );
@@ -235,7 +230,7 @@ test('a segmenter answering at the wrong resolution is rejected as misaligned', 
   const sam = boxFiller();
   const wrong: Segmenter = { segment: async (img, boxes) => ({ ...(await sam.segment(img, boxes)), widthPx: 2 * W }) };
   const { attempt } = await analyzeCaptureWithMasks(
-    gemini({ plateEmpty: false, ambiguous: false, regions: [{ itemId: 'burger', visualLabel: 'b', box_2d: burgerBox }] }),
+    gemini([{ ingredient: 'b', menu_id: 1, box_2d: burgerBox }]),
     wrong,
     input,
   );
@@ -244,9 +239,9 @@ test('a segmenter answering at the wrong resolution is rejected as misaligned', 
   assert.ok(attempt.qualityFlags.includes('incompatible_geometry'));
 });
 
-test('unknown food goes to the unclassified bucket; invented item IDs are rejected', async () => {
+test('menu_id 0 goes to the unclassified bucket; menu_id outside the numbered menu is rejected', async () => {
   const { measurements, attempt } = await analyzeCaptureWithMasks(
-    gemini({ plateEmpty: false, ambiguous: false, regions: [{ itemId: 'unknown', visualLabel: 'mystery stew', box_2d: burgerBox }] }),
+    gemini([{ ingredient: 'mystery stew', menu_id: 0, box_2d: burgerBox }]),
     boxFiller(),
     input,
   );
@@ -254,10 +249,33 @@ test('unknown food goes to the unclassified bucket; invented item IDs are reject
   assert.deepEqual(measurements.map((m) => [m.itemId, m.remainingAreaPx]), [[null, 400]]);
 
   const invented = await analyzeCaptureWithMasks(
-    gemini({ plateEmpty: false, ambiguous: false, regions: [{ itemId: 'pizza', visualLabel: 'pizza', box_2d: burgerBox }] }),
+    gemini([{ ingredient: 'pizza', menu_id: 3, box_2d: burgerBox }]),
     boxFiller(),
     input,
   );
   assert.equal(invented.attempt.status, 'failed');
-  assert.equal(invented.attempt.error?.details?.reason, 'item_not_on_menu');
+  assert.equal(invented.attempt.error?.details?.reason, 'menu_id_out_of_range');
+});
+
+test('localize v2: numbered menu from name + description; menu_id must be an integer in 0..N', () => {
+  const items = [
+    { itemId: 'stir', menuId: 'm', displayName: 'Vegetable Stir Fry Blend', description: 'carrot coins, pepper strips' },
+    { itemId: 'rice', menuId: 'm', displayName: 'Sticky Rice' },
+  ];
+  assert.equal(buildNumberedMenu(items), '1. Vegetable Stir Fry Blend — carrot coins, pepper strips\n2. Sticky Rice');
+  const ok = validateLocalizeText(
+    JSON.stringify([
+      { ingredient: 'carrot slice', menu_id: 1, box_2d: [1, 2, 3, 4] },
+      { ingredient: 'rice clump', menu_id: 2, box_2d: [5, 6, 7, 8] },
+      { ingredient: 'melon', menu_id: 0, box_2d: [9, 9, 10, 10] },
+    ]),
+    ['stir', 'rice'],
+  );
+  assert.ok(ok.ok);
+  assert.deepEqual(ok.regions.map((r) => [r.itemId, r.menuId, r.visualLabel]), [['stir', 1, 'carrot slice'], ['rice', 2, 'rice clump'], [null, 0, 'melon']]);
+  assert.deepEqual(validateLocalizeText('[]', ['stir']), { ok: true, plateEmpty: true, ambiguous: false, regions: [] });
+  for (const bad of [3, -1, 1.5, '1']) {
+    assert.deepEqual(validateLocalizeText(JSON.stringify([{ ingredient: 'x', menu_id: bad, box_2d: [1, 2, 3, 4] }]), ['stir', 'rice']), { ok: false, reason: 'menu_id_out_of_range' });
+  }
+  assert.deepEqual(validateLocalizeText('{"regions":[]}', ['stir']), { ok: false, reason: 'not_an_array' });
 });

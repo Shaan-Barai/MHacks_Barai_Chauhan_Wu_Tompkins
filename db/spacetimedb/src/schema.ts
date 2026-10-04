@@ -270,7 +270,7 @@ const captureCount = table(
     codeRevision: t.string(),
     promptSource: t.string(), // 'gemini_box'
     settingsVersion: t.string(), // e.g. 'sam2-box-v1'
-    countingRuleVersion: t.string(), // e.g. 'union-v1'
+    countingRuleVersion: t.string(), // e.g. 'smallest-first-v1'
     status: t.string(), // 'succeeded' | 'partial' | 'failed' | 'skipped'
     countStatus: t.string(), // 'complete' | 'empty' | 'partial' | 'unavailable'
     capturePixelsWasted: t.option(t.u32()),

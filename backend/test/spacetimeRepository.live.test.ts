@@ -210,7 +210,7 @@ test('SpacetimeDB repository round-trips every entity through the reducers', { s
       codeRevision: 'sam2@test',
       promptSource: 'gemini_box',
       settingsVersion: 'sam2-box-v1',
-      countingRuleVersion: 'union-v1',
+      countingRuleVersion: 'smallest-first-v1',
       status: 'succeeded',
       countStatus: 'complete',
       capturePixelsWasted: 900,

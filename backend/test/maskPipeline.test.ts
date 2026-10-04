@@ -49,14 +49,11 @@ const segmenter: Segmenter = {
 const gemini = createGeminiGateway({
   env: {},
   mockTransport: () =>
-    JSON.stringify({
-      plateEmpty: false,
-      ambiguous: false,
-      regions: [
-        { itemId: 'item_eggs', visualLabel: 'scrambled eggs', box_2d: [0, 0, 250, 250] },
-        { itemId: 'item_toast', visualLabel: 'toast crust', box_2d: [0, 250, 250, 500] },
-      ],
-    }),
+    JSON.stringify([
+      // Numbered menu from helpers.MENU: 1 = item_eggs, 2 = item_toast, 3 = item_mystery.
+      { ingredient: 'scrambled eggs', menu_id: 1, box_2d: [0, 0, 250, 250] },
+      { ingredient: 'toast crust', menu_id: 2, box_2d: [0, 250, 250, 500] },
+    ]),
 });
 
 test('capture -> masks stored in object storage -> Pixels wasted on the dashboard, once', async (t) => {
@@ -85,7 +82,7 @@ test('capture -> masks stored in object storage -> Pixels wasted on the dashboar
     assert.equal(m.method, 'mask_pixel_count');
     assert.equal(m.maskCount.pixelsWasted, m.remainingAreaPx);
     assert.equal(m.maskCount.assignment, 'exclusive');
-    assert.equal(m.maskCount.processingVersion, 'union-v1');
+    assert.equal(m.maskCount.processingVersion, 'smallest-first-v1');
     const access = await s.api('GET', `/api/images/${m.maskCount.maskObjectId}/access`);
     assert.equal(access.status, 200, 'exclusive mask is a finalized object in storage');
     const png = PNG.sync.read(Buffer.from(await (await fetch(`${s.baseUrl}${access.json.url}`)).arrayBuffer()));

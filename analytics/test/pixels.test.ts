@@ -38,7 +38,7 @@ function attempt(id: string, seg?: Partial<SegmentationResult>, status: Analysis
             codeRevision: 'r',
             promptSource: 'gemini_box',
             settingsVersion: 's',
-            countingRuleVersion: 'union-v1',
+            countingRuleVersion: 'smallest-first-v1',
             status: 'succeeded',
             countStatus: 'complete',
             widthPx: 1024,

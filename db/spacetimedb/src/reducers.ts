@@ -279,7 +279,7 @@ function storedError(e: unknown) {
  * Segmentation provenance + Pixels wasted for one attempt
  * (contracts/measurement.md). Enforces the counting invariants a bad write
  * would break: integer counts within the canvas, and for complete/partial
- * captures sum(item + unclassified pixels) == capture union (rule union-v1).
+ * captures sum(item + unclassified pixels) == capture union (rule smallest-first-v1; any rule that assigns each pixel to one bucket).
  */
 function insertSegmentation(ctx: any, attemptId: string, eventId: string, seg: Json, measuredPx: number) {
   const width = num(seg, 'widthPx', 'segmentation', { exclusive: true });

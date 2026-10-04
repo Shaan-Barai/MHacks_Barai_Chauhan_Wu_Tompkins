@@ -200,3 +200,120 @@ export function test2Photos(count) {
       .map((f) => path.join(REPO, 'test2', f)),
   );
 }
+
+// --- Cloudflare R2 (credentials from ../.env; never logged) ---
+
+export function r2Available() {
+  return Boolean(process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY && process.env.OBJECT_STORAGE_CONTAINER);
+}
+
+/** objectStorage config for startBackend() writing to R2 under `keyPrefix` (e.g. 'test/it-123/'). */
+export function r2ObjectStorage(keyPrefix) {
+  return {
+    provider: 'r2',
+    container: process.env.OBJECT_STORAGE_CONTAINER,
+    keyPrefix,
+    r2: {
+      accountId: process.env.R2_ACCOUNT_ID,
+      accessKeyId: process.env.R2_ACCESS_KEY_ID,
+      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+      ...(process.env.R2_ENDPOINT ? { endpoint: process.env.R2_ENDPOINT } : {}),
+    },
+  };
+}
+
+const backendRequire = createRequire(pkg('backend/package.json'));
+
+function s3() {
+  const { S3Client } = backendRequire('@aws-sdk/client-s3');
+  return new S3Client({
+    region: 'auto',
+    endpoint: process.env.R2_ENDPOINT || `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY },
+  });
+}
+
+/** Keys under a prefix in the R2 bucket. Refuses anything outside test/. */
+export async function listR2(prefix) {
+  if (!prefix.startsWith('test/')) throw new Error(`refusing to list outside test/: ${prefix}`);
+  const { ListObjectsV2Command } = backendRequire('@aws-sdk/client-s3');
+  const client = s3();
+  const keys = [];
+  let token;
+  do {
+    const page = await client.send(new ListObjectsV2Command({ Bucket: process.env.OBJECT_STORAGE_CONTAINER, Prefix: prefix, ContinuationToken: token }));
+    for (const o of page.Contents ?? []) keys.push(o.Key);
+    token = page.IsTruncated ? page.NextContinuationToken : undefined;
+  } while (token);
+  return keys;
+}
+
+/** Delete every object under a test/ prefix; returns how many were deleted. */
+export async function cleanR2Prefix(prefix) {
+  const { DeleteObjectsCommand } = backendRequire('@aws-sdk/client-s3');
+  const keys = await listR2(prefix);
+  const client = s3();
+  for (let i = 0; i < keys.length; i += 1000) {
+    await client.send(new DeleteObjectsCommand({
+      Bucket: process.env.OBJECT_STORAGE_CONTAINER,
+      Delete: { Objects: keys.slice(i, i + 1000).map((Key) => ({ Key })), Quiet: true },
+    }));
+  }
+  return keys.length;
+}
+
+// --- SpacetimeDB throwaway databases (never `scrap`) ---
+
+import { spawnSync } from 'node:child_process';
+
+export const SPACETIME_URI = process.env.SPACETIMEDB_URI || 'http://127.0.0.1:3000';
+
+export async function spacetimeAvailable() {
+  if (spawnSync('spacetime', ['--version'], { encoding: 'utf8' }).status !== 0) return 'the spacetime CLI is not installed';
+  try {
+    const res = await fetch(`${SPACETIME_URI}/v1/ping`, { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) return `SpacetimeDB at ${SPACETIME_URI} answered ${res.status}`;
+  } catch {
+    return `no SpacetimeDB at ${SPACETIME_URI} (run: spacetime start)`;
+  }
+  return null;
+}
+
+/** Publish db/spacetimedb to a fresh local database named `name` (must start with 'scrap-test-'). */
+export function publishThrowaway(name) {
+  if (!name.startsWith('scrap-test-')) throw new Error(`refusing to publish to ${name}`);
+  const r = spawnSync('spacetime', ['publish', '--module-path', pkg('db/spacetimedb'), '--server', 'local', '--yes', name], { encoding: 'utf8', timeout: 300_000 });
+  if (r.status !== 0) throw new Error(`spacetime publish ${name} failed: ${(r.stderr || r.stdout).slice(-800)}`);
+}
+
+export function deleteThrowaway(name) {
+  if (!name.startsWith('scrap-test-')) throw new Error(`refusing to delete ${name}`);
+  const r = spawnSync('spacetime', ['delete', '--server', 'local', '--yes', name], { encoding: 'utf8', timeout: 120_000 });
+  return r.status === 0 ? null : (r.stderr || r.stdout).trim();
+}
+
+export function spacetimeRepo(name) {
+  return new backend.spacetimeRepo.SpacetimeRepository({ uri: SPACETIME_URI, module: name, token: process.env.SPACETIMEDB_TOKEN || undefined });
+}
+
+/** Raw SQL against a throwaway database (row counts in assertions). */
+export async function sql(name, query) {
+  const res = await fetch(`${SPACETIME_URI}/v1/database/${name}/sql`, {
+    method: 'POST',
+    headers: process.env.SPACETIMEDB_TOKEN ? { Authorization: `Bearer ${process.env.SPACETIMEDB_TOKEN}` } : {},
+    body: query,
+  });
+  if (!res.ok) throw new Error(`SQL failed (${res.status}): ${await res.text()}`);
+  const [result] = await res.json();
+  return result?.rows ?? [];
+}
+
+/** Call a reducer directly; resolves to { ok, status, text }. */
+export async function callReducer(name, reducer, args) {
+  const res = await fetch(`${SPACETIME_URI}/v1/database/${name}/call/${reducer}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(process.env.SPACETIMEDB_TOKEN ? { Authorization: `Bearer ${process.env.SPACETIMEDB_TOKEN}` } : {}) },
+    body: JSON.stringify(args),
+  });
+  return { ok: res.ok, status: res.status, text: await res.text() };
+}

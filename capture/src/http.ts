@@ -6,12 +6,13 @@
  *   PUT  <uploadUrl>                  normalized bytes (R2 presigned URL, or the local-dev route)
  *   POST /api/images/:id/finalize     verify + register the object reference
  *   POST /api/captures                capture metadata + finalized objectId
+ *   POST /api/dish-match              same-dish verdict for the camera bridge
  *
  * Still not a storage client: no credentials, no bucket access — only the
  * backend's authorized upload URL. Upload URLs are never logged.
  */
 
-import type { ApiError, CaptureEvent, ProcessingState } from './contract-types.js';
+import type { ApiError, CaptureEvent, DishMatchRequest, DishMatchResult, ProcessingState } from './contract-types.js';
 import type { IngestionSink } from './ingestion.js';
 import type { FinalizedUpload, UploadAuthorization, UploadRequest, Uploader } from './uploader.js';
 
@@ -113,5 +114,26 @@ export class HttpIngestionSink implements IngestionSink {
       'Capture submission',
     );
     this.outcomes.set(event.eventId, { state: body.event.state, deduplicated: body.deduplicated === true });
+  }
+}
+
+/** Same-dish verdicts for the camera bridge (BRIDGE.md §4.3). */
+export interface DishMatcher {
+  match(request: DishMatchRequest): Promise<DishMatchResult>;
+}
+
+export class HttpDishMatcher implements DishMatcher {
+  private readonly base: string;
+
+  constructor(apiUrl: string) {
+    this.base = apiUrl.replace(/\/$/, '');
+  }
+
+  match(body: DishMatchRequest): Promise<DishMatchResult> {
+    return request<DishMatchResult>(
+      `${this.base}/api/dish-match`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+      'Dish comparison',
+    );
   }
 }

@@ -3,3 +3,7 @@
 
 # Python bytecode from capture/uno-q scripts/tests
 __pycache__/
+
+# Uno Q inbox bridge state (dish grouping verdicts + minted eventIds)
+.inbox-groups.json
+.inbox-ingest.json

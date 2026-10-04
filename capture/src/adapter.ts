@@ -24,7 +24,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import type { ApiError, CaptureEvent, QualityFlag } from './contract-types.js';
+import type { ApiError, CaptureEvent, CaptureSource, QualityFlag } from './contract-types.js';
 import { CaptureError, CaptureErrorCodes, captureError, toApiError } from './errors.js';
 import type { IngestionSink } from './ingestion.js';
 import { type IdFactory, newId } from './ids.js';
@@ -65,6 +65,17 @@ export interface ManualUploadOptions {
   declaredFlags?: DeclarableFlag[];
   plateShape?: 'round' | 'tray' | 'other';
   plateDiameterPx?: number;
+}
+
+/** One dish from the Uno Q camera bridge (BRIDGE.md §5). */
+export interface CameraCaptureOptions {
+  /** Dish group ID (first frame's captureId); the retry key for this dish. */
+  groupId: string;
+  /** Representative frame's raw photo; it is normalized before upload. */
+  imagePath: string;
+  capturedAt: string;
+  hallId: string;
+  serviceId: string;
 }
 
 interface MintedIdentity {
@@ -184,8 +195,24 @@ export class ReplayCaptureAdapter {
     });
   }
 
+  /**
+   * Ingest one camera dish (source label: 'camera'). The bridge has already
+   * grouped frames so each dish arrives once; the groupId keeps retries on
+   * the same eventId.
+   */
+  async ingestCameraCapture(options: CameraCaptureOptions): Promise<CaptureResult> {
+    return this.ingestEntry({
+      source: 'camera',
+      key: `camera:${options.serviceId}:${options.groupId}`,
+      hallId: options.hallId,
+      serviceId: options.serviceId,
+      entry: { entryId: options.groupId, imagePath: options.imagePath, capturedAt: options.capturedAt },
+      baseDir: process.cwd(),
+    });
+  }
+
   private async ingestEntry(args: {
-    source: 'replay' | 'manual_upload';
+    source: CaptureSource;
     key: string;
     hallId: string;
     serviceId: string;

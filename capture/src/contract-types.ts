@@ -52,3 +52,24 @@ export interface ApiError {
   details?: Record<string, unknown>;
   retryable: boolean;
 }
+
+/** POST /api/dish-match payloads (BRIDGE.md §4.3). Thumbnails are transient. */
+export interface DishMatchImage {
+  mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+  base64: string;
+}
+
+export interface DishMatchRequest {
+  reference: DishMatchImage;
+  candidate: DishMatchImage;
+}
+
+/** `sameDish` is present only when a plate is visible in the candidate. */
+export type DishMatchResult = (
+  | { plateVisible: false }
+  | { plateVisible: true; sameDish: 'same' | 'different' | 'unsure' }
+) & {
+  reason: string;
+  model: string;
+  promptVersion: string;
+};

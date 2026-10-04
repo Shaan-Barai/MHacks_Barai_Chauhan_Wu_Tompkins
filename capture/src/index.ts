@@ -7,6 +7,9 @@ export type {
   ApiError,
   CaptureEvent,
   CaptureSource,
+  DishMatchImage,
+  DishMatchRequest,
+  DishMatchResult,
   ImageGeometry,
   ProcessingState,
   QualityFlag,
@@ -51,11 +54,36 @@ export {
 
 export { InMemoryIngestionSink, type IngestionSink } from './ingestion.js';
 
-export { HttpUploader, HttpIngestionSink, BackendRequestError, type SubmittedCapture } from './http.js';
+export {
+  HttpUploader,
+  HttpIngestionSink,
+  HttpDishMatcher,
+  BackendRequestError,
+  type DishMatcher,
+  type SubmittedCapture,
+} from './http.js';
 
 export {
   ReplayCaptureAdapter,
+  type CameraCaptureOptions,
   type CaptureAdapterOptions,
   type CaptureResult,
   type ManualUploadOptions,
 } from './adapter.js';
+
+export { scanInbox, type InboxFrame, type InboxIssue, type InboxScan } from './inbox.js';
+
+export { DEFAULT_PREFILTER_MAD, PREFILTER_VERSION, fingerprint, meanAbsDiff, thumbnail } from './frames.js';
+
+export {
+  DishGrouper,
+  DEFAULT_CLOSE_GRACE_MS,
+  type CloseReason,
+  type DishGroup,
+  type DishGrouperOptions,
+  type FrameRecord,
+  type FrameVerdict,
+  type GroupEvent,
+} from './dishGrouper.js';
+
+export { InboxBridge, type BridgeEvent, type InboxBridgeOptions, type PassResult } from './inboxBridge.js';

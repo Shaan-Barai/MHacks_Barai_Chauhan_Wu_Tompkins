@@ -14,7 +14,8 @@
     "ingest-inbox": "tsc && node scripts/ingest-inbox.mjs",
     "simulate-camera": "tsc && node scripts/simulate-camera.mjs",
     "calibrate": "tsc && node scripts/ingest-inbox.mjs --calibrate",
-    "calibration-fixture": "node scripts/make-calibration-fixture.mjs"
+    "calibration-fixture": "node scripts/make-calibration-fixture.mjs",
+    "take-photo": "tsc && node scripts/take-photo.mjs"
   },
   "dependencies": {
     "sharp": "^0.33.5"

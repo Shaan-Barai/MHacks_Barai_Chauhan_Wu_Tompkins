@@ -19,12 +19,15 @@ export interface UploadRequest {
   sizeBytes: number;
   widthPx: number;
   heightPx: number;
-  association: { kind: 'capture' | 'reference' | 'calibration'; id: string };
+  /** 'capture' = normalized image, 'original' = the raw photo, both keyed by eventId. */
+  association: { kind: 'capture' | 'original' | 'reference' | 'calibration'; id: string };
 }
 
 export interface UploadAuthorization {
   /** Opaque handle for this authorized upload attempt. */
   uploadId: string;
+  /** A retry for an object that already finished uploading: skip the bytes. */
+  alreadyFinalized?: boolean;
 }
 
 export interface FinalizedUpload {
@@ -58,6 +61,15 @@ export class InMemoryUploader implements Uploader {
   }
 
   async authorizeUpload(request: UploadRequest): Promise<UploadAuthorization> {
+    // Like the backend: one capture/original object per event, reused on retry.
+    if (request.association.kind !== 'reference') {
+      for (const [uploadId, record] of this.uploads) {
+        const a = record.request.association;
+        if (a.kind === request.association.kind && a.id === request.association.id) {
+          return record.objectId ? { uploadId, alreadyFinalized: true } : { uploadId };
+        }
+      }
+    }
     const uploadId = newId('upl');
     this.uploads.set(uploadId, { request });
     return { uploadId };
@@ -88,6 +100,17 @@ export class InMemoryUploader implements Uploader {
       if (record.objectId === objectId) return record.bytes;
     }
     return undefined;
+  }
+
+  /** Test helper: finalized objects of one association kind ('capture' | 'original' | 'reference'). */
+  finalizedOfKind(kind: UploadRequest['association']['kind']): Array<{ objectId: string; associationId: string; bytes: Uint8Array }> {
+    const out = [];
+    for (const r of this.uploads.values()) {
+      if (r.objectId && r.bytes && r.request.association.kind === kind) {
+        out.push({ objectId: r.objectId, associationId: r.request.association.id, bytes: r.bytes });
+      }
+    }
+    return out;
   }
 
   /** Test helper: number of finalized objects. */

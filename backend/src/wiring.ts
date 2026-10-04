@@ -24,6 +24,7 @@ import { IngestionService } from './services/ingestionService.js';
 import { SummaryService } from './services/summaryService.js';
 import { DashboardService } from './services/dashboardService.js';
 import { DishMatchService } from './services/dishMatchService.js';
+import { CameraService } from './services/cameraService.js';
 import { CaptureService } from './services/captureService.js';
 import { ImpactService } from './services/impactService.js';
 import { MockAnalyzer } from './analysis/mockAnalyzer.js';
@@ -121,6 +122,7 @@ export function buildBackend(options: BuildOptions = {}): AppDeps & { app: Retur
   const captures = new CaptureService(repo, images, ingestion);
   // Recommendations use live Gemini only; mock text is never shown (labeled fallback instead).
   const impact = new ImpactService(repo, ingestion, gateway.mode === 'live' ? gateway : undefined, now);
+  const camera = new CameraService(`http://127.0.0.1:${config.port}`);
   const readiness = new ReadinessService({
     repo,
     storage,
@@ -148,6 +150,7 @@ export function buildBackend(options: BuildOptions = {}): AppDeps & { app: Retur
     calibration,
     now,
     storageOrigins: storageOrigins(config),
+    camera,
   };
   return { ...deps, app: createApp(deps) };
 }

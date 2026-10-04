@@ -736,7 +736,7 @@ export const upsert_insight = spacetimedb.reducer({ insightJson: t.string() }, (
 
 // --- scans (per-capture details; contracts ScanInfo) -------------------------
 
-const TIMESTAMP_BASES = ['laptop_trigger', 'laptop_ingest', 'demo'];
+const TIMESTAMP_BASES = ['laptop_trigger', 'laptop_received', 'laptop_ingest', 'demo'];
 
 export const upsert_scan_info = spacetimedb.reducer({ scanJson: t.string() }, (ctx, { scanJson }) => {
   const s = parse(scanJson, 'scanInfo');

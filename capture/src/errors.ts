@@ -13,6 +13,7 @@ export const CaptureErrorCodes = {
   UNSUPPORTED_IMAGE_TYPE: 'UNSUPPORTED_IMAGE_TYPE',
   INVALID_IMAGE_DIMENSIONS: 'INVALID_IMAGE_DIMENSIONS',
   UPLOAD_FAILED: 'UPLOAD_FAILED',
+  CHECKSUM_MISMATCH: 'CHECKSUM_MISMATCH',
 } as const;
 
 export type CaptureErrorCode = (typeof CaptureErrorCodes)[keyof typeof CaptureErrorCodes];

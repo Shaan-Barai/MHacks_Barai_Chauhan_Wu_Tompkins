@@ -28,6 +28,7 @@ import type {
   DishMatchResult,
   MeasurementSettings,
   ProcessingState,
+  ScanSubmission,
 } from './contract-types.js';
 import type { IngestionSink } from './ingestion.js';
 import type { FinalizedUpload, UploadAuthorization, UploadRequest, Uploader } from './uploader.js';
@@ -118,7 +119,10 @@ export class HttpUploader extends BackendClient implements Uploader {
   private readonly uploads = new Map<string, { url: string; headers: Record<string, string> }>();
 
   async authorizeUpload(req: UploadRequest): Promise<UploadAuthorization> {
-    const body = await this.json<{ objectId: string; uploadUrl: string; uploadHeaders?: Record<string, string> }>(
+    const body = await this.json<
+      | { objectId: string; uploadUrl: string; uploadHeaders?: Record<string, string>; alreadyFinalized?: false }
+      | { objectId: string; alreadyFinalized: true }
+    >(
       'POST',
       '/api/images/uploads',
       'Upload authorization',
@@ -131,6 +135,8 @@ export class HttpUploader extends BackendClient implements Uploader {
         heightPx: req.heightPx,
       },
     );
+    // A retry for an upload that already finished: nothing to send again.
+    if (body.alreadyFinalized) return { uploadId: body.objectId, alreadyFinalized: true };
     // local-dev returns a backend-relative URL; R2 returns an absolute presigned URL.
     this.uploads.set(body.objectId, {
       url: new URL(body.uploadUrl, `${this.base}/`).toString(),
@@ -165,12 +171,12 @@ export class HttpIngestionSink extends BackendClient implements IngestionSink {
   /** Backend outcome per eventId, for reporting (analysis runs on submit). */
   readonly outcomes = new Map<string, SubmittedCapture>();
 
-  async submitCaptureEvent(event: CaptureEvent): Promise<void> {
+  async submitCaptureEvent(event: CaptureEvent, scan?: ScanSubmission): Promise<void> {
     const body = await this.json<{ event: CaptureEvent; deduplicated?: boolean }>(
       'POST',
       '/api/captures',
       'Capture submission',
-      event,
+      scan ? { ...event, scan } : event,
     );
     this.outcomes.set(event.eventId, { state: body.event.state, deduplicated: body.deduplicated === true });
   }

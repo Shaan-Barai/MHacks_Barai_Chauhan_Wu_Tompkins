@@ -7,20 +7,23 @@
  * already ingested successfully.
  */
 
-import type { CaptureEvent } from './contract-types.js';
+import type { CaptureEvent, ScanSubmission } from './contract-types.js';
 
 export interface IngestionSink {
-  /** Accept one capture event. Must be idempotent by event.eventId. */
-  submitCaptureEvent(event: CaptureEvent): Promise<void>;
+  /** Accept one capture event (plus its scan details). Must be idempotent by event.eventId. */
+  submitCaptureEvent(event: CaptureEvent, scan?: ScanSubmission): Promise<void>;
 }
 
 export class InMemoryIngestionSink implements IngestionSink {
   private readonly byEventId = new Map<string, CaptureEvent>();
+  /** Scan details by eventId, as submitted. */
+  readonly scans = new Map<string, ScanSubmission>();
   /** Total submit calls, including idempotent re-submissions (for tests). */
   submissionCount = 0;
 
-  async submitCaptureEvent(event: CaptureEvent): Promise<void> {
+  async submitCaptureEvent(event: CaptureEvent, scan?: ScanSubmission): Promise<void> {
     this.submissionCount += 1;
+    if (scan) this.scans.set(event.eventId, { ...scan });
     this.byEventId.set(event.eventId, event); // idempotent upsert by eventId
   }
 

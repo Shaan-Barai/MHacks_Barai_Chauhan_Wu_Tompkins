@@ -8,7 +8,8 @@ import { execSync } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-for (const pkg of ['data', 'vision', 'analytics']) {
+// capture: built so the dashboard's Take photo button can run capture/scripts/take-photo.mjs.
+for (const pkg of ['data', 'vision', 'analytics', 'capture']) {
   const dir = fileURLToPath(new URL(`../../${pkg}/`, import.meta.url));
   // stdout goes to stderr so tsc errors stay visible without polluting callers' stdout.
   const run = (cmd) => execSync(cmd, { cwd: dir, stdio: ['ignore', process.stderr, 'inherit'] });

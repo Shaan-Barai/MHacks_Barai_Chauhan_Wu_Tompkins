@@ -37,6 +37,16 @@ export interface InboxFrame {
   focus?: FrameFocus;
   widthPx?: number;
   heightPx?: number;
+  /**
+   * When this computer finished receiving the capture (the capture folder's
+   * modification time: laptop_capture.py writes the files, then renames the
+   * folder into place). This, not the board clock, is the scan time.
+   */
+  receivedAt: string;
+  /** SHA-256 of photo.jpg, verified against the camera's metadata. */
+  sha256: string;
+  /** Source file for simulated captures (metadata.device 'simulate-camera:<file>'). */
+  sourceName?: string;
 }
 
 export interface FrameFocus {
@@ -77,6 +87,7 @@ interface UnoQMetadata {
   focus?: unknown;
   widthPx?: unknown;
   heightPx?: unknown;
+  device?: unknown;
 }
 
 function readFocus(value: unknown): FrameFocus | undefined {
@@ -125,16 +136,21 @@ async function readFrame(inbox: string, name: string): Promise<InboxFrame | Inbo
     );
   }
   const focus = readFocus(metadata.focus);
+  const simulated = metadata.captureSource === SIMULATED_CAPTURE_SOURCE;
+  const device = typeof metadata.device === 'string' ? metadata.device : '';
   return {
     captureId: name,
     capturedAt: new Date(capturedAt).toISOString(),
     photoPath: path.join(dir, 'photo.jpg'),
     trigger: metadata.triggerSource === 'interval' ? 'interval' : 'manual',
-    simulated: metadata.captureSource === SIMULATED_CAPTURE_SOURCE,
+    simulated,
     purpose: metadata.capturePurpose === CALIBRATION_PURPOSE ? 'calibration' : 'dish',
     ...(focus ? { focus } : {}),
     ...(typeof metadata.widthPx === 'number' ? { widthPx: metadata.widthPx } : {}),
     ...(typeof metadata.heightPx === 'number' ? { heightPx: metadata.heightPx } : {}),
+    receivedAt: (await stat(dir)).mtime.toISOString(),
+    sha256,
+    ...(simulated && device.startsWith('simulate-camera:') ? { sourceName: device.slice('simulate-camera:'.length) } : {}),
   };
 }
 

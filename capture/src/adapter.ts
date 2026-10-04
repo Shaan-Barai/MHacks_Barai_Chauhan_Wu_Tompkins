@@ -13,18 +13,26 @@
  * bytes, because identical bytes do not prove the same dish and retries of
  * one dish may produce different bytes (AGENTS.md 3.2).
  *
- * The adapter normalizes each image to `topdown-normalized-v1` (see
- * normalize.ts), uploads the normalized bytes through the Uploader seam
- * (Agent 5's two-step flow), then submits capture metadata plus the
- * finalized object reference to the IngestionSink. Image bytes never go to
- * ingestion or any database payload.
+ * Every path (camera via take-photo or the inbox bridge, test2/ replays,
+ * manifests, manual uploads, tests) goes through ONE function, `ingestEntry`
+ * (public entry point: `ingestPhoto`). For each photo it:
+ *   1. reads the raw bytes and checks their SHA-256 when one is expected,
+ *   2. uploads the raw original as-is (image kind 'original'),
+ *   3. normalizes to `topdown-normalized-v1` (normalize.ts) and uploads that
+ *      (image kind 'capture'; the analysis input),
+ *   4. submits the capture event plus its scan details (device, which clock
+ *      stamped it, raw original id + SHA-256) to the IngestionSink.
+ * Both uploads go through the Uploader seam (Agent 5's two-step flow) and are
+ * idempotent per event: a retry reuses the same objects. Image bytes never go
+ * to ingestion or any database payload.
  */
 
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import type { ApiError, CaptureEvent, CaptureSource, QualityFlag } from './contract-types.js';
+import type { ApiError, CaptureEvent, CaptureSource, QualityFlag, ScanSubmission } from './contract-types.js';
 import { CaptureError, CaptureErrorCodes, captureError, toApiError } from './errors.js';
 import type { IngestionSink } from './ingestion.js';
 import { type IdFactory, newId } from './ids.js';
@@ -35,7 +43,7 @@ import {
   loadManifest,
 } from './manifest.js';
 import { SUPPORTED_INPUT_EXTENSIONS, normalizeImage } from './normalize.js';
-import type { Uploader } from './uploader.js';
+import type { UploadRequest, Uploader } from './uploader.js';
 
 export type CaptureResult =
   | {
@@ -81,7 +89,47 @@ export interface CameraCaptureOptions {
    * written by simulate-camera so simulated photos stay labeled (AGENTS.md 3.7).
    */
   source?: 'camera' | 'replay';
+  /** Defaults: 'uno-q-c920' (camera) / 'simulated:inbox' (replay). */
+  deviceId?: string;
+  /** Default 'laptop_received' (the computer's clock when the frame arrived). */
+  timestampBasis?: ScanSubmission['timestampBasis'];
+  sourceName?: string;
+  /** SHA-256 the camera recorded; the raw bytes must still match it. */
+  expectedSha256?: string;
 }
+
+/**
+ * One photo through the single ingest path (`ingestPhoto`). The camera
+ * (take-photo, inbox bridge), test2/ replays and tests all call this.
+ */
+export interface IngestPhotoInput {
+  photoPath: string;
+  /**
+   * Retry key for this photo: the same key always maps to the same eventId,
+   * so a retry never creates a second scan (e.g. the Uno Q captureId, or a
+   * test run id + file name).
+   */
+  captureKey: string;
+  /** UTC ISO 8601 from the computer's clock (see timestampBasis). */
+  capturedAt: string;
+  timestampBasis: ScanSubmission['timestampBasis'];
+  hallId: string;
+  serviceId: string;
+  source: 'camera' | 'replay' | 'manual_upload';
+  /** e.g. 'uno-q-c920' or 'simulated:test2'. */
+  deviceId: string;
+  /** Source file name for replays (e.g. IMG_2695.jpeg). */
+  sourceName?: string;
+  /** When given, the raw bytes must hash to this (hex) or nothing is uploaded. */
+  expectedSha256?: string;
+}
+
+const RAW_MIME_BY_EXT: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+};
 
 interface MintedIdentity {
   eventId: string;
@@ -201,20 +249,55 @@ export class ReplayCaptureAdapter {
   }
 
   /**
-   * Ingest one camera dish (source label: 'camera', or 'replay' for a
-   * simulate-camera frame). The bridge has already
-   * grouped frames so each dish arrives once; the groupId keeps retries on
-   * the same eventId.
+   * The single ingest entry point for one photo: raw original + normalized
+   * image to object storage, then the capture event with its scan details.
+   * The registry key keeps the historical 'camera:' namespace so existing
+   * bridge state files keep mapping to the same eventIds.
+   */
+  async ingestPhoto(input: IngestPhotoInput): Promise<CaptureResult> {
+    return this.ingestEntry({
+      source: input.source,
+      key: `camera:${input.serviceId}:${input.captureKey}`,
+      hallId: input.hallId,
+      serviceId: input.serviceId,
+      entry: { entryId: input.captureKey, imagePath: input.photoPath, capturedAt: input.capturedAt },
+      baseDir: process.cwd(),
+      scan: {
+        deviceId: input.deviceId,
+        timestampBasis: input.timestampBasis,
+        ...(input.sourceName !== undefined ? { sourceName: input.sourceName } : {}),
+      },
+      ...(input.expectedSha256 !== undefined ? { expectedSha256: input.expectedSha256 } : {}),
+    });
+  }
+
+  /**
+   * Ingest one camera dish from the inbox bridge (source 'camera', or
+   * 'replay' for a simulate-camera frame). The bridge has already grouped
+   * frames so each dish arrives once; the groupId keeps retries on the same
+   * eventId. Goes through `ingestPhoto`.
    */
   async ingestCameraCapture(options: CameraCaptureOptions): Promise<CaptureResult> {
-    return this.ingestEntry({
-      source: options.source ?? 'camera',
-      key: `camera:${options.serviceId}:${options.groupId}`,
+    const source = options.source ?? 'camera';
+    return this.ingestPhoto({
+      photoPath: options.imagePath,
+      captureKey: options.groupId,
+      capturedAt: options.capturedAt,
+      timestampBasis: options.timestampBasis ?? 'laptop_received',
       hallId: options.hallId,
       serviceId: options.serviceId,
-      entry: { entryId: options.groupId, imagePath: options.imagePath, capturedAt: options.capturedAt },
-      baseDir: process.cwd(),
+      source,
+      deviceId: options.deviceId ?? (source === 'camera' ? 'uno-q-c920' : 'simulated:inbox'),
+      ...(options.sourceName !== undefined ? { sourceName: options.sourceName } : {}),
+      ...(options.expectedSha256 !== undefined ? { expectedSha256: options.expectedSha256 } : {}),
     });
+  }
+
+  /** authorize -> bytes (skipped when a retry finds it already finished) -> finalize. */
+  private async uploadOnce(request: UploadRequest, bytes: Uint8Array): Promise<string> {
+    const auth = await this.uploader.authorizeUpload(request);
+    if (!auth.alreadyFinalized) await this.uploader.uploadBytes(auth, bytes);
+    return (await this.uploader.finalizeUpload(auth)).objectId;
   }
 
   private async ingestEntry(args: {
@@ -224,6 +307,9 @@ export class ReplayCaptureAdapter {
     serviceId: string;
     entry: ReplayEntry;
     baseDir: string;
+    /** Scan details; defaults label the path (manifest replay / manual upload). */
+    scan?: Omit<ScanSubmission, 'originalImageObjectId' | 'originalSha256'>;
+    expectedSha256?: string;
   }): Promise<CaptureResult> {
     const { source, key, hallId, serviceId, entry } = args;
 
@@ -281,6 +367,16 @@ export class ReplayCaptureAdapter {
         );
       }
 
+      const originalSha256 = createHash('sha256').update(inputBytes).digest('hex');
+      if (args.expectedSha256 !== undefined && args.expectedSha256.toLowerCase() !== originalSha256) {
+        throw captureError(
+          CaptureErrorCodes.CHECKSUM_MISMATCH,
+          'The photo does not match the checksum recorded when it was captured. Take the photo again.',
+          { ...details, expectedSha256: args.expectedSha256, actualSha256: originalSha256 },
+          false,
+        );
+      }
+
       const normalized = await normalizeImage(
         inputBytes,
         {
@@ -292,16 +388,36 @@ export class ReplayCaptureAdapter {
         details,
       );
 
-      // Two-step upload through Agent 5's seam (authorize -> bytes -> finalize).
-      const auth = await this.uploader.authorizeUpload({
-        mimeType: normalized.mimeType,
-        sizeBytes: normalized.bytes.byteLength,
-        widthPx: normalized.geometry.widthPx,
-        heightPx: normalized.geometry.heightPx,
-        association: { kind: 'capture', id: identity.eventId },
-      });
-      await this.uploader.uploadBytes(auth, normalized.bytes);
-      const { objectId } = await this.uploader.finalizeUpload(auth);
+      // Two-step uploads through Agent 5's seam: the raw original exactly as
+      // captured, then the normalized analysis image.
+      const originalImageObjectId = await this.uploadOnce(
+        {
+          mimeType: RAW_MIME_BY_EXT[ext] ?? 'image/jpeg',
+          sizeBytes: inputBytes.byteLength,
+          widthPx: normalized.sourceWidthPx,
+          heightPx: normalized.sourceHeightPx,
+          association: { kind: 'original', id: identity.eventId },
+        },
+        inputBytes,
+      );
+      const objectId = await this.uploadOnce(
+        {
+          mimeType: normalized.mimeType,
+          sizeBytes: normalized.bytes.byteLength,
+          widthPx: normalized.geometry.widthPx,
+          heightPx: normalized.geometry.heightPx,
+          association: { kind: 'capture', id: identity.eventId },
+        },
+        normalized.bytes,
+      );
+      const scan: ScanSubmission = {
+        ...(args.scan ?? {
+          deviceId: source === 'manual_upload' ? 'manual-upload' : 'replay-manifest',
+          timestampBasis: 'laptop_ingest' as const,
+        }),
+        originalImageObjectId,
+        originalSha256,
+      };
 
       const qualityFlags: QualityFlag[] = [...(entry.declaredFlags ?? [])];
       const event: CaptureEvent = {
@@ -316,7 +432,7 @@ export class ReplayCaptureAdapter {
         state: 'pending',
       };
 
-      await this.sink.submitCaptureEvent(event);
+      await this.sink.submitCaptureEvent(event, scan);
       this.completed.set(key, { event, imageObjectId: objectId });
       this.saveState();
 

@@ -257,9 +257,23 @@ export class SpacetimeRepository implements Repository {
   }
 
   // --- scans ---
+  /**
+   * Scan details are auxiliary: against a `scrap` module published before
+   * scan_info existed (the reducer is missing), the capture still goes through
+   * and this warns once. Republish the module to start recording them.
+   */
   async upsertScanInfo(scan: ScanInfo): Promise<void> {
-    await this.call('upsert_scan_info', { scanJson: JSON.stringify(scan) });
+    try {
+      await this.call('upsert_scan_info', { scanJson: JSON.stringify(scan) });
+    } catch (error) {
+      if (!(error instanceof Error) || !/upsert_scan_info failed \(404\)|No such reducer|not found/i.test(error.message)) throw error;
+      if (!this.warnedNoScanInfo) {
+        this.warnedNoScanInfo = true;
+        console.warn('[backend] SpacetimeDB module has no upsert_scan_info reducer; scan details are not stored. Republish db/spacetimedb (see docs/deploy.md).');
+      }
+    }
   }
+  private warnedNoScanInfo = false;
   async getScanInfo(eventId: string): Promise<ScanInfo | undefined> {
     const [row] = await this.sql(`SELECT * FROM scan_info WHERE event_id = ${quote(eventId)}`);
     return row ? clean(row as ScanInfo) : undefined;

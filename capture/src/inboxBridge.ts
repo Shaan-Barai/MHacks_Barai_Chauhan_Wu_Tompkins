@@ -8,6 +8,9 @@
  * processed until the next pass, so frames are never grouped out of order.
  */
 
+import { stat } from 'node:fs/promises';
+import path from 'node:path';
+
 import type { ApiError } from './contract-types.js';
 import type { CaptureResult, ReplayCaptureAdapter } from './adapter.js';
 import type { DishGroup, DishGrouper, GroupEvent } from './dishGrouper.js';
@@ -91,13 +94,18 @@ export class InboxBridge {
     const { grouper, adapter } = this.options;
     for (const group of grouper.pendingIngestion()) {
       const rep = grouper.frame(group.representative!)!;
+      // Scan time = this computer's clock when the frame arrived, never the board's.
+      const receivedAt = rep.receivedAt ?? (await stat(path.dirname(rep.photoPath))).mtime.toISOString();
       const result = await adapter.ingestCameraCapture({
         groupId: group.groupId,
         imagePath: rep.photoPath,
-        capturedAt: rep.capturedAt,
+        capturedAt: receivedAt,
+        timestampBasis: 'laptop_received',
         hallId: group.hallId,
         serviceId: group.serviceId,
         source: rep.simulated ? 'replay' : 'camera',
+        ...(rep.sourceName ? { sourceName: rep.sourceName } : {}),
+        ...(rep.sha256 ? { expectedSha256: rep.sha256 } : {}),
       });
       // A failed dish stays 'closed' and is retried with the same eventId next pass.
       if (result.ok) grouper.markIngested(group.groupId, result.event.eventId);

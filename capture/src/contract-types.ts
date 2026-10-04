@@ -135,3 +135,15 @@ export interface MeasurementSettings {
   activeCalibrationId: string | null;
   updatedAt: string;
 }
+
+/**
+ * Per-scan details sent with POST /api/captures (contracts ScanInfo minus
+ * eventId/demo). Timestamps always come from the computer's clock.
+ */
+export interface ScanSubmission {
+  deviceId: string;
+  timestampBasis: 'laptop_trigger' | 'laptop_received' | 'laptop_ingest';
+  originalImageObjectId?: string;
+  originalSha256?: string;
+  sourceName?: string;
+}

@@ -7,3 +7,6 @@ __pycache__/
 # Uno Q inbox bridge state (dish grouping verdicts + minted eventIds)
 .inbox-groups.json
 .inbox-ingest.json
+
+# take-photo identity registry (minted eventIds per camera capture)
+.take-photo-state.json

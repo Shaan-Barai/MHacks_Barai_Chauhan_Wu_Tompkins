@@ -831,6 +831,32 @@ def step_dashboard(demo):
     demo.check("PASS", f"Opened {url}")
 
 
+def step_admin(demo):
+    """Admin page: staff choose which plates the dashboard shows (hidden plates are kept, never deleted)."""
+    rows = spacetime_sql(demo, "SELECT event_id FROM capture_event")
+    hidden = spacetime_sql(demo, "SELECT event_id FROM capture_visibility WHERE hidden = true")
+    if rows is None or hidden is None:
+        demo.check("WARN", f"Could not query SpacetimeDB '{demo.args.db}' (capture_visibility needs the 2026-10-04 module)")
+    else:
+        demo.check("PASS", f"{len(rows) - len(hidden)} plate(s) shown on the dashboard, {len(hidden)} hidden by an admin "
+                           "(hidden plates stay in SpacetimeDB and R2)")
+    try:  # anonymous on purpose (demo.get would send the ingest token)
+        with urllib.request.urlopen(f"{demo.api}/api/admin/captures?{demo.window()}", timeout=10) as r:
+            status = r.status
+    except urllib.error.HTTPError as e:
+        status = e.code
+    if status == 401:
+        demo.check("PASS", "Admin list needs a staff sign-in (401 without one)")
+    elif status == 200:
+        demo.check("WARN", "Admin list answered without sign-in: the backend runs open (no SCRAP_ADMIN_PASSCODE)")
+    else:
+        demo.check("FAIL", f"/api/admin/captures HTTP {status}")
+    url = demo.args.dashboard_url.rstrip("/") + "/admin"
+    print(f"  Admin page: {url}  (Staff sign-in, then Shown/Hidden per plate or Hide/Show all listed)")
+    if not demo.args.no_open:
+        webbrowser.open(url)
+
+
 def step_upload_site(demo):
     """Upload website: one button → results page with original, Gemini classification, SAM masks, total wasted (upload_demo/)."""
     port = int(os.environ.get("UPLOAD_DEMO_PORT", "8795"))
@@ -917,6 +943,7 @@ STEPS = [
     ("stats", "Waste statistics", step_stats),
     ("recommendation", "AI recommendation", step_recommendation),
     ("dashboard", "Dashboard", step_dashboard),
+    ("admin", "Admin: choose which plates are shown", step_admin),
     ("upload_site", "Upload website: photo → results page", step_upload_site),
     ("deploy", "Production URL", step_deploy),
 ]

@@ -148,8 +148,8 @@ once D lands → C does the final review, updates README/AGENTS, and merges `big
 | --- | --- | --- | --- |
 | M | running | 2026-10-03 | 22 conflicts. The frontend base is main's redesign |
 | C | contracts published | 2026-10-03 | §3 types in `contracts/types.ts`, D1–D8 in `contracts/decisions.md` |
-| A | not started | | |
-| B | not started | | |
-| D | not started | | |
-| E | not started | | |
-| F | not started | | |
+| A | running (worktree) | 2026-10-03 | factor CSV split, data tables, demo menu/portions, analytics impact + recommendation |
+| B | running (worktree) | 2026-10-03 | calibration + overlay in vision lib, SAM venv + live smoke |
+| D | running (worktree) | 2026-10-03 | schema, overlay storage, impact/captures/images/recommendation endpoints, seeding |
+| E | running (worktree) | 2026-10-03 | new dashboard against mocks, then live API |
+| F | running (worktree) | 2026-10-03 | phase 1: camera path audit, simulate-camera, gated live E2E; phase 2 after B+D |

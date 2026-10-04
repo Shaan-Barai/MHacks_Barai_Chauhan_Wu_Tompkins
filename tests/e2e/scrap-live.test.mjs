@@ -13,8 +13,10 @@ import { fileURLToPath } from 'node:url';
  * SAM 2.1 masks (clipped to the target dish) → overlay in R2 → pixel
  * dashboard with relative impact points, plate images, AI recommendation.
  *
- * v2 rules asserted here: pixels are the only measurement (no plate
- * calibration, no grams/kg/litres/dollars), relative impact points are
+ * v2 rules asserted here: pixels are the stored measurement (no plate
+ * calibration, no dollars; IT_4 grams / kg CO2e / L water are null unless the
+ * capture was analysed with an active camera calibration — see
+ * calibration-live.test.mjs), relative impact points are
  * unitless and labeled relative, and each capture counts only the target dish
  * (counting rule `target-dish-v1`, attempt flags `neighbor_food_excluded` /
  * `target_dish_unavailable`).
@@ -73,8 +75,18 @@ const DEDUPE = process.env.SCRAP_E2E_DEDUPE === '1';
 const EXPECT_NEIGHBOR = process.env.SCRAP_E2E_EXPECT_NEIGHBOR === '1';
 /** BIG-PLAN v2 V3 (vision/src/masks.ts COUNTING_RULE_VERSION). */
 const COUNTING_RULE = 'target-dish-v1';
-/** Units v2 never reports (pixels + unitless relative points only). */
-const V1_UNIT_KEYS = ['grams', 'cm2', 'kgCo2e', 'waterM3', 'waterL', 'impactUsd'];
+/** Units nothing reports: v1 plate-fit / dollar fields (IT_4 physical numbers are grams / kgCo2e / waterLitres). */
+const V1_UNIT_KEYS = ['cm2', 'waterM3', 'waterL', 'impactUsd'];
+/** IT_4 I7: estimated physical amounts — a finite number ≥ 0 or null (never 0-for-missing). */
+const PHYSICAL_KEYS = ['grams', 'kgCo2e', 'waterLitres'];
+
+function assertPhysical(obj, where) {
+  for (const key of PHYSICAL_KEYS) {
+    if (!(key in obj)) continue;
+    const v = obj[key];
+    assert.ok(v === null || (typeof v === 'number' && Number.isFinite(v) && v >= 0), `${where}: ${key} is a finite number ≥ 0 or null`);
+  }
+}
 const TIMEOUT_MS = Number(process.env.SCRAP_E2E_TIMEOUT_S ?? 900) * 1000;
 const STDB = process.env.SPACETIMEDB_URI
   ? {
@@ -113,7 +125,7 @@ function list(body, key) {
 }
 
 function run(cmd, args, options = {}) {
-  const res = spawnSync(cmd, args, { encoding: 'utf8', env: { ...process.env, API_URL: API }, ...options });
+  const res = spawnSync(cmd, args, { encoding: 'utf8', env: { ...process.env, API_URL: API, SCRAP_API_URL: API }, ...options });
   return { status: res.status, out: `${res.stdout ?? ''}${res.stderr ?? ''}` };
 }
 
@@ -160,7 +172,8 @@ function assertPoints(impact, where) {
     const v = impact[key];
     assert.ok(v === null || (typeof v === 'number' && Number.isFinite(v) && v >= 0), `${where}: ${key} is a finite number or null`);
   }
-  for (const key of V1_UNIT_KEYS) assert.ok(!(key in impact), `${where}: v2 reports no ${key}`);
+  for (const key of V1_UNIT_KEYS) assert.ok(!(key in impact), `${where}: no ${key}`);
+  assertPhysical(impact, where);
   assert.ok(impact.wasteFactorsVersion, `${where}: wasteFactorsVersion`);
 }
 
@@ -322,7 +335,9 @@ describe('Scrap v2 live e2e: simulated camera → R2/scrap → Gemini+SAM (targe
       assert.ok(mine[0].pixelsWasted === null || Number.isInteger(mine[0].pixelsWasted), `${id}: pixelsWasted is an integer or null`);
       for (const item of mine[0].items) {
         assert.ok(Number.isInteger(item.pixels) && item.pixels >= 0, `${id}: item pixels`);
-        assert.ok(!('grams' in item), `${id}: no grams in the capture list`);
+        assertPhysical(item, `${id} ${item.displayName}`);
+        // IT_4 I1: no calibration snapshot on the counted attempt ⇒ no physical numbers.
+        if (!mine[0].physicalMethod) assert.equal(item.grams ?? null, null, `${id}: uncalibrated capture has null grams`);
       }
     }
   });
@@ -415,7 +430,8 @@ describe('Scrap v2 live e2e: simulated camera → R2/scrap → Gemini+SAM (targe
         assert.ok(row.portionsServed > 0, `${row.displayName}: a rate needs portions served`);
         // Sum then divide (AGENTS.md §7): the rate is the row's pixels over its portions.
         assert.ok(Math.abs(row.perPortion.pixels - row.impact.pixels / row.portionsServed) <= 0.5,`${row.displayName}: px/portion`);
-        assert.ok(!('grams' in row.perPortion) && !('impactUsd' in row.perPortion), `${row.displayName}: no grams/dollars per portion`);
+        assert.ok(!('impactUsd' in row.perPortion), `${row.displayName}: no dollars per portion`);
+        assertPhysical(row.perPortion, `${row.displayName} per portion`);
       }
       if (row.itemId === null) assert.equal(row.perPortion, null, 'unknown food has no per-portion rate');
     }
@@ -439,8 +455,9 @@ describe('Scrap v2 live e2e: simulated camera → R2/scrap → Gemini+SAM (targe
     assert.ok(Array.isArray(r.bullets));
     assert.ok(r.generatedAt && r.inputVersion);
     if (r.source === 'fallback') {
-      // The rule-based text is ours: it must speak in pixels/points only (v2).
-      assert.doesNotMatch(r.text, /\b(grams?|kg|kilograms?|litres?|liters?|CO2e)\b|\$\d/i, 'fallback recommendation uses pixels/points only');
+      // The rule-based text is ours: never dollars. IT_4: CO2e / water may appear, labeled as estimates.
+      assert.doesNotMatch(r.text, /\$\d/, 'fallback recommendation has no dollar amounts');
+      if (/\b(kg CO2e|litres?|liters?)\b/i.test(r.text)) assert.match(r.text, /estimat|est\./i, 'physical numbers are labeled estimates');
     }
     console.log(`# recommendation source: ${r.source}, ${r.bullets.length} bullets`);
   });

@@ -10,6 +10,7 @@
     "test": "node --test integration/*.test.mjs e2e/*.test.mjs",
     "test:integration": "node --test integration/*.test.mjs",
     "test:e2e": "node --test e2e/*.test.mjs",
-    "test:e2e:scrap": "node --env-file-if-exists=../.env --test e2e/scrap-live.test.mjs"
+    "test:e2e:scrap": "node --env-file-if-exists=../.env --test e2e/scrap-live.test.mjs",
+    "test:e2e:calibration": "node --env-file-if-exists=../.env --test e2e/calibration-live.test.mjs"
   }
 }

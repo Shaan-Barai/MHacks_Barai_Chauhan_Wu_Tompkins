@@ -112,6 +112,21 @@ store. `VITE_USE_MOCK=1 npm run dev` runs the dashboard on demo data alone.
 
 ## Verify
 
+One command per test level (details: [docs/testing.md](docs/testing.md)):
+
+```bash
+cd tests && npm run test:unit          # every package's unit tests, offline
+cd tests && npm run test:integration   # test2/ through the real ingest path, R2 test/ round trip, SpacetimeDB on a throwaway db, mocked SSH
+cd tests && npm run test:images        # LIVE: all test2/ photos through Gemini + SAM + R2 + SpacetimeDB + dashboard API
+cd tests && npm run test:camera -- auto   # real Uno Q: stages 1-6 (then: plate, empty, reliability, cleanup)
+cd tests && npm run test:smoke         # dashboard in Chrome (Playwright)
+```
+
+Camera and the dashboard button: `cd capture && npm run take-photo` (settings in `.env`: CAMERA_HOST, CAMERA_USER, CAMERA_SSH_KEY).
+Sample history: `cd backend && npm run demo:seed` (DEMO_SEED=1) / `npm run demo:clear`.
+
+Older checks:
+
 ```bash
 cd tests && npm test                          # fixture + formula checks
 (cd <module> && npm test)                     # data capture vision analytics backend frontend
@@ -132,6 +147,10 @@ python3 capture/scripts/live_camera_test.py --target arduino@<board-ip> --identi
 | `GET /api/captures/:eventId/images` | short-lived URLs for the original photo, segmented overlay, and per-food masks |
 | `GET /api/recommendation?start&end&hallId` | AI recommendation (`gemini`) or labeled rule-based `fallback`, with cited metrics |
 | `GET /api/dashboard/daily` | per-day Pixels wasted |
+| `GET /api/dashboard/totals?today&hallId` | Pixels wasted today, this week (Mon-today), this month (1st-today) |
+| `POST /api/recommendation/regenerate` | asks Gemini again for `{start,end,hallId}`; every recommendation is saved (insight table) with its inputs |
+| `GET /api/camera/status`, `POST /api/camera/take-photo` | the dashboard's Take photo button (same path as `npm run take-photo`) |
+| `POST /api/demo/seed`, `POST /api/demo/clear` | labeled sample history (DEMO_SEED=1) and removing it |
 
 See [`docs/`](docs/) for the [demo walkthrough](docs/demo-walkthrough.md),
 [runbook](docs/runbook.md), [known limitations](docs/known-limitations.md),

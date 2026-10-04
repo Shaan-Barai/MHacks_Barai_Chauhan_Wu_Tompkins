@@ -18,7 +18,7 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import {
   REPO,
@@ -214,8 +214,11 @@ describe('live image tests: test2/ through the full pipeline', { skip: skip ?? f
     writeFileSync(path.join(OUT, 'recommendation.json'), JSON.stringify(rec.json, null, 2));
   });
 
-  it('detection vs ground_truth.csv: no regression from 100% recall / 92.3% precision', () => {
-    const truth = loadGroundTruth(path.join(REPO, 'ground_truth.csv'));
+  // Scored only when ground_truth.csv is present (it was removed from the repo root on 2026-10-04).
+  const truthFile = path.join(REPO, 'ground_truth.csv');
+  const noTruth = existsSync(truthFile) ? false : 'ground_truth.csv is not present: detection is not scored';
+  it('detection vs ground_truth.csv: no regression from 100% recall / 92.3% precision', { skip: noTruth }, () => {
+    const truth = loadGroundTruth(truthFile);
     const score = scoreRuns(results.filter((r) => r.eventId), truth);
     const pct = (x) => (x === null ? 'n/a' : `${(100 * x).toFixed(1)}%`);
     console.log(`[live] detection: ${score.correct} correct, ${score.missed} missed, ${score.wrong} wrong over ${score.scored} scored photos → recall ${pct(score.recall)}, precision ${pct(score.precision)}`);

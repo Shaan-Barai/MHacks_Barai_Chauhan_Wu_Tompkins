@@ -3,9 +3,10 @@
 Owner: Agent 3 — camera/replay capture and image preparation. Built against
 `contracts/` (AGENTS.md §5 "Agent 3", §6, §7).
 
-For the **Uno Q + C920s** rig, see [automatic capture setup](uno-q/README.md).
-Its `--auto` mode transfers one raw photo per second to the laptop using
-FFmpeg and SSH, without OpenCV. Timed frames have unresolved dish identity
+For the **Uno Q + C920s** rig, see [camera capture setup](uno-q/README.md).
+Manual Enter/`--once` capture and timed `--auto` capture both use FFmpeg and
+SSH, without OpenCV. `--auto` transfers one raw photo per second to the laptop.
+Timed frames have unresolved dish identity
 and are not automatically submitted as separate dishes to this adapter.
 
 Camera hardware is not available yet, so this package implements the

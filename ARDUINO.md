@@ -1,14 +1,14 @@
 # Arduino Uno Q + Logitech C920s: photos on the laptop
 
-**Automatic capture (once per second):** use the current repository scripts
-with `--auto`. [The automatic-capture guide](capture/uno-q/README.md) covers
-powered-hub wiring, setup, and the command to run. This mode uses FFmpeg and
-Python's standard library; it does **not** require OpenCV. The embedded code
-and Enter-triggered workflow below are the earlier manual-capture instructions.
+**Manual and automatic capture:** both use FFmpeg and Python's standard
+library on the Uno Q; **OpenCV is no longer required**. Omit `--auto` for
+Enter-triggered photos, or add `--once` for a single capture.
+[The camera-capture guide](capture/uno-q/README.md) covers both modes.
+Copy the current board script again when upgrading an older installation.
 
 This guide gets a photo from the Logitech C920s connected to the **Arduino Uno Q** onto your laptop. Press Enter on the laptop, wait a few seconds, and receive a JPEG plus a small metadata file. Once those files exist, your laptop can use the project's upload flow.
 
-The guide includes both complete Python programs. Copy them into the paths shown below; this Markdown file itself does not install or start anything.
+Use the checked-in Python programs linked below; this Markdown file itself does not install or start anything.
 
 ## 1. What we are building
 
@@ -19,7 +19,7 @@ Logitech C920s
 Powered USB-C hub ◀── USB-C PD power supply
     │ USB-C
     ▼
-Arduino Uno Q — Debian Linux, Python, OpenCV
+Arduino Uno Q — Debian Linux, Python, FFmpeg
     │ Wi-Fi / local network, SSH
     ▼
 Laptop — Python, saves photo.jpg + metadata.json
@@ -110,8 +110,8 @@ Run these in the **Uno Q SSH shell**, not on the laptop:
 
 ```bash
 sudo apt update
-sudo apt install -y python3 python3-opencv v4l-utils usbutils
-/usr/bin/python3 -c 'import cv2; print(cv2.__version__)'
+sudo apt install -y python3 ffmpeg v4l-utils usbutils
+ffmpeg -version
 lsusb
 v4l2-ctl --list-devices
 ```
@@ -123,9 +123,9 @@ v4l2-ctl --device=/dev/video0 --all
 v4l2-ctl --device=/dev/video0 --list-formats-ext
 ```
 
-Choose the node supporting video capture and JPEG/MJPG or another image format. Substitute it everywhere this guide uses `/dev/video0`. If available, a matching `/dev/v4l/by-id/...-video-index0` path provides a more stable name across reboots than a numbered node; verify that it belongs to the C920s.
+Choose the node supporting video capture and JPEG/MJPG. The scripts require native MJPEG and do not fall back to raw-video formats. Substitute it everywhere this guide uses `/dev/video0`. If available, a matching `/dev/v4l/by-id/...-video-index0` path provides a more stable name across reboots than a numbered node; verify that it belongs to the C920s.
 
-The scripts request **1920 × 1080, MJPG, 30 fps**, then save one JPEG. Device drivers may negotiate a different size; the saved metadata records the actual frame dimensions. Check supported formats rather than assuming that requested settings were accepted. OpenCV documents device-dependent property behavior in its [VideoCapture reference](https://docs.opencv.org/4.x/d8/dfe/classcv_1_1VideoCapture.html).
+The scripts request **1920 × 1080, MJPG, 30 fps**, then save one JPEG. Device drivers may negotiate a different size; the saved metadata records the actual frame dimensions. Check supported formats rather than assuming that requested settings were accepted. FFmpeg reads the native MJPEG frames without re-encoding them; actual dimensions come from the saved JPEG header. See its [Linux camera input reference](https://ffmpeg.org/ffmpeg-devices.html#video4linux2_002c-v4l2).
 
 If the account cannot access the video device:
 
@@ -138,11 +138,11 @@ exit
 
 Reconnect with SSH after changing group membership. If your account has a different name, substitute it in `usermod`. Use the ordinary account to run the camera program.
 
-An optional visual test, when a display is connected to the board, is `sudo apt install cheese`, then `cheese` from its desktop session. Close Cheese and any App Lab camera example before running our program. Arduino describes both camera discovery and OpenCV in its [USB-camera instructions](https://docs.arduino.cc/tutorials/uno-q/debian-guide/).
+An optional visual test, when a display is connected to the board, is `sudo apt install cheese`, then `cheese` from its desktop session. Close Cheese and any App Lab camera example before running our program. Arduino describes camera discovery in its [USB-camera instructions](https://docs.arduino.cc/tutorials/uno-q/debian-guide/).
 
 ## 5. Set up SSH authentication for repeated captures
 
-The laptop program uses noninteractive SSH. Configure a key once so it does not request the board password on every photo.
+Use `--password` to enter the board password for each manual photo, or configure a key once for repeated captures without password prompts. An explicit `--identity` uses noninteractive SSH.
 
 **Laptop — macOS/Linux:**
 
@@ -182,393 +182,24 @@ ssh -i $UNO_KEY -o IdentitiesOnly=yes -o BatchMode=yes $UNO_TARGET 'printf "SSH 
 
 Continue only after the test prints `SSH ready`. Keep the private key on the laptop; only the `.pub` file goes to the board.
 
-## 6. Create the two program files
+## 6. Use the repository programs
 
-From the **repository root on the laptop**, create these directories:
+Use the current checked-in files rather than copying an older embedded version:
 
-```bash
-mkdir -p capture/uno-q images/arduino-inbox
-```
+- [Board program: `capture/uno-q/uno_q_camera.py`](capture/uno-q/uno_q_camera.py)
+- [Laptop program: `capture/uno-q/laptop_capture.py`](capture/uno-q/laptop_capture.py)
 
-On PowerShell:
+The board uses FFmpeg to consume native MJPEG frames during exposure/focus
+warmup, validates the selected JPEG, reads its actual dimensions, and caches a
+ZIP with the photo and metadata under `~/scrap-camera/captures/`. Diagnostics
+go to stderr. Reusing a completed capture ID returns its saved bytes without
+reopening the camera or requiring FFmpeg to be available. The laptop bounds
+the board command with Debian's `timeout` utility.
 
-```powershell
-New-Item -ItemType Directory -Force capture/uno-q, images/arduino-inbox
-```
-
-Save the following two blocks as plain-text `.py` files at their indicated paths. The existing root `.gitignore` ignores `images/`, so local dish photos stay outside version control. The board script will be copied to the board; the laptop script stays on the laptop.
-
-### 6.1 Board program: `capture/uno-q/uno_q_camera.py`
-
-This program runs once per request. It saves a ZIP containing the JPEG and metadata under `~/scrap-camera/captures/`, then writes that ZIP to SSH's binary output. Diagnostics go to stderr. Reusing a completed capture ID returns its saved bytes without reopening the camera.
-
-```python
-#!/usr/bin/env python3
-"""Uno Q: capture/cache one webcam photo and send its bundle over stdout."""
-
-import argparse
-from datetime import datetime, timezone
-import fcntl
-import hashlib
-import io
-import json
-import math
-import os
-from pathlib import Path
-import sys
-import tempfile
-import time
-import uuid
-import zipfile
-
-MAX_JPEG_BYTES = 16 * 1024 * 1024
-
-
-def capture_image(args):
-    # Import only when capturing; cached transfers do not need the camera.
-    import cv2
-
-    camera = cv2.VideoCapture(args.device, cv2.CAP_V4L2)
-    try:
-        if not camera.isOpened():
-            raise RuntimeError(
-                f"Cannot open {args.device}. Check the hub, video node, "
-                "permissions, and other camera applications."
-            )
-        camera.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
-        camera.set(cv2.CAP_PROP_FRAME_WIDTH, args.width)
-        camera.set(cv2.CAP_PROP_FRAME_HEIGHT, args.height)
-        camera.set(cv2.CAP_PROP_FPS, 30)
-
-        # Keep consuming frames while automatic exposure/focus settles.
-        deadline = time.monotonic() + args.warmup
-        frame = None
-        while frame is None or time.monotonic() < deadline:
-            ok, frame = camera.read()
-            if not ok or frame is None or frame.size == 0:
-                raise RuntimeError("The camera returned no usable frame.")
-
-        ok, frame = camera.read()
-        captured_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-        if not ok or frame is None or frame.size == 0:
-            raise RuntimeError("The final camera frame was empty.")
-        height, width = frame.shape[:2]
-        ok, encoded = cv2.imencode(
-            ".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 95]
-        )
-        if not ok:
-            raise RuntimeError("JPEG encoding failed.")
-        photo = encoded.tobytes()
-        if not 0 < len(photo) <= MAX_JPEG_BYTES:
-            raise RuntimeError("The JPEG is empty or exceeds the 16 MiB limit.")
-
-        metadata = {
-            "protocolVersion": 1,
-            "captureId": args.capture_id,
-            "capturedAt": captured_at,
-            "timestampBasis": "board_frame_received",
-            "captureSource": "uno_q_usb_camera",
-            "device": args.device,
-            "mimeType": "image/jpeg",
-            "widthPx": int(width),
-            "heightPx": int(height),
-            "requestedWidthPx": args.width,
-            "requestedHeightPx": args.height,
-            "normalized": False,
-            "byteLength": len(photo),
-            "sha256": hashlib.sha256(photo).hexdigest(),
-        }
-        return photo, metadata
-    finally:
-        camera.release()
-
-
-def make_bundle(photo, metadata):
-    stream = io.BytesIO()
-    # JPEG is already compressed. STORE also permits simple size validation.
-    with zipfile.ZipFile(stream, "w", compression=zipfile.ZIP_STORED) as bundle:
-        bundle.writestr("photo.jpg", photo)
-        bundle.writestr("metadata.json", json.dumps(metadata) + "\n")
-    return stream.getvalue()
-
-
-def atomic_write(destination, data):
-    temporary = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            dir=destination.parent, prefix=".capture-", delete=False
-        ) as file:
-            temporary = Path(file.name)
-            file.write(data)
-            file.flush()
-            os.fsync(file.fileno())
-        os.replace(temporary, destination)
-    finally:
-        if temporary is not None and temporary.exists():
-            temporary.unlink()
-
-
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--capture-id", required=True)
-    parser.add_argument("--device", default="/dev/video0")
-    parser.add_argument("--width", type=int, default=1920)
-    parser.add_argument("--height", type=int, default=1080)
-    parser.add_argument("--warmup", type=float, default=2.0)
-    parser.add_argument(
-        "--cache-dir", type=Path,
-        default=Path.home() / "scrap-camera" / "captures",
-    )
-    args = parser.parse_args()
-    if str(uuid.UUID(args.capture_id)) != args.capture_id:
-        parser.error("--capture-id must be a canonical UUID.")
-    if not (1 <= args.width <= 8192 and 1 <= args.height <= 8192):
-        parser.error("Width and height must be between 1 and 8192.")
-    if not math.isfinite(args.warmup) or not 0 <= args.warmup <= 10:
-        parser.error("Warmup must be between 0 and 10 seconds.")
-
-    os.umask(0o077)
-    args.cache_dir.mkdir(parents=True, exist_ok=True)
-    cached = args.cache_dir / (args.capture_id + ".zip")
-    if not cached.exists():
-        with (args.cache_dir / ".camera.lock").open("a") as lock:
-            try:
-                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                raise RuntimeError("Another capture is using the camera. Retry shortly.")
-            # Another request may have completed before we acquired the lock.
-            if not cached.exists():
-                photo, metadata = capture_image(args)
-                atomic_write(cached, make_bundle(photo, metadata))
-                print(
-                    f"Captured {args.capture_id}: "
-                    f"{metadata['widthPx']}x{metadata['heightPx']}",
-                    file=sys.stderr,
-                )
-
-    # Never print logs to stdout: the laptop expects a binary ZIP stream.
-    sys.stdout.buffer.write(cached.read_bytes())
-    sys.stdout.buffer.flush()
-
-
-if __name__ == "__main__":
-    try:
-        main()
-    except Exception as error:
-        print(f"Camera error: {error}", file=sys.stderr)
-        sys.exit(1)
-```
-
-OpenCV's [`read()`](https://docs.opencv.org/4.x/d8/dfe/classcv_1_1VideoCapture.html) supplies the frame; [`imencode()`](https://docs.opencv.org/4.x/d4/da8/group__imgcodecs.html) creates JPEG bytes. The laptop wraps the board command with Debian's `timeout` utility to bound a stalled camera operation.
-
-### 6.2 Laptop program: `capture/uno-q/laptop_capture.py`
-
-This uses only Python's standard library and the laptop's SSH client. It checks the bundle's capture ID, file sizes, UTC timestamp, and JPEG checksum, then publishes a complete local directory. A pending ID survives a failed transfer or laptop-program restart.
-
-```python
-#!/usr/bin/env python3
-"""Laptop: request Uno Q photos over SSH and save them for later upload."""
-
-import argparse
-from datetime import datetime
-import hashlib
-import io
-import json
-import math
-import os
-from pathlib import Path
-import re
-import shlex
-import shutil
-import subprocess
-import sys
-import tempfile
-import uuid
-import zipfile
-
-MAX_JPEG_BYTES = 16 * 1024 * 1024
-MAX_BUNDLE_BYTES = MAX_JPEG_BYTES + 64 * 1024
-
-
-def validate_bundle(data, capture_id):
-    if not 0 < len(data) <= MAX_BUNDLE_BYTES:
-        raise ValueError("The received bundle is empty or too large.")
-    with zipfile.ZipFile(io.BytesIO(data)) as bundle:
-        entries = bundle.infolist()
-        if len(entries) != 2 or {e.filename for e in entries} != {
-            "photo.jpg", "metadata.json"
-        }:
-            raise ValueError("Unexpected files in the camera bundle.")
-        for entry in entries:
-            limit = MAX_JPEG_BYTES if entry.filename == "photo.jpg" else 8192
-            if not 0 < entry.file_size <= limit:
-                raise ValueError("A camera bundle file exceeds its size limit.")
-            if entry.compress_type != zipfile.ZIP_STORED:
-                raise ValueError("Unexpected camera bundle compression.")
-        # Read fixed names; do not extract archive paths onto the laptop.
-        photo = bundle.read("photo.jpg")
-        metadata = json.loads(bundle.read("metadata.json"))
-
-    if not isinstance(metadata, dict):
-        raise ValueError("Camera metadata must be an object.")
-    if metadata.get("protocolVersion") != 1 or metadata.get("captureId") != capture_id:
-        raise ValueError("The camera returned a different capture ID or protocol.")
-    if metadata.get("mimeType") != "image/jpeg" or metadata.get("normalized") is not False:
-        raise ValueError("Unexpected camera image format/geometry metadata.")
-    for key in ("widthPx", "heightPx"):
-        value = metadata.get(key)
-        if type(value) is not int or not 1 <= value <= 8192:
-            raise ValueError(f"Invalid {key} in camera metadata.")
-    timestamp = datetime.fromisoformat(metadata["capturedAt"].replace("Z", "+00:00"))
-    if timestamp.utcoffset() is None or timestamp.utcoffset().total_seconds() != 0:
-        raise ValueError("The camera timestamp must include UTC timezone information.")
-    if not (photo.startswith(b"\xff\xd8") and photo.endswith(b"\xff\xd9")):
-        raise ValueError("The received photo is not a complete JPEG.")
-    if type(metadata.get("byteLength")) is not int or metadata["byteLength"] != len(photo):
-        raise ValueError("The JPEG byte count does not match its metadata.")
-    if hashlib.sha256(photo).hexdigest() != metadata.get("sha256"):
-        raise ValueError("The JPEG checksum does not match. Retry the same capture.")
-    return photo, metadata
-
-
-def save_capture(out, photo, metadata):
-    destination = out / metadata["captureId"]
-    if destination.exists():
-        existing_metadata = json.loads((destination / "metadata.json").read_text())
-        existing_photo = (destination / "photo.jpg").read_bytes()
-        if existing_metadata != metadata or existing_photo != photo:
-            raise ValueError("A different local photo already uses this capture ID.")
-        return destination
-
-    temporary = Path(tempfile.mkdtemp(prefix=".receive-", dir=out))
-    try:
-        for name, content in (
-            ("photo.jpg", photo),
-            ("metadata.json", (json.dumps(metadata, indent=2) + "\n").encode()),
-        ):
-            with (temporary / name).open("wb") as file:
-                file.write(content)
-                file.flush()
-                os.fsync(file.fileno())
-        temporary.rename(destination)
-    finally:
-        if temporary.exists():
-            shutil.rmtree(temporary)
-    return destination
-
-
-def receive_capture(args):
-    out = args.out.expanduser().resolve()
-    out.mkdir(parents=True, exist_ok=True)
-    pending_path = out / ".pending.json"
-    configuration = {
-        "target": args.target,
-        "remoteScript": args.remote_script,
-        "device": args.device,
-        "width": args.width,
-        "height": args.height,
-        "warmup": args.warmup,
-    }
-    if pending_path.exists():
-        request = json.loads(pending_path.read_text())
-        if request["configuration"] != configuration:
-            raise ValueError("A pending capture uses different settings. Retry with its original settings.")
-        capture_id = request["captureId"]
-        if str(uuid.UUID(capture_id)) != capture_id:
-            raise ValueError("Invalid pending capture ID.")
-    else:
-        capture_id = str(uuid.uuid4())
-        request = {"captureId": capture_id, "configuration": configuration}
-        temporary = out / ".pending.tmp"
-        with temporary.open("w") as file:
-            json.dump(request, file)
-            file.flush()
-            os.fsync(file.fileno())
-        os.replace(temporary, pending_path)
-
-    print(f"Requesting {capture_id} ...", flush=True)
-    remote_command = shlex.join([
-        "timeout", "--signal=TERM", "--kill-after=2s", "20s",
-        "/usr/bin/python3", args.remote_script,
-        "--capture-id", capture_id,
-        "--device", args.device,
-        "--width", str(args.width), "--height", str(args.height),
-        "--warmup", str(args.warmup),
-    ])
-    command = [
-        "ssh", "-T", "-i", str(args.identity.expanduser()),
-        "-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes",
-        "-o", "ConnectTimeout=10", "-o", "ServerAliveInterval=5",
-        "-o", "ServerAliveCountMax=2", args.target, remote_command,
-    ]
-    result = subprocess.run(
-        command, stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        timeout=45, check=True,
-    )
-    photo, metadata = validate_bundle(result.stdout, capture_id)
-    destination = save_capture(out, photo, metadata)
-    pending_path.unlink()
-    print(f"Saved: {destination / 'photo.jpg'}")
-    print(f"Metadata: {destination / 'metadata.json'}")
-    print(f"Actual image: {metadata['widthPx']} x {metadata['heightPx']} pixels")
-    return destination
-
-
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--target", required=True, help="arduino@board-IP-or-hostname")
-    parser.add_argument("--device", default="/dev/video0")
-    parser.add_argument("--width", type=int, default=1920)
-    parser.add_argument("--height", type=int, default=1080)
-    parser.add_argument("--warmup", type=float, default=2.0)
-    parser.add_argument("--remote-script", default="scrap-camera/uno_q_camera.py")
-    parser.add_argument("--identity", type=Path, default=Path.home() / ".ssh" / "scrap_unoq")
-    parser.add_argument("--out", type=Path, default=Path("images/arduino-inbox"))
-    parser.add_argument("--once", action="store_true", help="Capture/retry once and exit")
-    args = parser.parse_args()
-    if not re.fullmatch(r"[A-Za-z0-9_.-]+@[A-Za-z0-9_.-]+", args.target):
-        parser.error("Use an SSH target such as arduino@192.168.1.50 or arduino@board.local.")
-    if not (1 <= args.width <= 8192 and 1 <= args.height <= 8192):
-        parser.error("Width and height must be between 1 and 8192.")
-    if not math.isfinite(args.warmup) or not 0 <= args.warmup <= 10:
-        parser.error("Warmup must be between 0 and 10 seconds.")
-
-    print("One operator/program per output folder. Place one dish before each capture.")
-    while True:
-        if not args.once:
-            if (args.out.expanduser() / ".pending.json").exists():
-                print("A previous request is pending; Enter retries that same capture.")
-            choice = input("Enter = capture/retry; q = quit: ").strip().lower()
-            if choice == "q":
-                return 0
-            if choice:
-                continue
-        try:
-            receive_capture(args)
-        except Exception as error:
-            if isinstance(error, subprocess.CalledProcessError):
-                detail = (error.stderr or b"").decode("utf-8", errors="replace").strip()
-                print(f"SSH/camera failed ({error.returncode}): {detail[-2000:]}", file=sys.stderr)
-            else:
-                print(f"Capture failed: {error}", file=sys.stderr)
-            print("Pending ID retained. Keep the dish in place and retry with the same settings.", file=sys.stderr)
-            if args.once:
-                return 1
-        else:
-            if args.once:
-                return 0
-
-
-if __name__ == "__main__":
-    try:
-        sys.exit(main())
-    except (KeyboardInterrupt, EOFError):
-        print("\nStopped. Any pending capture remains available for retry.")
-        sys.exit(0)
-```
-
-Binary stdout must remain binary: the program does not use a text-decoding subprocess mode for image transfer. Python documents these options in its [`subprocess` reference](https://docs.python.org/3/library/subprocess.html).
+The laptop uses only Python's standard library and SSH. It validates the
+bundle's capture ID, byte count, timestamp, dimensions, and checksum before
+publishing a complete local directory. Its pending ID survives a failed
+transfer or program restart. Photos under `images/` remain gitignored.
 
 ## 7. Copy the board program to the Uno Q
 
@@ -707,7 +338,8 @@ Do not delete cached pending photos; doing so removes the ability to retrieve th
 | SSH connection times out | Correct board IP, both devices on a reachable network, no guest/client isolation or VPN routing issue. Try the IP instead of `.local`; use App Lab/board shell to inspect `hostname -I`. |
 | `Permission denied (publickey,...)` | Run the batch-mode SSH readiness test. Verify the public key was installed for the right account, the chosen private key matches, and its passphrase is unlocked with `ssh-add`. |
 | `Host key verification failed` | Connect manually and verify the board identity. If the board was reflashed, confirm that fact before replacing its old known-host entry. |
-| `No module named cv2` | Install `python3-opencv` on the **board** and use `/usr/bin/python3`, as the code does. The laptop does not need OpenCV. |
+| `FFmpeg is not installed` | Run `sudo apt install ffmpeg` on the **board**. |
+| `No module named cv2` | The board still has the old script. Copy the current `uno_q_camera.py` from this repository again; neither capture mode needs OpenCV. |
 | Cannot open camera, black frame, or empty frame | Open shutter, choose the video-capture node, check membership in `video`, and close other camera applications. |
 | SSH/camera exits with code `124`, or laptop times out | The bounded camera command stalled. Check camera/hub, close competing processes, then retry the pending ID. Lower the requested mode only after resolving/abandoning the pending request. |
 | `Another capture is using the camera` | Wait for the current request or its 20-second timeout, then retry. Use one operator and capture program. |
@@ -730,6 +362,14 @@ Before using this in the demonstration:
 5. Disconnect the camera before a new trigger. Confirm an explicit error and pending ID rather than an empty successful photo. Reconnect, keep the intended dish present, and retry.
 6. Confirm that the files remain after restarting the laptop program and that no R2/SpacetimeDB operation occurred just from receiving them.
 
-**Verification at authoring — passed:** Both embedded Python programs parse successfully. Local checks with a simulated OpenCV camera and SSH command covered single and repeated captures, an interrupted transfer after board caching, restart/retry without recapturing, actual negotiated dimensions, a missing camera and reconnection, protected pending settings, interactive capture/quit, malformed bundles, checksum/ID/size/timestamp/geometry validation, and conflicting local results. A real synthetic JPEG was transferred unchanged and decoded successfully. These checks did not exercise a Uno Q, C920s, powered hub, live SSH/Wi-Fi connection, or database upload. Hardware acceptance remains the team's next step.
+**Current verification:** The simulated suite uses fake FFmpeg and SSH with
+OpenCV imports deliberately blocked. It covers manual and timed capture,
+actual JPEG dimensions, warmup, missing/disconnected camera errors, empty and
+malformed packets, bounded camera padding, cached transfer retries, locking,
+and bundle validation. Run `python3 -B -m unittest discover -s capture/uno-q -v`
+from the repository root. These checks do not exercise live hardware or
+networking. [The camera-capture guide](capture/uno-q/README.md) records the
+prior automatic-mode hardware smoke check; the new FFmpeg manual path still
+needs its own hardware check.
 
-Assumptions: Uno Q Debian image with SSH and GNU `timeout`, a reachable local network, a supported webcam video mode, sufficient local storage, one manual operator, and existing project normalization/upload integration after receipt. The scripts deliberately record raw photos and local provenance; they do not implement plate detection, conveyor triggering, automatic dish tracking, or image analysis.
+Assumptions: Uno Q Debian image with FFmpeg, SSH, and GNU `timeout`, a reachable local network, a supported webcam video mode, sufficient local storage, one manual operator, and existing project normalization/upload integration after receipt. The scripts deliberately record raw photos and local provenance; they do not implement plate detection, conveyor triggering, automatic dish tracking, or image analysis.

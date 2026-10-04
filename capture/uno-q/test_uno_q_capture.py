@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Simulated checks for the Uno Q capture scripts (no board, camera, or network).
 
-A fake `cv2` module stands in for the C920s and a fake `ssh` executable runs the
-board script locally in a temporary "board home". Run from the repository root:
+A fake FFmpeg streams fixture JPEGs and a fake `ssh` executable runs the board
+script locally in a temporary "board home". OpenCV imports are deliberately
+blocked. Run from the repository root:
 
     python3 -m unittest discover -s capture/uno-q -v
 """
@@ -23,7 +24,7 @@ import textwrap
 import time
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 import uuid
 import zipfile
 
@@ -32,67 +33,6 @@ BOARD_SCRIPT = HERE / "uno_q_camera.py"
 LAPTOP_SCRIPT = HERE / "laptop_capture.py"
 FIXTURE_JPEG = HERE.parent / "fixtures" / "replay" / "images" / "dinner-1003-salmon-rice.jpg"
 TARGET = "arduino@192.168.1.50"
-
-FAKE_CV2 = '''
-import os
-
-CAP_V4L2 = 200
-CAP_PROP_FRAME_WIDTH = 3
-CAP_PROP_FRAME_HEIGHT = 4
-CAP_PROP_FPS = 5
-CAP_PROP_FOURCC = 6
-IMWRITE_JPEG_QUALITY = 1
-
-
-def VideoWriter_fourcc(*code):
-    return sum(ord(c) << (8 * i) for i, c in enumerate(code))
-
-
-class _Frame:
-    def __init__(self, width, height):
-        self.shape = (height, width, 3)
-        self.size = width * height * 3
-
-
-class _Encoded:
-    def __init__(self, data):
-        self._data = data
-
-    def tobytes(self):
-        return self._data
-
-
-class VideoCapture:
-    def __init__(self, device, api):
-        with open(os.environ["FAKE_CAMERA_OPEN_LOG"], "a") as log:
-            log.write(device + "\\n")
-        self._opened = os.environ.get("FAKE_CAMERA_MISSING") != "1"
-        self._props = {}
-
-    def isOpened(self):
-        return self._opened
-
-    def set(self, prop, value):
-        self._props[prop] = value
-        return True
-
-    def read(self):
-        negotiated = os.environ.get("FAKE_CAMERA_SIZE")
-        if negotiated:
-            width, height = (int(v) for v in negotiated.split("x"))
-        else:
-            width = int(self._props[CAP_PROP_FRAME_WIDTH])
-            height = int(self._props[CAP_PROP_FRAME_HEIGHT])
-        return True, _Frame(width, height)
-
-    def release(self):
-        pass
-
-
-def imencode(ext, frame, params):
-    with open(os.environ["FAKE_CV2_JPEG"], "rb") as file:
-        return True, _Encoded(file.read())
-'''
 
 FAKE_SSH = '''#!{python}
 import json, os, shlex, signal, subprocess, sys
@@ -156,8 +96,9 @@ if os.environ.get("FAKE_CAMERA_MISSING") == "1":
     sys.stderr.write("Cannot open /dev/video0: camera disconnected\\n")
     sys.exit(1)
 signal.signal(signal.SIGPIPE, signal.SIG_DFL)
-with open(os.environ["FAKE_CV2_JPEG"], "rb") as file:
+with open(os.environ["FAKE_CAMERA_JPEG"], "rb") as file:
     photo = file.read()
+photo += bytes.fromhex(os.environ.get("FAKE_JPEG_PADDING", ""))
 headers = b"--ffmpeg\\r\\nContent-type: image/jpeg\\r\\nContent-length: " + str(len(photo)).encode() + b"\\r\\n\\r\\n"
 empty = b"--ffmpeg\\r\\nContent-type: image/jpeg\\r\\nContent-length: 0\\r\\n\\r\\n\\r\\n"
 for _ in range(int(os.environ.get("FAKE_EMPTY_FRAMES", "0"))):
@@ -184,7 +125,7 @@ board_spec.loader.exec_module(board)
 
 
 class SimulatedRig(unittest.TestCase):
-    """Laptop script → fake ssh → board script → fake cv2."""
+    """Laptop script → fake ssh → board script → fake FFmpeg."""
 
     def setUp(self):
         self.root = Path(tempfile.mkdtemp(prefix="unoq-test-"))
@@ -195,7 +136,7 @@ class SimulatedRig(unittest.TestCase):
         self.cache = self.board_home / "scrap-camera" / "captures"
         fake_lib = self.root / "fake-lib"
         fake_lib.mkdir()
-        (fake_lib / "cv2.py").write_text(FAKE_CV2)
+        (fake_lib / "cv2.py").write_text('raise ImportError("OpenCV is intentionally unavailable in this rig")\n')
         fake_bin = self.root / "bin"
         fake_bin.mkdir()
         ssh = fake_bin / "ssh"
@@ -205,7 +146,7 @@ class SimulatedRig(unittest.TestCase):
         ffmpeg.write_text(FAKE_FFMPEG.format(python=sys.executable))
         ffmpeg.chmod(0o755)
         self.out = self.root / "laptop" / "images" / "arduino-inbox"
-        self.open_log = self.root / "camera-opens.log"
+        self.open_log = self.root / "ffmpeg.log"
         self.open_log.touch()
         self.ssh_log = self.root / "ssh.log"
         (self.root / "fake_key").touch()
@@ -214,10 +155,9 @@ class SimulatedRig(unittest.TestCase):
             PATH=f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
             PYTHONPATH=str(fake_lib),
             FAKE_BOARD_HOME=str(self.board_home),
-            FAKE_CAMERA_OPEN_LOG=str(self.open_log),
             FAKE_SSH_LOG=str(self.ssh_log),
-            FAKE_CV2_JPEG=str(FIXTURE_JPEG),
-            FAKE_FFMPEG_LOG=str(self.root / "ffmpeg.log"),
+            FAKE_CAMERA_JPEG=str(FIXTURE_JPEG),
+            FAKE_FFMPEG_LOG=str(self.open_log),
         )
 
     def laptop_command(self, *extra):
@@ -258,14 +198,19 @@ class SimulatedRig(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         [directory] = self.capture_dirs()
         metadata = self.assert_saved(directory)
-        self.assertEqual((metadata["widthPx"], metadata["heightPx"]), (1920, 1080))
+        dimensions = board.jpeg_dimensions(FIXTURE_JPEG.read_bytes())
+        self.assertEqual((metadata["widthPx"], metadata["heightPx"]), dimensions)
+        self.assertEqual((metadata["requestedWidthPx"], metadata["requestedHeightPx"]), (1920, 1080))
         self.assertEqual(metadata["device"], "/dev/video0")
         self.assertFalse((self.out / ".pending.json").exists())
-        self.assertIn("Actual image: 1920 x 1080 pixels", result.stdout)
+        self.assertIn(f"Actual image: {dimensions[0]} x {dimensions[1]} pixels", result.stdout)
         self.assertTrue((self.cache / f"{directory.name}.zip").exists())
         invocation = json.loads(self.ssh_log.read_text().splitlines()[0])
         self.assertIn("BatchMode=yes", invocation)
         self.assertIn(TARGET, invocation)
+        [camera_args] = [json.loads(line) for line in self.open_log.read_text().splitlines()]
+        self.assertEqual(camera_args[camera_args.index("-c:v") + 1], "copy")
+        self.assertEqual(camera_args[camera_args.index("-input_format") + 1], "mjpeg")
 
     def test_real_jpeg_decodes_after_transfer(self):
         try:
@@ -285,12 +230,12 @@ class SimulatedRig(unittest.TestCase):
         self.assertEqual(self.camera_opens(), 3)
 
     def test_negotiated_dimensions_are_recorded(self):
-        result = self.run_laptop("--once", FAKE_CAMERA_SIZE="1280x720")
+        result = self.run_laptop("--once", "--width", "1280", "--height", "720")
         self.assertEqual(result.returncode, 0, result.stderr)
         [directory] = self.capture_dirs()
         metadata = self.assert_saved(directory)
-        self.assertEqual((metadata["widthPx"], metadata["heightPx"]), (1280, 720))
-        self.assertEqual((metadata["requestedWidthPx"], metadata["requestedHeightPx"]), (1920, 1080))
+        self.assertEqual((metadata["widthPx"], metadata["heightPx"]), board.jpeg_dimensions(FIXTURE_JPEG.read_bytes()))
+        self.assertEqual((metadata["requestedWidthPx"], metadata["requestedHeightPx"]), (1280, 720))
 
     def test_interrupted_transfer_reuses_board_cache(self):
         failed = self.run_laptop("--once", FAKE_SSH_DROP="1")
@@ -300,7 +245,7 @@ class SimulatedRig(unittest.TestCase):
         self.assertTrue((self.cache / f"{capture_id}.zip").exists())
         self.assertEqual(self.capture_dirs(), [])
 
-        retried = self.run_laptop("--once")
+        retried = self.run_laptop("--once", FAKE_CAMERA_MISSING="1")
         self.assertEqual(retried.returncode, 0, retried.stderr)
         self.assertIn(capture_id, retried.stdout)
         self.assertEqual([d.name for d in self.capture_dirs()], [capture_id])
@@ -354,6 +299,48 @@ class SimulatedRig(unittest.TestCase):
         self.assertEqual(len(self.capture_dirs()), 1)
         self.assertEqual(result.stdout.count("Saved:"), 1)
 
+    def test_manual_warmup_and_repeated_capture_release_camera(self):
+        from datetime import datetime
+        result = self.run_laptop("--warmup", "0.1", stdin="\n\nq\n")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        directories = self.capture_dirs()
+        self.assertEqual(len(directories), 2)
+        timestamps = sorted(
+            datetime.fromisoformat(self.assert_saved(directory)["capturedAt"].replace("Z", "+00:00"))
+            for directory in directories
+        )
+        self.assertGreaterEqual((timestamps[1] - timestamps[0]).total_seconds(), 0.1)
+        self.assertEqual(self.camera_opens(), 2)
+
+    def test_manual_recovers_from_empty_packets_and_camera_padding(self):
+        result = self.run_laptop("--once", FAKE_EMPTY_FRAMES="3", FAKE_JPEG_PADDING=(b"x" * 31).hex())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        [directory] = self.capture_dirs()
+        self.assert_saved(directory)
+
+    def test_manual_invalid_or_empty_frames_are_unavailable(self):
+        invalid_photo = self.root / "truncated.jpg"
+        invalid_photo.write_bytes(FIXTURE_JPEG.read_bytes()[:-2])
+        for settings, message in (({"FAKE_EMPTY_FRAMES": "90"}, "90 consecutive empty frames"),
+                                  ({"FAKE_CAMERA_JPEG": str(invalid_photo)}, "incomplete JPEG"),
+                                  ({"FAKE_JPEG_PADDING": (b"x" * 33).hex()}, "excessive trailing data")):
+            with self.subTest(settings=settings):
+                result = self.run_laptop("--once", **settings)
+                self.assertEqual(result.returncode, 1)
+                self.assertIn(message, result.stderr)
+                self.assertEqual(self.capture_dirs(), [])
+                self.assertEqual(list(self.cache.glob("*.zip")), [])
+        self.assertEqual(self.run_laptop("--once").returncode, 0)
+
+    def test_manual_missing_ffmpeg_has_actionable_error(self):
+        (self.root / "bin" / "ffmpeg").unlink()
+        result = self.run_laptop("--once", PATH=str(self.root / "bin"))
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("sudo apt install ffmpeg on the board", result.stderr)
+        self.assertTrue((self.out / ".pending.json").exists())
+        self.assertEqual(self.capture_dirs(), [])
+        self.assertEqual(list(self.cache.glob("*.zip")), [])
+
     def test_interactive_eof_preserves_pending(self):
         result = self.run_laptop(stdin="", FAKE_CAMERA_MISSING="1")
         self.assertEqual(result.returncode, 0)
@@ -395,7 +382,7 @@ class SimulatedRig(unittest.TestCase):
         for before, after in zip(timestamps, timestamps[1:]):
             self.assertGreater((after - before).total_seconds(), 0.85)
             self.assertLess((after - before).total_seconds(), 1.5)
-        self.assertEqual(self.camera_opens(), 0, "automatic capture must not use cv2")
+        self.assertEqual(self.camera_opens(), 1, "automatic capture must keep one FFmpeg session")
         self.assertEqual(len(self.ssh_log.read_text().splitlines()), 1)
         [invocation] = (self.root / "ffmpeg.log").read_text().splitlines()
         args = json.loads(invocation)
@@ -472,6 +459,17 @@ class SimulatedRig(unittest.TestCase):
         self.assertIn("camera disconnected", result.stderr)
         self.assertEqual(self.capture_dirs(), [])
 
+    def test_automatic_camera_padding_is_removed_before_transfer(self):
+        padding = b"x" * 29 + b"\xff\xd9"
+        result = self.run_laptop(
+            "--auto", "--interval", "0.1", "--count", "2",
+            FAKE_JPEG_PADDING=padding.hex(),
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(self.capture_dirs()), 2)
+        for directory in self.capture_dirs():
+            self.assert_saved(directory)
+
     def test_automatic_truncated_transfer_saves_no_incomplete_photo(self):
         result = self.run_laptop("--auto", "--count", "2", FAKE_SSH_DROP="1")
         self.assertEqual(result.returncode, 1)
@@ -511,6 +509,32 @@ class StreamParsing(unittest.TestCase):
         self.assertEqual(board.read_mjpeg_frame(stream), photo)
         self.assertEqual(board.read_mjpeg_frame(stream), photo)
 
+    def test_padded_packets_keep_next_packet_aligned(self):
+        photo = FIXTURE_JPEG.read_bytes()
+        padded = photo + b"\x00\xff\xd9padding"
+        frame = (b"--ffmpeg\r\nContent-type: image/jpeg\r\nContent-length: "
+                 + str(len(padded)).encode() + b"\r\n\r\n" + padded + b"\r\n")
+        stream = io.BytesIO(frame * 2)
+        self.assertEqual(board.read_mjpeg_frame(stream), photo)
+        self.assertEqual(board.read_mjpeg_frame(stream), photo)
+
+    def test_embedded_header_markers_are_not_image_end_markers(self):
+        photo = FIXTURE_JPEG.read_bytes()
+        header = b"\xff\xe1\x00\x08ab\xff\xd9cd"
+        photo = photo[:2] + header + photo[2:]
+        self.assertEqual(board.camera_jpeg(photo + b"x" * 32), photo)
+        with self.assertRaisesRegex(ValueError, "incomplete JPEG"):
+            board.camera_jpeg(photo[:-2])
+
+    def test_camera_padding_is_bounded_and_truncation_remains_an_error(self):
+        photo = FIXTURE_JPEG.read_bytes()
+        with self.assertRaisesRegex(ValueError, "excessive trailing data"):
+            board.camera_jpeg(photo + b"x" * 33)
+        for invalid in (photo[:-1], photo[2:], b"\xff\xd8\xff\xd9",
+                        b"\xff\xd8\xff\xe1\x00\x01\xff\xd9"):
+            with self.assertRaisesRegex(ValueError, "incomplete JPEG"):
+                board.camera_jpeg(invalid)
+
     def test_bad_multipart_and_geometry_are_rejected(self):
         for data in (b"--wrong\r\n", b"--ffmpeg\r\nContent-length: 999999999\r\n\r\n",
                      b"--ffmpeg\r\nContent-type: image/jpeg\r\nContent-length: 20\r\n\r\nabc"):
@@ -545,6 +569,49 @@ class StreamParsing(unittest.TestCase):
         with patch.object(board.select, "select", return_value=([], [], [])):
             with self.assertRaisesRegex(TimeoutError, "stopped sending"):
                 stream.fill(board.time.monotonic() + 15)
+
+
+class CameraLifecycle(unittest.TestCase):
+    def args(self):
+        return SimpleNamespace(device="/dev/video0", width=1920, height=1080,
+                               warmup=0, capture_id=str(uuid.uuid4()))
+
+    def test_manual_warmup_discards_earlier_frames(self):
+        photo = FIXTURE_JPEG.read_bytes()
+        selected = photo[:2] + b"\xff\xfe\x00\x06last" + photo[2:]
+        args = self.args()
+        args.warmup = 0.1
+        frames = (frame for frame in [photo, photo, selected])
+        with patch.object(board, "camera_frames", return_value=frames):
+            with patch.object(board.time, "monotonic", side_effect=[0, 0.05, 0.1]):
+                saved, metadata = board.capture_image(args)
+        self.assertEqual(saved, selected)
+        self.assertEqual(metadata["sha256"], hashlib.sha256(selected).hexdigest())
+
+    def test_manual_capture_terminates_and_reaps_ffmpeg(self):
+        photo = FIXTURE_JPEG.read_bytes()
+        packet = (b"--ffmpeg\r\nContent-type: image/jpeg\r\nContent-length: "
+                  + str(len(photo)).encode() + b"\r\n\r\n" + photo + b"\r\n")
+        process = Mock(stdout=io.BytesIO(packet))
+        with patch.object(board.subprocess, "Popen", return_value=process):
+            with patch.object(board, "CameraPipe", side_effect=lambda stream: stream):
+                saved, _ = board.capture_image(self.args())
+        self.assertEqual(saved, photo)
+        process.terminate.assert_called_once()
+        process.wait.assert_called_once_with(timeout=3)
+        self.assertTrue(process.stdout.closed)
+
+    def test_failed_capture_kills_ffmpeg_if_termination_stalls(self):
+        process = Mock(stdout=io.BytesIO(b"--invalid\r\n"))
+        process.wait.side_effect = [subprocess.TimeoutExpired("ffmpeg", 3), 0]
+        with patch.object(board.subprocess, "Popen", return_value=process):
+            with patch.object(board, "CameraPipe", side_effect=lambda stream: stream):
+                with self.assertRaisesRegex(ValueError, "camera boundary"):
+                    board.capture_image(self.args())
+        process.terminate.assert_called_once()
+        process.kill.assert_called_once()
+        self.assertEqual(process.wait.call_count, 2)
+        self.assertTrue(process.stdout.closed)
 
 
 class SshAuthentication(unittest.TestCase):

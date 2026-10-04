@@ -2,6 +2,7 @@
 """Uno Q: capture one photo, or stream timed photos using FFmpeg."""
 
 import argparse
+from contextlib import closing
 from datetime import datetime, timezone
 import fcntl
 import hashlib
@@ -21,6 +22,7 @@ import uuid
 import zipfile
 
 MAX_JPEG_BYTES = 16 * 1024 * 1024
+MAX_JPEG_PADDING_BYTES = 32
 MAX_EMPTY_FRAMES = 90
 
 
@@ -95,9 +97,54 @@ def read_mjpeg_frame(stream):
     if size == 0:
         return None
     photo = stream.read(size)
-    if len(photo) != size or not (photo.startswith(b"\xff\xd8") and photo.endswith(b"\xff\xd9")):
+    if len(photo) != size:
         raise ValueError("The camera returned an incomplete JPEG.")
-    return photo
+    return camera_jpeg(photo)
+
+
+def camera_jpeg(photo):
+    """Keep the encoded image, excluding bounded USB-camera buffer padding."""
+    if not photo.startswith(b"\xff\xd8"):
+        raise ValueError("The camera returned an incomplete JPEG.")
+    position = 2
+    in_scan = False
+    saw_scan = False
+    while position < len(photo):
+        if in_scan:
+            position = photo.find(b"\xff", position)
+            if position < 0:
+                break
+        elif photo[position] != 0xFF:
+            break
+        while position < len(photo) and photo[position] == 0xFF:
+            position += 1
+        if position >= len(photo):
+            break
+        marker = photo[position]
+        position += 1
+        if in_scan and (marker == 0x00 or 0xD0 <= marker <= 0xD7):
+            continue
+        if marker == 0xD9:
+            if not saw_scan:
+                break
+            if len(photo) - position > MAX_JPEG_PADDING_BYTES:
+                raise ValueError("The camera JPEG has excessive trailing data after its end marker.")
+            return photo[:position]
+        if marker in (0x00, 0xD8) or 0xD0 <= marker <= 0xD7:
+            break
+        if marker == 0x01:
+            continue
+        if position + 2 > len(photo):
+            break
+        size = int.from_bytes(photo[position:position + 2], "big")
+        if size < 2 or position + size > len(photo):
+            break
+        position += size
+        # Segment lengths protect embedded marker bytes in EXIF/other headers.
+        # Scan data uses FF00 stuffing; only an actual EOI marker ends the JPEG.
+        in_scan = marker == 0xDA or (in_scan and marker == 0xDC)
+        saw_scan = saw_scan or marker == 0xDA
+    raise ValueError("The camera returned an incomplete JPEG.")
 
 
 def jpeg_dimensions(photo):
@@ -131,7 +178,8 @@ def jpeg_dimensions(photo):
     raise ValueError("The camera JPEG has no valid image dimensions.")
 
 
-def stream_captures(args):
+def camera_frames(args):
+    """Yield validated native JPEGs; close FFmpeg when the caller is done."""
     command = [
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin",
         "-f", "v4l2", "-input_format", "mjpeg", "-framerate", "30",
@@ -139,30 +187,47 @@ def stream_captures(args):
         "-map", "0:v:0", "-an", "-c:v", "copy", "-f", "mpjpeg",
         "-boundary_tag", "ffmpeg", "-flush_packets", "1", "pipe:1",
     ]
+    try:
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, bufsize=0)
+    except FileNotFoundError as error:
+        raise RuntimeError("FFmpeg is not installed on the Uno Q. Run sudo apt install ffmpeg on the board.") from error
+    try:
+        stream = CameraPipe(process.stdout)
+        empty_frames = 0
+        while True:
+            photo = read_mjpeg_frame(stream)
+            if photo is None:
+                empty_frames += 1
+                if empty_frames >= MAX_EMPTY_FRAMES:
+                    raise RuntimeError(
+                        f"The camera sent {MAX_EMPTY_FRAMES} consecutive empty frames from {args.device}. "
+                        "Check the powered hub, camera, and capture node with v4l2-ctl --list-devices."
+                    )
+                if empty_frames == 1:
+                    print("Skipping an empty camera packet; waiting for a usable JPEG.", file=sys.stderr)
+                continue
+            empty_frames = 0
+            yield photo
+    finally:
+        process.terminate()
+        try:
+            process.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+        process.stdout.close()
+
+
+def stream_captures(args):
     with (args.cache_dir / ".camera.lock").open("a") as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             raise RuntimeError("Another capture is using the camera. Stop it first.")
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, bufsize=0)
-        try:
-            stream = CameraPipe(process.stdout)
+        with closing(camera_frames(args)) as frames:
             next_capture = None
             count = 0
-            empty_frames = 0
-            while True:
-                photo = read_mjpeg_frame(stream)
-                if photo is None:
-                    empty_frames += 1
-                    if empty_frames >= MAX_EMPTY_FRAMES:
-                        raise RuntimeError(
-                            f"The camera sent {MAX_EMPTY_FRAMES} consecutive empty frames from {args.device}. "
-                            "Check the powered hub, camera, and capture node with v4l2-ctl --list-devices."
-                        )
-                    if empty_frames == 1:
-                        print("Skipping an empty camera packet; waiting for a usable JPEG.", file=sys.stderr)
-                    continue
-                empty_frames = 0
+            for photo in frames:
                 received = time.monotonic()
                 if next_capture is None:
                     next_capture = received + args.warmup
@@ -194,54 +259,20 @@ def stream_captures(args):
                 if now >= next_capture:
                     missed = math.floor((now - next_capture) / args.interval) + 1
                     next_capture += missed * args.interval
-        finally:
-            process.terminate()
-            try:
-                process.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait()
-            process.stdout.close()
 
 
 def capture_image(args):
-    # Import only when capturing; cached transfers do not need the camera.
-    import cv2
-
-    camera = cv2.VideoCapture(args.device, cv2.CAP_V4L2)
-    try:
-        if not camera.isOpened():
-            raise RuntimeError(
-                f"Cannot open {args.device}. Check the hub, video node, "
-                "permissions, and other camera applications."
-            )
-        camera.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
-        camera.set(cv2.CAP_PROP_FRAME_WIDTH, args.width)
-        camera.set(cv2.CAP_PROP_FRAME_HEIGHT, args.height)
-        camera.set(cv2.CAP_PROP_FPS, 30)
-
-        # Keep consuming frames while automatic exposure/focus settles.
-        deadline = time.monotonic() + args.warmup
-        frame = None
-        while frame is None or time.monotonic() < deadline:
-            ok, frame = camera.read()
-            if not ok or frame is None or frame.size == 0:
-                raise RuntimeError("The camera returned no usable frame.")
-
-        ok, frame = camera.read()
+    # Keep consuming native MJPEG frames while exposure/focus settles.
+    with closing(camera_frames(args)) as frames:
+        deadline = None
+        for photo in frames:
+            received = time.monotonic()
+            if deadline is None:
+                deadline = received + args.warmup
+            if received >= deadline:
+                break
         captured_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-        if not ok or frame is None or frame.size == 0:
-            raise RuntimeError("The final camera frame was empty.")
-        height, width = frame.shape[:2]
-        ok, encoded = cv2.imencode(
-            ".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 95]
-        )
-        if not ok:
-            raise RuntimeError("JPEG encoding failed.")
-        photo = encoded.tobytes()
-        if not 0 < len(photo) <= MAX_JPEG_BYTES:
-            raise RuntimeError("The JPEG is empty or exceeds the 16 MiB limit.")
-
+        width, height = jpeg_dimensions(photo)
         metadata = {
             "protocolVersion": 1,
             "captureId": args.capture_id,
@@ -259,8 +290,6 @@ def capture_image(args):
             "sha256": hashlib.sha256(photo).hexdigest(),
         }
         return photo, metadata
-    finally:
-        camera.release()
 
 
 def make_bundle(photo, metadata):
@@ -292,7 +321,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--capture-id")
-    mode.add_argument("--stream", action="store_true", help="Stream timed photos with FFmpeg; no OpenCV")
+    mode.add_argument("--stream", action="store_true", help="Stream timed photos with FFmpeg")
     parser.add_argument("--interval", type=float, default=1.0, help="Seconds between streamed photos")
     parser.add_argument("--count", type=int, default=0, help="Stop after this many streamed photos; 0 = continuous")
     parser.add_argument("--device", default="/dev/video0")

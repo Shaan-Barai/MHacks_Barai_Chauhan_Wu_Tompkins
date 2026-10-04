@@ -233,3 +233,19 @@ pending details arrive; agreed items came from the team or AGENTS.md.
   controls, and the medium severity dot.
 - Implemented by remapping the existing Tailwind tokens, so component class
   names are unchanged. Severity dots are outlined so the white "low" dot shows.
+
+## 2026-10-03: Uno Q capture without OpenCV
+
+- The user requests removal of the Arduino camera's OpenCV dependency.
+  Both manual Enter/`--once` and automatic capture now use the shared FFmpeg
+  native-MJPEG reader plus Python's standard library. The camera must support
+  MJPEG; actual dimensions are read from the JPEG header.
+- Manual capture still warms up for each new request and caches the validated
+  JPEG/metadata bundle by capture ID. Interrupted transfers reuse cached bytes
+  without recapturing. Empty/malformed packets remain explicit failures.
+- Setup uses `python3 ffmpeg v4l-utils usbutils` on the Uno Q. Copy the updated
+  board script again when upgrading. No application contracts, storage flow,
+  or dish-tracking behavior change. See [the capture guide](../capture/uno-q/README.md)
+  and [FFmpeg's Linux camera reference](https://ffmpeg.org/ffmpeg-devices.html#video4linux2_002c-v4l2).
+- Verification uses simulated FFmpeg/SSH with OpenCV imports blocked. The
+  previous automatic hardware smoke check does not verify the new manual path.

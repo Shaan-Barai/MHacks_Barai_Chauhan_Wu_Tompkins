@@ -1,4 +1,4 @@
-# Uno Q: automatic photos on the laptop
+# Uno Q: manual and automatic photos on the laptop
 
 The current rig is an Arduino **Uno Q** with a Logitech C920s connected through
 an externally powered USB-C hub. The Uno Q's Linux side runs the camera code.
@@ -7,9 +7,13 @@ No Arduino sketch is needed for this transfer.
 `--auto` keeps one camera process and one SSH connection open. After a single
 two-second warmup, it selects a fresh frame approximately **once every second**
 and saves its original JPEG plus metadata on the laptop. FFmpeg reads the
-camera's native MJPEG output without decoding or re-encoding it. Python uses
-only its standard library. **OpenCV is not required for automatic capture.**
-The existing manual `--once` / Enter-triggered path still uses OpenCV.
+camera's native MJPEG output without decoding or re-encoding it. Up to 32 bytes
+of camera buffer padding after a structurally validated JPEG end marker are
+removed; the encoded image itself is unchanged. Python uses
+only its standard library. **Neither manual nor automatic capture needs
+OpenCV.** Manual `--once` / Enter-triggered capture uses the same FFmpeg MJPEG
+reader, warms up for each new photo, and caches the photo on the board so a
+transfer retry retrieves the same frame without opening the camera again.
 
 ## 1. Finish the hardware and network setup
 
@@ -96,15 +100,18 @@ FFmpeg or OpenCV.
 
 ## 4. Copy the current board script
 
-Run from the **repository root on the laptop**. Use the actual repository file,
-which includes `--stream`; the older embedded code in `ARDUINO.md` describes
-manual capture only.
+Run from the **repository root on the laptop**. Copy the current repository
+file again if the board still has the older manual script that required
+OpenCV. It supports both capture modes.
 
 ```bash
 ssh -i "$HOME/.ssh/scrap_unoq" arduino@YOUR_BOARD_IP 'mkdir -p scrap-camera'
 scp -i "$HOME/.ssh/scrap_unoq" capture/uno-q/uno_q_camera.py arduino@YOUR_BOARD_IP:scrap-camera/uno_q_camera.py
 ssh -i "$HOME/.ssh/scrap_unoq" arduino@YOUR_BOARD_IP '/usr/bin/python3 scrap-camera/uno_q_camera.py --help'
 ```
+
+For password authentication, omit `-i "$HOME/.ssh/scrap_unoq"` from these
+commands and enter the board password when prompted.
 
 ## 5. Capture every second
 
@@ -145,12 +152,37 @@ timestamp, and ZIP contents before publishing a complete capture directory.
 These local photos are gitignored. Camera stalls, failed SSH connections, and
 incomplete transfers produce explicit errors. Empty FFmpeg camera packets are
 skipped without creating a capture; 90 consecutive empty packets produce a
-camera/device error. Missing lengths, incorrect formats, oversized images, and
-malformed JPEGs remain errors. Complete photos remain saved;
+camera/device error. The C920 may append non-image bytes after a complete JPEG;
+bounded padding is removed before checksumming and transfer. Missing lengths,
+incorrect formats, oversized images, excessive trailing data, and malformed
+or truncated JPEGs remain errors. Complete photos remain saved;
 restart the command after resolving the problem. Automatic mode does not cache
 frames on the board or recover a frame lost during transfer. Manual capture's
 existing pending-ID/cache retry flow remains available, and a pending manual
 capture must be resolved before automatic mode starts.
+
+## 6. Capture manually
+
+Run on the **laptop**, from the repository root, with no `--auto` flag:
+
+```bash
+python3 capture/uno-q/laptop_capture.py --target arduino@YOUR_BOARD_IP --password
+```
+
+Press **Enter** for one photo and wait for `Saved` before replacing the dish.
+Type **q** to quit. For a single capture and exit:
+
+```bash
+python3 capture/uno-q/laptop_capture.py --target arduino@YOUR_BOARD_IP --password --once
+```
+
+Omit `--password` if you use the SSH key configured above. Manual mode starts
+one SSH/FFmpeg session per request; password authentication can prompt for each
+photo. Each new request consumes frames through its warmup and then keeps one
+validated native JPEG. Camera stalls, malformed JPEGs, and repeated empty
+packets fail explicitly, preserving the laptop's pending ID. Retry with the
+same settings and dish in place. If the board already cached that ID, it sends
+the cached photo without requiring FFmpeg or the camera to be available.
 
 ## Boundaries and verification
 
@@ -177,8 +209,23 @@ Run simulated checks from the repository root:
 python3 -B -m unittest discover -s capture/uno-q -v
 ```
 
-The checks use fake FFmpeg/camera/SSH processes plus a synthetic fixture JPEG.
-They verify timed captures, a single SSH/camera session, file integrity,
-dimensions, locking, interrupted transfer handling, and manual-mode regression
-cases. They do not verify real FFmpeg, the Uno Q, the C920s, hub power, Wi-Fi,
+The checks use fake FFmpeg/SSH processes plus a synthetic fixture JPEG, with
+OpenCV imports blocked. They verify manual and timed captures, warmup, file
+integrity, actual JPEG dimensions, bounded camera padding, locking,
+interrupted transfers, and cached manual retries. They do not verify real
+FFmpeg, the Uno Q, the C920s, hub power, Wi-Fi,
 or live downstream uploads. Those require the hardware check above.
+Current verification: all 57 simulated checks passed after the manual-mode
+FFmpeg migration.
+
+Hardware smoke check, 2026-10-03: the real Uno Q and C920 were reached over SSH.
+The webcam supported MJPEG 1920 x 1080 at 30 fps on its capture node. One empty
+startup packet and up to 31 bytes of trailing buffer padding were observed.
+After the padding fix, five real photos were transferred in one session, decoded
+successfully on the laptop, and had recorded intervals of 1.004-1.041 seconds.
+Continuous capture, Ctrl+C, and restart were also checked on the real board;
+all 11 smoke-test photos decoded successfully. The simulated suite passed
+50 tests.
+This verifies camera-to-local-file capture, not dish detection, normalization,
+or downstream ingestion. Real photos remain gitignored and are not fixtures.
+The new FFmpeg manual path still needs its own hardware smoke check.

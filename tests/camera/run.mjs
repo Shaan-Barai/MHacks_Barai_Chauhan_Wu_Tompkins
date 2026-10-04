@@ -209,6 +209,22 @@ async function withPipeline(fn) {
     await repo.upsertMenu(menu);
     await repo.replacePortionsServed(serviceId, 1, seed.buildDemoPortions(menu));
   }
+  // CAMERA_EXTRA_FOODS="Halal Rice,Tomato,Lettuce": foods on the test plate that are not
+  // on the dinner menu are added as a menu revision so Gemini can classify them.
+  const extra = (process.env.CAMERA_EXTRA_FOODS ?? '').split(',').map((f) => f.trim()).filter(Boolean);
+  if (extra.length) {
+    const current = await repo.getMenuByService(serviceId);
+    const missing = extra.filter((f) => !current.items.some((i) => i.displayName.toLowerCase() === f.toLowerCase()));
+    if (missing.length) {
+      await repo.upsertMenu({
+        service: { ...current.service, menuVersion: current.service.menuVersion + 1 },
+        items: [
+          ...current.items,
+          ...missing.map((f) => ({ itemId: `item_${HALL}_${date}_dinner_${data.factorKeyFor(f)}`, menuId: current.service.menuId, displayName: f, category: 'Test plate' })),
+        ],
+      });
+    }
+  }
   try {
     return await fn({ s, repo, gateway, serviceId, date });
   } finally {
@@ -281,6 +297,15 @@ async function plate() {
     if (!scan.overlayInR2) problems.push('overlay not in R2');
     if (!scan.listedOnDashboard) problems.push('not on the dashboard API');
     if (scan.foods.length === 0) problems.push('no food detected on the plate');
+    // CAMERA_EXPECT_FOODS: what is actually on the plate (compared, reported).
+    const expected = (process.env.CAMERA_EXPECT_FOODS ?? '').split(',').map((f) => f.trim()).filter(Boolean);
+    if (expected.length) {
+      const detected = scan.foods.map((f) => f.replace(/ \d+ px$/, ''));
+      const missed = expected.filter((e) => !detected.some((d) => d.toLowerCase() === e.toLowerCase()));
+      const extra = detected.filter((d) => !expected.some((e) => e.toLowerCase() === d.toLowerCase()));
+      scan.expected = { expected, missed, extra };
+      if (missed.length || extra.length) problems.push(`expected [${expected.join(', ')}]: missed [${missed.join(', ')}], extra [${extra.join(', ')}]`);
+    }
     const rel = (f) => path.relative(REPO, f);
     const detail = `${scan.state}, ${scan.pixels} px: ${scan.foods.join('; ') || 'none'}; flags [${scan.flags.join(', ')}]; ${(scan.dashboardMs / 1000).toFixed(1)} s trigger→dashboard; Gemini calls ${scan.geminiCalls}; original ${scan.files.original ? rel(scan.files.original) : '-'}, overlay ${scan.files.overlay ? rel(scan.files.overlay) : '-'}`;
     if (problems.length) throw new StageFailure(`${detail} — ${problems.join('; ')}`, 'see the original/overlay for framing, focus and lighting');

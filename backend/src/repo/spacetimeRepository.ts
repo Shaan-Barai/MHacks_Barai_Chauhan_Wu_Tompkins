@@ -27,9 +27,9 @@ import type {
   PlateCalibration,
   CameraCalibration,
   MeasurementSettings,
-  PhysicalEstimate,
 } from '../types.js';
 import type { Repository } from './repository.js';
+import { attemptFromStored, calibrationFromStored, measurementFromStored, settingsFromStored } from './legacyPhysical.js';
 import { badRequest, conflict, menuVersionConflict } from '../errors.js';
 
 export interface SpacetimeConfig {
@@ -83,21 +83,6 @@ function decode(value: unknown, type: AlgebraicType): unknown {
 /** Drop undefined fields so records match the contract's optional-field shape. */
 function clean<T>(value: T): T {
   return value === undefined ? value : (JSON.parse(JSON.stringify(value)) as T);
-}
-
-/** Stored PhysicalEstimate (options decode to undefined) -> contract shape (null, never 0). */
-function physicalFromRow(p: Row): PhysicalEstimate {
-  return {
-    calibrationId: p.calibrationId,
-    method: p.method,
-    areaCm2: p.areaCm2,
-    volumeCm3: p.volumeCm3 ?? null,
-    meanHeightMm: p.meanHeightMm ?? null,
-    maxHeightMm: p.maxHeightMm ?? null,
-    ...(p.depthSettingsVersion !== undefined ? { depthSettingsVersion: p.depthSettingsVersion } : {}),
-    ...(p.plateReference !== undefined ? { plateReference: p.plateReference } : {}),
-    flags: p.flags ?? [],
-  } as PhysicalEstimate;
 }
 
 function errorFromRow(error: Row | undefined) {
@@ -337,7 +322,7 @@ export class SpacetimeRepository implements Repository {
     return rows
       .map((r) => {
         const { baselineVersions, error, ...rest } = r;
-        return clean({
+        return attemptFromStored(clean({
           ...rest,
           baselineVersions: Object.fromEntries(
             (baselineVersions as { itemId: string; baselineVersion: number }[]).map((b) => [b.itemId, b.baselineVersion]),
@@ -352,7 +337,7 @@ export class SpacetimeRepository implements Repository {
             : undefined,
           segmentation: segmentations.get(r.attemptId),
           ...calibrations.get(r.attemptId),
-        } as AnalysisAttempt);
+        } as AnalysisAttempt));
       })
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }
@@ -377,7 +362,8 @@ export class SpacetimeRepository implements Repository {
         ...fields,
         itemId: row.itemId ?? null,
         ...(maskCountJson ? { maskCount: JSON.parse(maskCountJson as string) } : {}),
-        ...(physical ? { physical: physicalFromRow(physical as Row) } : {}),
+        // Raw stored estimate; normalized against its calibration below (legacyPhysical.ts).
+        ...(physical ? { physical } : {}),
       } as FoodMeasurement;
       if (m.method === 'mask_pixel_count') {
         m.regionIds = regions
@@ -389,11 +375,39 @@ export class SpacetimeRepository implements Repository {
   }
   async listMeasurementsByAttempt(attemptId: string): Promise<FoodMeasurement[]> {
     const rows = await this.sql(`SELECT * FROM food_measurement WHERE attempt_id = ${quote(attemptId)}`);
-    return this.withRegionIds(rows, `SELECT * FROM segmentation_region WHERE attempt_id = ${quote(attemptId)}`);
+    return this.withPhysical(await this.withRegionIds(rows, `SELECT * FROM segmentation_region WHERE attempt_id = ${quote(attemptId)}`));
   }
   async listMeasurementsByEvent(eventId: string): Promise<FoodMeasurement[]> {
     const rows = await this.sql(`SELECT * FROM food_measurement WHERE event_id = ${quote(eventId)}`);
-    return this.withRegionIds(rows, `SELECT * FROM segmentation_region WHERE event_id = ${quote(eventId)}`);
+    return this.withPhysical(await this.withRegionIds(rows, `SELECT * FROM segmentation_region WHERE event_id = ${quote(eventId)}`));
+  }
+
+  /** Succeeded calibrations are immutable, so they are cached for physical recomputation. */
+  private readonly succeededCalibrations = new Map<string, CameraCalibration>();
+
+  /**
+   * IT_4: physical area only from the snapshotted calibration (areaCm2 =
+   * pixels × k). Legacy depth-trial estimates are recomputed the same way.
+   */
+  private async withPhysical(measurements: FoodMeasurement[]): Promise<FoodMeasurement[]> {
+    const ids = new Set<string>();
+    for (const m of measurements) {
+      const id = (m.physical as { calibrationId?: unknown } | undefined)?.calibrationId;
+      if (typeof id === 'string') ids.add(id);
+    }
+    const cals = new Map<string, CameraCalibration | undefined>();
+    for (const id of ids) {
+      let cal = this.succeededCalibrations.get(id);
+      if (!cal) {
+        cal = await this.getCameraCalibration(id);
+        if (cal?.status === 'succeeded') this.succeededCalibrations.set(id, cal);
+      }
+      cals.set(id, cal);
+    }
+    return measurements.map((m) => {
+      const id = (m.physical as { calibrationId?: unknown } | undefined)?.calibrationId;
+      return measurementFromStored(m, typeof id === 'string' ? cals.get(id) : undefined);
+    });
   }
 
   // --- attendance ---
@@ -407,8 +421,9 @@ export class SpacetimeRepository implements Repository {
 
   // --- IT_4: camera calibrations + measurement settings ---
   private toCalibration(row: Row): CameraCalibration {
-    const { depth, error, ...rest } = row;
-    return clean({ ...rest, depth: depth ?? null, error: errorFromRow(error) }) as CameraCalibration;
+    // Legacy `depth` (Depth Anything V2 trial) is dropped by calibrationFromStored.
+    const { error, ...rest } = row;
+    return calibrationFromStored(clean({ ...rest, error: errorFromRow(error) }) as CameraCalibration);
   }
   async upsertCameraCalibration(calibration: CameraCalibration): Promise<void> {
     try {
@@ -430,7 +445,12 @@ export class SpacetimeRepository implements Repository {
   }
   async upsertMeasurementSettings(settings: MeasurementSettings): Promise<void> {
     try {
-      await this.call('upsert_measurement_settings', { settingsJson: JSON.stringify(settings) });
+      // depthEnabled / plateThicknessCm: unused legacy columns. Sent as defaults only so a
+      // module published before the Depth Anything V2 removal still accepts the call.
+      const compat = { depthEnabled: false, plateThicknessCm: 0 };
+      await this.call('upsert_measurement_settings', {
+        settingsJson: JSON.stringify({ ...compat, hallId: settings.hallId, activeCalibrationId: settings.activeCalibrationId, updatedAt: settings.updatedAt }),
+      });
     } catch (error) {
       if (error instanceof Error && /is not a succeeded calibration/.test(error.message)) {
         throw badRequest('INVALID_CALIBRATION', 'Only a successful calibration of this hall can be activated.', {
@@ -444,7 +464,7 @@ export class SpacetimeRepository implements Repository {
     const rows = await this.sql(`SELECT * FROM measurement_settings WHERE hall_id = ${quote(hallId)}`);
     const row = rows[0];
     if (!row) return undefined;
-    return clean({ ...row, activeCalibrationId: row.activeCalibrationId ?? null }) as MeasurementSettings;
+    return settingsFromStored(row);
   }
 
   // --- insights ---

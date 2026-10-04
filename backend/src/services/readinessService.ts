@@ -2,8 +2,7 @@
  * GET /api/ready (IT_4 I11): is every dependency reachable? Reports each
  * check separately. `required` checks decide the HTTP status (200 vs 503):
  * the database and object storage always, the SAM worker only when live
- * mask analysis is configured. The depth worker is optional (captures fall
- * back to the area method), so it is reported but never fails readiness.
+ * mask analysis is configured.
  * No URLs, keys or tokens appear in the report.
  */
 
@@ -19,14 +18,13 @@ export interface ReadinessCheck {
 
 export interface ReadinessReport {
   ready: boolean;
-  checks: Record<'database' | 'objectStorage' | 'samWorker' | 'depthWorker', ReadinessCheck>;
+  checks: Record<'database' | 'objectStorage' | 'samWorker', ReadinessCheck>;
 }
 
 export interface ReadinessOptions {
   repo: Repository;
   storage: ObjectStorageAdapter;
   samWorkerUrl?: string;
-  depthWorkerUrl?: string;
   workerToken?: string;
   /** SAM is needed only for live mask analysis (not the mock analyzer). */
   samRequired: boolean;
@@ -41,7 +39,7 @@ export class ReadinessService {
 
   async check(): Promise<ReadinessReport> {
     const timeoutMs = this.opts.timeoutMs ?? 3000;
-    const [database, objectStorage, samWorker, depthWorker] = await Promise.all([
+    const [database, objectStorage, samWorker] = await Promise.all([
       timed(true, timeoutMs, async () => {
         await this.opts.repo.ping?.();
       }),
@@ -50,9 +48,8 @@ export class ReadinessService {
         await this.opts.storage.statObject(SENTINEL_KEY);
       }),
       timed(this.opts.samRequired, timeoutMs, () => this.worker(this.opts.samWorkerUrl, timeoutMs)),
-      timed(false, timeoutMs, () => this.worker(this.opts.depthWorkerUrl, timeoutMs)),
     ]);
-    const checks = { database, objectStorage, samWorker, depthWorker };
+    const checks = { database, objectStorage, samWorker };
     return { ready: Object.values(checks).every((c) => c.ok || !c.required), checks };
   }
 

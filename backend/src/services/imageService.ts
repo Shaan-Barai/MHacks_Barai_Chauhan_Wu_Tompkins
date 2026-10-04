@@ -27,7 +27,7 @@ export interface RequestUploadBody {
   heightPx?: number;
 }
 
-/** Client-uploadable kinds; masks, overlays and depth maps are server-produced only. */
+/** Client-uploadable kinds; masks and overlays are server-produced only. */
 const UPLOAD_KINDS: RequestUploadBody['associationKind'][] = ['capture', 'reference', 'calibration'];
 
 export interface RequestUploadResponse {
@@ -217,11 +217,11 @@ export class ImageService {
 
   /**
    * Store a server-produced derived image (IT_4: calibration overlay/reference
-   * mask, depth PNGs) and register it finalized. Keys never collide across
+   * mask) and register it finalized. Keys never collide across
    * retries because they carry a fresh suffix.
    */
   async storeDerived(
-    kind: 'calibration_overlay' | 'depth' | 'mask',
+    kind: 'calibration_overlay' | 'mask',
     associationId: string,
     keyPrefix: string,
     bytes: Uint8Array,

@@ -5,8 +5,8 @@
  * is { kind: 'calibration', id: <calibrationId> }: the client picks the new
  * calibration id when it requests the upload (e.g. `cal_<random>`), so a
  * retried POST with the same image is idempotent. Vision's runner measures
- * the reference; the backend stores the overlay, reference mask and depth PNG
- * in object storage and persists the CameraCalibration. Activating a
+ * the reference; the backend stores the overlay and reference mask in object
+ * storage and persists the CameraCalibration. Activating a
  * calibration only changes measurement_settings: earlier attempts keep the
  * calibrationId they snapshotted, so history never changes.
  */
@@ -18,8 +18,11 @@ import type { Repository } from '../repo/repository.js';
 import type { ImageService } from './imageService.js';
 import type { CameraCalibration, MeasurementSettings, SignedImage } from '../types.js';
 
-export const DEFAULT_PLATE_THICKNESS_CM = 1.5;
-export const MAX_PLATE_THICKNESS_CM = 10;
+/**
+ * Fields an older client (from the removed Depth Anything V2 trial) may still
+ * send to PUT /api/settings/measurement. They are accepted and ignored.
+ */
+export const IGNORED_LEGACY_SETTINGS_FIELDS = ['depthEnabled', 'plateThicknessCm'] as const;
 
 export interface CalibrationRequest {
   hallId: string;
@@ -34,7 +37,6 @@ export interface CalibrationImages {
   photo: SignedImage | null;
   overlay: SignedImage | null;
   referenceMask: SignedImage | null;
-  depth: SignedImage | null;
 }
 
 const ID = /^[A-Za-z0-9._:-]{1,128}$/;
@@ -114,7 +116,6 @@ export class CalibrationService {
         image: bytes,
         knownAreaCm2: req.knownAreaCm2,
         referenceLabel: req.referenceLabel,
-        withDepth: true,
       });
       const { widthPx, heightPx } = out;
       if (!Number.isInteger(widthPx) || !Number.isInteger(heightPx) || widthPx <= 0 || heightPx <= 0) {
@@ -142,7 +143,6 @@ export class CalibrationService {
         cm2PerPx: succeeded ? req.knownAreaCm2 / out.referencePixels : 0,
         intrinsics: out.intrinsics,
         cameraHeightCmGeometric: succeeded ? out.cameraHeightCmGeometric : 0,
-        depth: null,
         flags: [...new Set(out.flags)],
         ...(succeeded
           ? {}
@@ -162,17 +162,11 @@ export class CalibrationService {
           await this.images.storeDerived('calibration_overlay', calibrationId, 'calibrations/masks', out.referenceMaskPng, 'image/png', widthPx, heightPx)
         ).objectId;
       }
-      if (succeeded && out.depth) {
-        const { depthPng, ...depth } = out.depth;
-        const stored = await this.images.storeDerived('depth', calibrationId, 'calibrations/depth', depthPng, 'image/png', widthPx, heightPx);
-        calibration.depth = { ...depth, depthObjectId: stored.objectId };
-      }
       await this.repo.upsertCameraCalibration(calibration);
       log.info('calibration stored', {
         calibrationId,
         hallId: req.hallId,
         status: calibration.status,
-        depth: calibration.depth !== null,
         flags: calibration.flags.join(','),
       });
       return { calibration, created: true };
@@ -212,7 +206,6 @@ export class CalibrationService {
       photo: await this.sign(cal.imageObjectId),
       overlay: cal.overlayObjectId ? await this.sign(cal.overlayObjectId) : null,
       referenceMask: cal.referenceMaskObjectId ? await this.sign(cal.referenceMaskObjectId) : null,
-      depth: cal.depth ? await this.sign(cal.depth.depthObjectId) : null,
     };
   }
 
@@ -231,9 +224,7 @@ export class CalibrationService {
   defaults(hallId: string): MeasurementSettings {
     return {
       hallId,
-      depthEnabled: false,
       activeCalibrationId: null,
-      plateThicknessCm: DEFAULT_PLATE_THICKNESS_CM,
       updatedAt: new Date(0).toISOString(),
     };
   }
@@ -242,23 +233,19 @@ export class CalibrationService {
     return (await this.repo.getMeasurementSettings(hallId)) ?? this.defaults(hallId);
   }
 
-  /** Partial update: omitted fields keep their current value. */
+  /**
+   * Partial update: omitted fields keep their current value. Legacy
+   * `depthEnabled` / `plateThicknessCm` (Depth Anything V2 was removed) are
+   * accepted and ignored so old clients keep working; the response never
+   * contains them.
+   */
   async putSettings(body: unknown): Promise<MeasurementSettings> {
     const b = (body ?? {}) as Record<string, unknown>;
     if (typeof b.hallId !== 'string' || b.hallId.length === 0) throw badRequest('INVALID_SETTINGS', "'hallId' is required.");
     const current = await this.getSettings(b.hallId);
     const next: MeasurementSettings = { ...current, updatedAt: new Date(this.now()).toISOString() };
-    if (b.depthEnabled !== undefined) {
-      if (typeof b.depthEnabled !== 'boolean') throw badRequest('INVALID_SETTINGS', "'depthEnabled' must be true or false.");
-      next.depthEnabled = b.depthEnabled;
-    }
-    if (b.plateThicknessCm !== undefined) {
-      const t = b.plateThicknessCm;
-      if (typeof t !== 'number' || !Number.isFinite(t) || t < 0 || t > MAX_PLATE_THICKNESS_CM) {
-        throw badRequest('INVALID_SETTINGS', `'plateThicknessCm' must be a number from 0 to ${MAX_PLATE_THICKNESS_CM}.`);
-      }
-      next.plateThicknessCm = t;
-    }
+    const ignored = IGNORED_LEGACY_SETTINGS_FIELDS.filter((k) => b[k] !== undefined);
+    if (ignored.length) log.info('measurement settings: ignored legacy fields', { hallId: b.hallId, fields: ignored.join(',') });
     if (b.activeCalibrationId !== undefined) {
       const id = b.activeCalibrationId;
       if (id !== null && (typeof id !== 'string' || id.length === 0)) {

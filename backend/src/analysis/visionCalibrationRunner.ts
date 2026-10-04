@@ -1,7 +1,6 @@
 /**
  * Live CalibrationRunner: vision's runCalibration (Gemini box → SAM 2.1 mask
- * → N_ref, k, C920s intrinsics, geometric height; DAv2 scale + table plane
- * when the depth worker answers). Retryable failures (Gemini, SAM or other
+ * → N_ref, k, C920s intrinsics, geometric height). Retryable failures (Gemini, SAM or other
  * provider errors) throw, so nothing is persisted and the same upload can be
  * retried; final failures (reference not found, invalid mask) become a
  * stored `failed` calibration.
@@ -10,7 +9,6 @@
 import {
   intrinsicsOverridesFromEnv,
   runCalibration,
-  type DepthEstimator,
   type GeminiGateway,
   type Segmenter,
 } from '@scrap/vision';
@@ -21,7 +19,6 @@ export class VisionCalibrationRunner implements CalibrationRunner {
   constructor(
     private readonly gateway: GeminiGateway,
     private readonly sam: Segmenter,
-    private readonly depth: DepthEstimator | null,
   ) {}
 
   async run(input: CalibrationRunInput): Promise<CalibrationRunOutput> {
@@ -32,7 +29,6 @@ export class VisionCalibrationRunner implements CalibrationRunner {
       referenceLabel: input.referenceLabel,
       gateway: this.gateway,
       sam: this.sam,
-      depth: input.withDepth ? this.depth : null,
       intrinsicsOverrides: intrinsicsOverridesFromEnv(),
     });
     if (!result.ok) {
@@ -46,7 +42,6 @@ export class VisionCalibrationRunner implements CalibrationRunner {
         cm2PerPx: 0,
         intrinsics: result.intrinsics,
         cameraHeightCmGeometric: 0,
-        depth: null,
         flags: result.flags,
         ...(result.overlay ? { overlayJpeg: result.overlay.jpeg } : {}),
         error: result.error,
@@ -61,7 +56,6 @@ export class VisionCalibrationRunner implements CalibrationRunner {
       cm2PerPx: c.cm2PerPx,
       intrinsics: c.intrinsics,
       cameraHeightCmGeometric: c.cameraHeightCmGeometric,
-      depth: c.depth && result.depthPng ? { ...c.depth, depthPng: result.depthPng } : null,
       flags: c.flags,
       ...(result.overlay ? { overlayJpeg: result.overlay.jpeg } : {}),
       referenceMaskPng: result.referenceMaskPng,

@@ -23,7 +23,7 @@ import { badRequest, notFound, apiError } from '../errors.js';
 import { validMaskCount } from '@scrap/analytics';
 import { newId } from '../ids.js';
 import type { Analyzer } from '../analysis/analyzer.js';
-import type { DepthEstimator, LabelSuffix, PhysicalStageInput } from '@scrap/vision';
+import { AREA_METHOD, computeAreaEstimate, type LabelSuffix, type PhysicalCalibration, type PhysicalStageInput } from '@scrap/vision';
 import { log } from '../log.js';
 import type { Repository } from '../repo/repository.js';
 import type { ImageService } from './imageService.js';
@@ -56,13 +56,11 @@ export class IngestionService {
     private readonly images: ImageService,
     private readonly analyzer: Analyzer,
     private readonly now: () => number = () => Date.now(),
-    /** IT_4: Depth Anything V2 worker client for the volume method. */
-    private readonly depth?: DepthEstimator,
     private readonly labelSuffix?: LabelSuffixFactory,
   ) {}
 
   /**
-   * IT_4 I9: snapshot the hall's measurement settings and active calibration.
+   * IT_4 I9: snapshot the hall's active calibration.
    * Any problem reading them means "no calibration" for this attempt: pixels
    * are never blocked by the physical stage.
    */
@@ -73,19 +71,14 @@ export class IngestionService {
       const usable = cal && cal.status === 'succeeded' && cal.hallId === hallId ? cal : null;
       return {
         ...(settings ? { settings } : {}),
-        input: {
-          calibration: usable,
-          depthEnabled: settings?.depthEnabled ?? false,
-          ...(this.depth ? { depthClient: this.depth } : {}),
-          ...(settings ? { plateThicknessCm: settings.plateThicknessCm } : {}),
-        },
+        input: { calibration: usable },
       };
     } catch (err) {
       log.warn('measurement settings unavailable; analyzing without calibration', {
         hallId,
         reason: err instanceof Error ? err.message.slice(0, 160) : 'unknown',
       });
-      return { input: { calibration: null, depthEnabled: false } };
+      return { input: { calibration: null } };
     }
   }
 
@@ -180,8 +173,9 @@ export class IngestionService {
       });
       attempt = result.attempt;
       // Only the backend assigns storage references and the settings snapshot.
-      delete attempt.depthObjectId;
-      this.snapshotPhysical(attempt, result, calibrationId);
+      // A stale analyzer's depth map reference (Depth Anything V2 removed) is never stored.
+      delete (attempt as { depthObjectId?: unknown }).depthObjectId;
+      this.snapshotPhysical(attempt, result, physical.input.calibration, event);
       measurements = this.validateMeasurements(this.withMaskCounts(result), menu, attemptId, event);
       this.validateSegmentation(attempt, measurements);
       // Masks go to object storage; only their ids reach the database.
@@ -210,9 +204,6 @@ export class IngestionService {
       // Only the backend assigns storage references.
       delete attempt.overlayObjectId;
       if (result.overlay) attempt.overlayObjectId = await this.storeOverlay(event.eventId, attemptId, result.overlay);
-      if (result.physical?.depth && attempt.physicalMethod === 'volume-dav2-v1') {
-        attempt.depthObjectId = await this.storeDepth(event.eventId, result.physical.depth);
-      }
     } catch (err) {
       // Infrastructure failure: record an explicit failed attempt, never
       // silence it and never leave the event stuck in `processing`.
@@ -254,45 +245,39 @@ export class IngestionService {
   /**
    * IT_4 I9 snapshot: the attempt records the calibration that was active
    * (even when it could not be applied, e.g. a different resolution), and the
-   * method actually used. Physical estimates must use that calibration and be
-   * finite and non-negative; anything else is dropped (pixels stay).
+   * method actually used. Physical area comes ONLY from that calibration:
+   * areaCm2 = pixels × calibration.cm2PerPx, recomputed here from the stored
+   * pixels (2026-10-04, user). A measurement whose estimate names another
+   * calibration, or a capture of another resolution, gets none (pixels stay).
    */
-  private snapshotPhysical(attempt: AnalysisAttempt, result: AnalysisResult, calibrationId: string | undefined): void {
-    if (calibrationId) attempt.calibrationId = calibrationId;
+  private snapshotPhysical(
+    attempt: AnalysisAttempt,
+    result: AnalysisResult,
+    cal: PhysicalCalibration | null,
+    event: CaptureEvent,
+  ): void {
+    if (cal) attempt.calibrationId = cal.calibrationId;
     else delete attempt.calibrationId;
-    const ok = (n: unknown) => n === null || n === undefined || (typeof n === 'number' && Number.isFinite(n) && n >= 0);
+    const compatible =
+      !!cal &&
+      cal.cm2PerPx > 0 &&
+      Number.isFinite(cal.cm2PerPx) &&
+      cal.widthPx === event.geometry.widthPx &&
+      cal.heightPx === event.geometry.heightPx;
     let applied = 0;
     for (const m of result.measurements) {
       const p = m.physical;
       if (!p) continue;
-      if (
-        !calibrationId ||
-        p.calibrationId !== calibrationId ||
-        !ok(p.areaCm2) ||
-        !ok(p.volumeCm3) ||
-        !ok(p.meanHeightMm) ||
-        !ok(p.maxHeightMm) ||
-        (p.method === 'volume-dav2-v1' && (p.volumeCm3 === null || p.volumeCm3 === undefined))
-      ) {
+      const pixels = m.remainingAreaPx;
+      if (!compatible || p.calibrationId !== cal!.calibrationId || !Number.isInteger(pixels) || pixels < 0) {
         delete m.physical;
         continue;
       }
+      m.physical = computeAreaEstimate(pixels, cal!);
       applied++;
     }
     if (applied === 0) delete attempt.physicalMethod;
-    else if (!attempt.physicalMethod) {
-      attempt.physicalMethod = result.measurements.some((m) => m.physical?.method === 'volume-dav2-v1') ? 'volume-dav2-v1' : 'area-calibrated-v1';
-    }
-  }
-
-  /** The DAv2 depth map is provenance: a storage failure keeps the numbers, without the map. */
-  private async storeDepth(eventId: string, depth: { png: Uint8Array; widthPx: number; heightPx: number }): Promise<string | undefined> {
-    try {
-      return (await this.images.storeDerived('depth', eventId, 'depth', depth.png, 'image/png', depth.widthPx, depth.heightPx)).objectId;
-    } catch {
-      log.warn('DEPTH_STORE_FAILED; stored without the depth map', { eventId });
-      return undefined;
-    }
+    else attempt.physicalMethod = AREA_METHOD;
   }
 
   /**

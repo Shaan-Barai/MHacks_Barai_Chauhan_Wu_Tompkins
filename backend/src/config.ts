@@ -34,10 +34,8 @@ export interface BackendConfig {
   security?: SecurityConfig;
   /** SERVE_FRONTEND=1: serve the built dashboard (absolute path) with SPA fallback. */
   frontendDist?: string;
-  /** Shared secret sent as X-Worker-Token to the SAM/depth workers (WORKER_TOKEN). */
+  /** Shared secret sent as X-Worker-Token to the SAM worker (WORKER_TOKEN). */
   workerToken?: string;
-  /** Depth Anything V2 worker (vision/depth/worker.py). */
-  depthWorkerUrl?: string;
   objectStorage: {
     provider: string; // 'r2' (Cloudflare R2) or 'local-dev' (offline filesystem)
     container: string;
@@ -107,7 +105,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BackendConfig 
         : resolve(backendRoot(), '../frontend/dist')
       : undefined,
     workerToken: env.WORKER_TOKEN || undefined,
-    depthWorkerUrl: env.DEPTH_WORKER_URL || 'http://127.0.0.1:8791',
     objectStorage: {
       provider: env.OBJECT_STORAGE_PROVIDER ?? 'local-dev',
       container: env.OBJECT_STORAGE_CONTAINER ?? 'scrap-images',

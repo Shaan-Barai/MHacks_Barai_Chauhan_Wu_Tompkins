@@ -132,9 +132,9 @@ for (const [serviceId, entries] of entriesByService) {
   portionRows += entries.length;
 }
 
-// IT_4: default measurement settings per seeded hall (depth off, no calibration).
+// IT_4: default measurement settings per seeded hall (no active calibration).
 // GET returns unsaved defaults with updatedAt = 1970-01-01; only then is a row created,
-// so a hall's chosen calibration/depth setting is never overwritten.
+// so a hall's chosen calibration is never overwritten.
 const halls = [...new Set(menus.map((m) => m.service.hallId))];
 let settingsCreated = 0;
 for (const hallId of halls) {
@@ -142,7 +142,7 @@ for (const hallId of halls) {
   if (!res.ok) throw new Error(`GET measurement settings for ${hallId} failed (${res.status})`);
   const current = await res.json();
   if (current.updatedAt === new Date(0).toISOString()) {
-    await send('PUT', '/api/settings/measurement', { hallId, depthEnabled: false, activeCalibrationId: null, plateThicknessCm: 1.5 });
+    await send('PUT', '/api/settings/measurement', { hallId, activeCalibrationId: null });
     settingsCreated += 1;
   }
 }

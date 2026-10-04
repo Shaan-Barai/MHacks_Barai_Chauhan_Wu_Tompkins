@@ -31,8 +31,8 @@ export interface AnalyzerInput {
   /** Lazily fetch the image bytes via temporary read access. */
   getImage: () => Promise<{ bytes: Buffer; mimeType: string }>;
   /**
-   * IT_4: the hall's measurement settings + active calibration, snapshotted
-   * for this attempt (calibrated area, or DAv2 volume when depth is on).
+   * IT_4: the hall's active calibration, snapshotted for this attempt
+   * (calibrated area = pixels × k).
    */
   physical?: PhysicalStageInput;
   /** IT_4 I8: overlay legend text after each food (grams · kg CO2e · L water). */

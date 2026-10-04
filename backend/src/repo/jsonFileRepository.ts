@@ -26,6 +26,7 @@ import type {
 } from '../types.js';
 import type { Repository } from './repository.js';
 import { menuVersionConflict } from '../errors.js';
+import { attemptFromStored, calibrationFromStored, measurementFromStored, settingsFromStored } from './legacyPhysical.js';
 import { badRequest, conflict } from '../errors.js';
 
 interface Snapshot {
@@ -199,7 +200,7 @@ export class JsonFileRepository implements Repository {
     if (measurements.length > 0) await this.addMeasurements(measurements);
   }
   async listAnalysisAttempts(eventId: string): Promise<AnalysisAttempt[]> {
-    return (this.analysisAttempts.get(eventId) ?? []).map((a) => structuredClone(a));
+    return (this.analysisAttempts.get(eventId) ?? []).map((a) => attemptFromStored(structuredClone(a)));
   }
 
   // --- measurements ---
@@ -212,14 +213,20 @@ export class JsonFileRepository implements Repository {
     this.persist();
   }
   async listMeasurementsByAttempt(attemptId: string): Promise<FoodMeasurement[]> {
-    return (this.measurementsByAttempt.get(attemptId) ?? []).map((m) => structuredClone(m));
+    return (this.measurementsByAttempt.get(attemptId) ?? []).map((m) => this.withPhysical(structuredClone(m)));
   }
   async listMeasurementsByEvent(eventId: string): Promise<FoodMeasurement[]> {
     const out: FoodMeasurement[] = [];
     for (const list of this.measurementsByAttempt.values()) {
-      for (const m of list) if (m.eventId === eventId) out.push(structuredClone(m));
+      for (const m of list) if (m.eventId === eventId) out.push(this.withPhysical(structuredClone(m)));
     }
     return out;
+  }
+
+  /** IT_4: physical area only from the snapshotted calibration (legacyPhysical.ts). */
+  private withPhysical(m: FoodMeasurement): FoodMeasurement {
+    const id = (m.physical as { calibrationId?: unknown } | undefined)?.calibrationId;
+    return measurementFromStored(m, typeof id === 'string' ? this.cameraCalibrations.get(id) : undefined);
   }
 
   // --- attendance ---
@@ -254,12 +261,12 @@ export class JsonFileRepository implements Repository {
   }
   async getCameraCalibration(calibrationId: string): Promise<CameraCalibration | undefined> {
     const c = this.cameraCalibrations.get(calibrationId);
-    return c ? structuredClone(c) : undefined;
+    return c ? calibrationFromStored(structuredClone(c)) : undefined;
   }
   async listCameraCalibrations(hallId?: string): Promise<CameraCalibration[]> {
     return [...this.cameraCalibrations.values()]
       .filter((c) => hallId === undefined || c.hallId === hallId)
-      .map((c) => structuredClone(c));
+      .map((c) => calibrationFromStored(structuredClone(c)));
   }
   async upsertMeasurementSettings(settings: MeasurementSettings): Promise<void> {
     if (settings.activeCalibrationId !== null) {
@@ -270,12 +277,12 @@ export class JsonFileRepository implements Repository {
         });
       }
     }
-    this.measurementSettings.set(settings.hallId, structuredClone(settings));
+    this.measurementSettings.set(settings.hallId, settingsFromStored(structuredClone(settings) as unknown as Record<string, unknown>));
     this.persist();
   }
   async getMeasurementSettings(hallId: string): Promise<MeasurementSettings | undefined> {
     const m = this.measurementSettings.get(hallId);
-    return m ? structuredClone(m) : undefined;
+    return m ? settingsFromStored(structuredClone(m) as unknown as Record<string, unknown>) : undefined;
   }
 
   // --- snapshot persistence ---

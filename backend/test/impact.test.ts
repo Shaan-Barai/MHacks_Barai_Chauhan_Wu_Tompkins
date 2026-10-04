@@ -116,7 +116,7 @@ test('GET /api/dashboard/impact: pixel totals, relative points, px-per-portion t
   assert.equal(d.totals.kgCo2e, null);
   assert.equal(d.totals.waterLitres, null);
   assert.equal(d.totals.physicalUnavailableReason, 'no_calibration');
-  assert.deepEqual(d.totals.physicalCoverage, { calibratedCaptures: 0, volumeCaptures: 0, analyzedCaptures: 2 });
+  assert.deepEqual(d.totals.physicalCoverage, { calibratedCaptures: 0, analyzedCaptures: 2 });
   assert.deepEqual(d.window, { start: DATE, end: DATE, hallId: HALL });
   assert.equal(d.totals.pixels, 20000);
   close(d.totals.impactPoints, 45.63 + 18.252 + 2.32, 'total impact points'); // 66.202
@@ -192,12 +192,12 @@ test('GET /api/captures: newest first, item pixels, failed captures null (never 
   assert.deepEqual(
     [...a.items].sort((x: any, y: any) => y.pixels - x.pixels),
     [
-      { itemId: HAM, displayName: 'Baked Boneless Ham', pixels: 10000, grams: null, kgCo2e: null, waterLitres: null, volumeCm3: null, areaCm2: null },
-      { itemId: POTATOES, displayName: 'Oven Roasted Garlic Potatoes', pixels: 5000, grams: null, kgCo2e: null, waterLitres: null, volumeCm3: null, areaCm2: null },
+      { itemId: HAM, displayName: 'Baked Boneless Ham', pixels: 10000, grams: null, kgCo2e: null, waterLitres: null, areaCm2: null },
+      { itemId: POTATOES, displayName: 'Oven Roasted Garlic Potatoes', pixels: 5000, grams: null, kgCo2e: null, waterLitres: null, areaCm2: null },
     ],
   );
   assert.equal(b.pixelsWasted, 5000);
-  assert.deepEqual(b.items.find((i: any) => i.itemId === null), { itemId: null, displayName: 'Food not on the menu', pixels: 1000, grams: null, kgCo2e: null, waterLitres: null, volumeCm3: null, areaCm2: null });
+  assert.deepEqual(b.items.find((i: any) => i.itemId === null), { itemId: null, displayName: 'Food not on the menu', pixels: 1000, grams: null, kgCo2e: null, waterLitres: null, areaCm2: null });
 
   const capped = await s.api('GET', `/api/captures?start=${DATE}&end=${DATE}&limit=1`);
   assert.deepEqual(capped.json.map((x: any) => x.eventId), ['cap_c']);

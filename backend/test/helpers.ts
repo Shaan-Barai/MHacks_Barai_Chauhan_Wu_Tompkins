@@ -96,7 +96,6 @@ export async function startTestServer(
     },
     attendance: { min: 300, max: 1200 },
     samWorkerUrl: 'http://127.0.0.1:1',
-    depthWorkerUrl: 'http://127.0.0.1:1',
     ...opts.config,
   };
   const { config: _c, headers: defaultHeaders, ...rest } = opts;

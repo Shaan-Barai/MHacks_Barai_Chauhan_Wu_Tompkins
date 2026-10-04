@@ -31,15 +31,6 @@ class FakeRunner implements CalibrationRunner {
       cm2PerPx: 0.005,
       intrinsics: intrinsics(this.size.w, this.size.h),
       cameraHeightCmGeometric: 51.3,
-      depth: {
-        checkpoint: 'depth-anything/Depth-Anything-V2-Metric-Indoor-Small-hf',
-        settingsVersion: 'dav2-metric-small-v1',
-        rawReferenceMedianM: 0.6,
-        scale: 0.855,
-        cameraHeightCmDepth: 51.3,
-        tablePlane: { a: 0, b: 0, c: 51.3 },
-        depthPng: PNG,
-      },
       flags: [],
       overlayJpeg: JPEG,
       referenceMaskPng: PNG,
@@ -80,8 +71,8 @@ test('POST /api/calibrations stores the calibration, its images, and is idempote
   assert.equal(cal.status, 'succeeded');
   assert.equal(cal.referencePixels, 9242);
   assert.equal(cal.cm2PerPx, 46.21 / 9242, 'k is recomputed from the stored inputs');
-  assert.equal(cal.depth.scale, 0.855);
-  assert.ok(cal.depth.depthObjectId && cal.overlayObjectId && cal.referenceMaskObjectId);
+  assert.equal('depth' in cal, false, 'no depth calibration');
+  assert.ok(cal.overlayObjectId && cal.referenceMaskObjectId);
 
   const again = await s.api('POST', '/api/calibrations', body(img));
   assert.equal(again.status, 200);
@@ -95,18 +86,17 @@ test('POST /api/calibrations stores the calibration, its images, and is idempote
 
   const images = await s.api('GET', '/api/calibrations/cal_a/images');
   assert.equal(images.status, 200);
-  for (const k of ['photo', 'overlay', 'referenceMask', 'depth']) {
+  for (const k of ['photo', 'overlay', 'referenceMask']) {
     assert.ok(images.json[k]?.url, `${k} has a signed URL`);
     assert.ok(images.json[k]?.expiresAt);
   }
-  const depthObj = await s.repo.getImageObject(cal.depth.depthObjectId);
-  assert.deepEqual(depthObj?.association, { kind: 'depth', id: 'cal_a' });
+  assert.deepEqual(Object.keys(images.json).sort(), ['calibrationId', 'overlay', 'photo', 'referenceMask'], 'no depth image');
   const overlayObj = await s.repo.getImageObject(cal.overlayObjectId);
   assert.deepEqual(overlayObj?.association, { kind: 'calibration_overlay', id: 'cal_a' });
 });
 
 test('calibration validation, failures, and an unavailable runner', async (t) => {
-  const s = await startTestServer(undefined, { calibrationRunner: new FakeRunner({ status: 'failed', referencePixels: 0, cm2PerPx: 0, depth: null, flags: ['reference_not_found'] }) });
+  const s = await startTestServer(undefined, { calibrationRunner: new FakeRunner({ status: 'failed', referencePixels: 0, cm2PerPx: 0, flags: ['reference_not_found'] }) });
   t.after(() => s.close());
 
   const captureImg = await s.uploadImage('cap_x');
@@ -124,7 +114,7 @@ test('calibration validation, failures, and an unavailable runner', async (t) =>
   assert.equal(failed.json.status, 'failed');
   assert.equal(failed.json.error.code, 'REFERENCE_NOT_FOUND');
   assert.deepEqual(failed.json.flags, ['reference_not_found']);
-  assert.equal(failed.json.depth, null);
+  assert.equal('depth' in failed.json, false);
 
   // A failed calibration can never be activated.
   const activate = await s.api('PUT', '/api/settings/measurement', { hallId: HALL, activeCalibrationId: 'cal_bad' });
@@ -140,28 +130,33 @@ test('calibration validation, failures, and an unavailable runner', async (t) =>
   assert.equal(r.json.error.retryable, true);
 });
 
-test('measurement settings: defaults, partial updates, validation', async (t) => {
+test('measurement settings: defaults, partial updates, validation; legacy depth fields accepted and ignored', async (t) => {
   const s = await startTestServer(undefined, { calibrationRunner: new FakeRunner() });
   t.after(() => s.close());
   const def = await s.api('GET', `/api/settings/measurement?hallId=${HALL}`);
   assert.equal(def.status, 200);
   assert.deepEqual(
     { ...def.json, updatedAt: undefined },
-    { hallId: HALL, depthEnabled: false, activeCalibrationId: null, plateThicknessCm: 1.5, updatedAt: undefined },
+    { hallId: HALL, activeCalibrationId: null, updatedAt: undefined },
   );
   assert.equal((await s.api('GET', '/api/settings/measurement')).status, 400);
 
   const img = await uploadCalibrationPhoto(s, 'cal_ok');
   await s.api('POST', '/api/calibrations', body(img));
-  const put = await s.api('PUT', '/api/settings/measurement', { hallId: HALL, activeCalibrationId: 'cal_ok', depthEnabled: true });
+  const put = await s.api('PUT', '/api/settings/measurement', { hallId: HALL, activeCalibrationId: 'cal_ok' });
   assert.equal(put.status, 200);
+  assert.deepEqual(Object.keys(put.json).sort(), ['activeCalibrationId', 'hallId', 'updatedAt']);
   assert.equal(put.json.activeCalibrationId, 'cal_ok');
-  assert.equal(put.json.depthEnabled, true);
-  assert.equal(put.json.plateThicknessCm, 1.5);
-  const thick = await s.api('PUT', '/api/settings/measurement', { hallId: HALL, plateThicknessCm: 2 });
-  assert.equal(thick.json.activeCalibrationId, 'cal_ok', 'omitted fields are kept');
-  assert.equal(thick.json.plateThicknessCm, 2);
-  for (const bad of [{ plateThicknessCm: -1 }, { plateThicknessCm: 50 }, { depthEnabled: 'yes' }, { activeCalibrationId: 'nope' }, { activeCalibrationId: 7 }]) {
+  // Old clients may still send the removed depth fields (any value): accepted, ignored, never echoed.
+  for (const legacy of [{ depthEnabled: true, plateThicknessCm: 2 }, { depthEnabled: 'yes', plateThicknessCm: 50 }]) {
+    const old = await s.api('PUT', '/api/settings/measurement', { hallId: HALL, ...legacy });
+    assert.equal(old.status, 200, JSON.stringify(legacy));
+    assert.deepEqual(Object.keys(old.json).sort(), ['activeCalibrationId', 'hallId', 'updatedAt']);
+    assert.equal(old.json.activeCalibrationId, 'cal_ok', 'omitted fields are kept');
+  }
+  const got = await s.api('GET', `/api/settings/measurement?hallId=${HALL}`);
+  assert.deepEqual(Object.keys(got.json).sort(), ['activeCalibrationId', 'hallId', 'updatedAt']);
+  for (const bad of [{ activeCalibrationId: 'nope' }, { activeCalibrationId: 7 }]) {
     assert.equal((await s.api('PUT', '/api/settings/measurement', { hallId: HALL, ...bad })).status, 400, JSON.stringify(bad));
   }
   assert.equal((await s.api('PUT', '/api/settings/measurement', { hallId: 'hall-other', activeCalibrationId: 'cal_ok' })).status, 400, 'another hall');
@@ -190,7 +185,7 @@ test('ingestion snapshots the active calibration; activating another one never r
   assert.equal(m.physical.method, 'area-calibrated-v1');
   assert.equal(m.physical.calibrationId, 'cal_1');
   assert.ok(Math.abs(m.physical.areaCm2 - 12000 * k1) < 1e-3);
-  assert.equal(m.physical.volumeCm3, null);
+  assert.deepEqual(Object.keys(m.physical).sort(), ['areaCm2', 'calibrationId', 'method']);
   assert.equal(cap.json.attempt.calibrationId, 'cal_1');
   assert.equal(cap.json.attempt.physicalMethod, 'area-calibrated-v1');
 
@@ -200,13 +195,13 @@ test('ingestion snapshots the active calibration; activating another one never r
   // Payloads: coverage counts the calibrated plate; the gallery shows its area.
   const dash = await s.api('GET', `/api/dashboard/impact?start=2026-10-03&end=2026-10-03&hallId=${HALL}`);
   assert.equal(dash.status, 200);
-  assert.deepEqual(dash.json.totals.physicalCoverage, { calibratedCaptures: 1, volumeCaptures: 0, analyzedCaptures: 2 });
+  assert.deepEqual(dash.json.totals.physicalCoverage, { calibratedCaptures: 1, analyzedCaptures: 2 });
   const gallery = await s.api('GET', `/api/captures?start=2026-10-03&end=2026-10-03&hallId=${HALL}`);
   const row = gallery.json.find((c: any) => c.eventId === 'cap_cal');
   assert.equal(row.calibrationId, 'cal_1');
   assert.equal(row.physicalMethod, 'area-calibrated-v1');
   assert.ok(Math.abs(row.items[0].areaCm2 - 12000 * k1) < 1e-3);
-  assert.equal(row.items[0].volumeCm3, null);
+  assert.equal('volumeCm3' in row.items[0], false);
   const plainRow = gallery.json.find((c: any) => c.eventId === 'cap_plain');
   assert.equal(plainRow.items[0].areaCm2, null);
   assert.equal(plainRow.items[0].grams, null);
@@ -230,31 +225,22 @@ test('a calibration for another resolution gives no physical numbers but is snap
   assert.equal(cap.json.attempt.physicalMethod, undefined);
 });
 
-test('volume results store the depth map in object storage', async (t) => {
+test('physical area comes only from the active calibration: pixels × k, whatever the analyzer claims', async (t) => {
   const mock = new MockAnalyzer();
   let seen: AnalyzerInput | undefined;
-  const volumeAnalyzer: Analyzer = {
+  const stale: Analyzer = {
     async analyze(input) {
       seen = input;
       const r = await mock.analyze(input);
       const cal = input.physical!.calibration!;
-      r.measurements[0]!.physical = {
-        calibrationId: cal.calibrationId,
-        method: 'volume-dav2-v1',
-        areaCm2: 60,
-        volumeCm3: 50,
-        meanHeightMm: 8,
-        maxHeightMm: 20,
-        depthSettingsVersion: 'dav2-metric-small-v1',
-        plateReference: 'dish-ring-fit',
-        flags: [],
-      };
-      r.attempt.physicalMethod = 'volume-dav2-v1';
-      r.physical = { status: 'applied', depth: { png: PNG, widthPx: 1024, heightPx: 1024 } };
+      // A stale analyzer reporting a volume-style estimate with a different area.
+      r.measurements[0]!.physical = { calibrationId: cal.calibrationId, method: 'volume-dav2-v1', areaCm2: 60, volumeCm3: 50, flags: [] } as any;
+      (r.attempt as any).physicalMethod = 'volume-dav2-v1';
+      (r.attempt as any).depthObjectId = 'img_fake';
       return r;
     },
   };
-  const s = await startTestServer(volumeAnalyzer, { calibrationRunner: new FakeRunner() });
+  const s = await startTestServer(stale, { calibrationRunner: new FakeRunner() });
   t.after(() => s.close());
   await s.seedMenuAndBaselines();
   await s.api('POST', '/api/calibrations', body(await uploadCalibrationPhoto(s, 'cal_v')));
@@ -262,15 +248,77 @@ test('volume results store the depth map in object storage', async (t) => {
 
   const cap = await s.submitCapture('cap_vol', await s.uploadImage('cap_vol'));
   assert.equal(cap.status, 201, JSON.stringify(cap.json));
-  assert.equal(seen?.physical?.depthEnabled, true);
-  assert.equal(seen?.physical?.plateThicknessCm, 2);
-  assert.ok(seen?.physical?.depthClient, 'the depth worker client is passed through');
-  assert.equal(cap.json.attempt.physicalMethod, 'volume-dav2-v1');
-  assert.equal(cap.json.measurements[0].physical.volumeCm3, 50);
-  const depthId = cap.json.attempt.depthObjectId;
-  assert.ok(depthId);
-  assert.deepEqual((await s.repo.getImageObject(depthId))?.association, { kind: 'depth', id: 'cap_vol' });
+  assert.deepEqual(Object.keys(seen!.physical!), ['calibration'], 'only the calibration reaches the analyzer');
+  assert.equal(cap.json.attempt.physicalMethod, 'area-calibrated-v1');
+  assert.equal(cap.json.attempt.depthObjectId, undefined);
+  const k = 46.21 / 9242;
+  assert.deepEqual(cap.json.measurements[0].physical, { calibrationId: 'cal_v', method: 'area-calibrated-v1', areaCm2: Math.round(12000 * k * 1e4) / 1e4 });
   assert.equal(GEOMETRY.widthPx, 1024);
+});
+
+test('legacy depth-trial rows read as area: recomputed from pixels × the snapshotted k; depth fields dropped', async (t) => {
+  const s = await startTestServer(undefined, { calibrationRunner: new FakeRunner() });
+  t.after(() => s.close());
+  await s.seedMenuAndBaselines();
+  await s.api('POST', '/api/calibrations', body(await uploadCalibrationPhoto(s, 'cal_old')));
+  const cap = await s.submitCapture('cap_old', await s.uploadImage('cap_old'));
+  assert.equal(cap.status, 201);
+  const k = 46.21 / 9242;
+  // Rows shaped like the depth trial wrote them (the JSON repo stores them verbatim).
+  const legacyCal = {
+    ...(await s.repo.getCameraCalibration('cal_old'))!,
+    calibrationId: 'cal_legacy',
+    flags: ['depth_scale_disagrees'],
+    depth: { scale: 0.8, depthObjectId: 'img_d' },
+  };
+  await s.repo.upsertCameraCalibration(legacyCal as any);
+  const legacyAttempt = {
+    ...cap.json.attempt,
+    attemptId: 'att_legacy',
+    calibrationId: 'cal_legacy',
+    physicalMethod: 'volume-dav2-v1',
+    depthObjectId: 'img_d',
+    createdAt: '2099-01-01T00:00:00.000Z',
+  };
+  const legacyMeasurement = (id: string, physical: object) => ({ ...cap.json.measurements[0], measurementId: id, attemptId: 'att_legacy', physical });
+  await s.repo.recordAnalysis(legacyAttempt as any, [
+    legacyMeasurement('m_vol', {
+      calibrationId: 'cal_legacy',
+      method: 'volume-dav2-v1',
+      areaCm2: 99.5,
+      volumeCm3: 50,
+      meanHeightMm: 8,
+      maxHeightMm: 20,
+      depthSettingsVersion: 'dav2-metric-small-v1',
+      plateReference: 'dish-ring-fit',
+      flags: ['depth_invalid'],
+    }),
+    legacyMeasurement('m_nocal', { calibrationId: 'cal_missing', method: 'volume-dav2-v1', areaCm2: 99.5, volumeCm3: 50, flags: [] }),
+  ] as any);
+
+  const a = (await s.repo.listAnalysisAttempts('cap_old')).find((x) => x.attemptId === 'att_legacy')!;
+  assert.equal(a.physicalMethod, 'area-calibrated-v1');
+  assert.equal('depthObjectId' in a, false);
+  const ms = await s.repo.listMeasurementsByAttempt('att_legacy');
+  assert.deepEqual(ms.find((m) => m.measurementId === 'm_vol')!.physical, {
+    calibrationId: 'cal_legacy',
+    method: 'area-calibrated-v1',
+    areaCm2: Math.round(12000 * k * 1e4) / 1e4,
+  });
+  assert.equal(ms.find((m) => m.measurementId === 'm_nocal')!.physical, undefined, 'no calibration ⇒ no physical estimate');
+  const cal = await s.api('GET', '/api/calibrations/cal_legacy');
+  assert.equal(cal.status, 200);
+  assert.equal('depth' in cal.json, false);
+  assert.deepEqual(cal.json.flags, []);
+  // Read models built from legacy rows do not crash and carry no volume.
+  const gallery = await s.api('GET', `/api/captures?start=2026-10-03&end=2026-10-03&hallId=${HALL}`);
+  assert.equal(gallery.status, 200);
+  assert.ok(!JSON.stringify(gallery.json).includes('volume'));
+  const dash = await s.api('GET', `/api/dashboard/impact?start=2026-10-03&end=2026-10-03&hallId=${HALL}`);
+  assert.equal(dash.status, 200);
+  // Legacy settings with depth fields read as the new shape.
+  await s.repo.upsertMeasurementSettings({ hallId: HALL, activeCalibrationId: null, updatedAt: '2026-10-04T00:00:00.000Z', depthEnabled: true, plateThicknessCm: 1.5 } as any);
+  assert.deepEqual(await s.repo.getMeasurementSettings(HALL), { hallId: HALL, activeCalibrationId: null, updatedAt: '2026-10-04T00:00:00.000Z' });
 });
 
 test('overlay legend suffix: grams · kg CO2e · L water from analytics, nothing without an estimate', async () => {
@@ -280,7 +328,7 @@ test('overlay legend suffix: grams · kg CO2e · L water from analytics, nothing
     items: [{ itemId: 'ham', menuId: 'm', displayName: 'Baked Boneless Ham' }],
   };
   const suffix = physicalLabelSuffix(menu)!;
-  const physical = { calibrationId: 'c', method: 'area-calibrated-v1' as const, areaCm2: 20, volumeCm3: null, meanHeightMm: null, maxHeightMm: null, flags: [] };
+  const physical = { calibrationId: 'c', method: 'area-calibrated-v1' as const, areaCm2: 20 };
   const bucket = (over: object) => ({ itemId: 'ham', label: 'Baked Boneless Ham', pixels: 1, bitmap: new Uint8Array(1), color: [0, 0, 0], physical, ...over }) as any;
   assert.match(String(suffix(bucket({}))), /^[\d,]+ g · .*CO2e · .*L water \(est\.\)$/);
   assert.equal(suffix(bucket({ physical: null })), null, 'no estimate: nothing, never "0 g"');

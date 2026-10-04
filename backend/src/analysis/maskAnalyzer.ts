@@ -50,7 +50,6 @@ export class MaskAnalyzer implements Analyzer {
       physical: phys.status,
       ...(phys.method ? { physicalMethod: phys.method } : {}),
       ...(phys.reason ? { physicalReason: phys.reason } : {}),
-      ...(phys.depthError ? { depthError: phys.depthError.code } : {}),
     });
     return result;
   }

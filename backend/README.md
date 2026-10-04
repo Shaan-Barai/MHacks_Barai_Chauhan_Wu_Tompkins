@@ -65,8 +65,7 @@ throwaway database (e.g. `scrap-test`), then
 | `BACKEND_DATA_FILE` | *(unset = in-memory)* | Optional JSON snapshot file for the offline repository |
 | `ATTENDANCE_MIN/MAX/SEED` | `300`/`1200`/– | Passed through for Agent 6's generator |
 | `SAM_WORKER_URL` | `http://127.0.0.1:8790` | SAM 2.1 worker (`vision/sam/worker.py`) |
-| `DEPTH_WORKER_URL` | `http://127.0.0.1:8791` | Depth Anything V2 worker (`vision/depth/worker.py`), IT_4 volume |
-| `WORKER_TOKEN` | – | Sent as `X-Worker-Token` to both workers (must match the workers' `WORKER_TOKEN`) |
+| `WORKER_TOKEN` | – | Sent as `X-Worker-Token` to the SAM worker (must match the worker's `WORKER_TOKEN`) |
 | `NODE_ENV` | – | `production` ⇒ the three auth secrets below are required (startup refuses otherwise), cookie `Secure`, HSTS |
 | `SCRAP_INGEST_TOKEN` | – | Bearer token for the camera bridge and scripts (`Authorization: Bearer …`) |
 | `SCRAP_ADMIN_PASSCODE` | – | Dashboard admin passcode (`POST /api/auth/login`) |
@@ -184,37 +183,52 @@ Every error returns the shared envelope `{ "error": { code, message, details?, r
 - `POST /api/calibrations` `{ hallId, cameraId, imageObjectId, knownAreaCm2, referenceLabel }`
   → `201 CameraCalibration` (bare contract object). Runs vision's
   `runCalibration` (Gemini box → SAM 2.1 → N_ref, k = knownAreaCm2 / N_ref,
-  C920s intrinsics, geometric height; DAv2 scale + table plane when the depth
-  worker answers, else flag `depth_unavailable`). The overlay JPEG and reference
-  mask are stored as `calibration_overlay` images and the depth PNG as `depth`
-  (association id = calibrationId). Reference not found ⇒ a stored
+  C920s intrinsics, geometric height f·√k). The overlay JPEG and reference
+  mask are stored as `calibration_overlay` images (association id =
+  calibrationId). Reference not found ⇒ a stored
   `status: "failed"` calibration with `error`; provider/worker failures ⇒
   `503` (retryable, nothing stored). Repeating the POST with the same upload
   returns the stored calibration (`200`). `503 CALIBRATION_UNAVAILABLE` without
   a Gemini key.
 - `GET /api/calibrations?hallId` → `{ calibrations: CameraCalibration[] }` newest first;
   `GET /api/calibrations/:id` → `CameraCalibration`;
-  `GET /api/calibrations/:id/images` → `{ calibrationId, photo, overlay, referenceMask, depth }`
+  `GET /api/calibrations/:id/images` → `{ calibrationId, photo, overlay, referenceMask }`
   (each `SignedImage | null`).
-- `GET /api/settings/measurement?hallId` → `MeasurementSettings` (unsaved defaults:
-  depth off, no calibration, plate 1.5 cm, `updatedAt` 1970-01-01).
-  `PUT /api/settings/measurement` `{ hallId, depthEnabled?, activeCalibrationId?, plateThicknessCm? }`
-  — partial update; the active calibration must be a **succeeded calibration of
-  that hall** (`400 INVALID_CALIBRATION`), `plateThicknessCm` 0–10.
-- Ingestion snapshots the hall's settings per attempt: `attempt.calibrationId`
-  (the active calibration, even when it could not be applied), `physicalMethod`
-  (`area-calibrated-v1` | `volume-dav2-v1`, only when applied) and
-  `depthObjectId` (DAv2 depth PNG, association `depth` / eventId). Each
-  measurement gets `physical` (PhysicalEstimate) only with a compatible
-  calibration (same resolution). Depth worker down ⇒ area method + flag
-  `depth_unavailable`; SAM down ⇒ the existing failed/retryable path. Pixels
-  are never changed. Activating another calibration never rewrites history.
+- `GET /api/settings/measurement?hallId` → `MeasurementSettings`
+  `{ hallId, activeCalibrationId, updatedAt }` (unsaved defaults: no calibration,
+  `updatedAt` 1970-01-01).
+  `PUT /api/settings/measurement` `{ hallId, activeCalibrationId? }` — partial
+  update; the active calibration must be a **succeeded calibration of that
+  hall** (`400 INVALID_CALIBRATION`). **Legacy fields** `depthEnabled` and
+  `plateThicknessCm` (from the removed Depth Anything V2 trial) are **accepted
+  and ignored** with any value, so old clients keep working; responses never
+  contain them.
+- Ingestion snapshots the hall's active calibration per attempt:
+  `attempt.calibrationId` (even when it could not be applied) and
+  `physicalMethod` (`area-calibrated-v1`, only when applied). **Physical area
+  comes only from that calibration:** each measurement gets `physical =
+  { calibrationId, method: 'area-calibrated-v1', areaCm2 }` with `areaCm2 =
+  pixels × calibration.cm2PerPx` (recomputed by the backend from the stored
+  pixels, whatever the analyzer reported), and only with a compatible
+  calibration (same resolution). No active calibration ⇒ no physical
+  (`no_calibration`); another resolution ⇒ none (`incompatible_geometry`).
+  SAM down ⇒ the existing failed/retryable path. Pixels are never changed.
+  Activating another calibration never rewrites history.
+- **Legacy rows** (`src/repo/legacyPhysical.ts`): the `scrap` database still
+  has a few rows from the brief depth trial (method `volume-dav2-v1`,
+  volume/height fields, flags, `depthObjectId`, calibration `depth`, settings
+  with `depthEnabled`/`plateThicknessCm`). Every repository read normalizes
+  them: a stored estimate is **recomputed as pixels × the snapshotted
+  calibration's k** (no usable calibration ⇒ no estimate), the attempt's
+  method reads as `area-calibrated-v1`, and the volume/depth fields are never
+  returned. The SpacetimeDB columns stay (see `db/README.md`).
 - `GET /api/dashboard/impact` carries analytics' WasteImpact `grams`/`kgCo2e`/
   `waterLitres`/`physicalMethod`/`physicalUnavailableReason`,
-  `totals.physicalCoverage`, `perPortion.grams`; `GET /api/captures` items add
-  `grams`, `kgCo2e`, `waterLitres`, `volumeCm3`, `areaCm2` (null, never 0) and
-  each capture `calibrationId` / `physicalMethod`. A snapshotted calibration of
-  another resolution reports `incompatible_geometry`. The overlay legend shows
+  `totals.physicalCoverage` `{ calibratedCaptures, analyzedCaptures }`,
+  `perPortion.grams`; `GET /api/captures` items add `grams`, `kgCo2e`,
+  `waterLitres`, `areaCm2` (null, never 0) and each capture `calibrationId` /
+  `physicalMethod`. A snapshotted calibration of another resolution reports
+  `incompatible_geometry`. The overlay legend shows
   `38 g · 1.1 kg CO2e · 18 L water (est.)` after each food's pixels.
 
 ### Attendance
@@ -291,9 +305,9 @@ unitless and only compare foods with each other. A legacy attempt's stored
 
 ### Misc
 - `GET /api/health` — liveness.
-- `GET /api/ready` — `{ ready, checks: { database, objectStorage, samWorker, depthWorker } }`,
+- `GET /api/ready` — `{ ready, checks: { database, objectStorage, samWorker } }`,
   each `{ ok, required, latencyMs, error? }`; `503` when a required check fails
-  (database and storage always; SAM only with live Gemini; depth never required).
+  (database and storage always; SAM only with live Gemini).
 
 ## Interfaces exposed to other agents
 

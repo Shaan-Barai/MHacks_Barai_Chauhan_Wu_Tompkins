@@ -145,14 +145,14 @@ test('security headers and readiness report', async (t) => {
 
   const ready = await raw(s.baseUrl, 'GET', '/api/ready');
   // In-memory repo + local-dev storage are up; workers are not, but the
-  // mock analyzer does not need SAM and depth is optional.
+  // mock analyzer does not need SAM. There is no depth worker check.
   assert.equal(ready.status, 200);
   assert.equal(ready.json.ready, true);
   assert.equal(ready.json.checks.database.ok, true);
   assert.equal(ready.json.checks.objectStorage.ok, true);
   assert.equal(ready.json.checks.samWorker.ok, false);
   assert.equal(ready.json.checks.samWorker.required, false);
-  assert.equal(ready.json.checks.depthWorker.required, false);
+  assert.deepEqual(Object.keys(ready.json.checks).sort(), ['database', 'objectStorage', 'samWorker']);
   assert.doesNotMatch(JSON.stringify(ready.json), /127\.0\.0\.1/);
 });
 

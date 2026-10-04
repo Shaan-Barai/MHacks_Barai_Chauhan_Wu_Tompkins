@@ -237,7 +237,6 @@ export class ImpactService {
               grams: est.grams,
               kgCo2e: est.kgCo2e,
               waterLitres: est.waterLitres,
-              volumeCm3: est.volumeCm3,
               areaCm2: est.areaCm2,
             };
           }),

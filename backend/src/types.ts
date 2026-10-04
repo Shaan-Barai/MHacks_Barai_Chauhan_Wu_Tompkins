@@ -55,6 +55,13 @@ export type {
   PhysicalMethod,
   PhysicalUnavailableReason,
   PhysicalEstimate,
+  TryImageStatus,
+  TryImageAccepted,
+  TryImageError,
+  TryImageImages,
+  TryImageFoodRow,
+  TryImageSummary,
+  TryImageJob,
 } from '../../contracts/types.js';
 
 import type {

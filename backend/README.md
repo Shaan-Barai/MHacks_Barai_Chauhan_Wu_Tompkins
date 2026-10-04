@@ -391,6 +391,24 @@ provider-independent.
   (`/api/storage/upload|read`) and opaque expiring tokens standing in for
   presigned URLs. Used by tests and offline machines.
 
+## Try an Image (public, never stored)
+
+Visitors can analyse one photo without signing in. Gemini classify + boxes, SAM 2.1 masks and the
+pixel count run via `upload_demo/pipeline.mjs` (imported lazily on first use; the SAM worker must be
+reachable). Results live in memory only (last 20 jobs); nothing goes to R2 or SpacetimeDB.
+
+- `GET /api/try-image/status` -> `{ available, reason?, waiting, running, maxWaiting (4), hourlyRemaining }`.
+  Unavailable when Gemini is not live (mock mode) or the hourly cap is used.
+- `POST /api/try-image` (raw `image/*`, up to 20 MB, no token) -> **202** `{ id, status: 'queued', position }`.
+  Errors: 415 `NOT_AN_IMAGE`, 400 `EMPTY_UPLOAD`, 413 `PAYLOAD_TOO_LARGE`, 429 `BUSY` / `RATE_LIMITED`
+  (per-IP Gemini cap plus a global `TRY_IMAGE_MAX_PER_HOUR`, default 60), 503 `UNAVAILABLE`.
+- `GET /api/try-image/:id` -> `{ id, status: queued|running|done|failed, position?, error?, summary?, images? }`
+  (`images` are JPEG data URLs); 404 `RESULT_NOT_FOUND` when unknown or evicted.
+- `GET /api/try-image/sample.jpg` -> `demo_pictures/0_input_photo.jpg`.
+
+One analysis runs at a time. Types are in `contracts/types.ts` (`TryImage*`); tests inject a fake
+runner (`test/tryImage.test.ts`).
+
 ## Assumptions (recorded per working rule 5)
 
 - `POST /api/menus` keeps the `MenuBundle` shape check (seed/API clients);

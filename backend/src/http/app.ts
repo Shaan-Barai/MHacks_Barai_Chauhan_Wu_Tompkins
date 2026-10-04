@@ -26,6 +26,7 @@ import { parseWindow, CAPTURE_LIST_DEFAULT_LIMIT, CAPTURE_LIST_MAX_LIMIT, type I
 import type { MealLabel, MenuBundle } from '../types.js';
 import type { ReadinessService } from '../services/readinessService.js';
 import { validateCalibrationRequest, type CalibrationService } from '../services/calibrationService.js';
+import { TryImageRejection, repoRoot, type TryImageService } from '../services/tryImageService.js';
 import { log } from '../log.js';
 import { readBuildInfo } from '../buildInfo.js';
 import {
@@ -72,6 +73,8 @@ export interface AppDeps {
   camera?: CameraService;
   /** Sample history (DEMO_SEED); optional in tests. */
   demo?: DemoService;
+  /** Public 'Try an Image' analyses (in memory only). */
+  tryImage?: TryImageService;
 }
 
 export function createApp(deps: AppDeps): express.Express {
@@ -447,6 +450,54 @@ export function createApp(deps: AppDeps): express.Express {
     }
     return n * 1000;
   }
+
+  // ---- Try an Image: public, in-memory, one analysis at a time (never stored) ----
+  const tryImageSvc = (): TryImageService => {
+    if (!deps.tryImage) throw new HttpError(503, apiError('UNAVAILABLE', 'Try an Image is not available on this server.', false));
+    return deps.tryImage;
+  };
+  const asHttp = (e: unknown) => (e instanceof TryImageRejection ? new HttpError(e.status, e.body) : e);
+  app.get('/api/try-image/status', (_req, res) => {
+    res.set('Cache-Control', 'no-store').json(tryImageSvc().status());
+  });
+  app.get('/api/try-image/sample.jpg', (_req, res, next) => {
+    res
+      .type('image/jpeg')
+      .sendFile(join(repoRoot(), 'demo_pictures', '0_input_photo.jpg'), (err) =>
+        err && next(notFound('SAMPLE_NOT_FOUND', 'The sample photo is not available.')),
+      );
+  });
+  app.get('/api/try-image/:id', (req, res) => {
+    const job = tryImageSvc().get(param(req, 'id'));
+    if (!job) throw notFound('RESULT_NOT_FOUND', 'This result is no longer available. Upload the photo again.');
+    res.set('Cache-Control', 'no-store').json(job);
+  });
+  app.post(
+    '/api/try-image',
+    geminiCap,
+    (req, _res, next) => {
+      try {
+        const svc = tryImageSvc();
+        if (!/^image\//i.test(req.headers['content-type'] ?? '')) {
+          throw new HttpError(415, apiError('NOT_AN_IMAGE', 'Upload a JPEG, PNG or WebP photo.', false));
+        }
+        svc.assertAccepting();
+        next();
+      } catch (e) {
+        next(asHttp(e));
+      }
+    },
+    express.raw({ type: 'image/*', limit: '20mb' }),
+    (req, res, next) => {
+      try {
+        const bytes: unknown = req.body;
+        if (!Buffer.isBuffer(bytes) || bytes.length === 0) throw badRequest('EMPTY_UPLOAD', 'The upload was empty.');
+        res.status(202).json(tryImageSvc().submit(bytes));
+      } catch (e) {
+        next(asHttp(e));
+      }
+    },
+  );
 
   // ---- capture ingestion (idempotent by eventId) ----
   app.post(

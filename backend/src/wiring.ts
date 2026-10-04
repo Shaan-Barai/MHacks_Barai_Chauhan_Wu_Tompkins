@@ -30,6 +30,7 @@ import { CaptureService } from './services/captureService.js';
 import { ImpactService } from './services/impactService.js';
 import { MockAnalyzer } from './analysis/mockAnalyzer.js';
 import { MaskAnalyzer } from './analysis/maskAnalyzer.js';
+import { TryImageService, createPipelineRunner, type TryImageRunner } from './services/tryImageService.js';
 import { createApp, type AppDeps } from './http/app.js';
 import { assertSecurity } from './http/security.js';
 import { ReadinessService } from './services/readinessService.js';
@@ -49,6 +50,8 @@ export interface BuildOptions {
   segmenter?: Segmenter;
   /** Calibration runner; defaults to vision's runCalibration when live. */
   calibrationRunner?: CalibrationRunner;
+  /** 'Try an Image' analysis runner; defaults to the lazy upload_demo pipeline. */
+  tryImageRunner?: TryImageRunner;
   now?: () => number;
 }
 
@@ -155,6 +158,13 @@ export function buildBackend(options: BuildOptions = {}): AppDeps & { app: Retur
     storageOrigins: storageOrigins(config),
     camera,
     demo,
+    tryImage: new TryImageService({
+      runner: options.tryImageRunner ?? createPipelineRunner({ samWorkerUrl: config.samWorkerUrl, workerToken: config.workerToken }),
+      unavailableReason:
+        gateway.mode === 'live' ? null : 'Live Gemini is not configured on this server (no GEMINI_API_KEY), so photos cannot be analysed.',
+      maxPerHour: Number(process.env.TRY_IMAGE_MAX_PER_HOUR) > 0 ? Number(process.env.TRY_IMAGE_MAX_PER_HOUR) : 60,
+      now,
+    }),
   };
   return { ...deps, app: createApp(deps) };
 }

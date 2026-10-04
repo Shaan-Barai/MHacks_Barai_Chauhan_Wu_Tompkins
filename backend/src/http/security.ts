@@ -153,6 +153,8 @@ export function principalOf(sec: ResolvedSecurity, req: Request, nowMs: number, 
 /** Exact mutation routes that never need auth. */
 function isExempt(req: Request): boolean {
   if (req.path === '/api/auth/login' || req.path === '/api/auth/logout') return true;
+  // Public 'Try an Image' upload: capped by rate limits and a global hourly cap, never stored.
+  if (req.method === 'POST' && req.path === '/api/try-image') return true;
   // local-dev stand-in for a presigned PUT: authorized by its own upload token.
   return req.method === 'PUT' && req.path.startsWith('/api/storage/upload/');
 }

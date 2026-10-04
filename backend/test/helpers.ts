@@ -10,6 +10,7 @@ import type { BackendConfig } from '../src/config.js';
 import type { Analyzer } from '../src/analysis/analyzer.js';
 import type { CalibrationRunner } from '../src/analysis/calibrationRunner.js';
 import type { GeminiGateway } from '@scrap/vision';
+import type { TryImageRunner } from '../src/services/tryImageService.js';
 import type { MenuBundle, ReferencePortion } from '../src/types.js';
 import type { Repository } from '../src/repo/repository.js';
 
@@ -79,6 +80,7 @@ export async function startTestServer(
     config?: Partial<BackendConfig>;
     headers?: Record<string, string>;
     calibrationRunner?: CalibrationRunner;
+    tryImageRunner?: TryImageRunner;
   } = {},
 ): Promise<TestServer> {
   const fixtures: Record<string, MockFixture> = {};

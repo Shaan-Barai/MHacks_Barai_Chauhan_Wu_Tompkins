@@ -657,3 +657,82 @@ export interface PhysicalEstimate {
   /** pixels × k (cm²), food treated as lying on the base plane. */
   areaCm2: number;
 }
+
+// ---------------------------------------------------------------------------
+// Try an Image (public, in-memory, never stored): /api/try-image
+// ---------------------------------------------------------------------------
+
+/** GET /api/try-image/status */
+export interface TryImageStatus {
+  available: boolean;
+  /** Present when available=false (Gemini not live, or the hourly cap is used). */
+  reason?: string;
+  /** Jobs queued behind the running one. */
+  waiting: number;
+  running: boolean;
+  maxWaiting: number;
+  hourlyRemaining: number;
+}
+
+/** POST /api/try-image -> 202 */
+export interface TryImageAccepted {
+  id: string;
+  status: 'queued';
+  /** 1-based place in line (a running analysis counts as place 1). */
+  position: number;
+}
+
+export interface TryImageError {
+  code: string;
+  message: string;
+}
+
+/** Data URLs (data:image/jpeg;base64,...) of the four step pictures; null if a step could not render. */
+export interface TryImageImages {
+  original: string | null;
+  boxes: string | null;
+  masks: string | null;
+  final: string | null;
+}
+
+export interface TryImageFoodRow {
+  itemId: string | null;
+  /** Display name, or 'Unclassified food'. */
+  food: string;
+  pixelsWasted: number;
+  boxes: number;
+  /** Relative points (unitless); null when the food has no factor. */
+  points: { co2Points: number; waterPoints: number; impactPoints: number; nutritionPoints: number | null } | null;
+  factors: Record<string, unknown> | null;
+}
+
+/** upload_demo/pipeline.mjs runSteps().summary, as-is. */
+export interface TryImageSummary {
+  status: string;
+  countStatus: 'complete' | 'partial' | 'unavailable' | string;
+  error: { code: string; message: string } | null;
+  qualityFlags: string[];
+  /** Total Pixels wasted (union of masks); null when unavailable. */
+  capturePixelsWasted: number | null;
+  analysedImage: { widthPx: number; heightPx: number; sourceWidthPx: number; sourceHeightPx: number };
+  foods: TryImageFoodRow[];
+  totals: { co2Points: number | null; waterPoints: number | null; impactPoints: number | null; nutritionPoints: number | null };
+  targetDish: { found: boolean; dishType: string | null; clipApplied: boolean; excludedBoxes: number; otherDishPx: number | null };
+  regions: Array<Record<string, unknown>>;
+  localization: Record<string, unknown>;
+  overlayCheck: Record<string, unknown>;
+  menu: { menuId: string; foods: string[] };
+  provenance: Record<string, unknown>;
+  seconds: number;
+  geminiCalls: number;
+}
+
+/** GET /api/try-image/:id */
+export interface TryImageJob {
+  id: string;
+  status: 'queued' | 'running' | 'done' | 'failed';
+  position?: number;
+  error?: TryImageError;
+  summary?: TryImageSummary;
+  images?: TryImageImages;
+}

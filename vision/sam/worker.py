@@ -11,7 +11,11 @@ per box prompt.
 POST /segment  {"image_b64": "<jpeg/png bytes>", "boxes": [[x0, y0, x1, y1], ...]}
   -> {"widthPx", "heightPx", "model", "checkpoint", "codeRevision", "device",
       "settingsVersion", "results": [{"maskPngB64", "score", "foregroundPx"}]}
-GET  /health   -> model/device/settings info
+GET  /health   -> model/device/settings info (no token needed; no image data)
+
+Env: SAM_MODEL_ID, SAM_DEVICE, SAM_PORT (8790), WORKER_HOST (127.0.0.1;
+SAM_HOST also accepted), WORKER_TOKEN (optional; when set, POST requests must
+send a matching X-Worker-Token header or get 401).
 
 Boxes are pixel XYXY on the supplied image (the caller converts Gemini's
 [ymin, xmin, ymax, xmax] 0-1000 boxes). Masks are lossless 8-bit PNGs at the
@@ -25,9 +29,11 @@ removal. No CUDA autocast: MPS/CPU run in float32.
 from __future__ import annotations
 
 import base64
+import hmac
 import io
 import json
 import os
+import socket
 import subprocess
 import sys
 import threading
@@ -43,8 +49,9 @@ import sam2
 from sam2.sam2_image_predictor import SAM2ImagePredictor
 
 MODEL_ID = os.environ.get("SAM_MODEL_ID", "facebook/sam2.1-hiera-small")
-HOST = os.environ.get("SAM_HOST", "127.0.0.1")
+HOST = os.environ.get("WORKER_HOST") or os.environ.get("SAM_HOST") or "127.0.0.1"
 PORT = int(os.environ.get("SAM_PORT", "8790"))
+TOKEN = os.environ.get("WORKER_TOKEN") or ""
 SETTINGS_VERSION = "sam2-box-v1"
 MAX_BODY_BYTES = 25 * 1024 * 1024
 MAX_PIXELS = 4096 * 4096
@@ -148,6 +155,10 @@ def parse_request(body: bytes) -> tuple[np.ndarray, np.ndarray]:
     return array, np.array(out, dtype=np.float32)
 
 
+def token_ok(header: str | None) -> bool:
+    return not TOKEN or (header is not None and hmac.compare_digest(header.encode(), TOKEN.encode()))
+
+
 def make_handler(segmenter: Segmenter):
     class Handler(BaseHTTPRequestHandler):
         def _send(self, status: int, body: dict) -> None:
@@ -160,13 +171,16 @@ def make_handler(segmenter: Segmenter):
 
         def do_GET(self) -> None:  # noqa: N802
             if self.path == "/health":
-                self._send(200, {"ok": True, **segmenter.info()})
+                self._send(200, {"ok": True, **segmenter.info(), "tokenRequired": bool(TOKEN)})
             else:
                 self._send(404, {"error": "not found"})
 
         def do_POST(self) -> None:  # noqa: N802
             if self.path != "/segment":
                 self._send(404, {"error": "not found"})
+                return
+            if not token_ok(self.headers.get("X-Worker-Token")):
+                self._send(401, {"error": "missing or wrong X-Worker-Token"})
                 return
             length = int(self.headers.get("Content-Length") or 0)
             if length <= 0 or length > MAX_BODY_BYTES:
@@ -198,16 +212,24 @@ def make_handler(segmenter: Segmenter):
     return Handler
 
 
+def make_server(host: str, port: int, handler) -> ThreadingHTTPServer:
+    class Server(ThreadingHTTPServer):
+        address_family = socket.AF_INET6 if ":" in host else socket.AF_INET
+
+    return Server((host, port), handler)
+
+
 def main() -> None:
     started = time.perf_counter()
     segmenter = Segmenter()
     info = segmenter.info()
     print(
         f"[sam] {info['checkpoint']} on {info['device']} ({info['codeRevision']}, {SETTINGS_VERSION}) "
-        f"loaded in {time.perf_counter() - started:.1f}s; listening on http://{HOST}:{PORT}",
+        f"loaded in {time.perf_counter() - started:.1f}s; listening on http://{HOST}:{PORT}"
+        f"{' (X-Worker-Token required)' if TOKEN else ''}",
         flush=True,
     )
-    ThreadingHTTPServer((HOST, PORT), make_handler(segmenter)).serve_forever()
+    make_server(HOST, PORT, make_handler(segmenter)).serve_forever()
 
 
 if __name__ == "__main__":

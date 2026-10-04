@@ -11,7 +11,13 @@
  *    drawn in amber when no region could be used (no clipping);
  *  - a legend strip below the image: a header line (Pixels wasted total and
  *    target-dish status), one line per food with its pixels, and
- *    "Other dish (not counted): N px". Pixels only: no cm, grams or money.
+ *    "Other dish (not counted): N px". Pixels always; when the caller passes
+ *    `labelSuffix` (IT_4 I8), its text follows the pixels on each food line,
+ *    e.g. "Ancho Flank Steak: 12,345 px · 38 g · 1.1 kg CO2e · 18 L water".
+ *    Vision never computes grams/CO2/water itself (that is analytics); the
+ *    backend supplies the callback. Lines that would overflow the image
+ *    width are truncated with "…" (the food name is shortened first, so the
+ *    numbers stay readable).
  *
  * Output size: width W, height H + legend height. The image itself is
  * neither resized nor re-oriented, so overlay pixels align with the masks.
@@ -21,6 +27,7 @@
  * analysis result is unaffected.
  */
 
+import type { PhysicalEstimate } from './contracts.js';
 import { sanitizeMenuText } from './prompt.js';
 
 export const OVERLAY_VERSION = 'overlay-v2';
@@ -40,7 +47,12 @@ export interface OverlayBucket {
   /** Exclusive 0/1 bitmap on the W x H analyzed image. */
   bitmap: Uint8Array;
   color: [number, number, number];
+  /** IT_4: the bucket's calibrated area / volume estimate, when one was computed. */
+  physical?: PhysicalEstimate | null;
 }
+
+/** IT_4 I8: text appended to a food's legend line (e.g. "38 g · 1.1 kg CO2e · 18 L water"); null = none. */
+export type LabelSuffix = (bucket: OverlayBucket) => string | null | undefined;
 
 export interface OverlayImage {
   jpeg: Uint8Array;
@@ -63,6 +75,8 @@ export interface RenderOverlayInput {
   dishBox?: [number, number, number, number] | null;
   /** Shown when there are no buckets, e.g. an explicit empty plate. */
   emptyText?: string;
+  /** IT_4 I8: per-food suffix supplied by the backend (vision does not import analytics). */
+  labelSuffix?: LabelSuffix;
 }
 
 export type RenderOverlayResult = { ok: true; overlay: OverlayImage } | { ok: false; reason: string };
@@ -87,12 +101,18 @@ const escapeXml = (t: string) =>
 
 export interface LegendLine {
   text: string;
-  kind: 'header' | 'bucket' | 'other' | 'empty';
+  kind: 'header' | 'bucket' | 'other' | 'empty' | 'info';
   color?: [number, number, number];
+  /** Bucket lines: the food name, shortened first when the line must be truncated. */
+  head?: string;
+  /** Bucket lines: everything after the name (": N px · suffix"). */
+  tail?: string;
 }
 
-/** Legend rows (also used by tests): header, "label: N px" per bucket in order, then the other-dish line. */
-export function legendRows(input: Pick<RenderOverlayInput, 'buckets' | 'otherDish' | 'dishRegion' | 'dishBox' | 'emptyText'>): LegendLine[] {
+type LegendInput = Pick<RenderOverlayInput, 'buckets' | 'otherDish' | 'dishRegion' | 'dishBox' | 'emptyText' | 'labelSuffix'>;
+
+/** Legend rows (also used by tests): header, "label: N px[ · suffix]" per bucket in order, then the other-dish line. */
+export function legendRows(input: LegendInput): LegendLine[] {
   const total = input.buckets.reduce((s, b) => s + b.pixels, 0);
   const dish = input.dishRegion
     ? 'target dish outlined'
@@ -101,7 +121,18 @@ export function legendRows(input: Pick<RenderOverlayInput, 'buckets' | 'otherDis
       : 'target dish not found (not clipped)';
   const rows: LegendLine[] = [
     { kind: 'header', text: `Pixels wasted ${total.toLocaleString('en-US')} px (AI masks) · ${dish}` },
-    ...input.buckets.map((b) => ({ kind: 'bucket' as const, color: b.color, text: `${sanitizeMenuText(b.label, 80)}: ${b.pixels.toLocaleString('en-US')} px` })),
+    ...input.buckets.map((b) => {
+      let suffix = '';
+      try {
+        const raw = input.labelSuffix?.(b);
+        if (typeof raw === 'string') suffix = sanitizeMenuText(raw, 80);
+      } catch {
+        suffix = ''; // a failing callback never breaks the overlay
+      }
+      const head = sanitizeMenuText(b.label, 80);
+      const tail = `: ${b.pixels.toLocaleString('en-US')} px${suffix ? ` · ${suffix}` : ''}`;
+      return { kind: 'bucket' as const, color: b.color, text: head + tail, head, tail };
+    }),
   ];
   if (input.buckets.length === 0) rows.push({ kind: 'empty', text: input.emptyText ?? 'No leftover food detected' });
   if (input.otherDish && input.otherDish.pixels > 0) {
@@ -111,13 +142,72 @@ export function legendRows(input: Pick<RenderOverlayInput, 'buckets' | 'otherDis
 }
 
 /** Legend text lines only. */
-export function legendLines(input: Pick<RenderOverlayInput, 'buckets' | 'otherDish' | 'dishRegion' | 'dishBox' | 'emptyText'>): string[] {
+export function legendLines(input: LegendInput): string[] {
   return legendRows(input).map((r) => r.text);
 }
 
-type SharpFactory = typeof import('sharp');
+/**
+ * Fit a legend row into `maxChars` characters. Bucket rows shorten the food
+ * name first (keeping at least 8 characters) so the numbers stay; anything
+ * still too long is cut at the end. Truncation is marked with "…".
+ */
+export function fitLegendText(row: Pick<LegendLine, 'text' | 'head' | 'tail'>, maxChars: number): string {
+  const max = Math.max(4, Math.floor(maxChars));
+  if (row.text.length <= max) return row.text;
+  if (row.head !== undefined && row.tail !== undefined) {
+    const room = max - row.tail.length - 1;
+    if (room >= Math.min(8, row.head.length)) return `${row.head.slice(0, room).trimEnd()}…${row.tail}`;
+  }
+  return `${row.text.slice(0, max - 1).trimEnd()}…`;
+}
 
-async function loadSharp(): Promise<SharpFactory | null> {
+/** Approximate average glyph width of Helvetica/Arial, as a fraction of the font size (bold is wider). */
+const GLYPH_EM = 0.56;
+const GLYPH_EM_BOLD = 0.62;
+
+export interface LegendLayout {
+  svg: string;
+  height: number;
+  /** The text actually drawn per row (after truncation). */
+  drawn: string[];
+}
+
+/** The legend strip below the image: one row per line, swatches for coloured rows, no line wider than W. */
+export function layoutLegend(rows: LegendLine[], W: number): LegendLayout {
+  const scale = W / 1024;
+  const font = Math.max(12, Math.round(18 * scale));
+  const rowH = Math.round(font * 1.6);
+  const pad = Math.round(14 * scale) + 2;
+  const height = pad * 2 + rows.length * rowH;
+  const swatch = Math.round(font * 1.05);
+  const drawn: string[] = [];
+  const body = rows
+    .map((row, k) => {
+      const y = pad + k * rowH;
+      const sy = y + Math.round((rowH - swatch) / 2);
+      const sw = row.color
+        ? `<rect x="${pad}" y="${sy}" width="${swatch}" height="${swatch}" rx="3" fill="${row.kind === 'other' ? 'url(#hatch)' : `rgb(${row.color.join(',')})`}"/>`
+        : '';
+      const tx = row.color ? pad + swatch + Math.round(font * 0.6) : pad;
+      const header = row.kind === 'header';
+      const size = header ? font + 1 : font;
+      const maxChars = (W - tx - pad) / (size * (header ? GLYPH_EM_BOLD : GLYPH_EM));
+      const text = fitLegendText(row, maxChars);
+      drawn.push(text);
+      return `${sw}<text x="${tx}" y="${y + Math.round(rowH * 0.7)}" font-family="Helvetica, Arial, sans-serif" font-size="${size}" font-weight="${header ? 700 : 400}" fill="${row.kind === 'other' ? '#c8c8c8' : '#f2f2f2'}">${escapeXml(text)}</text>`;
+    })
+    .join('\n  ');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${height}">
+  <defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#3c3c3c"/><rect width="2" height="6" fill="rgb(${OTHER_DISH_COLOR.join(',')})"/></pattern></defs>
+  <rect width="100%" height="100%" fill="#1d1d1d"/>
+  ${body}
+</svg>`;
+  return { svg, height, drawn };
+}
+
+export type SharpFactory = typeof import('sharp');
+
+export async function loadSharp(): Promise<SharpFactory | null> {
   try {
     const mod = (await import('sharp')) as unknown as { default?: SharpFactory };
     return mod.default ?? (mod as unknown as SharpFactory);
@@ -176,43 +266,35 @@ export async function renderOverlay(input: RenderOverlayInput): Promise<RenderOv
           if (edge && dash) rgba.set([...DISH_BOX_RGB, 255], (y * W + x) * 4);
         }
     }
-    const tinted = await sharp(Buffer.from(input.image.bytes))
-      .composite([{ input: rgba, raw: { width: W, height: H, channels: 4 } }])
-      .png()
-      .toBuffer();
-
-    const rows = legendRows(input);
-    const scale = W / 1024;
-    const font = Math.max(12, Math.round(18 * scale));
-    const rowH = Math.round(font * 1.6);
-    const pad = Math.round(14 * scale) + 2;
-    const legendH = pad * 2 + rows.length * rowH;
-    const swatch = Math.round(font * 1.05);
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${legendH}">
-  <defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#3c3c3c"/><rect width="2" height="6" fill="rgb(${OTHER_DISH_COLOR.join(',')})"/></pattern></defs>
-  <rect width="100%" height="100%" fill="#1d1d1d"/>
-  ${rows
-    .map((row, k) => {
-      const y = pad + k * rowH;
-      const sy = y + Math.round((rowH - swatch) / 2);
-      const sw = row.color
-        ? `<rect x="${pad}" y="${sy}" width="${swatch}" height="${swatch}" rx="3" fill="${row.kind === 'other' ? 'url(#hatch)' : `rgb(${row.color.join(',')})`}"/>`
-        : '';
-      const tx = row.color ? pad + swatch + Math.round(font * 0.6) : pad;
-      const header = row.kind === 'header';
-      return `${sw}<text x="${tx}" y="${y + Math.round(rowH * 0.7)}" font-family="Helvetica, Arial, sans-serif" font-size="${header ? font + 1 : font}" font-weight="${header ? 700 : 400}" fill="${row.kind === 'other' ? '#c8c8c8' : '#f2f2f2'}">${escapeXml(row.text)}</text>`;
-    })
-    .join('\n  ')}
-</svg>`;
-    const jpeg = await sharp({ create: { width: W, height: H + legendH, channels: 3, background: '#1d1d1d' } })
-      .composite([
-        { input: tinted, left: 0, top: 0 },
-        { input: Buffer.from(svg), left: 0, top: H },
-      ])
-      .jpeg({ quality: OVERLAY_JPEG_QUALITY })
-      .toBuffer();
-    return { ok: true, overlay: { jpeg: new Uint8Array(jpeg), widthPx: W, heightPx: H + legendH, mimeType: 'image/jpeg', version: OVERLAY_VERSION } };
+    return await composeWithLegend(sharp, input.image.bytes, W, H, rgba, legendRows(input));
   } catch (err) {
     return { ok: false, reason: `render_failed: ${String((err as Error)?.message ?? err).slice(0, 120)}` };
   }
+}
+
+/**
+ * Composite a W × H RGBA layer over the image and add the legend strip below
+ * it. Shared by the capture overlay and the calibration overlay.
+ */
+export async function composeWithLegend(
+  sharp: SharpFactory,
+  imageBytes: Uint8Array,
+  W: number,
+  H: number,
+  rgba: Buffer,
+  rows: LegendLine[],
+): Promise<RenderOverlayResult> {
+  const tinted = await sharp(Buffer.from(imageBytes))
+    .composite([{ input: rgba, raw: { width: W, height: H, channels: 4 } }])
+    .png()
+    .toBuffer();
+  const legend = layoutLegend(rows, W);
+  const jpeg = await sharp({ create: { width: W, height: H + legend.height, channels: 3, background: '#1d1d1d' } })
+    .composite([
+      { input: tinted, left: 0, top: 0 },
+      { input: Buffer.from(legend.svg), left: 0, top: H },
+    ])
+    .jpeg({ quality: OVERLAY_JPEG_QUALITY })
+    .toBuffer();
+  return { ok: true, overlay: { jpeg: new Uint8Array(jpeg), widthPx: W, heightPx: H + legend.height, mimeType: 'image/jpeg', version: OVERLAY_VERSION } };
 }

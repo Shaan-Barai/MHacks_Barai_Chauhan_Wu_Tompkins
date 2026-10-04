@@ -29,7 +29,16 @@
  *      store: counted food tinted per item, other-dish food hatched grey,
  *      target dish outlined. A rendering failure leaves `overlay: null`.
  *
- * No plate-size calibration (BIG-PLAN v2, V1): results are pixels only.
+ *   8. Optional physical stage (IT_4 I5/I6, `input.physical`): with an
+ *      active camera calibration of the SAME resolution, every measurement
+ *      gets `physical` (calibrated area, or Depth Anything V2 volume when
+ *      depth is enabled; volume.ts). The depth request runs in parallel with
+ *      Gemini/SAM. A different resolution ⇒ no physical numbers, reason
+ *      `incompatible_geometry`; no calibration ⇒ `no_calibration`. Pixels are
+ *      never changed by this stage.
+ *
+ * No per-capture plate-size calibration (BIG-PLAN v2, V1): pixels are the
+ * measurement; physical numbers come only from a camera calibration (IT_4).
  *
  * Stage outcomes stay separate: classification failure, explicit empty
  * plate, partial segmentation, and total segmentation failure each produce a
@@ -40,12 +49,16 @@ import type {
   AnalysisAttempt,
   AnalysisStatus,
   ApiError,
+  CalibrationDepth,
+  CameraIntrinsics,
   ClassificationRegion,
   CountStatus,
   FoodMeasurement,
   ImageGeometry,
   MaskPixelCount,
   MenuItem,
+  PhysicalEstimate,
+  PhysicalMethod,
   QualityFlag,
   ReferencePortion,
   RegionBox,
@@ -75,7 +88,60 @@ import {
 } from './masks.js';
 import type { Segmenter, SegmenterInfo, SegmentResponse } from './samClient.js';
 import { buildDishRegion, clipToRegion, dishDilatePx } from './targetDish.js';
-import { colorForIndex, renderOverlay, UNKNOWN_COLOR, type OverlayBucket, type OverlayImage } from './overlay.js';
+import { colorForIndex, renderOverlay, UNKNOWN_COLOR, type LabelSuffix, type OverlayBucket, type OverlayImage } from './overlay.js';
+import { DEPTH_PNG_VERSION, encodeDepthPng16, type DepthEstimator, type DepthInfo, type DepthMap } from './depthClient.js';
+import { computeAreaEstimate, computeVolumeEstimates, DEFAULT_PLATE_THICKNESS_CM, type PlateReferenceInfo } from './volume.js';
+
+/** The calibration fields the physical stage needs (a stored CameraCalibration satisfies it). */
+export interface PhysicalCalibration {
+  calibrationId: string;
+  widthPx: number;
+  heightPx: number;
+  cm2PerPx: number;
+  intrinsics: Pick<CameraIntrinsics, 'fxPx' | 'fyPx'>;
+  depth: Pick<CalibrationDepth, 'scale' | 'tablePlane' | 'settingsVersion'> | null;
+}
+
+/** IT_4 optional physical stage input (the hall's MeasurementSettings + its active calibration). */
+export interface PhysicalStageInput {
+  /** The hall's active calibration; null ⇒ reason `no_calibration`. */
+  calibration: PhysicalCalibration | null;
+  /** Depth Anything V2 on/off (MeasurementSettings.depthEnabled). Off ⇒ area method. */
+  depthEnabled: boolean;
+  /** Required for the volume method; missing ⇒ area + `depth_unavailable`. */
+  depthClient?: DepthEstimator;
+  /** Fallback plate surface above the table plane (default 1.5 cm). */
+  plateThicknessCm?: number;
+  maxFoodHeightCm?: number;
+}
+
+export type PhysicalUnavailable = 'no_calibration' | 'incompatible_geometry' | 'analysis_unavailable' | 'no_measurements';
+
+export interface PhysicalStageResult {
+  status: 'applied' | 'unavailable' | 'not_requested';
+  reason?: PhysicalUnavailable;
+  calibrationId?: string;
+  /** 'volume-dav2-v1' when depth produced at least one volume, else 'area-calibrated-v1'. */
+  method?: PhysicalMethod;
+  /** Raw DAv2 depth as `depth-png16-v1` (0.1 mm) for the backend to store (AnalysisAttempt.depthObjectId). */
+  depth: { png: Uint8Array; widthPx: number; heightPx: number; version: typeof DEPTH_PNG_VERSION; info: DepthInfo } | null;
+  /** Why depth was not used although it was enabled. */
+  depthError?: ApiError;
+  plate?: PlateReferenceInfo | null;
+  /** Bowl/liquid detection used for `bowl_volume_unreliable`. */
+  bowl?: { capture: boolean; liquidItemIds: string[] };
+}
+
+/**
+ * Bowl / liquid rule (documented choice): the whole capture is a bowl when
+ * Gemini's target dish type is 'bowl'; otherwise a single food is a liquid
+ * when its menu category or name says soup, stew, chili, broth, chowder,
+ * bisque, gumbo, congee, porridge, oatmeal, ramen or pho.
+ */
+export const LIQUID_PATTERN = /\b(soups?|stews?|chili|chilli|broth|chowder|bisque|gumbo|congee|porridge|oatmeal|ramen|pho)\b/i;
+export function isLiquidMenuItem(item: Pick<MenuItem, 'displayName' | 'category'> | undefined): boolean {
+  return !!item && (LIQUID_PATTERN.test(item.category ?? '') || LIQUID_PATTERN.test(item.displayName));
+}
 
 export interface MaskAnalysisInput {
   eventId: string;
@@ -93,6 +159,10 @@ export interface MaskAnalysisInput {
   calibration?: unknown;
   /** Render the segmented overlay JPEG. Default true. */
   renderOverlay?: boolean;
+  /** IT_4: calibrated area / DAv2 volume per measurement. Omitted ⇒ pixels only. */
+  physical?: PhysicalStageInput;
+  /** IT_4 I8: text after each food's pixels in the overlay legend (backend-supplied, e.g. grams · CO2e · water). */
+  labelSuffix?: LabelSuffix;
 }
 
 /** Target-dish counting outcome for one capture (BIG-PLAN v2, V3). Field names are stable. */
@@ -167,9 +237,11 @@ export interface MaskAnalysisResult {
   overlay: OverlayImage | null;
   diagnostics: MaskAnalysisDiagnostics;
   localization: LocalizationStats;
+  /** IT_4 physical stage outcome (status 'not_requested' when input.physical was omitted). */
+  physical: PhysicalStageResult;
 }
 
-type StagesResult = Omit<MaskAnalysisResult, 'overlay' | 'diagnostics'>;
+type StagesResult = Omit<MaskAnalysisResult, 'overlay' | 'diagnostics' | 'physical'>;
 interface Stages {
   result: StagesResult;
   buckets: { itemId: string | null; pixels: number; bitmap: Uint8Array; regionIds: string[] }[];
@@ -197,9 +269,102 @@ export async function analyzeCaptureWithMasks(
   input: MaskAnalysisInput,
 ): Promise<MaskAnalysisResult> {
   const { widthPx: W, heightPx: H } = input.geometry;
+  const phys = input.physical;
+  const cal = phys?.calibration ?? null;
+  const compatible = !!cal && cal.widthPx === W && cal.heightPx === H;
+  // Depth runs in parallel with Gemini + SAM; a failure becomes an explicit fallback, never a rejection.
+  type DepthOutcome = { ok: true; map: DepthMap } | { ok: false; error: ApiError };
+  const depthPromise: Promise<DepthOutcome> | null =
+    phys?.depthEnabled && compatible && cal!.depth && phys.depthClient
+      ? phys.depthClient.estimate(input.image.bytes, { widthPx: W, heightPx: H }).then(
+          (map) => ({ ok: true as const, map }),
+          (err: unknown) => ({
+            ok: false as const,
+            error: err instanceof GatewayError ? err.apiError : makeApiError('DEPTH_FAILED', 'Depth estimation failed.', true),
+          }),
+        )
+      : null;
+
   const stages = await runStages(gateway, segmenter, input);
   const countStatus = stages.result.attempt.segmentation?.countStatus;
   const analyzable = countStatus === 'complete' || countStatus === 'partial' || countStatus === 'empty';
+
+  // IT_4 physical stage (pixels untouched).
+  const physical: PhysicalStageResult = { status: 'not_requested', depth: null };
+  const physicalByBucket: (PhysicalEstimate | null)[] = stages.buckets.map(() => null);
+  if (phys) {
+    if (!cal) Object.assign(physical, { status: 'unavailable', reason: 'no_calibration' });
+    else if (!compatible) {
+      Object.assign(physical, { status: 'unavailable', reason: 'incompatible_geometry', calibrationId: cal.calibrationId });
+    } else if (!analyzable) Object.assign(physical, { status: 'unavailable', reason: 'analysis_unavailable', calibrationId: cal.calibrationId });
+    else if (stages.result.measurements.length === 0) {
+      Object.assign(physical, { status: 'unavailable', reason: 'no_measurements', calibrationId: cal.calibrationId });
+    } else {
+      const items = new Map(input.menu.items.map((i) => [i.itemId, i]));
+      const bowlCapture = stages.result.targetDish.dishType === 'bowl';
+      const liquidItemIds = stages.buckets.filter((b) => b.itemId !== null && isLiquidMenuItem(items.get(b.itemId))).map((b) => b.itemId!);
+      physical.bowl = { capture: bowlCapture, liquidItemIds };
+      physical.calibrationId = cal.calibrationId;
+      let estimates: PhysicalEstimate[];
+      if (!phys.depthEnabled) {
+        estimates = stages.buckets.map((b) => computeAreaEstimate(b.pixels, cal));
+      } else {
+        const got: DepthOutcome = depthPromise
+          ? await depthPromise
+          : {
+              ok: false,
+              error: makeApiError(
+                'DEPTH_UNAVAILABLE',
+                cal.depth ? 'No depth service is configured.' : 'The active calibration has no depth scale; recalibrate with the depth worker running.',
+                false,
+              ),
+            };
+        if (!got.ok) {
+          physical.depthError = got.error;
+          estimates = stages.buckets.map((b) => computeAreaEstimate(b.pixels, cal, ['depth_unavailable']));
+        } else {
+          const vol = computeVolumeEstimates({
+            calibrationId: cal.calibrationId,
+            cm2PerPx: cal.cm2PerPx,
+            depthM: got.map.depthM,
+            width: W,
+            height: H,
+            scale: cal.depth!.scale,
+            intrinsics: cal.intrinsics,
+            buckets: stages.buckets.map((b, k) => ({
+              key: String(k),
+              bitmap: b.bitmap,
+              bowl: b.itemId !== null && liquidItemIds.includes(b.itemId),
+            })),
+            dishRegion: stages.dishRegion,
+            excludeFromPlate: stages.otherBitmap,
+            tablePlane: cal.depth!.tablePlane,
+            plateThicknessCm: phys.plateThicknessCm ?? DEFAULT_PLATE_THICKNESS_CM,
+            bowl: bowlCapture,
+            ...(phys.maxFoodHeightCm !== undefined ? { maxFoodHeightCm: phys.maxFoodHeightCm } : {}),
+            depthSettingsVersion: cal.depth!.settingsVersion,
+          });
+          estimates = vol.estimates.map((e) => e.estimate);
+          physical.plate = vol.plate;
+          physical.depth = {
+            png: encodeDepthPng16(got.map.depthM, W, H),
+            widthPx: W,
+            heightPx: H,
+            version: DEPTH_PNG_VERSION,
+            info: { model: got.map.model, checkpoint: got.map.checkpoint, device: got.map.device, settingsVersion: got.map.settingsVersion },
+          };
+        }
+      }
+      estimates.forEach((e, k) => {
+        physicalByBucket[k] = e;
+        stages.result.measurements[k]!.physical = e;
+      });
+      physical.status = 'applied';
+      physical.method = estimates.some((e) => e.method === 'volume-dav2-v1') ? 'volume-dav2-v1' : 'area-calibrated-v1';
+      stages.result.attempt.calibrationId = cal.calibrationId;
+      stages.result.attempt.physicalMethod = physical.method;
+    }
+  }
 
   const diagnostics: MaskAnalysisDiagnostics = {};
   let overlay: OverlayImage | null = null;
@@ -208,9 +373,10 @@ export async function analyzeCaptureWithMasks(
   else {
     const menuIndex = new Map(input.menu.items.map((item, k) => [item.itemId, k]));
     const regionLabel = new Map((stages.result.attempt.segmentation?.regions ?? []).map((r) => [r.regionId, r.visualLabel]));
-    const buckets: OverlayBucket[] = [...stages.buckets]
-      .sort((a, b) => b.pixels - a.pixels)
-      .map((b) => {
+    const buckets: OverlayBucket[] = stages.buckets
+      .map((b, idx) => ({ b, physical: physicalByBucket[idx] ?? null }))
+      .sort((x, y) => y.b.pixels - x.b.pixels)
+      .map(({ b, physical: est }) => {
         const k = b.itemId === null ? undefined : menuIndex.get(b.itemId);
         const labels = [...new Set(b.regionIds.map((id) => regionLabel.get(id)).filter((l): l is string => !!l))];
         return {
@@ -222,6 +388,7 @@ export async function analyzeCaptureWithMasks(
           pixels: b.pixels,
           bitmap: b.bitmap,
           color: k === undefined ? UNKNOWN_COLOR : colorForIndex(k),
+          physical: est,
         };
       });
     const rendered = await renderOverlay({
@@ -233,11 +400,12 @@ export async function analyzeCaptureWithMasks(
       dishRegion: stages.dishRegion,
       dishBox: stages.dishBoxPx,
       emptyText: countStatus === 'empty' ? 'No leftover food on the target dish' : 'No food pixels counted',
+      ...(input.labelSuffix ? { labelSuffix: input.labelSuffix } : {}),
     });
     if (rendered.ok) overlay = rendered.overlay;
     else diagnostics.overlayError = rendered.reason;
   }
-  return { ...stages.result, overlay, diagnostics };
+  return { ...stages.result, overlay, diagnostics, physical };
 }
 
 /** Clamp a rim box that comes back a hair outside 0-1000 (a dish touching the frame edge). */

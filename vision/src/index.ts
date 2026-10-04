@@ -35,7 +35,66 @@ export { analyzeCapture } from './analyze.js';
 
 export { analyzeCaptureWithMasks } from './maskPipeline.js';
 export type { MaskAnalysisInput, MaskAnalysisResult, MaskAnalysisDiagnostics, LocalizationStats } from './maskPipeline.js';
-export { NEIGHBOR_CLIP_MIN_FRACTION } from './maskPipeline.js';
+export { NEIGHBOR_CLIP_MIN_FRACTION, LIQUID_PATTERN, isLiquidMenuItem } from './maskPipeline.js';
+export type { PhysicalCalibration, PhysicalStageInput, PhysicalStageResult, PhysicalUnavailable } from './maskPipeline.js';
+
+// IT_4: camera calibration, Depth Anything V2 client, calibrated area / volume.
+export {
+  C920S,
+  C920S_NATIVE_FOCAL_PX,
+  CALIBRATION_METHOD,
+  CALIBRATION_PROMPT_VERSION,
+  CALIBRATION_SYSTEM_INSTRUCTION,
+  CREDIT_CARD_AREA_CM2,
+  DEPTH_DISAGREE_FRACTION,
+  REFERENCE_MASK_VERSION,
+  buildCalibrationPrompt,
+  buildCalibrationSchema,
+  c920sIntrinsics,
+  calibrationLegendRows,
+  cleanReferenceMask,
+  fillHoles,
+  fitTablePlane,
+  geometricHeightCm,
+  intrinsicsOverridesFromEnv,
+  runCalibration,
+  validateCalibrationText,
+} from './calibration.js';
+export type {
+  CalibrationDiagnostics,
+  CalibrationFields,
+  CalibrationRunResult,
+  IntrinsicsOverrides,
+  ReferenceLocateOutcome,
+  RunCalibrationInput,
+  TablePlaneFit,
+} from './calibration.js';
+export {
+  DEPTH_CHECKPOINT,
+  DEPTH_PNG_UNITS_PER_M,
+  DEPTH_PNG_VERSION,
+  DEPTH_SETTINGS_VERSION,
+  createDepthWorkerClient,
+  decodeDepthPng16,
+  decodeDepthResponse,
+  depthToUnits,
+  encodeDepthPng16,
+} from './depthClient.js';
+export type { DecodedDepthPng, DepthEstimator, DepthInfo, DepthMap, DepthWorkerClientOptions } from './depthClient.js';
+export {
+  AREA_METHOD,
+  VOLUME_METHOD,
+  DEFAULT_MAX_FOOD_HEIGHT_CM,
+  DEFAULT_PLATE_THICKNESS_CM,
+  MIN_RING_FRACTION,
+  computeAreaEstimate,
+  computeVolumeEstimates,
+  erodeSquare,
+  fitPlaneLeastSquares,
+  fitPlaneRobust,
+  planeAt,
+} from './volume.js';
+export type { AreaCalibration, Plane, PlateReferenceInfo, RobustPlaneFit, VolumeBucket, VolumeInput, VolumeResult } from './volume.js';
 export type { TargetDishInfo } from './maskPipeline.js';
 export {
   DISH_REGION_VERSION,
@@ -52,8 +111,8 @@ export {
   largestComponent,
 } from './targetDish.js';
 export type { DishRegionResult } from './targetDish.js';
-export { OVERLAY_VERSION, OTHER_DISH_COLOR, colorForIndex, legendLines, legendRows, renderOverlay } from './overlay.js';
-export type { LegendLine, OverlayBucket, OverlayImage, RenderOverlayInput, RenderOverlayResult } from './overlay.js';
+export { OVERLAY_VERSION, OTHER_DISH_COLOR, colorForIndex, composeWithLegend, fitLegendText, layoutLegend, legendLines, legendRows, renderOverlay } from './overlay.js';
+export type { LabelSuffix, LegendLayout, LegendLine, OverlayBucket, OverlayImage, RenderOverlayInput, RenderOverlayResult } from './overlay.js';
 export { createSamWorkerClient } from './samClient.js';
 export type { Segmenter, SegmenterInfo, SegmentResponse } from './samClient.js';
 export { COUNTING_RULE_VERSION, SMALLEST_FIRST_RULE, BOX_CONVENTION, boxIoU, countPixels, decodeBinaryMask, encodeBinaryMask, geminiBoxToPixels } from './masks.js';

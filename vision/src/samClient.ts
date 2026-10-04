@@ -24,9 +24,14 @@ export interface Segmenter {
   segment(image: Uint8Array, boxesXyxy: [number, number, number, number][]): Promise<SegmentResponse>;
 }
 
+/**
+ * `token` is sent as `X-Worker-Token` (IT_4: the worker rejects a missing or
+ * wrong token with 401 when its WORKER_TOKEN is set). Default env WORKER_TOKEN.
+ */
 export function createSamWorkerClient(
   url = process.env.SAM_WORKER_URL ?? 'http://127.0.0.1:8790',
   timeoutMs = Number(process.env.SAM_TIMEOUT_MS ?? 60_000),
+  token = process.env.WORKER_TOKEN ?? '',
 ): Segmenter {
   const base = url.replace(/\/$/, '');
   return {
@@ -35,7 +40,7 @@ export function createSamWorkerClient(
       try {
         res = await fetch(`${base}/segment`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(token ? { 'X-Worker-Token': token } : {}) },
           body: JSON.stringify({ image_b64: Buffer.from(image).toString('base64'), boxes: boxesXyxy }),
           signal: AbortSignal.timeout(timeoutMs),
         });
@@ -48,7 +53,7 @@ export function createSamWorkerClient(
       if (!res.ok) {
         throw new GatewayError(
           makeApiError(
-            res.status >= 500 ? 'SEGMENTATION_FAILED' : 'SEGMENTATION_REJECTED',
+            res.status === 401 ? 'SEGMENTATION_UNAUTHORIZED' : res.status >= 500 ? 'SEGMENTATION_FAILED' : 'SEGMENTATION_REJECTED',
             'The segmentation service could not process this image.',
             res.status >= 500,
             { workerStatus: res.status, workerError: String(body.error ?? '').slice(0, 200) },

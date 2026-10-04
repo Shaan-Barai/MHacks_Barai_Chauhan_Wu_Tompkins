@@ -89,6 +89,11 @@ export interface AnalysisAttempt {
   calibration?: PlateCalibration;
   /** Object id of the segmented overlay JPEG in object storage (BIG-PLAN D7). */
   overlayObjectId?: string;
+  /** IT_4 I9: calibration + physical method snapshotted at analysis time. */
+  calibrationId?: string;
+  physicalMethod?: PhysicalMethod;
+  /** IT_4 I4: 16-bit depth PNG (0.1 mm units) in object storage, when DAv2 ran. */
+  depthObjectId?: string;
 }
 
 /**
@@ -201,6 +206,8 @@ export interface FoodMeasurement {
   /** Only available after mask validation/counting. Legacy area estimates cannot supply it. */
   maskCount?: MaskPixelCount;
   qualityFlags: QualityFlag[];
+  /** IT_4: calibrated area / DAv2 volume. Absent when no compatible calibration was active. */
+  physical?: PhysicalEstimate;
 }
 
 /** Shared error envelope for every API response and stored failure. */
@@ -233,4 +240,117 @@ export interface PlateCalibration {
   dishType?: 'plate' | 'bowl' | 'other';
   fullyVisible?: boolean;
   flags: CalibrationFlag[];
+}
+
+// ---------------------------------------------------------------------------
+// IT_4 (2026-10-04): camera calibration, calibrated area, Depth Anything V2
+// volume, estimated grams / CO2e / water. See IT_4.md §2–§3.
+// ---------------------------------------------------------------------------
+
+export interface CameraIntrinsics {
+  cameraModel: 'logitech-c920s' | 'other';
+  widthPx: number;
+  heightPx: number;
+  /** C920s nominal: 78° diagonal FOV ⇒ ≈1360 px at 1920 wide, scaled with width. */
+  fxPx: number;
+  fyPx: number;
+  cxPx: number;
+  cyPx: number;
+  source: 'nominal-fov' | 'checkerboard' | 'configured';
+}
+
+/** Distinct from the legacy plate-fit CalibrationFlag above. */
+export type CameraCalibrationFlag =
+  | 'reference_not_found'
+  | 'reference_low_confidence'
+  | 'reference_touches_edge'
+  | 'depth_unavailable'
+  | 'depth_scale_disagrees';
+
+export interface CalibrationDepth {
+  /** 'depth-anything/Depth-Anything-V2-Metric-Indoor-Small-hf' (Apache-2.0; Small only). */
+  checkpoint: string;
+  /** 'dav2-metric-small-v1' */
+  settingsVersion: string;
+  /** Median raw DAv2 metric depth over the reference mask, metres, before correction. */
+  rawReferenceMedianM: number;
+  /** cameraHeightCmGeometric / (100 × rawReferenceMedianM). Multiplies raw DAv2 depth. */
+  scale: number;
+  cameraHeightCmDepth: number;
+  /** Base (table) plane in corrected depth: Z(x, y) = a·x + b·y + c, cm, pixel coords. */
+  tablePlane: { a: number; b: number; c: number };
+  /** 16-bit PNG, 0.1 mm units, in object storage. */
+  depthObjectId: string;
+}
+
+/** POST /api/calibrations → this. One camera, one resolution (IT_4 I2). */
+export interface CameraCalibration {
+  calibrationId: string;
+  hallId: string;
+  /** e.g. 'uno-q-c920s-1' */
+  cameraId: string;
+  createdAt: string;
+  status: 'processing' | 'succeeded' | 'failed';
+  method: 'reference-area-v1';
+  imageObjectId: string;
+  overlayObjectId?: string;
+  referenceMaskObjectId?: string;
+  widthPx: number;
+  heightPx: number;
+  /** User input; finite and > 0. Credit card = 46.21 cm². */
+  knownAreaCm2: number;
+  referenceLabel: string;
+  /** N_ref: integer foreground pixels of the reference mask. */
+  referencePixels: number;
+  /** k = knownAreaCm2 / referencePixels (cm² per pixel at the base plane). */
+  cm2PerPx: number;
+  intrinsics: CameraIntrinsics;
+  /** f · √k */
+  cameraHeightCmGeometric: number;
+  depth: CalibrationDepth | null;
+  flags: CameraCalibrationFlag[];
+  error?: ApiError;
+}
+
+/** GET/PUT /api/settings/measurement — per hall (IT_4 I9). */
+export interface MeasurementSettings {
+  hallId: string;
+  /** Depth Anything V2 on/off. Off ⇒ area method. */
+  depthEnabled: boolean;
+  activeCalibrationId: string | null;
+  /** Fallback plate-surface offset above the table plane (default 1.5). */
+  plateThicknessCm: number;
+  updatedAt: string;
+}
+
+export type PhysicalMethod = 'area-calibrated-v1' | 'volume-dav2-v1';
+
+export type VolumeFlag =
+  | 'plate_plane_from_calibration'
+  | 'negative_heights_clipped'
+  | 'height_outliers_clipped'
+  | 'bowl_volume_unreliable'
+  | 'depth_invalid'
+  | 'depth_unavailable';
+
+export type PhysicalUnavailableReason =
+  | 'no_calibration'
+  | 'incompatible_geometry'
+  | 'no_factor'
+  | 'no_density'
+  | 'unknown_item';
+
+/** Stored per food measurement. Pixels (remainingAreaPx) stay the raw measurement. */
+export interface PhysicalEstimate {
+  calibrationId: string;
+  method: PhysicalMethod;
+  /** area method: pixels × k; volume method: Σ (D/fx)(D/fy). */
+  areaCm2: number;
+  /** Σ h·a over the mask; null for the area method. */
+  volumeCm3: number | null;
+  meanHeightMm: number | null;
+  maxHeightMm: number | null;
+  depthSettingsVersion?: string;
+  plateReference?: 'dish-ring-fit' | 'calibration-plane';
+  flags: VolumeFlag[];
 }

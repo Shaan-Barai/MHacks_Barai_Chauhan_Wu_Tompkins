@@ -1,0 +1,23 @@
+# SAM 2.1 worker (vision/sam/worker.py). Target: the shared local venv on the
+# team Mac (Apple Silicon, MPS): /Users/mike/mhacks/.venv, Python 3.14.6.
+# Versions are the ones verified there on 2026-10-04. The depth worker
+# (vision/depth/requirements.txt) shares this venv, so pins must agree.
+#
+#   SAM2_BUILD_CUDA=0 .venv/bin/pip install -r vision/sam/requirements.txt
+#
+# Meta's sam2 package is not on PyPI: it is installed from source at commit
+# 2b90b9f (2b90b9f5ceec907a1c18123530e92e794ad901a4). The existing Mac setup
+# uses an editable clone at /Users/mike/sam2 checked out at that commit;
+# the git line below installs the same revision. SAM2_BUILD_CUDA=0 skips the
+# optional CUDA extension (not needed on MPS/CPU).
+torch==2.14.1
+torchvision==0.29.1
+numpy==2.5.3
+pillow==12.3.0
+# SAM2ImagePredictor.from_pretrained needs huggingface_hub (sam2 does not pull it in).
+# 1.33.0 is what transformers 5.18.0 (depth worker) requires; the SAM worker works with it.
+huggingface_hub==1.33.0
+hydra-core==1.3.7
+iopath==0.1.10
+tqdm==4.70.1
+SAM-2 @ git+https://github.com/facebookresearch/sam2@2b90b9f5ceec907a1c18123530e92e794ad901a4

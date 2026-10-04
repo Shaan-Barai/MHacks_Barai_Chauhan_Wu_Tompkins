@@ -225,3 +225,10 @@ table (`menu_waste_factors_EastQuad.csv`) always wins. A menu item that table do
 weight, C and W from the 500-food table when its name matches exactly (`factorKey = slug(name)`, e.g.
 `Scrambled Eggs` → `scrambled-eggs`). The dashboard marks those foods "factors: common foods table".
 The fallback has no nutrition rows. A food in neither table has no impact factor (shown as such, never 0).
+
+All factor CSVs (East Quad, Halal Bros, the 500 common foods) follow the same column rules, checked for
+every row by `data/test/factors.test.ts`: `carbon_usd_per_kg = 0.19·C` and `water_usd_per_kg = 1.50·W`
+rounded half up to cents, `impact_score_usd_per_kg` = the unrounded 0.19·C + 1.50·W rounded half up,
+and `largest_factor` = the larger of the two. When the 500-food table arrived (2026-10-04), 52 of its
+derived cells were 1 cent off that rule; they were recomputed from C and W (C and W unchanged), as was
+one half-cent cell in the Halal Bros table (Diced Tomatoes water, 0.555 → 0.56).

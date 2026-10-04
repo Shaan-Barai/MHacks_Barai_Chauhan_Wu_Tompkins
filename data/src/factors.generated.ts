@@ -1232,7 +1232,7 @@ export const COMMON_WASTE_FACTORS: WasteFactor[] = [
     "weightGPerCm2": 1,
     "kgCo2ePerKg": 15.59,
     "waterM3PerKg": 1.376,
-    "impactUsdPerKg": 5.02,
+    "impactUsdPerKg": 5.03,
     "largestFactor": "carbon",
     "table": "common-500"
   },
@@ -1331,7 +1331,7 @@ export const COMMON_WASTE_FACTORS: WasteFactor[] = [
     "weightGPerCm2": 1.4,
     "kgCo2ePerKg": 45.47,
     "waterM3PerKg": 0.917,
-    "impactUsdPerKg": 10.02,
+    "impactUsdPerKg": 10.01,
     "largestFactor": "carbon",
     "table": "common-500"
   },
@@ -1507,7 +1507,7 @@ export const COMMON_WASTE_FACTORS: WasteFactor[] = [
     "weightGPerCm2": 1.5,
     "kgCo2ePerKg": 27.16,
     "waterM3PerKg": 0.923,
-    "impactUsdPerKg": 6.55,
+    "impactUsdPerKg": 6.54,
     "largestFactor": "carbon",
     "table": "common-500"
   },
@@ -1936,7 +1936,7 @@ export const COMMON_WASTE_FACTORS: WasteFactor[] = [
     "weightGPerCm2": 1.4,
     "kgCo2ePerKg": 3.31,
     "waterM3PerKg": 0.164,
-    "impactUsdPerKg": 0.88,
+    "impactUsdPerKg": 0.87,
     "largestFactor": "carbon",
     "table": "common-500"
   },
@@ -2178,7 +2178,7 @@ export const COMMON_WASTE_FACTORS: WasteFactor[] = [
     "weightGPerCm2": 1.6,
     "kgCo2ePerKg": 21.78,
     "waterM3PerKg": 0.558,
-    "impactUsdPerKg": 4.97,
+    "impactUsdPerKg": 4.98,
     "largestFactor": "carbon",
     "table": "common-500"
   },
@@ -2200,7 +2200,7 @@ export const COMMON_WASTE_FACTORS: WasteFactor[] = [
     "weightGPerCm2": 1.6,
     "kgCo2ePerKg": 6.09,
     "waterM3PerKg": 1.379,
-    "impactUsdPerKg": 3.22,
+    "impactUsdPerKg": 3.23,
     "largestFactor": "water",
     "table": "common-500"
   },
@@ -2486,7 +2486,7 @@ export const COMMON_WASTE_FACTORS: WasteFactor[] = [
     "weightGPerCm2": 1.6,
     "kgCo2ePerKg": 0.55,
     "waterM3PerKg": 0.227,
-    "impactUsdPerKg": 0.44,
+    "impactUsdPerKg": 0.45,
     "largestFactor": "water",
     "table": "common-500"
   },
@@ -2585,7 +2585,7 @@ export const COMMON_WASTE_FACTORS: WasteFactor[] = [
     "weightGPerCm2": 0.7,
     "kgCo2ePerKg": 1.15,
     "waterM3PerKg": 0.078,
-    "impactUsdPerKg": 0.33,
+    "impactUsdPerKg": 0.34,
     "largestFactor": "carbon",
     "table": "common-500"
   },
@@ -3300,7 +3300,7 @@ export const COMMON_WASTE_FACTORS: WasteFactor[] = [
     "weightGPerCm2": 1.2,
     "kgCo2ePerKg": 1.91,
     "waterM3PerKg": 0.581,
-    "impactUsdPerKg": 1.24,
+    "impactUsdPerKg": 1.23,
     "largestFactor": "water",
     "table": "common-500"
   },
@@ -3707,7 +3707,7 @@ export const COMMON_WASTE_FACTORS: WasteFactor[] = [
     "weightGPerCm2": 1.5,
     "kgCo2ePerKg": 0.38,
     "waterM3PerKg": 0.089,
-    "impactUsdPerKg": 0.2,
+    "impactUsdPerKg": 0.21,
     "largestFactor": "water",
     "table": "common-500"
   },
@@ -4103,7 +4103,7 @@ export const COMMON_WASTE_FACTORS: WasteFactor[] = [
     "weightGPerCm2": 1.8,
     "kgCo2ePerKg": 7.06,
     "waterM3PerKg": 1.889,
-    "impactUsdPerKg": 4.18,
+    "impactUsdPerKg": 4.17,
     "largestFactor": "water",
     "table": "common-500"
   },
@@ -4576,7 +4576,7 @@ export const COMMON_WASTE_FACTORS: WasteFactor[] = [
     "weightGPerCm2": 1.2,
     "kgCo2ePerKg": 110.35,
     "waterM3PerKg": 1.639,
-    "impactUsdPerKg": 23.42,
+    "impactUsdPerKg": 23.43,
     "largestFactor": "carbon",
     "table": "common-500"
   },
@@ -4708,7 +4708,7 @@ export const COMMON_WASTE_FACTORS: WasteFactor[] = [
     "weightGPerCm2": 1.4,
     "kgCo2ePerKg": 1.12,
     "waterM3PerKg": 0.488,
-    "impactUsdPerKg": 0.95,
+    "impactUsdPerKg": 0.94,
     "largestFactor": "water",
     "table": "common-500"
   },
@@ -4983,7 +4983,7 @@ export const COMMON_WASTE_FACTORS: WasteFactor[] = [
     "weightGPerCm2": 1.6,
     "kgCo2ePerKg": 100.37,
     "waterM3PerKg": 1.49,
-    "impactUsdPerKg": 21.3,
+    "impactUsdPerKg": 21.31,
     "largestFactor": "carbon",
     "table": "common-500"
   },
@@ -5368,7 +5368,7 @@ export const COMMON_WASTE_FACTORS: WasteFactor[] = [
     "weightGPerCm2": 1.6,
     "kgCo2ePerKg": 6.01,
     "waterM3PerKg": 1.202,
-    "impactUsdPerKg": 2.95,
+    "impactUsdPerKg": 2.94,
     "largestFactor": "water",
     "table": "common-500"
   },
@@ -5599,7 +5599,7 @@ export const COMMON_WASTE_FACTORS: WasteFactor[] = [
     "weightGPerCm2": 0.8,
     "kgCo2ePerKg": 3.3,
     "waterM3PerKg": 0.659,
-    "impactUsdPerKg": 1.61,
+    "impactUsdPerKg": 1.62,
     "largestFactor": "water",
     "table": "common-500"
   },
@@ -5632,7 +5632,7 @@ export const COMMON_WASTE_FACTORS: WasteFactor[] = [
     "weightGPerCm2": 1.8,
     "kgCo2ePerKg": 5.17,
     "waterM3PerKg": 2.102,
-    "impactUsdPerKg": 4.13,
+    "impactUsdPerKg": 4.14,
     "largestFactor": "water",
     "table": "common-500"
   },

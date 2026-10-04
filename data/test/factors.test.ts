@@ -130,3 +130,25 @@ test('factors: common-foods fallback (menu_waste_factors_500.csv) only for items
   assert.ok(COMMON_WASTE_FACTORS.every((f) => !hallKeys.has(f.factorKey) && f.table === 'common-500'));
   assert.ok(COMMON_WASTE_FACTORS.length >= 490);
 });
+
+/** Round half up to cents (the CSVs' rule: 1.605 -> 1.61), via integer micro-units to avoid float drift. */
+const cents = (x: number): number => Math.floor(Math.round(x * 1e6) / 1e4 + 0.5) / 100;
+
+test('factors: every row of every factor CSV: carbon/water dollars and score follow the rounding rule; largest_factor is right', () => {
+  const files = ['menu_waste_factors_EastQuad.csv', 'menu_waste_factors_halal_bros.csv', 'menu_waste_factors_500.csv'];
+  let rows = 0;
+  for (const file of files) {
+    for (const r of csvObjects(file)) {
+      rows++;
+      const C = Number(r.C_kg_co2e_per_kg);
+      const W = Number(r.W_water_m3_per_kg);
+      const at = `${file}: ${r.food}`;
+      assert.equal(Number(r.carbon_usd_per_kg), cents(0.19 * C), `${at} carbon_usd_per_kg`);
+      assert.equal(Number(r.water_usd_per_kg), cents(1.5 * W), `${at} water_usd_per_kg`);
+      // The score is rounded from the unrounded sum, never the sum of the rounded parts.
+      assert.equal(Number(r.impact_score_usd_per_kg), cents(0.19 * C + 1.5 * W), `${at} impact_score_usd_per_kg`);
+      assert.equal(r.largest_factor, 0.19 * C >= 1.5 * W ? 'carbon' : 'water', `${at} largest_factor`);
+    }
+  }
+  assert.equal(rows, 26 + 4 + 500);
+});

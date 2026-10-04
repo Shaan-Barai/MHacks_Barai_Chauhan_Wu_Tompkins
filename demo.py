@@ -965,12 +965,18 @@ def slug(name):
 
 
 def load_factors():
-    # Renamed to menu_waste_factors_EastQuad.csv on 2026-10-04; accept either name.
-    path = next((p for p in (REPO / "menu_waste_factors_EastQuad.csv", REPO / "menu_waste_factors.csv") if p.exists()), None)
-    if path is None:
-        return {}
-    with path.open(newline="") as f:
-        return {slug(row["food"]): row for row in csv.DictReader(f)}
+    """Factor rows by slug, in the app's lookup order (data/src/factors.ts): the
+    hall's own table (menu_waste_factors_EastQuad.csv) first, then the 500
+    common foods (menu_waste_factors_500.csv) as a fallback. The hall row wins."""
+    east_quad = next((p for p in (REPO / "menu_waste_factors_EastQuad.csv", REPO / "menu_waste_factors.csv") if p.exists()), None)
+    factors = {}
+    for path in (east_quad, REPO / "menu_waste_factors_500.csv"):
+        if path is None or not path.exists():
+            continue
+        with path.open(newline="", encoding="utf-8-sig") as f:
+            for row in csv.DictReader(f):
+                factors.setdefault(slug(row["food"]), row)
+    return factors
 
 
 def wrap(text, indent):

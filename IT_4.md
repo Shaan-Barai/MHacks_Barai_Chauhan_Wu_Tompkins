@@ -21,8 +21,11 @@ Make the MVP production-ready. The two big outcomes:
    - Area and volume feed **CO2 emissions and water wasted**. Those numbers appear **next to each food's
      label** (overlay image and dashboard), and the dashboard shows **total CO2 and total water** wasted.
 
-User decisions (2026-10-04): host on **Fly.io**. The user will **buy the domain**. Until it exists, the
-site runs on `*.fly.dev`. The custom domain is attached when the user names it.
+User decisions (2026-10-04): the user will **buy the domain**. **Update (same day): Fly.io is dropped
+for now. SAM 2.1 and Depth Anything V2 run locally on the Mac (MPS)**, along with SpacetimeDB (`scrap`) and
+the backend in production mode serving the built dashboard (`deploy/local-up.sh`). The custom domain will
+point at this local stack later (Cloudflare Tunnel, documented but not set up yet). Fly/maincloud text below
+in I10, §4 row P and §5 is superseded.
 
 ## 1. What exists today (v2, `main` @ `4f23615`)
 
@@ -102,7 +105,7 @@ site runs on `*.fly.dev`. The custom domain is attached when the user names it.
   Calibration always computes the area scale. When the depth worker is reachable it also computes the
   depth scale, so the toggle can be flipped later without recalibrating. The setting is snapshotted onto
   each analysis attempt (`calibrationId`, `physicalMethod`) so history never silently changes.
-- **I10. Production shape (Fly.io).**
+- **I10. Production shape. SUPERSEDED: the stack runs locally via `deploy/local-up.sh`; the Fly.io notes below are kept only for reference.**
   - `scrap-api` (Node 20): the Express backend, which also serves the built dashboard (`frontend/dist`)
     with SPA fallback. One origin, so there is no CORS between UI and API.
   - `scrap-ml` (Python 3.11, CPU): SAM 2.1 Small (:8790) and DAv2 Metric Indoor Small (:8791) in one
@@ -297,7 +300,8 @@ remaining work.
 | B | running | 2026-10-04 | launched (hardening + schema first) |
 | U | running | 2026-10-04 | launched (mocks first) |
 | K | running | 2026-10-04 | launched (client side + docs first) |
-| P | running | 2026-10-04 | launched; deploy waits on user: `fly auth login`, `spacetime login`, domain |
+| P | running | 2026-10-04 | redirected: no Fly. Local production stack (`deploy/local-up.sh`), smoke test, tunnel runbook (docs only) |
 
 ### Log
 - 2026-10-04: plan written. User chose Fly.io and will buy a domain.
+- 2026-10-04: user: run DAv2 + SAM locally, don't worry about Fly.io. P, B and V redirected.

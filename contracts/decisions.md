@@ -467,3 +467,5 @@ Full plan and rationale: [IT_4.md](../IT_4.md) §2 (I1–I12). Summary:
 - **Production (I10–I12).** Fly.io: `scrap-api` (backend + built dashboard, one origin) and private
   `scrap-ml` (SAM 2.1 + DAv2 CPU). SpacetimeDB maincloud, R2 prod prefix. Public reads; mutations need
   `SCRAP_INGEST_TOKEN` or an admin passcode session. Custom domain (user is buying it) via `fly certs`.
+
+**Update (2026-10-04, user):** Fly.io is dropped for now. SAM 2.1 and Depth Anything V2 run locally on the Mac, and so does the whole stack (local SpacetimeDB `scrap`, with the backend in production mode serving the dashboard via `deploy/local-up.sh`). The custom domain will later point at it through a Cloudflare Tunnel.

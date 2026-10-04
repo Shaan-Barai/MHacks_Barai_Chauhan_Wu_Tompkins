@@ -37,6 +37,14 @@ export {
   LEFTOVER_PROMPT_VERSION,
 } from './leftovers.js';
 export type { AssessLeftoversInput, AssessLeftoversResult, LeftoverAssessment } from './leftovers.js';
+
+export {
+  judgeSameDish,
+  buildDishMatchSchema,
+  validateDishMatchText,
+  DISH_MATCH_PROMPT_VERSION,
+} from './dishMatch.js';
+export type { DishMatchVerdict, JudgeSameDishInput, JudgeSameDishResult, SameDishVerdict } from './dishMatch.js';
 export type { AnalyzeCaptureInput, AnalyzeCaptureResult } from './analyze.js';
 
 export { GatewayError, makeApiError, normalizeProviderError } from './errors.js';

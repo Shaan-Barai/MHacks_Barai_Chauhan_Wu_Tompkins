@@ -92,6 +92,32 @@ export const upsert_menu = spacetimedb.reducer({ menuJson: t.string() }, (ctx, {
 
   const existing = ctx.db.mealService.serviceId.find(service.serviceId);
   if (existing) {
+    // Revisions only move forward (data/ planMenuRevision bumps the version);
+    // re-sending an older version would silently roll the menu back.
+    if (service.menuVersion < existing.menuVersion) {
+      throw new SenderError(
+        `menu ${service.menuId} version ${service.menuVersion} is older than the stored version ${existing.menuVersion}; plan a revision instead`,
+      );
+    }
+    // A new version: archive the outgoing items so analyses that froze the
+    // older version keep resolving their itemIds (menu_item_revision).
+    if (service.menuVersion > existing.menuVersion) {
+      const supersededAt = ctx.timestamp.toDate().toISOString();
+      for (const old of ctx.db.menuItem.menuId.filter(existing.menuId)) {
+        const revisionItemId = `${old.itemId}@v${existing.menuVersion}`;
+        if (ctx.db.menuItemRevision.revisionItemId.find(revisionItemId)) continue;
+        ctx.db.menuItemRevision.insert({
+          revisionItemId,
+          itemId: old.itemId,
+          menuId: old.menuId,
+          menuVersion: existing.menuVersion,
+          displayName: old.displayName,
+          category: old.category,
+          description: old.description,
+          supersededAt,
+        });
+      }
+    }
     ctx.db.menuItem.menuId.delete(existing.menuId);
     ctx.db.mealService.serviceId.update(service);
   } else {

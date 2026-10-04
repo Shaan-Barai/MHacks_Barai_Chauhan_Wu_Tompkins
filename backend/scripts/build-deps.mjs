@@ -5,12 +5,18 @@
  */
 
 import { execSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 for (const pkg of ['data', 'vision', 'analytics']) {
   const dir = fileURLToPath(new URL(`../../${pkg}/`, import.meta.url));
   const run = (cmd) => execSync(cmd, { cwd: dir, stdio: ['ignore', 'ignore', 'inherit'] });
-  if (!existsSync(`${dir}node_modules`)) run('npm ci --no-audit --no-fund');
+  // (Re)install when node_modules is missing or older than the lockfile
+  // (e.g. vision gained `sharp` for the overlay after the last install).
+  const installed = `${dir}node_modules/.package-lock.json`;
+  const lock = `${dir}package-lock.json`;
+  if (!existsSync(installed) || (existsSync(lock) && statSync(lock).mtimeMs > statSync(installed).mtimeMs)) {
+    run('npm ci --no-audit --no-fund');
+  }
   run('npm run build');
 }

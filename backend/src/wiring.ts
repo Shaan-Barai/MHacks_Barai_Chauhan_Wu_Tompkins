@@ -67,7 +67,9 @@ export function buildBackend(options: BuildOptions = {}): AppDeps & { app: Retur
   const analyzer =
     options.analyzer ??
     (gateway.mode === 'live'
-      ? new MaskAnalyzer(gateway, options.segmenter ?? createSamWorkerClient(config.samWorkerUrl))
+      ? new MaskAnalyzer(gateway, options.segmenter ?? createSamWorkerClient(config.samWorkerUrl), {
+          ...(config.plateDiameterPx !== undefined ? { plateDiameterPx: config.plateDiameterPx } : {}),
+        })
       : new MockAnalyzer());
   const ingestion = new IngestionService(repo, images, analyzer, now);
   const summary = new SummaryService(repo, ingestion);

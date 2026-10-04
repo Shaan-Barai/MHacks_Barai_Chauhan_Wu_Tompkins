@@ -33,7 +33,7 @@ version; re-imports replace counts. See [the portion-count guide](docs/portions-
 Attendance is **simulated**. Pixels are counted from AI masks of visible
 leftovers; they are not a weight. Impact points are relative estimates.
 
-## Calibrated area, volume, CO2e and water (IT_4)
+## Calibrated area, CO2e and water (IT_4)
 
 With an active **camera calibration**, each food also gets an **estimated**
 area (cm²) and grams, plus kg CO2e and litres of water. These are shown next to
@@ -43,9 +43,9 @@ the food's label on the plate image and on the dashboard.
    plates go, with the camera locked in place.
 2. Run `npm run calibrate -- --known-area-cm2 46.21` in `capture/`, or use
    Settings → Camera calibration.
-3. Depth Anything V2 is an **experimental** switch: it estimates volume from a
-   depth map; otherwise grams come from area. See
-   [docs/calibration.md](docs/calibration.md) and [IT_4.md](IT_4.md).
+3. Grams = area × the food's `weight_g_per_cm2`; kg CO2e and litres of water
+   follow from grams. See [docs/calibration.md](docs/calibration.md) and
+   [IT_4.md](IT_4.md).
 
 Pixels wasted stays the primary measurement. Without a calibration, the
 physical numbers are blank, never zero.
@@ -73,7 +73,7 @@ photos and logs to `images/demo-runs/` (gitignored). **Adding a feature? Add a d
 
 ## Documents
 
-- [`IT_4.md`](IT_4.md) — calibrated area, Depth Anything V2 volume, estimated CO2e/water, local production stack (plan + tracker).
+- [`IT_4.md`](IT_4.md) — calibrated area, estimated CO2e/water, local production stack (plan + tracker; Depth Anything V2 was tried and removed).
 - [`docs/deploy.md`](docs/deploy.md) — run the whole stack locally in production mode: `deploy/local.sh up | status | smoke | down`.
 - [`BIG-PLAN.md`](BIG-PLAN.md) — the camera → impact → dashboard plan and its tracker.
 - [`EXPLAIN.md`](EXPLAIN.md) — the whole database (SpacetimeDB + R2) in plain language.
@@ -84,8 +84,8 @@ photos and logs to `images/demo-runs/` (gitignored). **Adding a feature? Add a d
 - [`UI.md`](UI.md) — dashboard spec (layout, palette, copy).
 - [`MVP_AI.md`](MVP_AI.md) — researched Meta SAM segmentation plan and
   bounding-box model options; implementation and food-image evaluation are pending.
-- [`AI.md`](AI.md) — current AI flow and future DepthAnythingV2 volume plan;
-  depth/volume work is deferred.
+- [`AI.md`](AI.md) — current AI flow. The DepthAnythingV2 volume idea was
+  tried in IT_4 and removed (see `contracts/decisions.md`).
 - [`contracts/`](contracts/) — shared entity types, error format, sample
   records, and [recorded decisions](contracts/decisions.md).
 

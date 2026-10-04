@@ -4,6 +4,12 @@ Table definitions, schema evolution, and seed definitions for the Scrap
 prototype (AGENTS.md 2.4). Reducer/procedure implementations belong to
 Agent 5; shared module assembly and generated client bindings to Agent 1.
 
+**Database: `scrap`** (BIG-PLAN v2, 2026-10-04). Everything lives there;
+`scrap-bigplan` is retired. Schema changes are published **additively in
+place** and the database is never wiped. v2 stores pixel counts only: there is
+no plate calibration, and relative impact points are derived by `analytics/`
+at read time, never stored.
+
 ## Module language/version decision
 
 Checked against the official SpacetimeDB docs (spacetimedb.com/docs,
@@ -58,9 +64,10 @@ npm run typecheck
 # local dev server (keep running in another terminal)
 spacetime start
 
-# create/update the database
-spacetime publish --module-path . --server local scrap
+# create/update the database: additive, in place, never deleting data
+spacetime publish --module-path . --server local --delete-data=never --yes=migrate,break-clients scrap
 # (the backend must be the publishing identity — see root README setup step 3)
+# If the CLI reports that the change needs a data wipe, stop: make the change additive instead.
 
 # client bindings (Agent 1 decides the committed location)
 spacetime generate --lang typescript --out-dir ../../frontend/src/module_bindings --module-path .
@@ -70,10 +77,12 @@ spacetime sql --server local scrap "SELECT * FROM meal_service"
 spacetime logs --server local scrap
 ```
 
-Schema changes: additive changes (new tables, new optional columns) publish
-in place; breaking changes need `spacetime publish -c on-conflict` (destroys
-data) or a migration plan. For the hackathon, re-publish + re-seed from
-`data/seed/demo-seed.json` is the agreed recovery path.
+Schema changes: additive changes (new tables) publish in place. Breaking
+changes would need `--delete-data`, which is **not allowed on `scrap` or
+`scrap-bigplan`**; add a new table instead (the pattern used by
+`capture_count`, `segmentation_region`, `attempt_calibration`,
+`menu_item_revision`). Try risky changes on a throwaway local database name
+first and delete only that one.
 
 ## Tables (mirroring contracts/types.ts)
 
@@ -91,20 +100,32 @@ data) or a migration plan. For the hackathon, re-publish + re-seed from
 | `portions_served` | PortionsServed | `recordId` | `serviceId` | yes |
 | `capture_count` | SegmentationResult (minus regions) | `attemptId` | `eventId` | **no — server-only** |
 | `segmentation_region` | ClassificationRegion | `regionId` | `attemptId`, `eventId` | **no — server-only** |
-| `attempt_calibration` | AnalysisAttempt.calibration + overlayObjectId (BIG-PLAN D2/D7) | `attemptId` | `eventId` | **no — server-only** |
+| `attempt_calibration` | AnalysisAttempt.overlayObjectId (+ legacy calibration) | `attemptId` | `eventId` | **no — server-only** |
+| `menu_item_revision` | MenuItem of a superseded menu version | `revisionItemId` (`<itemId>@v<version>`) | `itemId`, `menuId` | yes |
 
-`attempt_calibration` (2026-10-03, additive) holds one row per attempt that
-reported a `PlateCalibration` and/or a segmented overlay: `calibration`
-(`method`, `plateDiameterCm`, `plateDiameterPx`, `cm2PerPx`, `dishType?`,
-`fullyVisible?`, `flags`) and `overlayObjectId` (an `image_object` with
-association kind `overlay` whose id is the capture's eventId; the JPEG itself
-is in object storage). It is written by `record_analysis` in the same
-transaction as its attempt, which rejects `cm2PerPx` ≠ (cm/px)², unknown
-methods/flags, a `configured-default` without `calibration_default`, and an
-overlay id that is not this capture's overlay. Grams/impact are never stored
-(D3). A separate table rather than new `analysis_attempt` columns keeps the
-change additive (publishes in place over existing rows). The BIG-PLAN demo
-database is `scrap-bigplan`.
+`attempt_calibration` (2026-10-03, additive) holds one row per attempt with a
+segmented overlay: `overlayObjectId` (an `image_object` with association kind
+`overlay` whose id is the capture's eventId; the JPEG itself is in object
+storage). It is written by `record_analysis` in the same transaction as its
+attempt, which rejects an overlay id that is not this capture's overlay. Its
+`calibration` column (`PlateCalibration`) is **deprecated in v2**: the v2
+pipeline does not produce one (no plate-size calibration), so new rows leave
+it empty; it stays so the column and any legacy rows keep parsing. A separate table rather than new
+`analysis_attempt` columns keeps the change additive.
+
+`menu_item_revision` (2026-10-04, additive) archives the items of superseded
+menu versions. `menu_item` holds only the live version of each menu (the
+classification vocabulary). When `upsert_menu` stores a higher `menuVersion`
+it first copies the outgoing items here (insert-only, keyed
+`<itemId>@v<oldVersion>`, with `supersededAt`), so food measurements from
+analyses that froze the older version still resolve their itemId to a name.
+`upsert_menu` also rejects a `menuVersion` lower than the stored one (no
+silent rollback). Items replaced before this table existed are not archived.
+
+Target-dish counting (v2, `target-dish-v1`) needs no schema change: the rule
+version is `capture_count.countingRuleVersion`, and the attempt-level flags
+`neighbor_food_excluded` / `target_dish_unavailable` are ordinary
+`analysis_attempt.qualityFlags` strings.
 
 ### Representation choices (schema ⇄ contract mapping)
 
@@ -156,7 +177,7 @@ The backend's `Repository` interface was written to map 1:1 onto this schema:
 
 | Repository method | SpacetimeDB operation |
 | --- | --- |
-| `upsertMenu(bundle)` | reducer: upsert `meal_service` row + replace `menu_item` rows for `menuId` (validate + version with `data/` `planMenuRevision`) |
+| `upsertMenu(bundle)` | reducer `upsert_menu`: upsert `meal_service` row + replace `menu_item` rows for `menuId`; a higher version archives the old items in `menu_item_revision`, a lower one is rejected (callers plan the version with `data/` `planMenuRevision`) |
 | `getMenuByService` / `findMenus` / `listServices` | queries on `meal_service` (pk / `hallId`+`serviceDate` indexes) joined to `menu_item` by `menuId` |
 | `upsertReferencePortion` / `get` / `list` / `delete` | reducer inserting a **new version** row; queries on `reference_portion` (pk / `itemId` index) |
 | `upsertImageObject` / `get` / `list` / `delete` | reducers + queries on `image_object` (`state` index drives orphan cleanup) |
@@ -185,12 +206,29 @@ change only through Agent 2.
 
 Demo seed data lives in **`data/seed/demo-seed.json`** (labeled DEMO DATA;
 provenance in `data/README.md`): 9 menus (3 days × 3 meals, `hall-main`,
-America/Detroit) and 45 `manual_area` reference portions in the shared
-1024×1024 `topdown-normalized-v1` geometry. Load it through Agent 5's
-validated upload path (`POST /api/menus`, `POST /api/reference-portions`) or,
-once reducers exist, a `seed_demo_data` reducer that replays the same JSON.
-Keeping the seed in `data/` keeps one source of truth for backend fixtures,
-analytics, and the published database.
+America/Detroit; each dinner is the 23-food factor menu), 99 `manual_area`
+reference portions, and 69 demo portions served (dinners). Keeping the seed in
+`data/` keeps one source of truth for backend fixtures, analytics, and the
+published database.
+
+Load it with `cd backend && npm run seed` (`backend/scripts/seed.mjs`, through
+the backend's validated API, so it lands in `scrap` when the backend uses it):
+
+- Each menu is planned with `data/` `planMenuRevision`: a new service is
+  created, an identical menu is left alone, and a menu whose items changed
+  (the old 5-item dinners in `scrap`) becomes `menuVersion + 1`. Old analyses
+  keep the version they froze; the old items move to `menu_item_revision`.
+- Demo portions are saved as a replacement snapshot for each dinner's
+  **current** version.
+- `--live-dinner[=YYYY-MM-DD]` also seeds the 23-food dinner plus demo portions
+  for that hall-local date (default: today in America/Detroit) so live camera
+  captures resolve to `svc_hall-main_<date>_dinner`.
+- Idempotent: a second run creates and revises nothing.
+
+`scrap` after `npm run seed -- --live-dinner=2026-10-04` (2026-10-04): 10
+services (2026-10-01..03 × 3 meals + the 10-04 dinner), 122 menu items, 13
+archived items, 92 demo portions, and the 6 earlier captures with their
+attempts, measurements and image objects unchanged.
 
 ## Assumptions / open items
 
@@ -198,7 +236,9 @@ analytics, and the published database.
   `contracts/decisions.md`.
 - Private vs public table split is a proposal; Agents 5/7 confirm before the
   dashboard subscribes.
-- `sizeBytes` is `u64` (bigint in bindings); all pixel areas are `f64`
-  because Gemini estimates may be fractional.
+- `sizeBytes` is `u64` (bigint in bindings). `food_measurement.remainingAreaPx`
+  is `f64` because legacy Gemini-estimated rows may be fractional; v2 mask
+  counts written there are integers (`capture_count` / `segmentation_region`
+  use `u32`).
 - Local `spacetime start` is the dev target; the hosted/maincloud decision is
   an Agent 1 open question.

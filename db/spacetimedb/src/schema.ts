@@ -345,7 +345,10 @@ const PlateCalibration = t.object('PlateCalibration', {
  * contracts AnalysisAttempt.calibration and AnalysisAttempt.overlayObjectId.
  * A separate small table (like capture_count) so the existing
  * analysis_attempt rows stay untouched: additive, publishes in place.
- * Grams/impact are NOT stored (D3: analytics derives them at read time).
+ * Impact is NOT stored (analytics derives relative impact points from pixels
+ * at read time). BIG-PLAN v2 (2026-10-04): `calibration` is deprecated and
+ * left empty by new attempts (no plate-size calibration); the column stays so
+ * the table keeps publishing in place and legacy rows parse.
  * The overlay JPEG lives in object storage (image_object association kind
  * 'overlay'); only its object id is here. Written in the same record_analysis
  * transaction as its attempt. Legacy attempts have no row.

@@ -1,8 +1,16 @@
 # Bridge: Uno Q inbox → R2 + SpacetimeDB
 
-**Status (2026-10-03): implemented.** Fixture-tested and smoke-tested against an offline backend.
-Not yet tested live with Gemini, R2, or the real camera (section 6). Without the board, use
-`npm run simulate-camera` (below).
+**Status (2026-10-04, BIG-PLAN v2): implemented.** Fixture-tested; the simulated-camera path ran live
+against R2 + SpacetimeDB + Gemini + SAM on 2026-10-03 (v1). The real Uno Q run against database
+`scrap` is pending (section 6). Without the board, use `npm run simulate-camera` (below).
+
+**v2 in one paragraph.** Captures land in the `scrap` database. Pixels wasted is the only measurement
+(no plate calibration). The bridge counts each **physical plate once** (same-dish grouping below);
+the backend then counts only the **target dish** inside each capture: Gemini marks the plate being
+scanned, food on neighbouring plates is dropped, and the masks are clipped to that plate's region
+(`target-dish-v1`; flags `neighbor_food_excluded` / `target_dish_unavailable`). A neighbouring plate
+is counted when it becomes the centered plate in its own capture, and the same-dish check keeps it
+from being counted twice.
 
 **Core rule: each physical dish is counted once.** Many frames, manual or automatic, can show the
 same plate. They are grouped into one **dish group**, and only one representative frame per group is
@@ -11,11 +19,13 @@ uploaded and submitted as a `CaptureEvent`. Gemini decides whether a new frame s
 ## Run it
 
 ```bash
-# 1. Backend running with GEMINI_API_KEY, OBJECT_STORAGE_PROVIDER=r2, SPACETIMEDB_URI (see README)
+# 1. Backend running with GEMINI_API_KEY, OBJECT_STORAGE_PROVIDER=r2, SPACETIMEDB_URI,
+#    SPACETIMEDB_MODULE=scrap (docs/runbook.md); today's dinner seeded:
+cd backend && npm run seed -- --live-dinner
 # 2. Camera writing to images/arduino-inbox/ (capture/uno-q/README.md)
 python3 capture/uno-q/laptop_capture.py --target arduino@YOUR_BOARD_IP --auto
-# 3. Bridge, in another terminal
-cd capture && npm run ingest-inbox -- --service svc_hall-main_2026-10-03_lunch --watch
+# 3. Bridge, in another terminal (service = today's dinner, hall-local date in America/Detroit)
+cd capture && npm run ingest-inbox -- --service svc_hall-main_2026-10-04_dinner --watch
 ```
 
 | Option | Meaning |
@@ -60,7 +70,7 @@ npm run simulate-camera -- --inbox /tmp/inbox --photos path/to/photos --count 2
 hardware check: real board, real C920 frames, Gemini grouping in `--watch`, `source = camera`. The
 simulator replaces only the board + SSH step, so the rest of the path (bridge → R2 → SpacetimeDB →
 Gemini + SAM → overlay → dashboard API) can be run and asserted repeatably without hardware; the live
-E2E `tests/e2e/bigplan-live.test.mjs` uses it. Both use the bridge's `--state-dir` to keep their state
+E2E `tests/e2e/scrap-live.test.mjs` uses it. Both use the bridge's `--state-dir` to keep their state
 out of `capture/.inbox-*.json`.
 
 **Labeling.** Only two values differ from a real capture: `captureSource: "simulated_camera"` and
@@ -82,8 +92,10 @@ Uno Q + C920s ── SSH ──▶ laptop_capture.py ──▶ images/arduino-in
                                                      │  group frames ──▶ POST /api/dish-match ──▶ Gemini
                                                      ▼  one frame per dish
                      POST /api/images/uploads → PUT presigned R2 URL → POST /api/images/:id/finalize
-                     → POST /api/captures → analysis → SpacetimeDB (image_object, capture_event,
-                       analysis_attempt, food_measurement)
+                     → POST /api/captures → analysis (Gemini classify + target dish → SAM masks
+                       → clip to the target dish → pixel count → overlay in R2)
+                     → SpacetimeDB `scrap` (image_object, capture_event, analysis_attempt,
+                       capture_count, segmentation_region, food_measurement, attempt_calibration)
 ```
 
 ## 2. Components
@@ -98,7 +110,8 @@ Uno Q + C920s ── SSH ──▶ laptop_capture.py ──▶ images/arduino-in
 | `ReplayCaptureAdapter.ingestCameraCapture` (`source: 'camera'`) | 3 | [capture/src/adapter.ts](capture/src/adapter.ts) |
 | CLI | 3 | [capture/scripts/ingest-inbox.mjs](capture/scripts/ingest-inbox.mjs) |
 | Camera simulator (inbox writer, no board) | 3 | [capture/src/simulateCamera.ts](capture/src/simulateCamera.ts), [capture/scripts/simulate-camera.mjs](capture/scripts/simulate-camera.mjs) |
-| Live E2E (inbox → R2/SpacetimeDB → Gemini+SAM → dashboard API) | 8 | [tests/e2e/bigplan-live.test.mjs](tests/e2e/bigplan-live.test.mjs) |
+| Live E2E (inbox → R2/SpacetimeDB → Gemini+SAM → dashboard API) | 8 | [tests/e2e/scrap-live.test.mjs](tests/e2e/scrap-live.test.mjs) |
+| Live hardware test (board → bridge → `scrap`) | 3/8 | [capture/scripts/live_camera_test.py](capture/scripts/live_camera_test.py) |
 | `judgeSameDish` prompt, schema, validation | 4 | [vision/src/dishMatch.ts](vision/src/dishMatch.ts) |
 | `POST /api/dish-match` | 5 | [backend/src/services/dishMatchService.ts](backend/src/services/dishMatchService.ts), [backend/src/http/app.ts](backend/src/http/app.ts) |
 | `DishMatchRequest` / `DishMatchResult` | 1 | [contracts/types.ts](contracts/types.ts) |
@@ -179,7 +192,8 @@ The state files are in `capture/` and are gitignored:
   frame, so it cannot regroup frames into extra dishes.
 - **Two layers of deduplication.** Ingested dishes are skipped, and the backend also deduplicates by
   `eventId`.
-- **Resetting.** Delete both files only together with a fresh database.
+- **Resetting.** Don't delete them for `scrap` (it is never wiped). For a fresh run, point
+  `--state-dir` at a new folder; dishes already ingested are still deduplicated by the backend.
 - **The inbox is read-only.** Dot-prefixed transfer directories are ignored. Incomplete or tampered
   captures (`INBOX_INCOMPLETE`, `INBOX_METADATA_INVALID`, `CHECKSUM_MISMATCH`) are reported once and
   never grouped.
@@ -236,19 +250,20 @@ Offline smoke (2026-10-03, backend with local-dev storage, in-memory repo, mock 
 `simulate-camera --count 3 --service svc_hall-main_2026-10-03_dinner --state-dir <tmp>` ingested 3
 `test2` photos as 3 `replay` events (`succeeded`, 1024² `topdown-normalized-v1`, 0 Gemini checks); a
 rerun added nothing. The live Gemini + SAM + R2 + SpacetimeDB run is
-`tests/e2e/bigplan-live.test.mjs` (`SCRAP_E2E=1`; see docs/verification-report.md for results).
+`tests/e2e/scrap-live.test.mjs` (`SCRAP_E2E=1`; see docs/verification-report.md for results).
 
 **Not yet verified:**
 
 - live Gemini same-dish accuracy on real C920 photos;
-- R2 and SpacetimeDB with this bridge;
+- the real board → bridge → R2 + `scrap` path (the simulator path ran live on 2026-10-03, v1);
+- target-dish counting on real C920 frames with a neighbouring plate in view;
 - latency at 1 fps.
 
-Live check, scripted: `python3 capture/scripts/live_camera_test.py --target arduino@YOUR_BOARD_IP --service <id>` checks the board, takes manual and 5-frame auto photos, probes `/api/dish-match`, then cues you through the plate run below with the bridge in the background. It verifies one `camera` event per plate and a no-op rerun. It uses its own inbox and `--state-dir` under `images/camera-test/`, so the real inbox and bridge state are untouched. `--stage camera` needs no backend.
+Live check, scripted: `python3 capture/scripts/live_camera_test.py --target arduino@YOUR_BOARD_IP --identity ~/.ssh/scrap_unoq --service svc_hall-main_<today>_dinner --spacetime-db scrap` checks the board, takes manual and 5-frame auto photos, probes `/api/dish-match`, then cues you through the plate run below with the bridge in the background. It verifies one `camera` event per plate and a no-op rerun. It uses its own inbox and `--state-dir` under `images/camera-test/`, so the real inbox and bridge state are untouched. `--stage camera` needs no backend.
 
 Live check, by hand: run steps 1–3 above while passing three plates under the camera with gaps between them,
 holding one plate still for about 10 s. Expect exactly three `✓ dish` lines and three `capture_event`
-rows with `source = camera` (`spacetime sql scrap "SELECT * FROM capture_event"`). Rerun and expect
+rows with `source = camera` (`spacetime sql --server local scrap "SELECT * FROM capture_event"`). Rerun and expect
 nothing new. Note the Gemini checks against the frame count.
 
 ## 7. Open questions

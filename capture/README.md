@@ -11,11 +11,19 @@ per frame: the inbox bridge (`npm run ingest-inbox -- --service <id>`) groups
 frames into dishes with Gemini and submits one `camera` capture per dish. See
 [BRIDGE.md](../BRIDGE.md).
 
-Camera hardware is not available yet, so this package implements the
-**replay adapter** (a JSON manifest listing dish images with hall/service
-context) and a **manual file-upload** path behind the same replaceable
-adapter. A future camera adapter plugs into the identical seams
-(`Uploader`, `IngestionSink`) without changing consumers.
+Captures go to the backend, which stores them in SpacetimeDB database
+**`scrap`** (BIG-PLAN v2). Pixels wasted is the only measurement (no plate
+calibration), and the analysis counts only the **target dish**: the plate most
+centered and most fully in frame. Keep one plate centered under the camera;
+food on a neighbouring plate is dropped and counted when that plate is
+centered in its own capture. For a camera run tonight, use today's dinner
+service (`svc_hall-main_<YYYY-MM-DD>_dinner`, seeded with
+`cd backend && npm run seed -- --live-dinner`).
+
+Besides the camera path, this package implements the **replay adapter** (a
+JSON manifest listing dish images with hall/service context) and a **manual
+file-upload** path behind the same replaceable adapter (`Uploader`,
+`IngestionSink`).
 
 ## What it does
 
@@ -59,10 +67,11 @@ Deterministic, applied identically to observation and reference images
 3. Resize to exactly **1024 × 1024** with Lanczos3 resampling (sharp).
 4. Encode JPEG quality 90.
 
-All pixel areas (Agent 4 estimates, Agent 2 baselines) are measured in this
-1024×1024 space, recorded as `ImageGeometry` on every event. Optional
-`plateShape` / `plateDiameterPx` hints from the manifest are carried through
-(diameter is declared in the normalized space).
+All pixel counts (mask pixels from the vision pipeline, optional baselines)
+are measured in this 1024×1024 space, recorded as `ImageGeometry` on every
+event. Optional `plateShape` / `plateDiameterPx` hints from the manifest are
+carried through as metadata only; v2 does not convert pixels to physical
+area. Keep the camera height fixed so pixel counts stay comparable.
 
 ## Quality flagging
 
@@ -163,7 +172,8 @@ Demo manifests and AI-generated synthetic plate images (provenance in
 `ReplayCaptureAdapter`'s optional `stateFile` (the CLI uses
 `.replay-state.json`, gitignored) persists minted eventIds and completed
 entries across processes, so re-running replay reports "already ingested"
-instead of creating new dishes. Delete it only together with a fresh database.
+instead of creating new dishes. Don't delete it for `scrap` (never wiped); use a separate
+`stateFile` for throwaway databases.
 
 ## Simulate the camera (no board)
 
@@ -183,7 +193,12 @@ submit these dishes as `source: 'replay'`, never `'camera'`. With `--service` it
 Use the bridge's `--state-dir <dir>` to keep a demo or E2E run's grouping/event-ID state out of
 `capture/.inbox-*.json`. For the real board, `scripts/live_camera_test.py` is the hardware check
 (camera preflight, manual + auto frames, cued plate run through the bridge); the simulator covers the
-same bridge path without hardware.
+same bridge path without hardware:
+
+```bash
+python3 capture/scripts/live_camera_test.py --target arduino@BOARD_IP --identity ~/.ssh/scrap_unoq \
+  --service svc_hall-main_<today>_dinner --spacetime-db scrap
+```
 
 ## Run tests
 

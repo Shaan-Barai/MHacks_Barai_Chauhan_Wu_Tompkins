@@ -291,7 +291,9 @@ The metadata contains a transport capture UUID, UTC timestamp, actual width/heig
 
 **Next stage: the inbox bridge.** `cd capture && npm run ingest-inbox -- --service <serviceId>` reads
 this folder, groups frames into dishes, and submits one `source: 'camera'` capture per dish (normalize →
-R2 upload → finalize → `POST /api/captures` → Gemini + SAM analysis → SpacetimeDB). See
+R2 upload → finalize → `POST /api/captures` → Gemini + SAM analysis → SpacetimeDB database `scrap`).
+For tonight's camera run the service is today's dinner, `svc_hall-main_<YYYY-MM-DD>_dinner` (hall-local
+date, America/Detroit), seeded with `cd backend && npm run seed -- --live-dinner`. See
 [BRIDGE.md](BRIDGE.md).
 
 | Local value | Use in the bridge |
@@ -307,7 +309,9 @@ R2 upload → finalize → `POST /api/captures` → Gemini + SAM analysis → Sp
 same folder layout with the same metadata fields, labeled `captureSource: "simulated_camera"` (the
 bridge then submits them as `replay`, not `camera`). See [BRIDGE.md](BRIDGE.md#run-it-without-the-board-simulate-camera).
 
-**Keep the photo raw here.** The project's current normalization is a centered square crop resized to **1024 × 1024**. Fit the entire plate inside the centered square portion of the camera view so that this crop does not cut off leftovers. Keep camera height, angle, and framing consistent; resizing alone does not make differently scaled/perspective captures comparable.
+**Keep the photo raw here.** The project's current normalization is a centered square crop resized to **1024 × 1024**. Fit the entire plate inside the centered square portion of the camera view so that this crop does not cut off leftovers. Keep camera height, angle, and framing consistent: the measurement is **pixels** (there is no plate-size calibration), so a plate closer to the camera reads as more waste.
+
+**One plate in the middle.** The analysis counts only the **target dish**, the plate most centered and most fully in frame. Food on a neighbouring plate that is partly in view is dropped (the capture is flagged `neighbor_food_excluded`) and counted later when that plate is centered in its own capture. If no plate can be identified, nothing is clipped and the capture is flagged `target_dish_unavailable`. Center each plate under the camera before triggering.
 
 The next stage should upload image bytes to **R2**, confirm the object upload, and then register its durable object reference and metadata in **SpacetimeDB**. Image bytes, base64, or ZIP bundles do not belong in SpacetimeDB. Use the backend's existing storage flow; do not put R2 or SpacetimeDB credentials into either camera-transfer script.
 
@@ -367,6 +371,8 @@ Before using this in the demonstration:
 4. During a capture, temporarily interrupt network connectivity, restore it, and rerun with the same settings. If the board completed the first capture, verify that its cached JPEG is reused and that only one completed laptop directory exists for that ID.
 5. Disconnect the camera before a new trigger. Confirm an explicit error and pending ID rather than an empty successful photo. Reconnect, keep the intended dish present, and retry.
 6. Confirm that the files remain after restarting the laptop program and that no R2/SpacetimeDB operation occurred just from receiving them.
+
+**End-to-end hardware check:** `python3 capture/scripts/live_camera_test.py --target arduino@BOARD_IP --identity ~/.ssh/scrap_unoq --service svc_hall-main_<today>_dinner --spacetime-db scrap` runs the board checks, then the bridge against a running backend (BRIDGE.md §6). `--stage camera` needs no backend.
 
 **Current verification:** The simulated suite uses fake FFmpeg and SSH with
 OpenCV imports deliberately blocked. It covers manual and timed capture,

@@ -44,5 +44,29 @@ class TokenHint(unittest.TestCase):
         self.assertIsNone(m.call_args[0][0].get_header("Authorization"))
 
 
+class UserAgent(unittest.TestCase):
+    """Cloudflare answers urllib's default "Python-urllib" user agent with 403 (error 1010)."""
+
+    def sent_agent(self, call):
+        seen = {}
+
+        def capture(req, timeout=None, context=None):
+            seen["ua"] = req.get_header("User-agent")
+            raise urllib.error.URLError("offline")
+
+        with mock.patch.object(demo_mod.urllib.request, "urlopen", capture):
+            try:
+                call()
+            except urllib.error.URLError:
+                pass
+        return seen.get("ua")
+
+    def test_api_requests_name_the_demo(self):
+        self.assertEqual(self.sent_agent(lambda: make_demo().get("/api/health")), demo_mod.USER_AGENT)
+
+    def test_http_ok_names_the_demo(self):
+        self.assertEqual(self.sent_agent(lambda: demo_mod.http_ok("https://example.test/")), demo_mod.USER_AGENT)
+
+
 if __name__ == "__main__":
     unittest.main()

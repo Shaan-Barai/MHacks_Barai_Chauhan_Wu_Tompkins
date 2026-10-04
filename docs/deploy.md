@@ -207,6 +207,20 @@ Stop the foreground `cloudflared` (Ctrl-C), then:
 cloudflared service install          # LaunchAgent: starts at login, reads ~/.cloudflared/config.yml
 ```
 
+The LaunchAgent it writes runs bare `cloudflared`, which current versions (2026.9.x) refuse: the service
+exits 1 every 5 s and `~/Library/Logs/com.cloudflare.cloudflared.err.log` repeats "use `cloudflared
+tunnel run` to start tunnel …". Add the two arguments and reload it:
+
+```bash
+P=~/Library/LaunchAgents/com.cloudflare.cloudflared.plist
+plutil -insert ProgramArguments.1 -string tunnel "$P"
+plutil -insert ProgramArguments.2 -string run "$P"
+launchctl bootout gui/$(id -u)/com.cloudflare.cloudflared; launchctl bootstrap gui/$(id -u) "$P"
+launchctl list | grep cloudflared     # a pid in the first column, not "-"
+```
+
+`cloudflared tunnel run` reads the tunnel id from `tunnel:` in `config.yml`.
+
 That is the simplest choice, and it matches step 12 (the stack also starts at login). To start at
 **boot** without a login instead, copy `config.yml` and `<TUNNEL_ID>.json` to `/etc/cloudflared/`, point
 `credentials-file` at the new path, and run `sudo cloudflared service install` (a LaunchDaemon).

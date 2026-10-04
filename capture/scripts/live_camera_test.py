@@ -282,7 +282,8 @@ def ssl_context():
 
 def api_json(args, method, route, body=None, timeout=60):
     data = None if body is None else json.dumps(body).encode()
-    headers = {"content-type": "application/json"}
+    # A named user agent: Cloudflare refuses urllib's default "Python-urllib" one (403, error 1010).
+    headers = {"content-type": "application/json", "user-agent": "ScrapSaver-live-camera-test/1"}
     if args.token:
         headers["authorization"] = f"Bearer {args.token}"  # never printed
     request = urllib.request.Request(f"{args.api}{route}", data=data, method=method, headers=headers)

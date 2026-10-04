@@ -56,6 +56,10 @@ import urllib.parse
 import urllib.request
 import webbrowser
 
+# Cloudflare's Browser Integrity Check answers urllib's default "Python-urllib/x.y" user agent with
+# 403 (error code 1010), so every request this script makes names itself.
+USER_AGENT = "ScrapSaver-demo/1"
+
 try:
     from zoneinfo import ZoneInfo
 except ImportError:  # Python < 3.9
@@ -168,7 +172,7 @@ class Demo:
     def request(self, method, route, body=None, timeout=60, base=None, anonymous=False):
         """anonymous=True sends no ingest token; a 401/403 is then an expected answer, never a token hint."""
         data = None if body is None else json.dumps(body).encode()
-        headers = {"content-type": "application/json"}
+        headers = {"content-type": "application/json", "user-agent": USER_AGENT}
         if self.token and not anonymous:
             headers["authorization"] = f"Bearer {self.token}"
         req = urllib.request.Request((base or self.api) + route, data=data, method=method, headers=headers)
@@ -223,8 +227,9 @@ def port_open(port, host="localhost"):
 
 
 def http_ok(url, timeout=3):
+    req = urllib.request.Request(url, headers={"user-agent": USER_AGENT})
     try:
-        with urllib.request.urlopen(url, timeout=timeout) as r:
+        with urllib.request.urlopen(req, timeout=timeout, context=ssl_context()) as r:
             return r.status < 500, r.read()
     except (urllib.error.URLError, OSError):
         return False, b""
@@ -920,12 +925,16 @@ def step_deploy(demo):
     if not url:
         demo.check("WARN", "SCRAP_PROD_URL is not set: no production URL to check (local stack: deploy/local.sh status)")
         return
+    if not urllib.parse.urlsplit(url).hostname:
+        demo.check("FAIL", f"SCRAP_PROD_URL {url!r} has no host (is $DOMAIN set in this terminal?)")
+        return
     if not url.startswith("https://") and not is_local(url):
         demo.check("WARN", f"{url} is not https")
-    status, health = demo.request("GET", "/api/health", base=url, timeout=15)
+    # Public reads: no ingest token, so a 403 here is never blamed on the token.
+    status, health = demo.request("GET", "/api/health", base=url, timeout=15, anonymous=True)
     demo.check("PASS" if status == 200 else "FAIL", f"{url}/api/health HTTP {status}"
                + (f"  {dim('storage: ' + str((health or {}).get('provider')))}" if status == 200 else ""))
-    status, ready = demo.request("GET", "/api/ready", base=url, timeout=30)
+    status, ready = demo.request("GET", "/api/ready", base=url, timeout=30, anonymous=True)
     detail = ""
     if isinstance(ready, dict):
         parts = {k: v for k, v in ready.items() if k != "ready"}

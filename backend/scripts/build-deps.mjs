@@ -10,7 +10,8 @@ import { fileURLToPath } from 'node:url';
 
 for (const pkg of ['data', 'vision', 'analytics']) {
   const dir = fileURLToPath(new URL(`../../${pkg}/`, import.meta.url));
-  const run = (cmd) => execSync(cmd, { cwd: dir, stdio: ['ignore', 'ignore', 'inherit'] });
+  // stdout goes to stderr so tsc errors stay visible without polluting callers' stdout.
+  const run = (cmd) => execSync(cmd, { cwd: dir, stdio: ['ignore', process.stderr, 'inherit'] });
   // (Re)install when node_modules is missing or older than the lockfile
   // (e.g. vision gained `sharp` for the overlay after the last install).
   const installed = `${dir}node_modules/.package-lock.json`;

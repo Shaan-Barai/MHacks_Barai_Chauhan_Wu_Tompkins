@@ -27,8 +27,8 @@ import { randomBytes } from 'node:crypto';
 import { badRequest } from '../errors.js';
 
 export interface UploadRequest {
-  /** 'capture' or 'reference' association drives the object-key prefix. */
-  associationKind: 'capture' | 'reference';
+  /** The association drives the object-key prefix (IT_4 adds 'calibration' photos). */
+  associationKind: 'capture' | 'reference' | 'calibration';
   associationId: string;
   mimeType: string;
   declaredSizeBytes: number;
@@ -118,7 +118,8 @@ export function validateUploadRequest(req: UploadRequest, policy: UploadPolicy):
 /** Stable, provider-independent key: <captures|references>/<date>/<associationId>_<random>.<ext>. */
 export function makeObjectKey(req: UploadRequest, nowMs: number): string {
   const ext = EXT_BY_MIME[req.mimeType] ?? 'bin';
-  const prefix = req.associationKind === 'capture' ? 'captures' : 'references';
+  const prefix =
+    req.associationKind === 'capture' ? 'captures' : req.associationKind === 'calibration' ? 'calibrations' : 'references';
   const date = new Date(nowMs).toISOString().slice(0, 10);
   return `${prefix}/${date}/${req.associationId}_${randomBytes(6).toString('hex')}.${ext}`;
 }

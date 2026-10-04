@@ -22,6 +22,8 @@ import { MaskAnalyzer } from './analysis/maskAnalyzer.js';
 import { createApp, type AppDeps } from './http/app.js';
 import { assertSecurity } from './http/security.js';
 import { ReadinessService } from './services/readinessService.js';
+import { CalibrationService } from './services/calibrationService.js';
+import type { CalibrationRunner } from './analysis/calibrationRunner.js';
 import type { Analyzer } from './analysis/analyzer.js';
 import type { Repository } from './repo/repository.js';
 
@@ -34,6 +36,8 @@ export interface BuildOptions {
   gateway?: GeminiGateway;
   /** SAM segmenter; defaults to the worker at config.samWorkerUrl. */
   segmenter?: Segmenter;
+  /** Calibration runner; defaults to vision's runCalibration when live. */
+  calibrationRunner?: CalibrationRunner;
   now?: () => number;
 }
 
@@ -103,6 +107,7 @@ export function buildBackend(options: BuildOptions = {}): AppDeps & { app: Retur
     workerToken: config.workerToken,
     samRequired: analyzer instanceof MaskAnalyzer,
   });
+  const calibration = new CalibrationService(repo, images, options.calibrationRunner, now);
   const deps: AppDeps = {
     config,
     repo,
@@ -116,6 +121,7 @@ export function buildBackend(options: BuildOptions = {}): AppDeps & { app: Retur
     impact,
     security,
     readiness,
+    calibration,
     now,
     storageOrigins: storageOrigins(config),
   };

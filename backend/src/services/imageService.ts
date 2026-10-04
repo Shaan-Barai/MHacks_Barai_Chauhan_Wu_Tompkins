@@ -19,13 +19,16 @@ import type { ObjectStorageAdapter, ReadAccess } from '../storage/objectStorage.
 import type { ImageObject } from '../types.js';
 
 export interface RequestUploadBody {
-  associationKind: 'capture' | 'reference';
+  associationKind: 'capture' | 'reference' | 'calibration';
   associationId: string;
   mimeType: string;
   sizeBytes: number;
   widthPx?: number;
   heightPx?: number;
 }
+
+/** Client-uploadable kinds; masks, overlays and depth maps are server-produced only. */
+const UPLOAD_KINDS: RequestUploadBody['associationKind'][] = ['capture', 'reference', 'calibration'];
 
 export interface RequestUploadResponse {
   objectId: string;
@@ -51,8 +54,8 @@ export class ImageService {
   ) {}
 
   async requestUpload(body: RequestUploadBody): Promise<RequestUploadResponse> {
-    if (body.associationKind !== 'capture' && body.associationKind !== 'reference') {
-      throw badRequest('INVALID_ASSOCIATION', "associationKind must be 'capture' or 'reference'.");
+    if (!UPLOAD_KINDS.includes(body.associationKind)) {
+      throw badRequest('INVALID_ASSOCIATION', "associationKind must be 'capture', 'reference' or 'calibration'.");
     }
     if (!body.associationId || typeof body.associationId !== 'string') {
       throw badRequest('INVALID_ASSOCIATION', 'associationId is required.');
@@ -206,6 +209,42 @@ export class ImageService {
       heightPx,
       uploadedAt: new Date(this.now()).toISOString(),
       association: { kind: 'overlay', id: eventId },
+      state: 'finalized',
+    };
+    await this.repo.upsertImageObject(record);
+    return record;
+  }
+
+  /**
+   * Store a server-produced derived image (IT_4: calibration overlay/reference
+   * mask, depth PNGs) and register it finalized. Keys never collide across
+   * retries because they carry a fresh suffix.
+   */
+  async storeDerived(
+    kind: 'calibration_overlay' | 'depth' | 'mask',
+    associationId: string,
+    keyPrefix: string,
+    bytes: Uint8Array,
+    mimeType: 'image/png' | 'image/jpeg',
+    widthPx: number,
+    heightPx: number,
+  ): Promise<ImageObject> {
+    const date = new Date(this.now()).toISOString().slice(0, 10);
+    const ext = mimeType === 'image/png' ? 'png' : 'jpg';
+    const objectId = newId('img');
+    const objectKey = `${keyPrefix}/${date}/${associationId}_${objectId.slice(-8)}.${ext}`;
+    const { sizeBytes } = await this.storage.putBytes(objectKey, bytes, mimeType);
+    const record: ImageObject = {
+      objectId,
+      provider: this.storage.provider as ImageObject['provider'],
+      container: this.storage.container,
+      objectKey,
+      mimeType,
+      sizeBytes,
+      widthPx,
+      heightPx,
+      uploadedAt: new Date(this.now()).toISOString(),
+      association: { kind: kind, id: associationId },
       state: 'finalized',
     };
     await this.repo.upsertImageObject(record);

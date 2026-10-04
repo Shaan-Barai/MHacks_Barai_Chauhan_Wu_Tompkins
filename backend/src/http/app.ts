@@ -23,6 +23,7 @@ import type { CaptureService } from '../services/captureService.js';
 import { parseWindow, CAPTURE_LIST_DEFAULT_LIMIT, CAPTURE_LIST_MAX_LIMIT, type ImpactService } from '../services/impactService.js';
 import type { MealLabel, MenuBundle } from '../types.js';
 import type { ReadinessService } from '../services/readinessService.js';
+import { validateCalibrationRequest, type CalibrationService } from '../services/calibrationService.js';
 import { log } from '../log.js';
 import {
   authGate,
@@ -60,13 +61,14 @@ export interface AppDeps {
   /** IT_4 I11: resolved auth settings (buildBackend → assertSecurity). */
   security: ResolvedSecurity;
   readiness: ReadinessService;
+  calibration: CalibrationService;
   now?: () => number;
   /** Origins the browser talks to directly (presigned object storage), for the CSP. */
   storageOrigins?: string[];
 }
 
 export function createApp(deps: AppDeps): express.Express {
-  const { config, repo, storage, images, ingestion, summary, dashboard, dishMatch, captures, impact, security, readiness } = deps;
+  const { config, repo, storage, images, ingestion, summary, dashboard, dishMatch, captures, impact, security, readiness, calibration } = deps;
   const now = deps.now ?? (() => Date.now());
   const app = express();
   app.disable('x-powered-by');
@@ -611,6 +613,52 @@ export function createApp(deps: AppDeps): express.Express {
     geminiCap,
     wrap(async (req, res) => {
       res.json(await impact.recommendation(parseWindow(req.query)));
+    }),
+  );
+
+  // ---- IT_4: camera calibration + measurement settings ----
+  app.post(
+    '/api/calibrations',
+    geminiCap,
+    wrap(async (req, res) => {
+      const result = await calibration.calibrate(validateCalibrationRequest(req.body));
+      res.status(result.created ? 201 : 200).json(result.calibration);
+    }),
+  );
+
+  app.get(
+    '/api/calibrations',
+    wrap(async (req, res) => {
+      const hallId = typeof req.query.hallId === 'string' && req.query.hallId ? req.query.hallId : undefined;
+      res.json({ calibrations: await calibration.list(hallId) });
+    }),
+  );
+
+  app.get(
+    '/api/calibrations/:calibrationId/images',
+    wrap(async (req, res) => {
+      res.json(await calibration.signedImages(param(req, 'calibrationId')));
+    }),
+  );
+
+  app.get(
+    '/api/calibrations/:calibrationId',
+    wrap(async (req, res) => {
+      res.json(await calibration.get(param(req, 'calibrationId')));
+    }),
+  );
+
+  app.get(
+    '/api/settings/measurement',
+    wrap(async (req, res) => {
+      res.json(await calibration.getSettings(requireQuery(req, 'hallId')));
+    }),
+  );
+
+  app.put(
+    '/api/settings/measurement',
+    wrap(async (req, res) => {
+      res.json(await calibration.putSettings(req.body));
     }),
   );
 

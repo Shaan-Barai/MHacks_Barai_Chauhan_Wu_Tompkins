@@ -139,7 +139,7 @@ Both plates together: 24 + 40 = **64 g**, 3.16 + 0.07 = **3.2 kg CO2e**, 46.2 + 
   - The **pepperoni is beef**, not pork. This raises the pepperoni pizza's carbon factor.
 
 ### Weight constants (g/cm²)
-These are estimates from typical portions. For example, a 14-inch pizza slice covers about 125 cm² and weighs about 110 g, so roughly 1.0 g/cm². A top-down camera can't see how tall food is, so they may be off by 30–50%. In the app they only set how much one food's pixels count relative to another's.
+These are estimates from typical portions. For example, a 14-inch pizza slice covers about 125 cm² and weighs about 110 g, so roughly 1.0 g/cm². A top-down camera can't see how tall food is, so they may be off by 30–50%. In the app they set how much one food's pixels count relative to another's (relative points), and on calibrated captures they turn area into the estimated grams behind the CO2e and water figures, so that error carries straight through to those estimates. They have not yet been checked against food from this dining hall.
 
 **Checking them** needs a known scale: with a fixed camera whose cm² per pixel has been measured, place one labeled serving on a plate (`label_serving_g` gives its weight), count its pixels, convert to cm², and divide grams by cm².
 

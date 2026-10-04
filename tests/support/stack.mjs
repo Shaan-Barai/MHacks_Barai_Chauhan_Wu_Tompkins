@@ -148,7 +148,9 @@ export async function startBackend(options = {}) {
     config,
     ...(options.repo ? { repo: options.repo } : {}),
     ...(options.analyzer ? { analyzer: options.analyzer } : {}),
-    ...(options.gateway ? { gateway: options.gateway } : {}),
+    // Never live by default: .env holds a real GEMINI_API_KEY, and only the
+    // live image/camera tests may spend Gemini calls (they pass `gateway`).
+    gateway: options.gateway ?? vision.createGeminiGateway({ env: {} }),
     ...(options.storage ? { storage: options.storage } : {}),
   });
   const server = built.app.listen(0, '127.0.0.1');

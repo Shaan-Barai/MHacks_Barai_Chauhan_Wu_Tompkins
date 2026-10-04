@@ -38,7 +38,7 @@ describe('StatisticsPage (mock data)', () => {
     expect(within(recHeading.closest('div')!.parentElement!).getByRole('button', { name: 'Ask again' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Foods to target' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Most wasted foods' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Nutrition lost' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Nutrition lost' })).toBeNull()
   })
 
   it('switches to the last 90 days and reloads', async () => {

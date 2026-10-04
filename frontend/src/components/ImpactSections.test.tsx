@@ -3,8 +3,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { HeadlineCards } from './HeadlineCards'
 import { FoodsToTarget } from './FoodsToTarget'
 import { MostWasted } from './MostWasted'
-import { NutritionLost } from './NutritionLost'
-import { dashboard, impact, row } from './impactFixtures'
+import { dashboard, row } from './impactFixtures'
 
 /** Uncalibrated data (these fixtures) shows no grams, kilograms, litres, cubic meters or dollars (IT_4 I1). */
 const PHYSICAL_UNITS = /\d\s?(g|kg|L|m³)(?!\w)|litres|CO₂e|\$/
@@ -150,28 +149,5 @@ describe('factor source note', () => {
     const item = (name: string) => items.find((li) => li.textContent?.includes(name))!
     expect(item('Scrambled Eggs')).toHaveTextContent('factors: common foods table')
     expect(item('Ancho Flank Steak')).not.toHaveTextContent('common foods table')
-  })
-})
-
-describe('NutritionLost', () => {
-  it('shows relative nutrition points with the top three foods, highest first', () => {
-    render(<NutritionLost data={dashboard()} />)
-    expect(screen.getByRole('heading', { name: 'Nutrition lost' })).toBeInTheDocument()
-    expect(screen.getByText('relative points')).toBeInTheDocument()
-    expect(screen.getByText('1,159').parentElement).toHaveTextContent('1,159points')
-    const items = screen.getAllByRole('listitem').map((li) => li.textContent)
-    expect(items).toEqual(['Pepperoni Pizza621', 'Ancho Flank Steak504', 'Farro33.6'])
-    // it is its own number, not the impact score
-    expect(screen.queryByText(/18,795/)).toBeNull()
-    expect(screen.queryByText(/nutrient-days/)).toBeNull()
-  })
-
-  it('shows a dash, not 0, when nutrition is missing', () => {
-    const d = dashboard({ mostWasted: [row({ displayName: 'X', impact: impact({ nutritionPoints: null }) })] })
-    d.totals = { ...d.totals, nutritionPoints: null }
-    render(<NutritionLost data={d} />)
-    expect(screen.getByText('—')).toBeInTheDocument()
-    expect(screen.queryByText(/^0$/)).toBeNull()
-    expect(screen.queryByRole('listitem')).toBeNull()
   })
 })

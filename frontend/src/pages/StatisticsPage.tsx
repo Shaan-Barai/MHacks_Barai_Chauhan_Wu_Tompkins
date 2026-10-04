@@ -1,7 +1,7 @@
 /**
  * Statistics: the last 30 or 90 days. Headline estimates, carbon emissions by
- * day, foods to target (per portion), most wasted foods, nutrition lost, and
- * the AI recommendation (regenerated on demand).
+ * day, foods to target (per portion), most wasted foods, and the AI
+ * recommendation (regenerated on demand).
  */
 import { useEffect, useState } from 'react'
 import { getImpactDashboard, getRecommendation, regenerateRecommendation } from '../data/api'
@@ -12,7 +12,6 @@ import { DateRangePicker, rangeForDays, STATISTICS_PRESETS, type DateRange } fro
 import { FoodsToTarget } from '../components/FoodsToTarget'
 import { HeadlineCards } from '../components/HeadlineCards'
 import { MostWasted } from '../components/MostWasted'
-import { NutritionLost } from '../components/NutritionLost'
 import { RecommendationCard } from '../components/RecommendationCard'
 import { Badge, EmptyState, LoadingBlock } from '../components/ui'
 
@@ -52,13 +51,10 @@ export function StatisticsPage({ dataRevision = 0 }: { dataRevision?: number }) 
       )}
 
       {impact.data && !noPlates && (
-        <>
-          <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-            <FoodsToTarget rows={impact.data.targets} demoPortions={impact.data.labels.demoPortions} />
-            <MostWasted rows={impact.data.mostWasted} />
-          </div>
-          <NutritionLost data={impact.data} />
-        </>
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+          <FoodsToTarget rows={impact.data.targets} demoPortions={impact.data.labels.demoPortions} />
+          <MostWasted rows={impact.data.mostWasted} />
+        </div>
       )}
     </div>
   )

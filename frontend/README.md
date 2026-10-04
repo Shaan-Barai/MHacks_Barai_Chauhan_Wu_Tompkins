@@ -109,8 +109,8 @@ of water come from calibrated plates only and show "—" when unavailable
   **Recommendations** (AI or rule-based fallback badge, each bullet with its
   supporting number, Ask again), **Foods to target** (pixels per portion,
   impact points per portion, portions served, "Demo portions" badge), **Most
-  wasted foods** (per portion / total pixels / impact points), **Nutrition
-  lost** (relative points, separate from the impact score).
+  wasted foods** (per portion / total pixels / impact points). Nutrition lost
+  was removed from the UI (2026-10-04); the API still returns nutrition points.
 - **Behind the scenes** (Today / This week / Last 30 days): the plates
   gallery. Opening a plate shows the photo and AI outlines side by side with
   a per-food Pixels wasted table; expired links are renewed once.

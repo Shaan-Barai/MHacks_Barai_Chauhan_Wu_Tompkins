@@ -552,3 +552,5 @@ calibrated-estimate decisions above; Pixels wasted stays the primary measured me
 - Later the same day: the dashboard's Take photo button and every "est." label are removed at the
   product owner's request. Carbon, water and food weight are still calibrated estimates (null, shown
   as "—", without calibration); photos are taken with `npm run take-photo`.
+- The Nutrition lost section is removed from Statistics (product owner). The API still computes
+  nutrition points; nothing else changes.

@@ -171,3 +171,5 @@ export {
   type ServiceLike,
   type ServiceResolution,
 } from './mealService.js';
+
+export { checkCameraPhoto, measureImageQuality, MIN_BRIGHTNESS, MIN_SHARPNESS, type ImageQuality, type QualityVerdict } from './imageQuality.js';

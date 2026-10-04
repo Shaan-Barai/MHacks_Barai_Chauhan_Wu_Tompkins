@@ -81,7 +81,7 @@ origin). Pages have their own paths (`/`, `/schedule`, `/menus`, `/portions`,
   the calibration; grams = area x the food's typical weight per cm². Depth
   Anything V2 (toggle, depth height, plate thickness, volume) was removed
   2026-10-04.
-- **Food labels**: `38 g · 1.1 kg CO2e · 18 L water est.` chips with inline
+- **Food labels**: `38 g · 1.1 kg CO2e · 18 L water` chips with inline
   SVG cloud/droplet icons, rounded like analytics' overlay label (whole
   grams; CO2e and litres to 2 significant digits; CO2e in g below 0.1 kg).
   Missing = a muted reason or nothing, never 0.

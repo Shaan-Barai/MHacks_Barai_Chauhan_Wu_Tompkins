@@ -153,3 +153,7 @@ once D lands → C does the final review, updates README/AGENTS, and merges `big
 | D | running (worktree) | 2026-10-03 | schema, overlay storage, impact/captures/images/recommendation endpoints, seeding |
 | E | running (worktree) | 2026-10-03 | new dashboard against mocks, then live API |
 | F | running (worktree) | 2026-10-03 | phase 1: camera path audit, simulate-camera, gated live E2E; phase 2 after B+D |
+
+### Log
+- 2026-10-03: user pushed `85ba842` (capture/scripts/live_camera_test.py, ingest-inbox `--state-dir`) to `big-plan`, and `fef1065` (two Gemini localization passes merged by IoU) + `df909ca` (before/after mixed-dish data) to `menu-source-experiment`. All agents notified; WS-B owns merging `menu-source-experiment` again (overlaps its maskPipeline.ts work); WS-F builds on live_camera_test.py.
+- Landed so far: A `1290f52` (score without nutrition), `f0221be` (factor tables), `fe7be24` (demo dinner + portions); B `997eeac` (calibration + overlay); D `a8919d6` (calibration/overlay persistence, images endpoint), `714e158` (seed), `5fd5838`, `8ef4ecd`.

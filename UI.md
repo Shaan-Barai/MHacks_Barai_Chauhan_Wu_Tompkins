@@ -8,8 +8,18 @@ a segmentation stage outlines the leftover food; application code counts the
 foreground pixels. Only the scanned (target) dish counts: food on a
 neighboring plate in the same photo is dropped and drawn in the outline image
 as "Other dish (not counted)". Totals count overlapping food pixels once.
-There is no plate-size calibration, so there are **no grams, kg, litres,
-cubic meters, CO2e or dollars** anywhere on screen.
+There is no plate-size calibration.
+
+**Estimated grams, CO2e and water (IT_4, 2026-10-04).** A camera calibration
+(a flat object of known area, by default a credit card, 46.21 cm²) turns
+pixels into cm² per pixel; with Depth Anything V2 on, a depth map gives
+volume. Typical food density then gives grams, and each food's footprint per
+kilogram gives kg CO2e and litres of water. These are always labeled
+**estimates** ("est.", "estimate" badge) and appear only for plates scanned
+with a calibrated camera. Missing estimates are never shown as 0: say
+nothing, or a muted reason ("not calibrated", "no estimate for this food",
+"photo size differs from the calibration"). Pixels wasted stay the
+measurement and the first headline. No dollars anywhere.
 
 **Relative impact points** let foods be compared by what their waste costs
 the planet: `points = pixels / 1000 x weight_g_per_cm2 x factor`.
@@ -33,8 +43,15 @@ or segmentation.
 1. Dining hall name. Meal times start from defaults (weekdays and weekends) and are edited in Settings.
 2. Add menus: pick a date, type foods under Breakfast / Lunch / Dinner, or upload a spreadsheet (.csv). Then go to the Dashboard.
 
+## STAFF SIGN-IN (IT_4)
+- Everyone can read every page. Changes need staff sign-in: "Staff sign-in" at the bottom of the nav opens a small dialog with one "Staff passcode" field. Signed in, the nav says "Signed in as staff" with "Sign out".
+- Signed out, write controls are hidden or disabled with a dashed box: "Sign in to change this." and a "Staff sign-in" button. This covers adding menus, portions served (form and sheet upload), Settings (hall, meal times, events) and camera calibration.
+- If a change is refused because the sign-in ended, the dialog opens with "Sign in to save this change."
+- First-time setup is shown to signed-in staff only; visitors see the dashboard with the default meal times.
+
 ## LAYOUT
 [ Left: Nav ] [ Page ]. There is no right-hand panel; day details live on the Schedule page.
+Each page has its own address (/, /schedule, /menus, /portions, /behind-the-scenes, /settings). Any other address shows "We couldn't find that page." with "Go to the dashboard".
 
 ### NAV
 - Dashboard
@@ -46,15 +63,19 @@ or segmentation.
 
 ### DASHBOARD
 Everything follows the lookback buttons at the top: Today, Last 7 days, Last 30 days, Last 90 days (no custom range). Under them, one short line on how waste is measured: the AI outlines the leftover food on the plate being scanned and counts its pixels; impact points weight those pixels by each food's typical density and its greenhouse-gas and water footprint; they are relative, not a scale reading.
-1. Two headline cards, each with a "?" explanation:
+1. Four headline cards, each with a "?" explanation, Total waste first:
    - **Total waste**: Pixels wasted as the big number with the unit "pixels", "from X of Y plates scanned", and plates not counted.
    - **Relative impact** ("relative points" badge): the impact score in points, with greenhouse-gas points and water points under it, and "Relative points: they compare foods with each other, not kg or litres." The "?" gives the formula (pixels / 1,000 x food density x factor; 0.19 x greenhouse-gas + 1.50 x water). "Not available" instead of 0 when no food has factors.
-   A line under the cards says when foods have no impact data (their pixels count in Total waste but not in the points).
+   - **Estimated CO2e** (cloud icon, "estimate" badge): kg CO2e, "Greenhouse gases from the food left on plates, about X kg of food", "From 12 of 14 plates (calibrated)", and the method: "Method: area", "Method: depth volume", or "Method: mixed (5 plates by depth volume, 7 by area)".
+   - **Estimated water** (droplet icon, "estimate" badge): litres, same coverage and method lines.
+   - With no calibrated plates in the days: "Not available" and "No plates in these days were scanned with a calibrated camera. Calibrate the camera in Settings."
+   A line under the cards says when foods have no impact data (their pixels count in Total waste but not in the points or estimates).
+   **Food labels.** Wherever a food is listed (Most wasted, Foods to target, the plate viewer, Schedule day details) its name is followed by chips `38 g · 1.1 kg CO2e · 18 L water` and "est.", with small cloud and droplet icons. Rounding matches the AI outline image's legend: whole grams, CO2e and water to 2 significant digits, CO2e in g below 0.1 kg. A "?" says: "Estimated from the camera calibration and typical food density; pixels are the measurement." Foods to target also shows "about N g est." per portion when every plate of that food was calibrated.
 2. **What to try next**: the AI suggestion, labeled "AI" or "Rule-based fallback", each point with the number it is based on (pixels per portion, pixels, relative points), and when it was written.
 3. **Foods to target**: finding heading ("X had the most food left per portion."), a table ranked by **Pixels wasted per portion** served (summed pixels / summed portions), with impact per portion in relative points and portions served ("demo numbers" badge when they are demo). A food with no impact data still ranks by pixels and says "No impact data for this food". Foods that can't be ranked are listed with the reason: no portions entered, no portions served, or not on the menu.
 4. **Most wasted**: finding heading, every food ranked by total Pixels wasted as a bar list, each row with its impact points (and the greenhouse-gas and water points), or why it has none.
 5. One chart, one bar per day: Pixels wasted.
-6. **Plates**: recent plates as a grid. Each tile shows the AI outline image when there is one (badge "AI outline"), otherwise the photo; analyzed plates come first, and the newest analyzed plate opens side by side without a click (time and pixels wasted, or check failed / needs a person to look / being checked / clean plate). When food on neighboring plates was left out of some plates, a short note says "Food on neighboring plates was left out of N plates". Picking one shows the photo and the AI outline image (the outline image marks a neighboring dish's food as "Other dish (not counted)") side by side or one at a time, with each food's Pixels wasted. Expired photo links are renewed once; then "Photo unavailable".
+6. **Plates**: recent plates as a grid. Each tile shows the AI outline image when there is one (badge "AI outline"), otherwise the photo; analyzed plates come first, and the newest analyzed plate opens side by side without a click (time and pixels wasted, or check failed / needs a person to look / being checked / clean plate). When food on neighboring plates was left out of some plates, a short note says "Food on neighboring plates was left out of N plates". Picking one shows the photo and the AI outline image (the outline image marks a neighboring dish's food as "Other dish (not counted)") side by side or one at a time, with each food's Pixels wasted and, for calibrated plates, an "Estimated amount" column with the chips and "Estimated by area / depth volume from the camera calibration." An uncalibrated plate keeps two columns and says why it has no grams, CO2e or water. Expired photo links are renewed once; then "Photo unavailable".
 7. **Nutrition lost**: a small, separate card marked "relative points" and "not part of the impact score", in nutrition points with the top foods.
 
 ### SCHEDULE
@@ -65,13 +86,22 @@ Everything follows the lookback buttons at the top: Today, Last 7 days, Last 30 
 - Pick a date and meal. Every scanned plate photo with the AI's labels: food, units left, percent of a serving, and notes (AI estimate, more than a full serving, not on the menu). Clean plates say so. Photo links are temporary and renewed when they expire.
 
 ### SETTINGS
+- Signed out: a "Sign in to change this." box at the top; fields are disabled; calibration results and history are still readable.
 - Hall name.
 - Meal times: several named sets (e.g. Weekdays, Weekends), each with the days it covers and Breakfast/Lunch/Dinner hours. Warn about days with no set or in two sets (the first set wins).
 - Special events: name, date, from, to (e.g. Football game).
 - Download the last 30 days as a spreadsheet.
+- **Camera calibration** (IT_4):
+  - One line on why: calibration lets ScrapSaver estimate grams, CO2e and water from the pixels it counts; pixels stay the measurement.
+  - "How to calibrate": 1. Lock the camera in place and keep its focus fixed. 2. Lay a credit card (or another flat object you have measured) flat where the plates go. 3. Take a photo with the camera and upload it below. 4. Don't move the camera afterwards. If it moves, or its picture size changes, calibrate again.
+  - "Depth Anything V2 on/off" switch: "On: estimates each food's volume from a depth map of the photo. Off: uses the food's area only."
+  - "New calibration": Known area (cm²), a "Credit card (46.21 cm²)" button, "What is it?" (e.g. credit card), the calibration photo (JPEG/PNG/WebP), "Calibrate". While it runs: "Uploading the photo and measuring the credit card. This can take up to a minute."
+  - The result: the photo with the reference outlined by the AI; Reference (credit card, 46.21 cm²), In the photo (N pixels), Scale (cm² per pixel), Camera height from the photo, Camera height from Depth Anything V2 (or "Not measured"), Difference (%), Picture size; "Check this" with flags in plain words (not found, unsure outline, touches the edge, depth unavailable, "the two height estimates disagree by more than 15%"); "Activate" when it is not the active one ("New plates use the active calibration. Plates already scanned keep the one they were measured with.").
+  - "Past calibrations": date, reference, cm² per pixel, status, the active one marked "Active", a "Show" button each.
+  - "Plate thickness" (cm, default 1.5): "Used for depth volume only when the plate's rim can't be seen: how high the plate's surface sits above the tray."
 
 ## COLOR AND TYPE (2026-10-03)
-- Black and white only, including form controls. Styling comes later.
+- Black and white only, including form controls. Styling comes later. Icons are small inline SVG line drawings (no icon fonts or CDNs).
 - Font: "Times New Roman" (Times, serif fallback) everywhere.
 - Body text at least 16px; headline card numbers large (40px+).
 - Flat: small 4px corners, black borders, no shadows, no fades.

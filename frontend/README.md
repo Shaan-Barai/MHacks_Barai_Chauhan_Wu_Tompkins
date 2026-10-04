@@ -17,8 +17,16 @@ npm run build     # tsc -b + vite build (must pass)
 npm test          # vitest (data layer, formatting, dashboard page and sections, gallery, recommendation)
 ```
 
-First launch shows the 2-step setup (hall name, then menus; meal hours start
-from defaults and are edited in Settings);
+Reads are public; changes need **staff sign-in** (IT_4 I11): the nav's
+"Staff sign-in" posts the passcode to `POST /api/auth/login` and the backend
+sets an httpOnly session cookie (`GET /api/auth/me`, `POST /api/auth/logout`).
+Signed out, write controls are hidden or disabled with a "Sign in to change
+this." hint; any 401 from a change opens the sign-in dialog. In mock mode the
+passcode is `scrapsaver` (shown in the dialog). A backend whose `/api/auth/me`
+says `authRequired: false` (or has no auth route) leaves editing open.
+
+First launch for signed-in staff shows the 2-step setup (hall name, then menus; meal hours start
+from defaults and are edited in Settings; visitors skip it);
 completion is persisted to `localStorage` (`scrap.hallSettings.v1`). To see
 setup again, clear site data or run
 `localStorage.clear()` in the console.
@@ -49,16 +57,48 @@ setup again, clear site data or run
   nothing large committed); one plate per dinner shows a neighboring dish
   outlined as "Other dish (not counted)".
 
-## Dashboard (UI.md, BIG-PLAN v2)
+## Production build
 
-Pixels only, relative impact: there are no grams, kg, litres, cubic meters,
-CO2e or dollars anywhere. Top to bottom, all driven by the lookback buttons:
+`npm run build` writes `dist/`; the backend serves it with an SPA fallback
+(`SERVE_FRONTEND=1`), so the dashboard and `/api` share one origin and the
+data layer uses relative `/api` URLs (`VITE_API_URL` only for a separate API
+origin). Pages have their own paths (`/`, `/schedule`, `/menus`, `/portions`,
+`/behind-the-scenes`, `/settings`); any other path shows a 404 page.
+
+## Camera calibration and estimates (IT_4)
+
+- **Settings -> Camera calibration**: known area in cm² (credit-card preset
+  46.21 cm²), Depth Anything V2 toggle (`PUT /api/settings/measurement`
+  `depthEnabled`), calibration photo upload (`POST /api/images/uploads`
+  with `associationKind: 'calibration'` -> PUT -> finalize ->
+  `POST /api/calibrations`), result with the reference outline
+  (`GET /api/calibrations/:id/images`), cm²/px, camera height from the photo
+  vs Depth Anything V2, flags in plain words, Activate, history, plate
+  thickness. Processing calibrations are polled every 2 s.
+- **Food labels**: `38 g · 1.1 kg CO2e · 18 L water est.` chips with inline
+  SVG cloud/droplet icons, rounded like analytics' overlay label (whole
+  grams; CO2e and litres to 2 significant digits; CO2e in g below 0.1 kg).
+  Missing = a muted reason or nothing, never 0.
+- **Headline cards**: Estimated CO2e and Estimated water with calibrated-plate
+  coverage and method (area / depth volume / mixed).
+- **Mock data**: days over 20 days ago are uncalibrated, days 3-20 ago use
+  the area method, the last 3 days depth volume (so Today = volume, 7 days =
+  mixed, 30 days = partly calibrated, 90 days = mostly uncalibrated); a
+  no-density food, a no-factor food, unknown food, a demo photo at another
+  picture size, and four past calibrations (active, heights disagree, no depth
+  + card at the edge, failed).
+
+## Dashboard (UI.md, BIG-PLAN v2 + IT_4)
+
+Pixels are the measurement; impact and nutrition are relative points;
+grams, kg CO2e and litres of water are labeled estimates from calibrated
+plates only. Top to bottom, all driven by the lookback buttons:
 
 1. One-line "how we measure" note (the AI outlines the leftover food on the
    plate being scanned and counts its pixels; impact points weight pixels by
    each food's density and greenhouse-gas / water footprint; relative, not a
    scale reading).
-2. Two headline cards: **Total waste** (Pixels wasted, unit "pixels", "from X
+2. Four headline cards (IT_4 added Estimated CO2e and Estimated water between these two): **Total waste** (Pixels wasted, unit "pixels", "from X
    of Y plates scanned", plates not counted) and **Relative impact**
    ("relative points" badge: impactPoints with co2Points and waterPoints
    under it; the "?" tip gives points = pixels/1000 x density x factor and

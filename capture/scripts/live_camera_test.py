@@ -8,7 +8,7 @@ Run from the repository root on the laptop:
 
   # Camera + bridge (backend running with GEMINI_API_KEY, R2, SpacetimeDB)
   python3 capture/scripts/live_camera_test.py --target arduino@BOARD_IP \
-      --service svc_hall-main_2026-10-03_lunch
+      --service svc_hall-main_2026-10-04_dinner --spacetime-db scrap
 
 Camera stage:
   1. One SSH call: board hostname, board script present, camera node, MJPG
@@ -479,9 +479,11 @@ def live_bridge(args, root, service):
 
     if args.spacetime_db and shutil.which("spacetime"):
         heading("SpacetimeDB rows")
-        ids = ", ".join(f"'{d[2]}'" for d in log["dishes"]) or "''"
-        query = f"SELECT event_id, source FROM capture_event WHERE event_id IN ({ids})"
-        done = subprocess.run(["spacetime", "sql", args.spacetime_db, query],
+        # SpacetimeDB SQL has no IN (...); OR the equalities instead.
+        ids = " OR ".join(f"event_id = '{d[2]}'" for d in log["dishes"]) or "event_id = ''"
+        query = f"SELECT event_id, source FROM capture_event WHERE {ids}"
+        # --server: the CLI's default server may be maincloud, not the local database.
+        done = subprocess.run(["spacetime", "sql", "--server", args.spacetime_server, args.spacetime_db, query],
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         print(done.stdout)
         found = sum(1 for d in log["dishes"] if d[2] in done.stdout)
@@ -507,7 +509,9 @@ def main():
     auth = parser.add_mutually_exclusive_group()
     auth.add_argument("--identity", type=Path, help="SSH key (default ~/.ssh/scrap_unoq if present)")
     auth.add_argument("--password", action="store_true", help="Use the board password instead of a key")
-    parser.add_argument("--spacetime-db", help="Also query this SpacetimeDB database with `spacetime sql`")
+    parser.add_argument("--spacetime-db", help="Also query this SpacetimeDB database with `spacetime sql` (e.g. scrap)")
+    parser.add_argument("--spacetime-server", default="local",
+                        help="`spacetime sql --server` nickname/URL (default local)")
     parser.add_argument("--open", action="store_true", help="Open captured photos in the image viewer")
     parser.add_argument("--out", type=Path, help="Run folder (default images/camera-test/<UTC time>)")
     args = parser.parse_args()

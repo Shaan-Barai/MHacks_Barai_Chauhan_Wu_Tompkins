@@ -1,7 +1,8 @@
 # Verification report — Agent 8
 
-**Date:** 2026-10-03. The newest section is BIG-PLAN end-to-end; earlier sections cover the Phase 3
-vertical slice and the mask pipeline.
+**Date:** 2026-10-04. The newest section is BIG-PLAN v2 (`scrap`: pixels only, relative impact points,
+target-dish counting). Below it: the v1 BIG-PLAN end-to-end run (retired `scrap-bigplan`), the Phase 3
+vertical slice, and the mask pipeline.
 **Scope:** fixture/unit suites, live Gemini smoke test, live API e2e against a
 local stack (SpacetimeDB standalone 2.10.2 + backend + local-dev storage),
 and a browser check of the dashboard.
@@ -14,7 +15,35 @@ SpacetimeDB persistence → analytics + simulated attendance → grounded
 suggestion → dashboard. Camera hardware and a cloud object-storage provider
 are **not** tested (neither exists yet).
 
-## BIG-PLAN end-to-end (camera path → R2 + SpacetimeDB → Gemini + SAM → impact) — 2026-10-03
+## BIG-PLAN v2: `scrap` database, menu revisions, seed — 2026-10-04
+
+v2 rules (BIG-PLAN §7, contracts/decisions.md 2026-10-04): Pixels wasted is the only measurement (no
+plate calibration, no grams/kg CO2e/litres/dollars); impact is unitless **relative impact points**;
+each capture counts only the **target dish** (`target-dish-v1`).
+
+| Check | Mode | Result |
+| --- | --- | --- |
+| `spacetime publish --server local --delete-data=never scrap` (module from `big-plan-v2`) | **live SpacetimeDB** | Published in place. Created `capture_count`, `segmentation_region`, `attempt_calibration` (they were missing from `scrap`), then `menu_item_revision`. Row counts before = after: 9 services, 33 menu items, 6 captures, 6 attempts, 14 food measurements, 6 image objects, 45 reference portions, 3 attendance, 18 insights |
+| `upsert_menu` revision guard + archive (throwaway database `scrap-s-scratch`, deleted afterwards) | **live SpacetimeDB** | A higher `menuVersion` archives the outgoing items in `menu_item_revision` (`<itemId>@v<version>`); an older version is rejected (`… is older than the stored version 3`) |
+| `npm run seed -- --live-dinner=2026-10-04` against `scrap` (backend on a side port, local-dev storage) | **live SpacetimeDB** | 1 created (2026-10-04 dinner), 5 revised (10-01 and 10-02 dinners v1→v2; 10-03 breakfast, lunch, dinner v2→v3, replacing hand-typed test items), 4 unchanged; 99 reference portions; 92 demo portions (23 × 4 dinners, each for the current version). Second run: 0 created, 0 revised, 10 unchanged, same counts |
+| `scrap` after seeding (SQL, owner token) | **live SpacetimeDB** | 10 services, 122 menu items (5 × 6 + 23 × 4), 13 archived items, 92 portions served, 114 reference portions; captures 6, attempts 6, measurements 14, image objects 6 (unchanged); `svc_hall-main_2026-10-04_dinner` has 23 items and 23 demo portions |
+| `backend/` `seed.test.ts` (JSON repository) | unit | 1/1: idempotent, demo labels, one row per seeded count |
+| `tests/e2e/scrap-live.test.mjs` | not run yet | Retargeted to `scrap` and v2: counting rule `target-dish-v1`, no calibration, integer per-food pixels summing to the capture union, `capture_count` rows, no grams keys, `labels.relativeImpact`, ranking by pixels and pixels per portion, `coverage.capturesWithNeighborFoodExcluded`. Waits for the v2 vision/backend code and Gemini billing |
+
+Notes:
+
+- The six old captures froze menu version 1. The 10-01/10-02 dinner items they reference are archived
+  in `menu_item_revision`; the 10-03 version-1 items had already been replaced by hand-typed test
+  items before this run (no archive existed then), so those itemIds no longer resolve to a name.
+- Today's dinner is `svc_hall-main_2026-10-04_dinner` (`localServiceDate` in America/Detroit).
+- **Not verified yet:** the real Uno Q with the v2 pipeline (`live_camera_test.py`), target-dish
+  counting on live photos, and the v2 dashboard payloads (waiting for Gemini billing, HTTP 402).
+
+## v1 BIG-PLAN end-to-end (camera path → R2 + SpacetimeDB → Gemini + SAM) — 2026-10-03
+
+> **Historical (v1).** This run used the retired `scrap-bigplan` database and the v1 plate calibration.
+> Its gram, CO2e, water and dollar figures are no longer reported (v2 has no calibration) and have
+> been removed below; the pixel counts stand.
 
 Run on one laptop (M1 Max): SpacetimeDB standalone 2.10.2 (database `scrap-bigplan`) on :3000, SAM 2.1
 worker (`sam2.1-hiera-small`, `sam2@2b90b9f`, MPS) on :8790, and the backend from `big-plan` at
@@ -26,35 +55,30 @@ format). **The Uno Q board was not used in this run.**
 
 | Check | Mode | Result |
 | --- | --- | --- |
-| `tests/e2e/bigplan-live.test.mjs` (`SCRAP_E2E=1`, 3 photos, `--no-dedupe`) | **live: R2 + SpacetimeDB + Gemini + SAM** | 7/8 on the first run. The SpacetimeDB SQL check failed because of a bug in the test helper (it read the response body twice). After the fix, a re-check of the same 3 events (`SCRAP_E2E_EVENT_IDS`, no new captures) passed 8/8 |
+| `tests/e2e/bigplan-live.test.mjs` (now `scrap-live.test.mjs`; `SCRAP_E2E=1`, 3 photos, `--no-dedupe`) | **live: R2 + SpacetimeDB + Gemini + SAM** | 7/8 on the first run. The SpacetimeDB SQL check failed because of a bug in the test helper (it read the response body twice). After the fix, a re-check of the same 3 events (`SCRAP_E2E_EVENT_IDS`, no new captures) passed 8/8 |
 | simulate-camera → bridge, one pass | live | 3 photos → 3 dishes → 3 capture events in 53 s (analysis runs during `POST /api/captures`); bridge rerun: nothing ingested |
-| Analysis | live | 3/3 `succeeded`, segmentation `complete`, calibration `plate-fit-v1` (0 defaults), source `replay`, 1024² `topdown-normalized-v1` |
+| Analysis | live | 3/3 `succeeded`, segmentation `complete`, source `replay`, 1024² `topdown-normalized-v1` |
 | `GET /api/captures/:id/images` | live R2 | original + overlay + every mask returned HTTP 200 with an image content type (8 masks in total); URLs were not printed or logged |
-| SpacetimeDB rows (SQL over HTTP, owner token) | live | per capture: 1 `capture_event`, `image_object` rows for photo/overlay/masks (provider `r2`, `finalized`, kinds `capture`/`overlay`/`mask`, keys not URLs, no long strings), 1 `analysis_attempt`, 1 `attempt_calibration` (calibration + overlay id matching the overlay row), and `food_measurement` rows |
-| `GET /api/dashboard/impact?start=2026-10-03&end=2026-10-03&hallId=hall-main` | live | see totals below; `targets` and `mostWasted` filled; `labels.estimate = true`, `demoPortions = true` |
+| SpacetimeDB rows (SQL over HTTP, owner token) | live | per capture: 1 `capture_event`, `image_object` rows for photo/overlay/masks (provider `r2`, `finalized`, kinds `capture`/`overlay`/`mask`, keys not URLs, no long strings), 1 `analysis_attempt`, 1 `attempt_calibration` (overlay id matching the overlay row), and `food_measurement` rows |
+| `GET /api/dashboard/impact?start=2026-10-03&end=2026-10-03&hallId=hall-main` | live | `targets` and `mostWasted` filled; `demoPortions = true` |
 | `GET /api/recommendation` (same window, before credits ran out) | **live Gemini** | `source: gemini`, 4 bullets each citing a dashboard metric; mentions that only 3 plates were analyzed; no cause claimed |
 | Secrets/URLs | live | backend and E2E logs contain no signed URL (`X-Amz-Signature`: 0 matches) |
 
-Per photo (estimates; Pixels wasted is the raw measurement):
+Per photo (Pixels wasted):
 
-| Photo | Event | Plate px (fit) | Foods → px (est. g) | Total |
-| --- | --- | --- | --- | --- |
-| IMG_2695 | `cap_01M42HG5…` | 1236 | Vegetable Stir Fry Blend 110,941 (41.4 g); Sticky Rice 69,487 (51.9 g) | 180,428 px, 93.3 g |
-| IMG_2697 | `cap_01M42HGV…` | 963 | Baked Sweet Potatoes 83,531 (128.4 g); Roasted Cauliflower 72,529 (55.8 g); Baked Boneless Ham 28,822 (19.9 g); food not on the menu 13,919 (no grams) | 198,801 px, 204.1 g |
-| IMG_2701 | `cap_01M42HHD…` | 844 | Michigan Farmers 4 Bean Stew 20,108 (30.2 g); Cheese Bread 13,707 (9.6 g) | 33,815 px, 39.8 g |
+| Photo | Event | Foods → px | Total |
+| --- | --- | --- | --- |
+| IMG_2695 | `cap_01M42HG5…` | Vegetable Stir Fry Blend 110,941; Sticky Rice 69,487 | 180,428 px |
+| IMG_2697 | `cap_01M42HGV…` | Baked Sweet Potatoes 83,531; Roasted Cauliflower 72,529; Baked Boneless Ham 28,822; food not on the menu 13,919 | 198,801 px |
+| IMG_2701 | `cap_01M42HHD…` | Michigan Farmers 4 Bean Stew 20,108; Cheese Bread 13,707 | 33,815 px |
 
 Compared with the hand labels in `ground_truth.csv`: IMG_2695 got 2 of 2 foods right and IMG_2697 got
 3 of 3. IMG_2701 found the bean stew but also reported Cheese Bread, which the hand labels don't list.
 This is 3 photos, not an accuracy measurement.
 
-Impact totals (hall-main, 2026-10-03; only these 3 captures in the window):
-
-- 3 captures, 3 analyzed, 0 excluded, 0 default calibrations
-- 413,044 px; about 337.2 g; 0.595 kg CO2e; 0.132 m³ water; $0.311 impact score (`waste-factors-v2`)
-- 0.40 nutrient-days lost, reported separately
-- Foods to target (g per demo portion): Baked Sweet Potatoes 1.43 (90 portions), Vegetable Stir Fry
-  Blend 0.52, Sticky Rice 0.51, Roasted Cauliflower 0.40, Bean Stew 0.19
-- Most wasted (total g): Baked Sweet Potatoes 128.4, Roasted Cauliflower 55.8, Sticky Rice 51.9
+Totals (hall-main, 2026-10-03; only these 3 captures in the window): 3 captures, 3 analyzed,
+0 excluded, 413,044 px. Most wasted by pixels: Baked Sweet Potatoes 83,531, Roasted Cauliflower 72,529,
+Sticky Rice 69,487.
 
 ### Fixture / unit results (same commit)
 
@@ -75,9 +99,8 @@ why: Google returns **HTTP 402 `RESOURCE_EXHAUSTED`, "Your prepayment credits ar
 - Until billing is topped up, **new captures will fail Gemini classification**, and recommendations stay
   rule-based.
 - Stored results, R2 images and the impact dashboard are unaffected.
-- Defect, owner Agent 4 (`vision/`): the gateway maps the 402 to `GEMINI_BAD_REQUEST` ("The analysis
-  request was rejected"). That hides a billing/quota problem. It should get its own code (quota/billing)
-  and a clear message.
+- Defect, owner Agent 4 (`vision/`): the gateway mapped the 402 to `GEMINI_BAD_REQUEST`. Fixed in
+  `e54c29e`: it is now `GEMINI_BILLING`.
 
 ### Notes and limits
 
@@ -87,8 +110,7 @@ why: Google returns **HTTP 402 `RESOURCE_EXHAUSTED`, "Your prepayment credits ar
 - Simulated dishes are labeled `source: replay`. The `capturedAt` of these events is the run time
   (2026-10-04 UTC), while the service is the 2026-10-03 dinner chosen with `--service`. The impact window
   filters by service date, so they count toward 2026-10-03.
-- Grams, CO2e, water and $ come from the plate calibration (26.7 cm plate) and the factor tables. They are
-  estimates, not weighed food. Portions are demo values.
+- Portions are demo values.
 - `scrap-bigplan` also has a test capture in `hall-tmuta9xkt` from the backend's live test; every query
   above used `hallId=hall-main`.
 

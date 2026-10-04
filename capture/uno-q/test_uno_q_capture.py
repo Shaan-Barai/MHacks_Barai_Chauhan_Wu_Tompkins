@@ -129,9 +129,18 @@ if os.environ.get("FAKE_V4L2_OLD_KERNEL") == "1" and any(c.startswith("focus_aut
 if os.environ.get("FAKE_V4L2_BROKEN") == "1":
     sys.stderr.write("VIDIOC_S_EXT_CTRLS: failed: Input/output error\\n")
     sys.exit(1)
+# Like the real C920 (live 2026-10-04): focus_absolute is inactive while autofocus is on, and a
+# combined set is atomic, so "-c focus_automatic_continuous=0 -c focus_absolute=0" fails as a whole.
+auto_file = state + ".auto"
+auto_on = not os.path.exists(auto_file) or open(auto_file).read() != "0"
+if auto_on and any(c.startswith("focus_absolute=") for c in controls):
+    sys.stderr.write("VIDIOC_S_EXT_CTRLS: failed: Permission denied\\n")
+    sys.exit(1)
 for control in controls:
     if control.startswith("focus_absolute="):
         open(state, "w").write(control.split("=", 1)[1])
+    if control.split("=")[0] in ("focus_automatic_continuous", "focus_auto"):
+        open(auto_file, "w").write(control.split("=", 1)[1])
 '''
 
 
@@ -541,8 +550,9 @@ class FocusLock(unittest.TestCase):
         metadata = self.assert_saved(directory)
         self.assertEqual(metadata["focus"], {"lock": "locked", "control": "focus_automatic_continuous", "absolute": 0})
         calls = self.v4l2_calls()
-        self.assertEqual(calls[0], ["-d", "/dev/video0", "-c", "focus_automatic_continuous=0", "-c", "focus_absolute=0"])
-        self.assertIn("-C", calls[1])
+        self.assertEqual(calls[0], ["-d", "/dev/video0", "-c", "focus_automatic_continuous=0"])
+        self.assertEqual(calls[1], ["-d", "/dev/video0", "-c", "focus_absolute=0"])
+        self.assertIn("-C", calls[2])
         self.assertIn("Focus: locked (focus_automatic_continuous=0, focus_absolute=0)", result.stdout)
 
     def test_older_kernel_falls_back_to_focus_auto(self):
@@ -550,7 +560,10 @@ class FocusLock(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         [directory] = self.capture_dirs()
         self.assertEqual(self.assert_saved(directory)["focus"]["control"], "focus_auto")
-        self.assertIn(["-d", "/dev/video0", "-c", "focus_auto=0", "-c", "focus_absolute=0"], self.v4l2_calls())
+        calls = self.v4l2_calls()
+        self.assertIn(["-d", "/dev/video0", "-c", "focus_auto=0"], calls)
+        self.assertEqual(calls[calls.index(["-d", "/dev/video0", "-c", "focus_auto=0"]) + 1],
+                         ["-d", "/dev/video0", "-c", "focus_absolute=0"])
 
     def test_focus_absolute_is_configurable(self):
         result = self.run_laptop("--once", "--focus-absolute", "40")
@@ -587,7 +600,7 @@ class FocusLock(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         for directory in self.capture_dirs():
             self.assertEqual(self.assert_saved(directory)["focus"]["absolute"], 15)
-        self.assertEqual(sum(1 for call in self.v4l2_calls() if "-c" in call), 1)
+        self.assertEqual(sum(1 for call in self.v4l2_calls() if "-c" in call), 2, "one lock per stream")
         self.assertIn("Focus: locked", result.stdout)
 
     def test_calibrate_saves_one_marked_frame(self):

@@ -224,7 +224,14 @@ def lock_focus(args):
                 "detail": "v4l2-ctl not installed"}
     errors = []
     for control in ("focus_automatic_continuous", "focus_auto"):
-        ok, detail = v4l2_set(device, [f"{control}=0", f"focus_absolute={requested}"])
+        # Two calls: while autofocus is on, focus_absolute is inactive and the C920 answers
+        # "Permission denied", which fails a combined (atomic) set.
+        ok, detail = v4l2_set(device, [f"{control}=0"])
+        if ok:
+            ok, detail = v4l2_set(device, [f"focus_absolute={requested}"])
+            if not ok:
+                time.sleep(0.2)
+                ok, detail = v4l2_set(device, [f"focus_absolute={requested}"])
         if ok:
             actual = v4l2_get(device, "focus_absolute")
             absolute = requested if actual is None else actual

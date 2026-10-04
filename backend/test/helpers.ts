@@ -8,6 +8,7 @@ import { buildBackend } from '../src/wiring.js';
 import { MockAnalyzer, type MockFixture } from '../src/analysis/mockAnalyzer.js';
 import type { BackendConfig } from '../src/config.js';
 import type { Analyzer } from '../src/analysis/analyzer.js';
+import type { GeminiGateway } from '@scrap/vision';
 import type { MenuBundle, ReferencePortion } from '../src/types.js';
 import type { Repository } from '../src/repo/repository.js';
 
@@ -69,7 +70,7 @@ export interface TestServer {
   submitCapture(eventId: string, imageObjectId: string): Promise<{ status: number; json: any }>;
 }
 
-export async function startTestServer(analyzer?: Analyzer): Promise<TestServer> {
+export async function startTestServer(analyzer?: Analyzer, opts: { gateway?: GeminiGateway; now?: () => number } = {}): Promise<TestServer> {
   const fixtures: Record<string, MockFixture> = {};
   const config: BackendConfig = {
     port: 0,
@@ -86,7 +87,7 @@ export async function startTestServer(analyzer?: Analyzer): Promise<TestServer> 
     attendance: { min: 300, max: 1200 },
     samWorkerUrl: 'http://127.0.0.1:1',
   };
-  const backend = buildBackend({ config, analyzer: analyzer ?? new MockAnalyzer(fixtures) });
+  const backend = buildBackend({ config, analyzer: analyzer ?? new MockAnalyzer(fixtures), ...opts });
   const server = backend.app.listen(0, '127.0.0.1');
   await new Promise<void>((resolve) => server.once('listening', () => resolve()));
   const baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;

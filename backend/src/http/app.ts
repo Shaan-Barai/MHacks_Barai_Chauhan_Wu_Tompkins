@@ -18,6 +18,7 @@ import type { SummaryService } from '../services/summaryService.js';
 import type { DashboardService } from '../services/dashboardService.js';
 import type { DishMatchService } from '../services/dishMatchService.js';
 import type { CaptureService } from '../services/captureService.js';
+import { parseWindow, CAPTURE_LIST_DEFAULT_LIMIT, CAPTURE_LIST_MAX_LIMIT, type ImpactService } from '../services/impactService.js';
 import type { MealLabel, MenuBundle } from '../types.js';
 import {
   validateAttendance,
@@ -37,10 +38,11 @@ export interface AppDeps {
   dashboard: DashboardService;
   dishMatch: DishMatchService;
   captures: CaptureService;
+  impact: ImpactService;
 }
 
 export function createApp(deps: AppDeps): express.Express {
-  const { config, repo, storage, images, ingestion, summary, dashboard, dishMatch, captures } = deps;
+  const { config, repo, storage, images, ingestion, summary, dashboard, dishMatch, captures, impact } = deps;
   const app = express();
   app.use(express.json({ limit: '1mb' }));
 
@@ -357,6 +359,22 @@ export function createApp(deps: AppDeps): express.Express {
     }),
   );
 
+  // Recent plates for the dashboard gallery (contracts CaptureListItem), newest first.
+  app.get(
+    '/api/captures',
+    wrap(async (req, res) => {
+      const window = parseWindow(req.query);
+      let limit = CAPTURE_LIST_DEFAULT_LIMIT;
+      if (req.query.limit !== undefined) {
+        limit = Number(req.query.limit);
+        if (!Number.isInteger(limit) || limit < 1 || limit > CAPTURE_LIST_MAX_LIMIT) {
+          throw badRequest('INVALID_PARAMETER', `'limit' must be a whole number from 1 to ${CAPTURE_LIST_MAX_LIMIT}.`);
+        }
+      }
+      res.json(await impact.captures(window, limit));
+    }),
+  );
+
   // Plate gallery images (BIG-PLAN D7): short-lived read URLs, never logged.
   app.get(
     '/api/captures/:eventId/images',
@@ -478,6 +496,21 @@ export function createApp(deps: AppDeps): express.Express {
       const hallId = requireQuery(req, 'hallId');
       const date = requireQuery(req, 'date');
       res.json(await dashboard.plates(hallId, date, requireQuery(req, 'meal') as MealLabel));
+    }),
+  );
+
+  // ---- waste impact + AI recommendation (BIG-PLAN D2–D8; formulas in analytics/) ----
+  app.get(
+    '/api/dashboard/impact',
+    wrap(async (req, res) => {
+      res.json(await impact.dashboard(parseWindow(req.query)));
+    }),
+  );
+
+  app.get(
+    '/api/recommendation',
+    wrap(async (req, res) => {
+      res.json(await impact.recommendation(parseWindow(req.query)));
     }),
   );
 

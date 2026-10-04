@@ -5,14 +5,13 @@
  * read access, appear only in responses, and are never logged or stored.
  */
 
+import { UNKNOWN_FOOD_LABEL } from '@scrap/analytics';
 import { HttpError, notFound } from '../errors.js';
 import type { Repository } from '../repo/repository.js';
 import type { ImageService } from './imageService.js';
 import type { IngestionService } from './ingestionService.js';
 import type { AnalysisAttempt, CaptureImages, FoodMeasurement, SignedImage } from '../types.js';
 
-/** Label for the unclassified bucket (food not on the menu). */
-export const UNKNOWN_FOOD_NAME = 'Food not on the menu';
 
 export class CaptureService {
   constructor(
@@ -37,7 +36,7 @@ export class CaptureService {
     const measurements: FoodMeasurement[] = attempt ? await this.repo.listMeasurementsByAttempt(attempt.attemptId) : [];
     const menu = await this.repo.getMenuByService(event.serviceId);
     const names = new Map((menu?.items ?? []).map((i) => [i.itemId, i.displayName]));
-    const nameOf = (itemId: string | null) => (itemId === null ? UNKNOWN_FOOD_NAME : names.get(itemId) ?? itemId);
+    const nameOf = (itemId: string | null) => (itemId === null ? UNKNOWN_FOOD_LABEL : names.get(itemId) ?? itemId);
 
     // Per-food masks: the exclusive per-item masks behind each count; for
     // attempts without them, the per-region masks.

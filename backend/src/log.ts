@@ -16,6 +16,9 @@ export function scrub(text: string): string {
 }
 
 function emit(level: Level, msg: string, fields: Record<string, unknown> = {}): void {
+  // SCRAP_LOG_LEVEL=warn (tests) drops info lines; =error keeps errors only; =silent drops everything.
+  const min = process.env.SCRAP_LOG_LEVEL;
+  if (min === 'silent' || (min === 'warn' && level === 'info') || (min === 'error' && level !== 'error')) return;
   const clean: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(fields)) clean[k] = typeof v === 'string' ? scrub(v) : v;
   const line = JSON.stringify({ ts: new Date().toISOString(), level, msg: scrub(msg), ...clean });

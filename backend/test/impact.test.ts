@@ -50,7 +50,8 @@ const GEOMETRY = { widthPx: 1024, heightPx: 1024, coordinateSpace: 'topdown-norm
 const NEIGHBOR = NEIGHBOR_FOOD_EXCLUDED_FLAG as QualityFlag;
 const close = (actual: number | null | undefined, expected: number, msg?: string) =>
   assert.ok(actual !== null && actual !== undefined && Math.abs(actual - expected) < 1e-6, `${msg ?? ''} expected ${expected}, got ${actual}`);
-const GRAM_KEYS = /"(grams|cm2|kgCo2e|waterM3|impactUsd|nutrientDaysLost|calibration|capturesWithDefaultCalibration|estimate)"/;
+// Legacy v1 keys never return; IT_4 grams/kgCo2e/waterLitres are null (never 0) without a calibration.
+const GRAM_KEYS = /"(cm2|waterM3|impactUsd|nutrientDaysLost|calibration|capturesWithDefaultCalibration|estimate)"/;
 
 async function capture(s: TestServer, eventId: string, capturedAt: string) {
   const imageObjectId = await s.uploadImage(eventId);
@@ -110,7 +111,12 @@ test('GET /api/dashboard/impact: pixel totals, relative points, px-per-portion t
   const res = await s.api('GET', `/api/dashboard/impact?start=${DATE}&end=${DATE}&hallId=${HALL}`);
   assert.equal(res.status, 200, JSON.stringify(res.json));
   const d = res.json;
-  assert.doesNotMatch(JSON.stringify(d), GRAM_KEYS, 'no grams or calibration in the v2 payload');
+  assert.doesNotMatch(JSON.stringify(d), GRAM_KEYS, 'no legacy calibration keys');
+  assert.equal(d.totals.grams, null, 'uncalibrated: grams null, never 0');
+  assert.equal(d.totals.kgCo2e, null);
+  assert.equal(d.totals.waterLitres, null);
+  assert.equal(d.totals.physicalUnavailableReason, 'no_calibration');
+  assert.deepEqual(d.totals.physicalCoverage, { calibratedCaptures: 0, volumeCaptures: 0, analyzedCaptures: 2 });
   assert.deepEqual(d.window, { start: DATE, end: DATE, hallId: HALL });
   assert.equal(d.totals.pixels, 20000);
   close(d.totals.impactPoints, 45.63 + 18.252 + 2.32, 'total impact points'); // 66.202
@@ -169,21 +175,29 @@ test('GET /api/captures: newest first, item pixels, failed captures null (never 
   assert.equal(res.status, 200, JSON.stringify(res.json));
   const list = res.json;
   assert.doesNotMatch(JSON.stringify(list), GRAM_KEYS);
+  for (const c of list) {
+    assert.equal(c.calibrationId, null);
+    assert.equal(c.physicalMethod, null);
+    for (const item of c.items) {
+      assert.equal(item.grams, null);
+      assert.equal(item.areaCm2, null);
+    }
+  }
   assert.deepEqual(list.map((c: any) => c.eventId), ['cap_c', 'cap_b', 'cap_a']);
   const [c, b, a] = list;
-  assert.deepEqual(c, { eventId: 'cap_c', capturedAt: `${DATE}T23:00:00.000Z`, serviceId: SERVICE, source: 'replay', state: 'failed', pixelsWasted: null, items: [], hasOverlay: false });
+  assert.deepEqual(c, { eventId: 'cap_c', capturedAt: `${DATE}T23:00:00.000Z`, serviceId: SERVICE, source: 'replay', state: 'failed', pixelsWasted: null, items: [], hasOverlay: false, calibrationId: null, physicalMethod: null });
   assert.equal(a.state, 'succeeded');
   assert.equal(a.pixelsWasted, 15000);
   assert.equal(a.hasOverlay, false);
   assert.deepEqual(
     [...a.items].sort((x: any, y: any) => y.pixels - x.pixels),
     [
-      { itemId: HAM, displayName: 'Baked Boneless Ham', pixels: 10000 },
-      { itemId: POTATOES, displayName: 'Oven Roasted Garlic Potatoes', pixels: 5000 },
+      { itemId: HAM, displayName: 'Baked Boneless Ham', pixels: 10000, grams: null, kgCo2e: null, waterLitres: null, volumeCm3: null, areaCm2: null },
+      { itemId: POTATOES, displayName: 'Oven Roasted Garlic Potatoes', pixels: 5000, grams: null, kgCo2e: null, waterLitres: null, volumeCm3: null, areaCm2: null },
     ],
   );
   assert.equal(b.pixelsWasted, 5000);
-  assert.deepEqual(b.items.find((i: any) => i.itemId === null), { itemId: null, displayName: 'Food not on the menu', pixels: 1000 });
+  assert.deepEqual(b.items.find((i: any) => i.itemId === null), { itemId: null, displayName: 'Food not on the menu', pixels: 1000, grams: null, kgCo2e: null, waterLitres: null, volumeCm3: null, areaCm2: null });
 
   const capped = await s.api('GET', `/api/captures?start=${DATE}&end=${DATE}&limit=1`);
   assert.deepEqual(capped.json.map((x: any) => x.eventId), ['cap_c']);

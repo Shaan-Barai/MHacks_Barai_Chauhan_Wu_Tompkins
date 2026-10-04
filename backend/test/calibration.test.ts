@@ -197,6 +197,20 @@ test('ingestion snapshots the active calibration; activating another one never r
   // A second calibration becomes active; the earlier capture keeps cal_1.
   await s.api('POST', '/api/calibrations', body(await uploadCalibrationPhoto(s, 'cal_2')));
   await s.api('PUT', '/api/settings/measurement', { hallId: HALL, activeCalibrationId: 'cal_2' });
+  // Payloads: coverage counts the calibrated plate; the gallery shows its area.
+  const dash = await s.api('GET', `/api/dashboard/impact?start=2026-10-03&end=2026-10-03&hallId=${HALL}`);
+  assert.equal(dash.status, 200);
+  assert.deepEqual(dash.json.totals.physicalCoverage, { calibratedCaptures: 1, volumeCaptures: 0, analyzedCaptures: 2 });
+  const gallery = await s.api('GET', `/api/captures?start=2026-10-03&end=2026-10-03&hallId=${HALL}`);
+  const row = gallery.json.find((c: any) => c.eventId === 'cap_cal');
+  assert.equal(row.calibrationId, 'cal_1');
+  assert.equal(row.physicalMethod, 'area-calibrated-v1');
+  assert.ok(Math.abs(row.items[0].areaCm2 - 12000 * k1) < 1e-3);
+  assert.equal(row.items[0].volumeCm3, null);
+  const plainRow = gallery.json.find((c: any) => c.eventId === 'cap_plain');
+  assert.equal(plainRow.items[0].areaCm2, null);
+  assert.equal(plainRow.items[0].grams, null);
+
   const stored = await s.api('GET', '/api/captures/cap_cal');
   assert.equal(stored.json.measurements[0].physical.calibrationId, 'cal_1');
   assert.equal(stored.json.attempts.at(-1).calibrationId, 'cal_1');
@@ -257,4 +271,18 @@ test('volume results store the depth map in object storage', async (t) => {
   assert.ok(depthId);
   assert.deepEqual((await s.repo.getImageObject(depthId))?.association, { kind: 'depth', id: 'cap_vol' });
   assert.equal(GEOMETRY.widthPx, 1024);
+});
+
+test('overlay legend suffix: grams · kg CO2e · L water from analytics, nothing without an estimate', async () => {
+  const { physicalLabelSuffix } = await import('../src/wiring.js');
+  const menu = {
+    service: { serviceId: 's', hallId: HALL, hallTimezone: 'America/Detroit', serviceDate: '2026-10-04', mealLabel: 'dinner' as const, menuId: 'm', menuVersion: 1 },
+    items: [{ itemId: 'ham', menuId: 'm', displayName: 'Baked Boneless Ham' }],
+  };
+  const suffix = physicalLabelSuffix(menu)!;
+  const physical = { calibrationId: 'c', method: 'area-calibrated-v1' as const, areaCm2: 20, volumeCm3: null, meanHeightMm: null, maxHeightMm: null, flags: [] };
+  const bucket = (over: object) => ({ itemId: 'ham', label: 'Baked Boneless Ham', pixels: 1, bitmap: new Uint8Array(1), color: [0, 0, 0], physical, ...over }) as any;
+  assert.match(String(suffix(bucket({}))), /^[\d,]+ g · .*CO2e · .*L water \(est\.\)$/);
+  assert.equal(suffix(bucket({ physical: null })), null, 'no estimate: nothing, never "0 g"');
+  assert.equal(suffix(bucket({ itemId: null })), null, 'unknown food has no grams');
 });

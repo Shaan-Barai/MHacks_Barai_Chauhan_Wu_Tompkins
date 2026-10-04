@@ -10,7 +10,7 @@
   "scripts": {
     "build": "npm run build:deps && tsc -p tsconfig.json",
     "start": "npm run build && node dist/backend/src/server.js",
-    "test": "npm run build && node --test dist/backend/test/*.test.js",
+    "test": "npm run build && SCRAP_LOG_LEVEL=warn node --test dist/backend/test/*.test.js",
     "build:deps": "node scripts/build-deps.mjs",
     "seed": "node scripts/seed.mjs"
   },

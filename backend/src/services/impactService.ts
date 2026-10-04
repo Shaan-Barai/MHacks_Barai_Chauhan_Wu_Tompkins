@@ -13,6 +13,8 @@
 
 import {
   buildImpactDashboard,
+  captureItemPhysical,
+  type CapturePhysicalContext,
   generateRecommendation,
   recommendationFacts,
   recommendationInputVersion,
@@ -28,6 +30,7 @@ import type { IngestionService } from './ingestionService.js';
 import { ItemNameResolver } from './itemNames.js';
 import type {
   AnalysisAttempt,
+  CameraCalibration,
   CaptureEvent,
   CaptureListItem,
   FoodMeasurement,
@@ -62,6 +65,8 @@ export interface ServiceRecords {
   items: MenuItem[];
   /** Portions served for every menu version a counted attempt froze (and the current one). */
   portions: PortionsServed[];
+  /** IT_4 I9: eventId -> the counted attempt's physical snapshot. */
+  physical: Map<string, CapturePhysicalContext>;
 }
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -106,6 +111,7 @@ export class ImpactService {
     );
     services.sort((a, b) => a.serviceDate.localeCompare(b.serviceDate) || a.serviceId.localeCompare(b.serviceId));
     const out: ServiceRecords[] = [];
+    const calibrations = new Map<string, CameraCalibration | null>();
     for (const service of services) {
       const menu = await this.repo.getMenuByService(service.serviceId);
       if (!menu) continue;
@@ -129,9 +135,33 @@ export class ImpactService {
       const portions: PortionsServed[] = [];
       for (const v of versions) portions.push(...(await this.repo.listPortionsServed(service.serviceId, v)));
       const items = [...(await this.names.items(menu, measurements.map((m) => m.itemId))).values()];
-      out.push({ menu, captures, countedAttempts, latestAttempts, measurements, items, portions });
+      const physical = new Map<string, CapturePhysicalContext>();
+      for (const [eventId, attempt] of countedAttempts) {
+        const event = captures.find((c) => c.eventId === eventId)!;
+        physical.set(eventId, await this.physicalContext(attempt, event, calibrations));
+      }
+      out.push({ menu, captures, countedAttempts, latestAttempts, measurements, items, portions, physical });
     }
     return out;
+  }
+
+  /**
+   * IT_4 I9: what the counted attempt snapshotted. A method ⇒ calibrated. A
+   * calibration that was active but not applied ⇒ incompatible_geometry when
+   * its resolution differs from the capture, else no_calibration. No snapshot
+   * (no active calibration, or a pre-IT_4 attempt) ⇒ no_calibration.
+   */
+  private async physicalContext(
+    attempt: AnalysisAttempt,
+    event: CaptureEvent,
+    cache: Map<string, CameraCalibration | null>,
+  ): Promise<CapturePhysicalContext> {
+    if (attempt.physicalMethod) return { physicalMethod: attempt.physicalMethod };
+    if (!attempt.calibrationId) return { physicalMethod: null, unavailableReason: 'no_calibration' };
+    if (!cache.has(attempt.calibrationId)) cache.set(attempt.calibrationId, (await this.repo.getCameraCalibration(attempt.calibrationId)) ?? null);
+    const cal = cache.get(attempt.calibrationId);
+    const mismatch = cal && (cal.widthPx !== event.geometry.widthPx || cal.heightPx !== event.geometry.heightPx);
+    return { physicalMethod: null, unavailableReason: mismatch ? 'incompatible_geometry' : 'no_calibration' };
   }
 
   async dashboard(window: ImpactWindow): Promise<ImpactDashboard> {
@@ -147,6 +177,7 @@ export class ImpactService {
       measurements: records.flatMap((r) => r.measurements),
       menuItems: records.flatMap((r) => r.items),
       attemptMenuVersions: new Map(records.flatMap((r) => [...r.countedAttempts].map(([eventId, a]) => [eventId, a.menuVersion] as const))),
+      capturePhysical: new Map(records.flatMap((r) => [...r.physical])),
     });
     // Counted attempts' quality flags: vision's target-dish counting marks an
     // attempt that dropped food from a neighboring dish (analytics
@@ -164,6 +195,7 @@ export class ImpactService {
       portions: records.flatMap((r) => r.portions),
       factors: { findWasteFactor, findNutritionFactor },
       wasteFactorsVersion: WASTE_FACTORS_VERSION,
+      physicalCoverage: selected.physicalCoverage,
     });
   }
 
@@ -179,6 +211,7 @@ export class ImpactService {
         const seg = attempt?.segmentation;
         const counted = seg?.countStatus === 'complete' || seg?.countStatus === 'empty';
         const latest = r.latestAttempts.get(event.eventId);
+        const ctx = r.physical.get(event.eventId);
         items.push({
           eventId: event.eventId,
           capturedAt: event.capturedAt,
@@ -188,12 +221,29 @@ export class ImpactService {
           // null (never 0) unless the counted attempt has a complete or empty count;
           // a counted clean plate is a measured 0.
           pixelsWasted: counted ? seg!.capturePixelsWasted ?? null : null,
-          items: rows.map((m) => ({
-            itemId: m.itemId,
-            displayName: m.itemId === null ? UNKNOWN_FOOD_LABEL : names.get(m.itemId) ?? readableItemName(m.itemId),
-            pixels: m.remainingAreaPx,
-          })),
+          items: rows.map((m) => {
+            const displayName = m.itemId === null ? UNKNOWN_FOOD_LABEL : names.get(m.itemId) ?? readableItemName(m.itemId);
+            // IT_4 I8: estimated grams / CO2e / water next to the label (formulas in analytics).
+            const est = captureItemPhysical({
+              physical: m.physical,
+              factor: m.itemId === null ? null : findWasteFactor(displayName),
+              unknownItem: m.itemId === null,
+              captureReason: ctx?.physicalMethod === null ? ctx.unavailableReason : undefined,
+            });
+            return {
+              itemId: m.itemId,
+              displayName,
+              pixels: m.remainingAreaPx,
+              grams: est.grams,
+              kgCo2e: est.kgCo2e,
+              waterLitres: est.waterLitres,
+              volumeCm3: est.volumeCm3,
+              areaCm2: est.areaCm2,
+            };
+          }),
           hasOverlay: Boolean((attempt ?? latest)?.overlayObjectId),
+          calibrationId: attempt?.calibrationId ?? null,
+          physicalMethod: attempt?.physicalMethod ?? null,
         });
       }
     }

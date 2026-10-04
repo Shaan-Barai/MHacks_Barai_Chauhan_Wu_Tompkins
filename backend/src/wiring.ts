@@ -13,6 +13,9 @@ import {
   type Segmenter,
 } from '@scrap/vision';
 import { VisionCalibrationRunner } from './analysis/visionCalibrationRunner.js';
+import { computePhysicalAmounts, formatPhysicalLabel } from '@scrap/analytics';
+import { findWasteFactor } from 'scrap-data';
+import type { LabelSuffixFactory } from './services/ingestionService.js';
 import { JsonFileRepository } from './repo/jsonFileRepository.js';
 import { SpacetimeRepository } from './repo/spacetimeRepository.js';
 import { LocalDevStorage } from './storage/localDevStorage.js';
@@ -66,6 +69,21 @@ function createStorage(config: BackendConfig, now: () => number): ObjectStorageA
   return new LocalDevStorage({ ...os, now });
 }
 
+/**
+ * IT_4 I8: overlay legend text after each food, e.g. "38 g · 1.1 kg CO2e ·
+ * 18 L water (est.)", from analytics' formulas and the factor table. Nothing
+ * (never "0 g") when the food has no calibrated estimate or no factor.
+ */
+export const physicalLabelSuffix: LabelSuffixFactory = (menu) => {
+  const names = new Map(menu.items.map((i) => [i.itemId, i.displayName]));
+  return (bucket) => {
+    if (bucket.itemId === null || !bucket.physical) return null;
+    const name = names.get(bucket.itemId);
+    if (!name) return null;
+    return formatPhysicalLabel(computePhysicalAmounts({ physical: bucket.physical, factor: findWasteFactor(name) }));
+  };
+};
+
 /** Origins the browser reaches directly for presigned R2 reads/uploads (CSP). */
 function storageOrigins(config: BackendConfig): string[] {
   const r2 = config.objectStorage.provider === 'r2' ? config.objectStorage.r2 : undefined;
@@ -101,7 +119,7 @@ export function buildBackend(options: BuildOptions = {}): AppDeps & { app: Retur
   const depth =
     options.depth ?? createDepthWorkerClient({ url: config.depthWorkerUrl, ...(config.workerToken ? { token: config.workerToken } : {}) });
   const analyzer = options.analyzer ?? (gateway.mode === 'live' ? new MaskAnalyzer(gateway, segmenter) : new MockAnalyzer());
-  const ingestion = new IngestionService(repo, images, analyzer, now, depth);
+  const ingestion = new IngestionService(repo, images, analyzer, now, depth, physicalLabelSuffix);
   const summary = new SummaryService(repo, ingestion);
   const dashboard = new DashboardService(repo, ingestion, config, gateway.mode === 'live' ? gateway : undefined);
   // Same-dish checks for the camera bridge never run on mock text (BRIDGE.md §4.4).

@@ -30,6 +30,8 @@ import type {
   PortionsServed,
   Attendance,
   Insight,
+  CameraCalibration,
+  MeasurementSettings,
 } from '../types.js';
 
 export interface Repository {
@@ -85,4 +87,12 @@ export interface Repository {
   // --- insights (written by Agent 6's suggestion service) ---
   upsertInsight(insight: Insight): Promise<void>;
   listInsights(hallId?: string): Promise<Insight[]>;
+
+  // --- IT_4: camera calibrations (immutable once succeeded/failed) + per-hall settings ---
+  upsertCameraCalibration(calibration: CameraCalibration): Promise<void>;
+  getCameraCalibration(calibrationId: string): Promise<CameraCalibration | undefined>;
+  listCameraCalibrations(hallId?: string): Promise<CameraCalibration[]>;
+  /** Rejects an active calibration that is not a succeeded calibration of the hall. */
+  upsertMeasurementSettings(settings: MeasurementSettings): Promise<void>;
+  getMeasurementSettings(hallId: string): Promise<MeasurementSettings | undefined>;
 }

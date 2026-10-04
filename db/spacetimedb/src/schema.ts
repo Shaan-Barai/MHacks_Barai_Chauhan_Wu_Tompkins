@@ -151,7 +151,9 @@ const imageObject = table(
     widthPx: t.option(t.u32()),
     heightPx: t.option(t.u32()),
     uploadedAt: t.option(t.string()), // UTC ISO 8601
-    associationKind: t.string(), // 'capture' | 'reference' | 'mask' | 'overlay' (overlay: id = capture eventId)
+    // 'capture' | 'reference' | 'mask' | 'overlay' (id = capture eventId) |
+    // IT_4: 'calibration' / 'calibration_overlay' (id = calibrationId) | 'depth' (id = eventId or calibrationId)
+    associationKind: t.string(),
     associationId: t.string().index('btree'),
     // 'pending_upload' | 'uploaded' | 'finalized' | 'failed' | 'orphaned'
     state: t.string().index('btree'),
@@ -194,8 +196,32 @@ const analysisAttempt = table(
     error: t.option(StoredApiError),
     qualityFlags: t.array(t.string()),
     createdAt: t.string(), // UTC ISO 8601
+    // IT_4 I9 (2026-10-04, additive): appended columns with defaults publish
+    // in place; legacy rows read as none. The hall's measurement settings are
+    // snapshotted here so activating another calibration never rewrites history.
+    calibrationId: t.option(t.string()).default(undefined), // camera_calibration used, if any
+    physicalMethod: t.option(t.string()).default(undefined), // 'area-calibrated-v1' | 'volume-dav2-v1'
+    depthObjectId: t.option(t.string()).default(undefined), // image_object kind 'depth' (16-bit PNG, 0.1 mm)
   },
 );
+
+/**
+ * contracts PhysicalEstimate (IT_4 I5/I6), stored on food_measurement.physical.
+ * method: 'area-calibrated-v1' | 'volume-dav2-v1'; volume/heights are none for
+ * the area method. plateReference: 'dish-ring-fit' | 'calibration-plane'.
+ * flags: contracts VolumeFlag[].
+ */
+const PhysicalEstimate = t.object('PhysicalEstimate', {
+  calibrationId: t.string(),
+  method: t.string(),
+  areaCm2: t.f64(),
+  volumeCm3: t.option(t.f64()),
+  meanHeightMm: t.option(t.f64()),
+  maxHeightMm: t.option(t.f64()),
+  depthSettingsVersion: t.option(t.string()),
+  plateReference: t.option(t.string()),
+  flags: t.array(t.string()),
+});
 
 /**
  * contracts FoodMeasurement — raw values preserved (§7.2). itemId is the
@@ -219,6 +245,9 @@ const foodMeasurement = table(
     method: t.string(), // 'gemini_area_estimate' — always an AI estimate in prototype
     maskCountJson: t.option(t.string()), // small validated count/provenance; no mask bytes
     qualityFlags: t.array(t.string()),
+    // IT_4 (additive, default none): ESTIMATED calibrated area / DAv2 volume.
+    // remainingAreaPx stays the raw measurement; none = no compatible calibration.
+    physical: t.option(PhysicalEstimate).default(undefined),
   },
 );
 
@@ -363,6 +392,78 @@ const attemptCalibration = table(
   },
 );
 
+/** contracts CameraIntrinsics (IT_4 I3). source: 'nominal-fov' | 'checkerboard' | 'configured'. */
+const CameraIntrinsics = t.object('CameraIntrinsics', {
+  cameraModel: t.string(), // 'logitech-c920s' | 'other'
+  widthPx: t.u32(),
+  heightPx: t.u32(),
+  fxPx: t.f64(),
+  fyPx: t.f64(),
+  cxPx: t.f64(),
+  cyPx: t.f64(),
+  source: t.string(),
+});
+
+/** Z(x, y) = a·x + b·y + c in cm, pixel coordinates. */
+const DepthPlane = t.object('DepthPlane', { a: t.f64(), b: t.f64(), c: t.f64() });
+
+/** contracts CalibrationDepth (IT_4 I3/I4). The depth PNG is in object storage. */
+const CalibrationDepth = t.object('CalibrationDepth', {
+  checkpoint: t.string(),
+  settingsVersion: t.string(),
+  rawReferenceMedianM: t.f64(),
+  scale: t.f64(),
+  cameraHeightCmDepth: t.f64(),
+  tablePlane: DepthPlane,
+  depthObjectId: t.string(),
+});
+
+/**
+ * contracts CameraCalibration (IT_4 I2, `reference-area-v1`): a reference
+ * object of user-entered area at the base plane → cm² per pixel for ONE camera
+ * and ONE resolution. Photos, the reference outline/mask and the depth map are
+ * image_object rows (kinds 'calibration', 'calibration_overlay', 'depth');
+ * only their ids are here. Rows are never rewritten after they succeed, so
+ * attempts that snapshotted a calibrationId stay reproducible.
+ */
+const cameraCalibration = table(
+  { name: 'camera_calibration', public: true },
+  {
+    calibrationId: t.string().primaryKey(),
+    hallId: t.string().index('btree'),
+    cameraId: t.string(),
+    createdAt: t.string(), // UTC ISO 8601
+    status: t.string(), // 'processing' | 'succeeded' | 'failed'
+    method: t.string(), // 'reference-area-v1'
+    imageObjectId: t.string(),
+    overlayObjectId: t.option(t.string()),
+    referenceMaskObjectId: t.option(t.string()),
+    widthPx: t.u32(),
+    heightPx: t.u32(),
+    knownAreaCm2: t.f64(), // user input, > 0
+    referenceLabel: t.string(),
+    referencePixels: t.u32(), // N_ref (0 only on a failed calibration)
+    cm2PerPx: t.f64(), // k (0 only on a failed calibration)
+    intrinsics: CameraIntrinsics,
+    cameraHeightCmGeometric: t.f64(),
+    depth: t.option(CalibrationDepth),
+    flags: t.array(t.string()), // contracts CameraCalibrationFlag[]
+    error: t.option(StoredApiError),
+  },
+);
+
+/** contracts MeasurementSettings (IT_4 I9): one row per hall. */
+const measurementSettings = table(
+  { name: 'measurement_settings', public: true },
+  {
+    hallId: t.string().primaryKey(),
+    depthEnabled: t.bool(),
+    activeCalibrationId: t.option(t.string()), // a succeeded camera_calibration of this hall
+    plateThicknessCm: t.f64(),
+    updatedAt: t.string(), // UTC ISO 8601
+  },
+);
+
 // ---------------------------------------------------------------------------
 // Schema assembly
 // ---------------------------------------------------------------------------
@@ -382,6 +483,8 @@ const spacetimedb = schema({
   captureCount,
   segmentationRegion,
   attemptCalibration,
+  cameraCalibration,
+  measurementSettings,
 });
 
 export default spacetimedb;

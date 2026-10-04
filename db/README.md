@@ -102,6 +102,34 @@ first and delete only that one.
 | `segmentation_region` | ClassificationRegion | `regionId` | `attemptId`, `eventId` | **no — server-only** |
 | `attempt_calibration` | AnalysisAttempt.overlayObjectId (+ legacy calibration) | `attemptId` | `eventId` | **no — server-only** |
 | `menu_item_revision` | MenuItem of a superseded menu version | `revisionItemId` (`<itemId>@v<version>`) | `itemId`, `menuId` | yes |
+| `camera_calibration` | CameraCalibration (IT_4) | `calibrationId` | `hallId` | yes |
+| `measurement_settings` | MeasurementSettings (IT_4, one per hall) | `hallId` | – | yes |
+
+**IT_4 (2026-10-04, additive, published in place to local `scrap`).** SpacetimeDB
+2.10 migrates **appended columns that declare a default** without a wipe
+(verified on a throwaway copy, then on `scrap`: existing rows read the default).
+So the physical fields are columns, not side tables:
+
+- `food_measurement.physical: Option<PhysicalEstimate>` (default none): calibrationId,
+  method, areaCm2, volumeCm3?, meanHeightMm?, maxHeightMm?, depthSettingsVersion?,
+  plateReference?, flags. Absent = no compatible calibration (never a zero).
+- `analysis_attempt.calibrationId / physicalMethod / depthObjectId` (Options, default
+  none): the hall's settings snapshotted per attempt (I9), so activating another
+  calibration never rewrites history.
+- `camera_calibration` (immutable once `succeeded`/`failed`) and `measurement_settings`.
+- `image_object.associationKind` gains `calibration`, `calibration_overlay` (id =
+  calibrationId) and `depth` (id = capture eventId or calibrationId); it is a string
+  column, so no schema change.
+
+Reducers: `upsert_camera_calibration` (k = knownAreaCm2 / N_ref re-checked; image ids
+must be this calibration's registered objects), `upsert_measurement_settings` (the
+active calibration must be a succeeded calibration of the same hall), and
+`record_analysis` now validates `physical` (known method/flags, the area method has no
+volume, a volume method has one) and that the attempt's calibration is succeeded,
+every measurement's `physical.calibrationId` equals it, and `depthObjectId` is this
+capture's `depth` object. The publish disconnects WebSocket clients (column
+additions count as breaking for clients); the backend uses HTTP and the dashboard
+does not subscribe, so nothing is affected.
 
 `attempt_calibration` (2026-10-03, additive) holds one row per attempt with a
 segmented overlay: `overlayObjectId` (an `image_object` with association kind

@@ -21,10 +21,12 @@ import type {
   PortionsServed,
   Attendance,
   Insight,
+  CameraCalibration,
+  MeasurementSettings,
 } from '../types.js';
 import type { Repository } from './repository.js';
 import { menuVersionConflict } from '../errors.js';
-import { conflict } from '../errors.js';
+import { badRequest, conflict } from '../errors.js';
 
 interface Snapshot {
   menus: MenuBundle[];
@@ -38,6 +40,8 @@ interface Snapshot {
   attendance: Attendance[];
   insights: Insight[];
   portionsServed: PortionsServed[];
+  cameraCalibrations?: CameraCalibration[];
+  measurementSettings?: MeasurementSettings[];
 }
 
 export class JsonFileRepository implements Repository {
@@ -52,6 +56,8 @@ export class JsonFileRepository implements Repository {
   private attendance = new Map<string, Attendance>(); // key: serviceId
   private insights = new Map<string, Insight>();
   private portionsServed = new Map<string, PortionsServed>();
+  private cameraCalibrations = new Map<string, CameraCalibration>();
+  private measurementSettings = new Map<string, MeasurementSettings>(); // key: hallId
 
   constructor(private readonly dataFile?: string) {
     if (dataFile && existsSync(dataFile)) this.load(dataFile);
@@ -237,6 +243,41 @@ export class JsonFileRepository implements Repository {
       .map((i) => structuredClone(i));
   }
 
+  // --- IT_4: calibrations + settings (same guards as the reducers) ---
+  async upsertCameraCalibration(calibration: CameraCalibration): Promise<void> {
+    const existing = this.cameraCalibrations.get(calibration.calibrationId);
+    if (existing && existing.status !== 'processing') {
+      throw conflict('CALIBRATION_IMMUTABLE', 'This calibration is finished and cannot change.', { calibrationId: calibration.calibrationId });
+    }
+    this.cameraCalibrations.set(calibration.calibrationId, structuredClone(calibration));
+    this.persist();
+  }
+  async getCameraCalibration(calibrationId: string): Promise<CameraCalibration | undefined> {
+    const c = this.cameraCalibrations.get(calibrationId);
+    return c ? structuredClone(c) : undefined;
+  }
+  async listCameraCalibrations(hallId?: string): Promise<CameraCalibration[]> {
+    return [...this.cameraCalibrations.values()]
+      .filter((c) => hallId === undefined || c.hallId === hallId)
+      .map((c) => structuredClone(c));
+  }
+  async upsertMeasurementSettings(settings: MeasurementSettings): Promise<void> {
+    if (settings.activeCalibrationId !== null) {
+      const cal = this.cameraCalibrations.get(settings.activeCalibrationId);
+      if (!cal || cal.hallId !== settings.hallId || cal.status !== 'succeeded') {
+        throw badRequest('INVALID_CALIBRATION', 'Only a successful calibration of this hall can be activated.', {
+          calibrationId: settings.activeCalibrationId,
+        });
+      }
+    }
+    this.measurementSettings.set(settings.hallId, structuredClone(settings));
+    this.persist();
+  }
+  async getMeasurementSettings(hallId: string): Promise<MeasurementSettings | undefined> {
+    const m = this.measurementSettings.get(hallId);
+    return m ? structuredClone(m) : undefined;
+  }
+
   // --- snapshot persistence ---
   private persist(): void {
     if (!this.dataFile) return;
@@ -251,6 +292,8 @@ export class JsonFileRepository implements Repository {
       attendance: [...this.attendance.values()],
       insights: [...this.insights.values()],
       portionsServed: [...this.portionsServed.values()],
+      cameraCalibrations: [...this.cameraCalibrations.values()],
+      measurementSettings: [...this.measurementSettings.values()],
     };
     mkdirSync(dirname(this.dataFile), { recursive: true });
     const tmp = `${this.dataFile}.tmp`;
@@ -278,5 +321,7 @@ export class JsonFileRepository implements Repository {
     for (const a of snapshot.attendance ?? []) this.attendance.set(a.serviceId, a);
     for (const i of snapshot.insights ?? []) this.insights.set(i.insightId, i);
     for (const p of snapshot.portionsServed ?? []) this.portionsServed.set(p.recordId, p);
+    for (const c of snapshot.cameraCalibrations ?? []) this.cameraCalibrations.set(c.calibrationId, c);
+    for (const m of snapshot.measurementSettings ?? []) this.measurementSettings.set(m.hallId, m);
   }
 }

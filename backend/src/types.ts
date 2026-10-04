@@ -46,6 +46,15 @@ export type {
   SignedImage,
   CaptureImages,
   Recommendation,
+  CameraIntrinsics,
+  CameraCalibrationFlag,
+  CalibrationDepth,
+  CameraCalibration,
+  MeasurementSettings,
+  PhysicalMethod,
+  VolumeFlag,
+  PhysicalUnavailableReason,
+  PhysicalEstimate,
 } from '../../contracts/types.js';
 
 import type {

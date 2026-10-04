@@ -25,9 +25,12 @@ import type {
   ClassificationRegion,
   SegmentationResult,
   PlateCalibration,
+  CameraCalibration,
+  MeasurementSettings,
+  PhysicalEstimate,
 } from '../types.js';
 import type { Repository } from './repository.js';
-import { conflict, menuVersionConflict } from '../errors.js';
+import { badRequest, conflict, menuVersionConflict } from '../errors.js';
 
 export interface SpacetimeConfig {
   /** e.g. http://127.0.0.1:3000 */
@@ -80,6 +83,27 @@ function decode(value: unknown, type: AlgebraicType): unknown {
 /** Drop undefined fields so records match the contract's optional-field shape. */
 function clean<T>(value: T): T {
   return value === undefined ? value : (JSON.parse(JSON.stringify(value)) as T);
+}
+
+/** Stored PhysicalEstimate (options decode to undefined) -> contract shape (null, never 0). */
+function physicalFromRow(p: Row): PhysicalEstimate {
+  return {
+    calibrationId: p.calibrationId,
+    method: p.method,
+    areaCm2: p.areaCm2,
+    volumeCm3: p.volumeCm3 ?? null,
+    meanHeightMm: p.meanHeightMm ?? null,
+    maxHeightMm: p.maxHeightMm ?? null,
+    ...(p.depthSettingsVersion !== undefined ? { depthSettingsVersion: p.depthSettingsVersion } : {}),
+    ...(p.plateReference !== undefined ? { plateReference: p.plateReference } : {}),
+    flags: p.flags ?? [],
+  } as PhysicalEstimate;
+}
+
+function errorFromRow(error: Row | undefined) {
+  return error
+    ? { code: error.code, message: error.message, details: error.detailsJson ? JSON.parse(error.detailsJson) : undefined, retryable: error.retryable }
+    : undefined;
 }
 
 function quote(value: string): string {
@@ -348,10 +372,12 @@ export class SpacetimeRepository implements Repository {
     regions.sort((a, b) => String(a.regionId).localeCompare(String(b.regionId), undefined, { numeric: true }));
     return rows.map((row) => {
       const { maskCountJson, ...rest } = row;
+      const { physical, ...fields } = rest;
       const m = {
-        ...rest,
+        ...fields,
         itemId: row.itemId ?? null,
         ...(maskCountJson ? { maskCount: JSON.parse(maskCountJson as string) } : {}),
+        ...(physical ? { physical: physicalFromRow(physical as Row) } : {}),
       } as FoodMeasurement;
       if (m.method === 'mask_pixel_count') {
         m.regionIds = regions
@@ -377,6 +403,48 @@ export class SpacetimeRepository implements Repository {
   async getAttendance(serviceId: string): Promise<Attendance | undefined> {
     const rows = await this.sql(`SELECT * FROM attendance WHERE service_id = ${quote(serviceId)}`);
     return clean(rows[0] as Attendance | undefined);
+  }
+
+  // --- IT_4: camera calibrations + measurement settings ---
+  private toCalibration(row: Row): CameraCalibration {
+    const { depth, error, ...rest } = row;
+    return clean({ ...rest, depth: depth ?? null, error: errorFromRow(error) }) as CameraCalibration;
+  }
+  async upsertCameraCalibration(calibration: CameraCalibration): Promise<void> {
+    try {
+      await this.call('upsert_camera_calibration', { calibrationJson: JSON.stringify(calibration) });
+    } catch (error) {
+      if (error instanceof Error && /cannot change/.test(error.message)) {
+        throw conflict('CALIBRATION_IMMUTABLE', 'This calibration is finished and cannot change.', { calibrationId: calibration.calibrationId });
+      }
+      throw error;
+    }
+  }
+  async getCameraCalibration(calibrationId: string): Promise<CameraCalibration | undefined> {
+    const rows = await this.sql(`SELECT * FROM camera_calibration WHERE calibration_id = ${quote(calibrationId)}`);
+    return rows[0] ? this.toCalibration(rows[0]) : undefined;
+  }
+  async listCameraCalibrations(hallId?: string): Promise<CameraCalibration[]> {
+    const q = hallId === undefined ? 'SELECT * FROM camera_calibration' : `SELECT * FROM camera_calibration WHERE hall_id = ${quote(hallId)}`;
+    return (await this.sql(q)).map((r) => this.toCalibration(r));
+  }
+  async upsertMeasurementSettings(settings: MeasurementSettings): Promise<void> {
+    try {
+      await this.call('upsert_measurement_settings', { settingsJson: JSON.stringify(settings) });
+    } catch (error) {
+      if (error instanceof Error && /is not a succeeded calibration/.test(error.message)) {
+        throw badRequest('INVALID_CALIBRATION', 'Only a successful calibration of this hall can be activated.', {
+          calibrationId: settings.activeCalibrationId,
+        });
+      }
+      throw error;
+    }
+  }
+  async getMeasurementSettings(hallId: string): Promise<MeasurementSettings | undefined> {
+    const rows = await this.sql(`SELECT * FROM measurement_settings WHERE hall_id = ${quote(hallId)}`);
+    const row = rows[0];
+    if (!row) return undefined;
+    return clean({ ...row, activeCalibrationId: row.activeCalibrationId ?? null }) as MeasurementSettings;
   }
 
   // --- insights ---

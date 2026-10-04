@@ -468,6 +468,20 @@ const measurementSettings = table(
   },
 );
 
+/**
+ * Admin curation (2026-10-04, additive): which capture events the dashboard
+ * shows. No row = shown. Hiding never deletes the capture, its analyses or its
+ * R2 objects; the admin panel can show it again.
+ */
+const captureVisibility = table(
+  { name: 'capture_visibility' },
+  {
+    eventId: t.string().primaryKey(),
+    hidden: t.bool(),
+    updatedAt: t.string(), // UTC ISO 8601
+  },
+);
+
 // ---------------------------------------------------------------------------
 // Schema assembly
 // ---------------------------------------------------------------------------
@@ -489,6 +503,7 @@ const spacetimedb = schema({
   attemptCalibration,
   cameraCalibration,
   measurementSettings,
+  captureVisibility,
 });
 
 export default spacetimedb;

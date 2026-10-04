@@ -51,6 +51,7 @@ Think of each table as a stack of cards, one card per thing.
 | --- | --- | --- |
 | `image_object` | one picture stored in R2 | its R2 address, size, type, and **what it belongs to**: `capture` (the plate photo), `mask` (one food's outline), `overlay` (the colored segmented image), or `reference` |
 | `capture_event` | one physical dish that went past the camera | when, which meal, which photo (`image_object`), where it came from (`camera`, `replay`), and its status: `pending` → `processing` → `succeeded` / `needs_review` / `failed` |
+| `capture_visibility` | an admin's choice to hide one dish from the dashboard | the dish (`eventId`), `hidden`, and when it was set. No card = shown. Hiding never deletes the dish, its analysis or its R2 pictures; the Admin page can show it again |
 
 ### What the AI found
 

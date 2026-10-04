@@ -269,6 +269,11 @@ export interface ImpactDashboard {
 }
 
 /** GET /api/captures?start&end: recent plates for the dashboard gallery. */
+/** Admin panel row: a plate plus whether an admin hid it from the dashboard. */
+export interface AdminCaptureItem extends CaptureListItem {
+  hidden: boolean
+}
+
 export interface CaptureListItem {
   eventId: string
   capturedAt: string

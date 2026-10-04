@@ -104,8 +104,8 @@ export class ImpactService {
     this.names = new ItemNameResolver(repo);
   }
 
-  /** Records for every service whose local date falls in the window. */
-  async gather(window: ImpactWindow): Promise<ServiceRecords[]> {
+  /** Records for every service whose local date falls in the window (hidden captures only for the admin list). */
+  async gather(window: ImpactWindow, opts: { includeHidden?: boolean } = {}): Promise<ServiceRecords[]> {
     const services = (await this.repo.listServices(window.hallId)).filter(
       (s) => s.serviceDate >= window.start && s.serviceDate <= window.end,
     );
@@ -115,7 +115,11 @@ export class ImpactService {
     for (const service of services) {
       const menu = await this.repo.getMenuByService(service.serviceId);
       if (!menu) continue;
-      const captures = await this.repo.listCaptureEvents({ hallId: service.hallId, serviceId: service.serviceId });
+      const captures = await this.repo.listCaptureEvents({
+        hallId: service.hallId,
+        serviceId: service.serviceId,
+        includeHidden: opts.includeHidden === true,
+      });
       const countedAttempts = new Map<string, AnalysisAttempt>();
       const latestAttempts = new Map<string, AnalysisAttempt>();
       const measurements: FoodMeasurement[] = [];
@@ -200,8 +204,8 @@ export class ImpactService {
   }
 
   /** Recent plates, newest first, capped (contracts CaptureListItem). */
-  async captures(window: ImpactWindow, limit = CAPTURE_LIST_DEFAULT_LIMIT): Promise<CaptureListItem[]> {
-    const records = await this.gather(window);
+  async captures(window: ImpactWindow, limit = CAPTURE_LIST_DEFAULT_LIMIT, opts: { includeHidden?: boolean } = {}): Promise<CaptureListItem[]> {
+    const records = await this.gather(window, opts);
     const items: CaptureListItem[] = [];
     for (const r of records) {
       const names = new Map(r.items.map((i) => [i.itemId, i.displayName]));

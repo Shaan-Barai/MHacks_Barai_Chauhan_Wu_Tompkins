@@ -34,6 +34,13 @@ import type {
   MeasurementSettings,
 } from '../types.js';
 
+export interface CaptureEventFilter {
+  hallId?: string;
+  serviceId?: string;
+  /** Admin panel only: also return hidden captures. */
+  includeHidden?: boolean;
+}
+
 export interface Repository {
   /** Readiness probe (GET /api/ready): throws when the store is unreachable. */
   ping?(): Promise<void>;
@@ -67,7 +74,14 @@ export interface Repository {
   // --- capture events (idempotency key: eventId) ---
   upsertCaptureEvent(event: CaptureEvent): Promise<void>;
   getCaptureEvent(eventId: string): Promise<CaptureEvent | undefined>;
-  listCaptureEvents(filter?: { hallId?: string; serviceId?: string }): Promise<CaptureEvent[]>;
+  /** Hidden captures (admin curation) are left out unless includeHidden is set. */
+  listCaptureEvents(filter?: CaptureEventFilter): Promise<CaptureEvent[]>;
+
+  // --- admin curation: which captures the dashboard shows (no record = shown) ---
+  /** Event ids of captures an admin has hidden. */
+  listHiddenCaptureIds(): Promise<Set<string>>;
+  /** Hide or show existing captures; rejects unknown event ids. */
+  setCaptureVisibility(eventIds: string[], hidden: boolean, updatedAt: string): Promise<void>;
 
   // --- analysis attempts (append-only per event) ---
   addAnalysisAttempt(attempt: AnalysisAttempt): Promise<void>;

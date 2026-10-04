@@ -61,6 +61,7 @@ Each page has its own address (/, /schedule, /menus, /portions, /behind-the-scen
 - Portions served
 - Behind the scenes
 - Settings
+- Admin
 
 ### DASHBOARD
 Everything follows the lookback buttons at the top: Today, Last 7 days, Last 30 days, Last 90 days (no custom range). Under them, one short line on how waste is measured: the AI outlines the leftover food on the plate being scanned and counts its pixels; impact points weight those pixels by each food's typical weight per cm² and its greenhouse-gas and water footprint; they are relative, not a scale reading.
@@ -85,6 +86,9 @@ Everything follows the lookback buttons at the top: Today, Last 7 days, Last 30 
 
 ### BEHIND THE SCENES
 - Pick a date and meal. Every scanned plate photo with the AI's labels: food, units left, percent of a serving, and notes (AI estimate, more than a full serving, not on the menu). Clean plates say so. Photo links are temporary and renewed when they expire.
+
+### ADMIN (2026-10-04)
+- Staff only (signed out: just a "Sign in" button). Choose which plates the dashboard shows. Lookback buttons, filter All / Shown / Hidden with counts, "Show all listed" / "Hide all listed", and a grid of plates (AI outline image or photo, time and meal, pixels or status) with a Shown/Hidden toggle. Hidden plates are dimmed here and left out of every dashboard number, chart and gallery; nothing is deleted.
 
 ### SETTINGS
 - Signed out: a "Sign in to change this." box at the top; fields are disabled; calibration results and history are still readable.

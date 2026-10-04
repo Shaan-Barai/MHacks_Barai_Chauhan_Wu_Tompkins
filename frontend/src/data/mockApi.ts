@@ -29,6 +29,7 @@ import type {
   MeasurementSettings,
   NewCalibration,
   CaptureImages,
+  AdminCaptureItem,
   CaptureListItem,
   ImpactDashboard,
   Recommendation,
@@ -268,7 +269,40 @@ export async function getImpactDashboard(start: IsoDate, end: IsoDate): Promise<
 
 export async function getCaptures(start: IsoDate, end: IsoDate): Promise<CaptureListItem[]> {
   await wait()
-  return mockCaptures(start, end, todayIso())
+  const hidden = mockHidden()
+  return mockCaptures(start, end, todayIso()).filter((c) => !hidden.has(c.eventId))
+}
+
+// Admin curation, demo only: hidden plate ids live in this browser.
+const HIDDEN_KEY = 'scrap.mock.hiddenCaptures.v1'
+
+function mockHidden(): Set<string> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? '[]') as string[])
+  } catch {
+    return new Set()
+  }
+}
+
+export async function getAdminCaptures(start: IsoDate, end: IsoDate): Promise<AdminCaptureItem[]> {
+  await wait()
+  const hidden = mockHidden()
+  return mockCaptures(start, end, todayIso()).map((c) => ({ ...c, hidden: hidden.has(c.eventId) }))
+}
+
+export async function setCaptureVisibility(eventIds: string[], hidden: boolean): Promise<void> {
+  await wait()
+  requireSession()
+  const set = mockHidden()
+  for (const id of eventIds) {
+    if (hidden) set.add(id)
+    else set.delete(id)
+  }
+  try {
+    localStorage.setItem(HIDDEN_KEY, JSON.stringify([...set]))
+  } catch {
+    // private mode: the change lasts for this page only
+  }
 }
 
 export async function getCaptureImages(eventId: string): Promise<CaptureImages> {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { defaultRange, type DateRange } from './components/DateRangePicker'
 import { SetupWizard } from './components/SetupWizard'
+import { AdminPage } from './pages/AdminPage'
 import { BehindScenesPage } from './pages/BehindScenesPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { MenusPage } from './pages/MenusPage'
@@ -11,7 +12,7 @@ import { SettingsPage } from './pages/SettingsPage'
 import { AuthProvider, StaffSignIn, useAuth } from './state/auth'
 import { DEFAULT_SETTINGS, useHallSettings } from './state/settings'
 
-type Page = 'dashboard' | 'schedule' | 'menus' | 'portions' | 'behind' | 'settings'
+type Page = 'dashboard' | 'schedule' | 'menus' | 'portions' | 'behind' | 'settings' | 'admin'
 
 const NAV: { page: Page; label: string; path: string }[] = [
   { page: 'dashboard', label: 'Dashboard', path: '/' },
@@ -20,6 +21,7 @@ const NAV: { page: Page; label: string; path: string }[] = [
   { page: 'portions', label: 'Portions served', path: '/portions' },
   { page: 'behind', label: 'Behind the scenes', path: '/behind-the-scenes' },
   { page: 'settings', label: 'Settings', path: '/settings' },
+  { page: 'admin', label: 'Admin', path: '/admin' },
 ]
 
 /** Path -> page; null = no such page (404). The server sends index.html for every non-API path. */
@@ -119,6 +121,7 @@ function Shell() {
         {page === 'portions' && <PortionsPage onSaved={() => setDataRevision((r) => r + 1)} />}
         {page === 'behind' && <BehindScenesPage />}
         {page === 'settings' && <SettingsPage settings={hall} onSave={update} />}
+        {page === 'admin' && <AdminPage />}
         {page === null && <NotFoundPage onHome={() => go('/')} />}
       </main>
     </div>

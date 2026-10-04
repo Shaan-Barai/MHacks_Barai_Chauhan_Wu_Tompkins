@@ -27,6 +27,8 @@ export const getImageUrl = impl.getImageUrl
 export const getImpactDashboard = impl.getImpactDashboard
 export const getCaptures = impl.getCaptures
 export const getCaptureImages = impl.getCaptureImages
+export const getAdminCaptures = impl.getAdminCaptures
+export const setCaptureVisibility = impl.setCaptureVisibility
 export const getRecommendation = impl.getRecommendation
 
 // IT_4: staff sign-in, camera calibration, measurement settings.

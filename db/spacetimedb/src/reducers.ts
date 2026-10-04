@@ -210,6 +210,25 @@ export const upsert_capture_event = spacetimedb.reducer({ eventJson: t.string() 
   else ctx.db.captureEvent.insert(row);
 });
 
+// --- admin curation: hide/show captures on the dashboard --------------------
+
+/** Set `hidden` for many capture events at once (one transaction). Unknown event ids are rejected. */
+export const set_capture_visibility = spacetimedb.reducer(
+  { eventIdsJson: t.string(), hidden: t.bool(), updatedAt: t.string() },
+  (ctx, { eventIdsJson, hidden, updatedAt }) => {
+    const ids = JSON.parse(eventIdsJson);
+    if (!Array.isArray(ids) || ids.some((id) => typeof id !== 'string' || id.length === 0)) {
+      throw new SenderError('eventIdsJson must be a JSON array of non-empty strings');
+    }
+    for (const eventId of ids as string[]) {
+      if (!ctx.db.captureEvent.eventId.find(eventId)) throw new SenderError(`capture event ${eventId} does not exist`);
+      const row = { eventId, hidden, updatedAt };
+      if (ctx.db.captureVisibility.eventId.find(eventId)) ctx.db.captureVisibility.eventId.update(row);
+      else ctx.db.captureVisibility.insert(row);
+    }
+  },
+);
+
 // --- analysis attempts + measurements --------------------------------------
 
 function attemptRow(a: Json) {

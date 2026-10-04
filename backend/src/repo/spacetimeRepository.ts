@@ -28,7 +28,7 @@ import type {
   CameraCalibration,
   MeasurementSettings,
 } from '../types.js';
-import type { Repository } from './repository.js';
+import type { CaptureEventFilter, Repository } from './repository.js';
 import { attemptFromStored, calibrationFromStored, measurementFromStored, settingsFromStored } from './legacyPhysical.js';
 import { badRequest, conflict, menuVersionConflict } from '../errors.js';
 
@@ -110,7 +110,7 @@ export class SpacetimeRepository implements Repository {
     return h;
   }
 
-  private async call(reducer: string, args: Record<string, string>): Promise<void> {
+  private async call(reducer: string, args: Record<string, string | boolean>): Promise<void> {
     const res = await fetch(`${this.base}/call/${reducer}`, {
       method: 'POST',
       headers: { ...this.headers(), 'Content-Type': 'application/json' },
@@ -256,12 +256,26 @@ export class SpacetimeRepository implements Repository {
     const rows = await this.sql(`SELECT * FROM capture_event WHERE event_id = ${quote(eventId)}`);
     return clean(rows[0] as CaptureEvent | undefined);
   }
-  async listCaptureEvents(filter?: { hallId?: string; serviceId?: string }): Promise<CaptureEvent[]> {
+  async listCaptureEvents(filter?: CaptureEventFilter): Promise<CaptureEvent[]> {
     const where: string[] = [];
     if (filter?.hallId !== undefined) where.push(`hall_id = ${quote(filter.hallId)}`);
     if (filter?.serviceId !== undefined) where.push(`service_id = ${quote(filter.serviceId)}`);
     const q = `SELECT * FROM capture_event${where.length ? ` WHERE ${where.join(' AND ')}` : ''}`;
-    return clean((await this.sql(q)) as CaptureEvent[]);
+    const [events, hidden] = await Promise.all([
+      this.sql(q),
+      filter?.includeHidden ? Promise.resolve(new Set<string>()) : this.listHiddenCaptureIds(),
+    ]);
+    return clean((events as CaptureEvent[]).filter((e) => !hidden.has(e.eventId)));
+  }
+
+  // --- admin curation ---
+  async listHiddenCaptureIds(): Promise<Set<string>> {
+    const rows = await this.sql('SELECT event_id FROM capture_visibility WHERE hidden = true');
+    return new Set(rows.map((r) => String(r.eventId)));
+  }
+  async setCaptureVisibility(eventIds: string[], hidden: boolean, updatedAt: string): Promise<void> {
+    if (eventIds.length === 0) return;
+    await this.call('set_capture_visibility', { eventIdsJson: JSON.stringify(eventIds), hidden, updatedAt });
   }
 
   // --- analysis attempts + measurements ---

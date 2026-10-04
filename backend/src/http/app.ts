@@ -460,6 +460,47 @@ export function createApp(deps: AppDeps): express.Express {
     }),
   );
 
+  // ---- admin curation: choose which plates the dashboard shows ----
+  // Admin session only (reads included: the list shows hidden plates). Hiding
+  // never deletes a capture, its analyses or its R2 objects.
+  const requireAdmin = (res: Response): void => {
+    const principal = res.locals.principal;
+    if (principal !== 'admin' && principal !== 'open') {
+      throw new HttpError(401, apiError('AUTH_REQUIRED', 'Sign in as an admin to choose which plates are shown.', false));
+    }
+  };
+
+  app.get(
+    '/api/admin/captures',
+    wrap(async (req, res) => {
+      requireAdmin(res);
+      const window = parseWindow(req.query);
+      const [items, hidden] = await Promise.all([
+        impact.captures(window, CAPTURE_LIST_MAX_LIMIT, { includeHidden: true }),
+        repo.listHiddenCaptureIds(),
+      ]);
+      res.json({ captures: items.map((c) => ({ ...c, hidden: hidden.has(c.eventId) })) });
+    }),
+  );
+
+  app.put(
+    '/api/admin/captures/visibility',
+    wrap(async (req, res) => {
+      requireAdmin(res);
+      const { eventIds, hidden } = (req.body ?? {}) as { eventIds?: unknown; hidden?: unknown };
+      if (!Array.isArray(eventIds) || eventIds.length === 0 || eventIds.length > CAPTURE_LIST_MAX_LIMIT ||
+          eventIds.some((id) => typeof id !== 'string' || id.length === 0)) {
+        throw badRequest('INVALID_PARAMETER', `'eventIds' must be 1 to ${CAPTURE_LIST_MAX_LIMIT} capture ids.`);
+      }
+      if (typeof hidden !== 'boolean') throw badRequest('INVALID_PARAMETER', "'hidden' must be true or false.");
+      for (const id of eventIds as string[]) {
+        if (!(await repo.getCaptureEvent(id))) throw notFound('CAPTURE_NOT_FOUND', 'No capture event has this ID.', { eventId: id });
+      }
+      await repo.setCaptureVisibility(eventIds as string[], hidden, new Date(now()).toISOString());
+      res.json({ eventIds, hidden });
+    }),
+  );
+
   // Recent plates for the dashboard gallery (contracts CaptureListItem), newest first.
   app.get(
     '/api/captures',

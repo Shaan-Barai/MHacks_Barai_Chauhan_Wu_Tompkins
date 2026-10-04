@@ -24,7 +24,7 @@ import type {
   CameraCalibration,
   MeasurementSettings,
 } from '../types.js';
-import type { Repository } from './repository.js';
+import type { CaptureEventFilter, Repository } from './repository.js';
 import { menuVersionConflict } from '../errors.js';
 import { attemptFromStored, calibrationFromStored, measurementFromStored, settingsFromStored } from './legacyPhysical.js';
 import { badRequest, conflict } from '../errors.js';
@@ -36,6 +36,8 @@ interface Snapshot {
   referencePortions: ReferencePortion[];
   imageObjects: ImageObject[];
   captureEvents: CaptureEvent[];
+  /** Admin curation: event ids hidden from the dashboard. */
+  hiddenCaptureIds?: string[];
   analysisAttempts: AnalysisAttempt[];
   measurements: FoodMeasurement[];
   attendance: Attendance[];
@@ -52,6 +54,7 @@ export class JsonFileRepository implements Repository {
   private referencePortions = new Map<string, ReferencePortion>(); // key: baselineId
   private imageObjects = new Map<string, ImageObject>();
   private captureEvents = new Map<string, CaptureEvent>();
+  private hiddenCaptureIds = new Set<string>();
   private analysisAttempts = new Map<string, AnalysisAttempt[]>(); // key: eventId
   private measurementsByAttempt = new Map<string, FoodMeasurement[]>();
   private attendance = new Map<string, Attendance>(); // key: serviceId
@@ -178,14 +181,29 @@ export class JsonFileRepository implements Repository {
     const e = this.captureEvents.get(eventId);
     return e ? structuredClone(e) : undefined;
   }
-  async listCaptureEvents(filter?: { hallId?: string; serviceId?: string }): Promise<CaptureEvent[]> {
+  async listCaptureEvents(filter?: CaptureEventFilter): Promise<CaptureEvent[]> {
     return [...this.captureEvents.values()]
       .filter(
         (e) =>
           (filter?.hallId === undefined || e.hallId === filter.hallId) &&
-          (filter?.serviceId === undefined || e.serviceId === filter.serviceId),
+          (filter?.serviceId === undefined || e.serviceId === filter.serviceId) &&
+          (filter?.includeHidden || !this.hiddenCaptureIds.has(e.eventId)),
       )
       .map((e) => structuredClone(e));
+  }
+
+  // --- admin curation ---
+  async listHiddenCaptureIds(): Promise<Set<string>> {
+    return new Set(this.hiddenCaptureIds);
+  }
+  async setCaptureVisibility(eventIds: string[], hidden: boolean, _updatedAt: string): Promise<void> {
+    const unknown = eventIds.find((id) => !this.captureEvents.has(id));
+    if (unknown !== undefined) throw badRequest('CAPTURE_NOT_FOUND', `capture event ${unknown} does not exist`, { eventId: unknown });
+    for (const id of eventIds) {
+      if (hidden) this.hiddenCaptureIds.add(id);
+      else this.hiddenCaptureIds.delete(id);
+    }
+    this.persist();
   }
 
   // --- analysis attempts ---
@@ -294,6 +312,7 @@ export class JsonFileRepository implements Repository {
       referencePortions: [...this.referencePortions.values()],
       imageObjects: [...this.imageObjects.values()],
       captureEvents: [...this.captureEvents.values()],
+      hiddenCaptureIds: [...this.hiddenCaptureIds],
       analysisAttempts: [...this.analysisAttempts.values()].flat(),
       measurements: [...this.measurementsByAttempt.values()].flat(),
       attendance: [...this.attendance.values()],
@@ -315,6 +334,7 @@ export class JsonFileRepository implements Repository {
     for (const r of snapshot.referencePortions ?? []) this.referencePortions.set(r.baselineId, r);
     for (const o of snapshot.imageObjects ?? []) this.imageObjects.set(o.objectId, o);
     for (const e of snapshot.captureEvents ?? []) this.captureEvents.set(e.eventId, e);
+    for (const id of snapshot.hiddenCaptureIds ?? []) this.hiddenCaptureIds.add(id);
     for (const a of snapshot.analysisAttempts ?? []) {
       const list = this.analysisAttempts.get(a.eventId) ?? [];
       list.push(a);

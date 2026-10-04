@@ -18,6 +18,7 @@ import type {
   NewCalibration,
   SignedImage,
   CaptureImages,
+  AdminCaptureItem,
   CaptureListItem,
   ImpactDashboard,
   Recommendation,
@@ -308,6 +309,25 @@ export async function getCaptures(start: IsoDate, end: IsoDate): Promise<Capture
 /** Short-lived read links for a plate's photo, AI outline image and masks. Ask again when they expire. */
 export async function getCaptureImages(eventId: string): Promise<CaptureImages> {
   return call<CaptureImages>(`/api/captures/${encodeURIComponent(eventId)}/images`)
+}
+
+// ---------------------------------------------------------------------------
+// Admin curation: choose which plates the dashboard shows (staff session only)
+// ---------------------------------------------------------------------------
+
+/** Every plate in the window, hidden ones included. Needs a staff session (401 otherwise). */
+export async function getAdminCaptures(start: IsoDate, end: IsoDate): Promise<AdminCaptureItem[]> {
+  const body = await call<{ captures: AdminCaptureItem[] }>(`/api/admin/captures?${q({ hallId: hallId(), start, end })}`)
+  return body.captures ?? []
+}
+
+/** Hide plates from (or show them on) the dashboard. Nothing is deleted. */
+export async function setCaptureVisibility(eventIds: string[], hidden: boolean): Promise<void> {
+  await call('/api/admin/captures/visibility', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ eventIds, hidden }),
+  })
 }
 
 export async function getRecommendation(start: IsoDate, end: IsoDate): Promise<Recommendation> {

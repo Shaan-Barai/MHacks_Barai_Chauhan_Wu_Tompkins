@@ -101,6 +101,9 @@ Run the stages in order. `auto` runs stages 1-6 and stops at the first failure.
 | 10 | cleanup | deletes this run's capture bundles on the board, the R2 `test/camera-…/` prefix and the throwaway database |
 
 Local copies of the photos and overlays stay in `images/camera-test/<run>/`.
+Foods on a test plate that are not on the dinner menu can be added for the run with
+`CAMERA_EXTRA_FOODS="Halal Rice,Tomato,Lettuce"`, and `CAMERA_EXPECT_FOODS` (same format)
+makes the plate stage compare detections against what is really on the plate.
 There is no calibration stage: measurements are in pixels.
 
 ## Smoke

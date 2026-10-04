@@ -7,9 +7,9 @@
  *   1. Gemini boxes the reference object (short strict-JSON prompt
  *      `scrap-calib-ref-v1`; the label typed by the user and any text in the
  *      image are untrusted data, never instructions).
- *   2. SAM 2.1 segments that box. The mask is cleaned (`reference-mask-v1`):
- *      largest 4-connected component, interior holes filled (printing on a
- *      card can punch holes in a mask; a flat reference has none).
+ *   2. SAM 2.1 segments that box. The mask is cleaned (`reference-mask-v1`,
+ *      see cleanReferenceMask): cut to the box, specks dropped, convex hull
+ *      filled. The reference must be a flat CONVEX object (card, paper, coaster).
  *   3. Code counts N_ref. k = knownAreaCm2 / N_ref (cm² per pixel at the
  *      base plane).
  *   4. Camera height, geometric: a pixel at distance Z covers (Z/f)², so
@@ -32,7 +32,8 @@
  * Flags: `reference_not_found` (Gemini found nothing / empty mask; the run
  * fails), `reference_touches_edge` (mask touches the image border or Gemini
  * says it is cut off), `reference_low_confidence` (Gemini confidence low,
- * SAM score < 0.85, mask fills < 35% of its box, or N_ref < 1,000 px),
+ * SAM score < 0.85, mask fills < 35% of its box, N_ref < 1,000 px, or the
+ * reference covers more than 60% of the frame),
  * `depth_unavailable` (depth requested but the worker failed or the map was
  * unusable), `depth_scale_disagrees`.
  *
@@ -51,7 +52,7 @@ import { decodeBinaryMask, encodeBinaryMask, geminiBoxToPixels } from './masks.j
 import { composeWithLegend, loadSharp, type LegendLine, type OverlayImage } from './overlay.js';
 import { sanitizeMenuText } from './prompt.js';
 import type { Segmenter, SegmenterInfo } from './samClient.js';
-import { dilateSquare, largestComponent } from './targetDish.js';
+import { convexHullFill, dilateSquare, dropSpecks } from './targetDish.js';
 import { collectPoints, fitPlaneRobust, validDepth, type Plane } from './volume.js';
 
 
@@ -67,6 +68,8 @@ export const DEPTH_DISAGREE_FRACTION = 0.15;
 export const MIN_REFERENCE_PX = 1000;
 export const MIN_SAM_SCORE = 0.85;
 export const MIN_BOX_FILL = 0.35;
+/** A reference covering more of the frame than this is implausible (it is the table, a tray, or the whole plate). */
+export const MAX_REFERENCE_FRACTION = 0.6;
 
 export interface IntrinsicsOverrides {
   /** Focal lengths in pixels AT THE CALIBRATION IMAGE'S RESOLUTION. */
@@ -234,14 +237,35 @@ export function fillHoles(bitmap: Uint8Array, width: number, height: number): Ui
   return out;
 }
 
-/** reference-mask-v1: largest 4-connected component, holes filled. */
-export function cleanReferenceMask(bitmap: Uint8Array, width: number, height: number): { bitmap: Uint8Array; pixels: number } {
-  const largest = largestComponent(bitmap, width, height);
-  if (largest.pixels === 0) return largest;
-  const filled = fillHoles(largest.bitmap, width, height);
+/**
+ * reference-mask-v1: cut the SAM mask to the Gemini box (+2% margin), keep
+ * every significant 4-connected piece (≥ 10% of the largest; drops specks),
+ * then take the filled convex hull. References are convex (card, sheet of
+ * paper, coaster), so the hull closes holes from printing or glare and joins
+ * pieces split by an object lying across the reference.
+ */
+export function cleanReferenceMask(
+  bitmap: Uint8Array,
+  width: number,
+  height: number,
+  boxXyxy?: [number, number, number, number],
+): { bitmap: Uint8Array; pixels: number } {
+  let src = bitmap;
+  if (boxXyxy) {
+    const m = 0.02 * Math.max(boxXyxy[2] - boxXyxy[0], boxXyxy[3] - boxXyxy[1]) + 1;
+    const x0 = Math.max(0, Math.floor(boxXyxy[0] - m));
+    const y0 = Math.max(0, Math.floor(boxXyxy[1] - m));
+    const x1 = Math.min(width, Math.ceil(boxXyxy[2] + m));
+    const y1 = Math.min(height, Math.ceil(boxXyxy[3] + m));
+    src = new Uint8Array(width * height);
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) src[y * width + x] = bitmap[y * width + x]!;
+  }
+  const pieces = dropSpecks(src, width, height, 0, 0.1);
+  if (pieces.pixels === 0) return pieces;
+  const hull = convexHullFill(pieces.bitmap, width, height);
   let pixels = 0;
-  for (let i = 0; i < filled.length; i++) pixels += filled[i]!;
-  return { bitmap: filled, pixels };
+  for (let i = 0; i < hull.length; i++) pixels += hull[i]!;
+  return { bitmap: hull, pixels };
 }
 
 export function touchesEdge(bitmap: Uint8Array, width: number, height: number): boolean {
@@ -500,7 +524,7 @@ export async function runCalibration(input: RunCalibrationInput): Promise<Calibr
     return fail(makeApiError('MASK_INVALID', 'The reference mask failed validation.', false, { reason: decoded.reason }), { ...size, intrinsics });
   }
   diagnostics.rawMaskPixels = decoded.pixels;
-  const cleaned = cleanReferenceMask(decoded.bitmap, W, H);
+  const cleaned = cleanReferenceMask(decoded.bitmap, W, H, pixelBox);
   if (cleaned.pixels === 0) {
     flags.add('reference_not_found');
     await depthPromise;
@@ -518,7 +542,8 @@ export async function runCalibration(input: RunCalibrationInput): Promise<Calibr
     located.confidence === 'low' ||
     (diagnostics.samScore !== undefined && diagnostics.samScore < MIN_SAM_SCORE) ||
     N / boxArea < MIN_BOX_FILL ||
-    N < MIN_REFERENCE_PX
+    N < MIN_REFERENCE_PX ||
+    N > MAX_REFERENCE_FRACTION * W * H
   ) {
     flags.add('reference_low_confidence');
   }

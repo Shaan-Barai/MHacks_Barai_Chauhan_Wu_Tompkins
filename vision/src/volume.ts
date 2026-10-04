@@ -27,7 +27,12 @@
  * already counted once; a pixel that still appears in two buckets counts for
  * the first only. Invalid depth (non-finite, ≤ 0, > 20 m) in more than 10% of
  * a bucket ⇒ that bucket falls back to the area method with `depth_invalid`;
- * fewer invalid pixels are extrapolated from the valid ones. Bowls and
+ * fewer invalid pixels are extrapolated from the valid ones. When more than
+ * half of a bucket's valid pixels read at or below the plate plane, depth
+ * did not resolve that food (seen live: DAv2 Small on close top-down photos
+ * puts food BELOW the plate), so the bucket falls back to the area method
+ * flagged `negative_heights_clipped` + `depth_invalid` rather than reporting
+ * a near-zero volume. Bowls and
  * liquids (`bowl`) ⇒ the area method with `bowl_volume_unreliable`: the bowl
  * floor is hidden, so depth cannot give the food's thickness. A fallback is
  * never a zero.
@@ -46,6 +51,8 @@ export const MIN_RING_FRACTION = 0.02;
 export const CLIP_FLAG_FRACTION = 0.05;
 /** More invalid depth than this fraction of a bucket ⇒ area fallback with depth_invalid. */
 export const MAX_INVALID_FRACTION = 0.1;
+/** More than this fraction of a bucket's valid pixels below the plate ⇒ area fallback (depth did not resolve the food). */
+export const MAX_NEGATIVE_FRACTION = 0.5;
 const MAX_VALID_DEPTH_M = 20;
 const MIN_PLANE_TOLERANCE_CM = 0.3;
 const MAX_FIT_POINTS = 200_000;
@@ -370,6 +377,9 @@ export function computeVolumeEstimates(input: VolumeInput): VolumeResult {
     }
     if (n === 0) return { key: b.key, estimate: computeAreaEstimate(0, input, [...plateFlags]) };
     if (valid === 0 || (n - valid) / n > MAX_INVALID_FRACTION) return area(b, ['depth_invalid']);
+    // Most of the food reads at or below the plate: depth does not resolve this food, and a
+    // near-zero volume would be a silent zero. Fall back to the calibrated area (AI.md).
+    if (neg > MAX_NEGATIVE_FRACTION * valid) return area(b, [...plateFlags, 'negative_heights_clipped', 'depth_invalid']);
     const extrapolate = n / valid;
     const flags: VolumeFlag[] = [...plateFlags];
     if (neg > CLIP_FLAG_FRACTION * valid) flags.push('negative_heights_clipped');

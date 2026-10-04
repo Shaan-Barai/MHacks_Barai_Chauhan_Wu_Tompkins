@@ -18,6 +18,7 @@ import {
   CREDIT_CARD_AREA_CM2,
   c920sIntrinsics,
   calibrationLegendRows,
+  cleanReferenceMask,
   fillHoles,
   intrinsicsOverridesFromEnv,
   runCalibration,
@@ -150,6 +151,17 @@ test('volume: negative heights and outliers are clipped and flagged above 5% of 
   const few = Float32Array.from(s.depthM as Float32Array);
   for (let x = 100; x < 200; x++) few[100 * W + x] = 0.52; // 1%
   assert.deepEqual(computeVolumeEstimates({ ...s, depthM: few }).estimates[0]!.estimate.flags, []);
+});
+
+test('volume: food that mostly reads below the plate falls back to area (no near-zero volume)', () => {
+  const s = boxScene();
+  const depthM = Float32Array.from(s.depthM as Float32Array);
+  for (let y = 100; y < 160; y++) for (let x = 100; x < 200; x++) depthM[y * s.width + x] = 0.51; // 60% below the plate
+  const e = computeVolumeEstimates({ ...s, depthM }).estimates[0]!.estimate;
+  assert.equal(e.method, 'area-calibrated-v1');
+  assert.deepEqual(e.flags, ['negative_heights_clipped', 'depth_invalid']);
+  assert.equal(e.volumeCm3, null);
+  assert.equal(e.areaCm2, 25);
 });
 
 test('volume: bowls/liquids use the area method with bowl_volume_unreliable; never zero', () => {
@@ -358,7 +370,7 @@ test('calibration with depth: scale, depth height, table plane; disagreement and
     imageBytes: await solidJpeg(CAL_W, CAL_H),
     knownAreaCm2: 46.21,
     referenceLabel: 'card',
-    gateway: calGemini({ ...CARD_BOX, confidence: 'low', fully_visible: false }),
+    gateway: calGemini({ ...CARD_BOX, box_2d: [700, 0, 1000, 220], confidence: 'low', fully_visible: false }),
     sam: fixedSam(rect(CAL_W, CAL_H, 0, 150, 40, 200), CAL_W, CAL_H),
     renderOverlay: false,
   });
@@ -389,6 +401,16 @@ test('fillHoles fills interior holes only', () => {
   const f = fillHoles(b, W, 5);
   assert.equal(f[12], 1);
   assert.equal(f[0], 0);
+});
+
+test('reference-mask-v1: a card split by a fork and punched by glare is one convex region; specks outside the box dropped', () => {
+  const W = 100;
+  const H = 80;
+  const b = rect(W, H, 20, 20, 70, 60); // 50 × 40 = 2000
+  for (let y = 20; y < 60; y++) for (let x = 44; x < 47; x++) b[y * W + x] = 0; // fork gap
+  b[30 * W + 30] = 0; // glare hole
+  b[2 * W + 95] = 1; // speck outside the box
+  assert.equal(cleanReferenceMask(b, W, H, [20, 20, 70, 60]).pixels, 2000);
 });
 
 // ---------------------------------------------------------------------------

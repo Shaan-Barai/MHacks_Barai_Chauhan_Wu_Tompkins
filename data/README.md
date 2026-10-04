@@ -151,16 +151,17 @@ valid because `AnalysisAttempt` freezes the `menuVersion` it used.
 `menu_waste_factors.csv` and `menu_nutrition_factors.csv` (repo root) are the
 source of truth. `scripts/generate-factors.mjs` (`npm run factors`) turns them
 into `src/factors.generated.ts`; a test fails when the committed module drifts
-from the CSVs, and checks `impactUsdPerKg = 0.19*C + 1.50*W` (no nutrition).
+from the CSVs, and checks `impactUsdPerKg = 0.19*C + 1.50*W` (no nutrition) and that every
+`density_g_per_cm3` is positive or blank with a cited `density_source`.
 
 | Export | Meaning |
 | --- | --- |
-| `WASTE_FACTORS: WasteFactor[]` | One contract `WasteFactor` per waste-CSV row (23 dinner foods) |
+| `WASTE_FACTORS: WasteFactor[]` | One contract `WasteFactor` per waste-CSV row (26 dinner foods), incl. `densityGPerCm3` (IT_4 I7: bulk density as served for the DAv2 volume method; `null` for the 3 pizzas and Cheese Bread) |
 | `NUTRITION_FACTORS: NutritionFactor[]` | Nutrient-days and kcal per kg, reported separately, never in the score |
-| `WASTE_FACTOR_MENU_TEXT` | Gemini visible components/ingredients, allergens, label serving per row |
+| `WASTE_FACTOR_MENU_TEXT` | Gemini visible components/ingredients, allergens, label serving, `densitySource` citation per row |
 | `factorKeyFor(displayName)` | `slug(displayName)`: lowercase ASCII, non-alphanumerics -> `-`, trimmed (same as `slugifyName`) |
 | `findWasteFactor(name)` / `findNutritionFactor(name)` / `findFactorMenuText(name)` | Lookup by slug; `null` = no factor (show "no impact factor", never zero) |
-| `WASTE_FACTORS_VERSION` | `'waste-factors-v2'`, stamped on every derived impact |
+| `WASTE_FACTORS_VERSION` | `'waste-factors-v3'` (v3 = IT_4 density column), stamped on every derived impact |
 
 ## Demo seed — `seed/demo-seed.json`
 

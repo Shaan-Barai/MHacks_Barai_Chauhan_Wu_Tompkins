@@ -17,7 +17,7 @@ import { slugifyName } from './ids.js';
 export { NUTRITION_FACTORS, WASTE_FACTORS, WASTE_FACTOR_MENU_TEXT, type WasteFactorMenuText };
 
 /** Stamp on every derived impact so a factor edit is traceable (D3). */
-export const WASTE_FACTORS_VERSION = 'waste-factors-v2';
+export const WASTE_FACTORS_VERSION = 'waste-factors-v3';
 
 /** Score weights (D1): dollars per kg CO2e and per m³ freshwater. No nutrition term. */
 export const CARBON_USD_PER_KG_CO2E = 0.19;

@@ -129,7 +129,7 @@ const imageObject = table(
     widthPx: t.option(t.u32()),
     heightPx: t.option(t.u32()),
     uploadedAt: t.option(t.string()), // UTC ISO 8601
-    associationKind: t.string(), // 'capture' | 'reference' | 'mask'
+    associationKind: t.string(), // 'capture' | 'reference' | 'mask' | 'overlay' (overlay: id = capture eventId)
     associationId: t.string().index('btree'),
     // 'pending_upload' | 'uploaded' | 'finalized' | 'failed' | 'orphaned'
     state: t.string().index('btree'),
@@ -303,6 +303,41 @@ const segmentationRegion = table(
   },
 );
 
+/**
+ * contracts PlateCalibration (BIG-PLAN D2): per-capture pixel -> cm² scale.
+ * method: 'plate-fit-v1' | 'configured-default'; flags: contracts
+ * CalibrationFlag[] ('calibration_default' | 'plate_cut_off' | 'bowl_size_assumed').
+ */
+const PlateCalibration = t.object('PlateCalibration', {
+  method: t.string(),
+  plateDiameterCm: t.f64(),
+  plateDiameterPx: t.f64(),
+  cm2PerPx: t.f64(),
+  dishType: t.option(t.string()), // 'plate' | 'bowl' | 'other'
+  fullyVisible: t.option(t.bool()),
+  flags: t.array(t.string()),
+});
+
+/**
+ * Waste-impact outputs of one analysis attempt (BIG-PLAN D2/D7):
+ * contracts AnalysisAttempt.calibration and AnalysisAttempt.overlayObjectId.
+ * A separate small table (like capture_count) so the existing
+ * analysis_attempt rows stay untouched: additive, publishes in place.
+ * Grams/impact are NOT stored (D3: analytics derives them at read time).
+ * The overlay JPEG lives in object storage (image_object association kind
+ * 'overlay'); only its object id is here. Written in the same record_analysis
+ * transaction as its attempt. Legacy attempts have no row.
+ */
+const attemptCalibration = table(
+  { name: 'attempt_calibration' },
+  {
+    attemptId: t.string().primaryKey(),
+    eventId: t.string().index('btree'),
+    calibration: t.option(PlateCalibration),
+    overlayObjectId: t.option(t.string()),
+  },
+);
+
 // ---------------------------------------------------------------------------
 // Schema assembly
 // ---------------------------------------------------------------------------
@@ -320,6 +355,7 @@ const spacetimedb = schema({
   insight,
   captureCount,
   segmentationRegion,
+  attemptCalibration,
 });
 
 export default spacetimedb;

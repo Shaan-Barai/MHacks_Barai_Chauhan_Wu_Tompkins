@@ -185,6 +185,33 @@ export class ImageService {
     return record;
   }
 
+  /**
+   * Store the segmented overlay JPEG for one capture (BIG-PLAN D7: masks
+   * tinted per food, plate rim outlined) and register it as a finalized image
+   * object associated with the capture event. The key carries the attempt id
+   * so a retried capture never overwrites an earlier attempt's overlay.
+   */
+  async storeOverlay(eventId: string, attemptId: string, jpeg: Uint8Array, widthPx: number, heightPx: number): Promise<ImageObject> {
+    const date = new Date(this.now()).toISOString().slice(0, 10);
+    const objectKey = `overlays/${date}/${eventId}_${attemptId}.jpg`;
+    const { sizeBytes } = await this.storage.putBytes(objectKey, jpeg, 'image/jpeg');
+    const record: ImageObject = {
+      objectId: newId('img'),
+      provider: this.storage.provider as ImageObject['provider'],
+      container: this.storage.container,
+      objectKey,
+      mimeType: 'image/jpeg',
+      sizeBytes,
+      widthPx,
+      heightPx,
+      uploadedAt: new Date(this.now()).toISOString(),
+      association: { kind: 'overlay', id: eventId },
+      state: 'finalized',
+    };
+    await this.repo.upsertImageObject(record);
+    return record;
+  }
+
   /** Uploads authorized/uploaded but never finalized, older than maxAgeMs. */
   async findOrphans(maxAgeMs: number): Promise<ImageObject[]> {
     const cutoff = this.now() - maxAgeMs;

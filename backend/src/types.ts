@@ -35,6 +35,17 @@ export type {
   ClassificationRegion,
   CountStatus,
   SegmentationResult,
+  CalibrationFlag,
+  PlateCalibration,
+  WasteImpact,
+  ImpactUnavailableReason,
+  PerPortion,
+  ItemImpactRow,
+  ImpactDashboard,
+  CaptureListItem,
+  SignedImage,
+  CaptureImages,
+  Recommendation,
 } from '../../contracts/types.js';
 
 import type {
@@ -43,6 +54,7 @@ import type {
   AnalysisAttempt,
   FoodMeasurement,
   MaskPixelCount,
+  PlateCalibration,
 } from '../../contracts/types.js';
 
 /** A daily menu as uploaded and served: the service plus its items. */
@@ -59,4 +71,12 @@ export interface AnalysisResult {
   masks?: { regionId: string; png: Uint8Array }[];
   /** Exclusive per-measurement masks; stored, then referenced from measurement.maskCount. */
   itemMasks?: { measurementId: string; png: Uint8Array; count: Omit<MaskPixelCount, 'maskObjectId'> }[];
+  /**
+   * Per-capture plate calibration (BIG-PLAN D2). The vision pipeline also sets
+   * it on `attempt.calibration`; ingestion persists the attempt's copy (or this
+   * one when the attempt lacks it).
+   */
+  calibration?: PlateCalibration;
+  /** Segmented overlay JPEG (D7); stored in object storage, referenced by attempt.overlayObjectId. */
+  overlay?: { jpeg: Uint8Array; widthPx: number; heightPx: number } | null;
 }

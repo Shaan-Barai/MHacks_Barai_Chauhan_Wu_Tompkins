@@ -24,6 +24,7 @@ import type {
   Insight,
   ClassificationRegion,
   SegmentationResult,
+  PlateCalibration,
 } from '../types.js';
 import type { Repository } from './repository.js';
 import { conflict } from '../errors.js';
@@ -257,9 +258,20 @@ export class SpacetimeRepository implements Repository {
     return out;
   }
 
+  /** Calibration + overlay reference per attempt (attempt_calibration, BIG-PLAN D2/D7). */
+  private async calibrationsFor(eventId: string): Promise<Map<string, Pick<AnalysisAttempt, 'calibration' | 'overlayObjectId'>>> {
+    const rows = await this.sql(`SELECT * FROM attempt_calibration WHERE event_id = ${quote(eventId)}`);
+    return new Map(
+      rows.map((r) => [
+        r.attemptId as string,
+        { calibration: r.calibration as PlateCalibration | undefined, overlayObjectId: r.overlayObjectId as string | undefined },
+      ]),
+    );
+  }
+
   async listAnalysisAttempts(eventId: string): Promise<AnalysisAttempt[]> {
     const rows = await this.sql(`SELECT * FROM analysis_attempt WHERE event_id = ${quote(eventId)}`);
-    const segmentations = await this.segmentationsFor(eventId);
+    const [segmentations, calibrations] = await Promise.all([this.segmentationsFor(eventId), this.calibrationsFor(eventId)]);
     return rows
       .map((r) => {
         const { baselineVersions, error, ...rest } = r;
@@ -277,6 +289,7 @@ export class SpacetimeRepository implements Repository {
               }
             : undefined,
           segmentation: segmentations.get(r.attemptId),
+          ...calibrations.get(r.attemptId),
         } as AnalysisAttempt);
       })
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));

@@ -17,6 +17,7 @@ import type { IngestionService } from '../services/ingestionService.js';
 import type { SummaryService } from '../services/summaryService.js';
 import type { DashboardService } from '../services/dashboardService.js';
 import type { DishMatchService } from '../services/dishMatchService.js';
+import type { CaptureService } from '../services/captureService.js';
 import type { MealLabel, MenuBundle } from '../types.js';
 import {
   validateAttendance,
@@ -35,10 +36,11 @@ export interface AppDeps {
   summary: SummaryService;
   dashboard: DashboardService;
   dishMatch: DishMatchService;
+  captures: CaptureService;
 }
 
 export function createApp(deps: AppDeps): express.Express {
-  const { config, repo, storage, images, ingestion, summary, dashboard, dishMatch } = deps;
+  const { config, repo, storage, images, ingestion, summary, dashboard, dishMatch, captures } = deps;
   const app = express();
   app.use(express.json({ limit: '1mb' }));
 
@@ -349,6 +351,14 @@ export function createApp(deps: AppDeps): express.Express {
     '/api/dish-match',
     wrap(async (req, res) => {
       res.json(await dishMatch.match(req.body));
+    }),
+  );
+
+  // Plate gallery images (BIG-PLAN D7): short-lived read URLs, never logged.
+  app.get(
+    '/api/captures/:eventId/images',
+    wrap(async (req, res) => {
+      res.json(await captures.captureImages(param(req, 'eventId')));
     }),
   );
 

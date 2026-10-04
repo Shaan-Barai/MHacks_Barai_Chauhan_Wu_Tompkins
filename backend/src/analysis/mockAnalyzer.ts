@@ -20,6 +20,7 @@ import type {
   AnalysisStatus,
   CountStatus,
   FoodMeasurement,
+  PlateCalibration,
   QualityFlag,
   SegmentationResult,
 } from '../types.js';
@@ -36,6 +37,10 @@ export interface MockFixture {
   measurements?: MockMeasurementSpec[];
   qualityFlags?: QualityFlag[];
   errorCode?: string;
+  /** Plate calibration to report on the attempt (BIG-PLAN D2); none by default. */
+  calibration?: PlateCalibration;
+  /** Overlay JPEG to return (D7); none by default. */
+  overlay?: AnalysisResult['overlay'];
 }
 
 export class MockAnalyzer implements Analyzer {
@@ -111,9 +116,11 @@ export class MockAnalyzer implements Analyzer {
         qualityFlags: ['ai_estimate', ...(fixture?.qualityFlags ?? [])],
         createdAt: new Date().toISOString(),
         segmentation: this.segmentation(event.geometry, status, measurements),
+        ...(fixture?.calibration ? { calibration: structuredClone(fixture.calibration) } : {}),
       },
       measurements,
       itemMasks: this.itemMasks(input, measurements),
+      ...(fixture?.overlay !== undefined ? { overlay: fixture.overlay } : {}),
     };
   }
 

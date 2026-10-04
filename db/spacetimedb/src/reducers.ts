@@ -341,7 +341,61 @@ function insertSegmentation(ctx: any, attemptId: string, eventId: string, seg: J
   }
 }
 
-/** Append one attempt, its measurements, and its segmentation result in a single transaction. */
+const CALIBRATION_METHODS = new Set(['plate-fit-v1', 'configured-default']);
+const CALIBRATION_FLAGS = new Set(['calibration_default', 'plate_cut_off', 'bowl_size_assumed']);
+const DISH_TYPES = new Set(['plate', 'bowl', 'other']);
+
+/**
+ * contracts PlateCalibration + overlayObjectId (BIG-PLAN D2/D7) for one
+ * attempt. Re-checks what a bad write would break: positive finite scale,
+ * cm2PerPx == (cm/px)^2, known method/flags, a default calibration flagged as
+ * such, and an overlay reference that is a registered overlay of THIS capture.
+ */
+function insertCalibration(ctx: any, attemptId: string, eventId: string, a: Json) {
+  const raw = a.calibration;
+  const overlayObjectId = optStr(a, 'overlayObjectId');
+  if (raw === undefined && overlayObjectId === undefined) return;
+  let calibration: Json | undefined;
+  if (raw !== undefined) {
+    if (typeof raw !== 'object' || raw === null) throw new SenderError('attempt.calibration must be an object');
+    const c = raw as Json;
+    const method = str(c, 'method', 'calibration');
+    if (!CALIBRATION_METHODS.has(method)) throw new SenderError(`calibration.method '${method}' is not allowed`);
+    const plateDiameterCm = num(c, 'plateDiameterCm', 'calibration', { exclusive: true });
+    const plateDiameterPx = num(c, 'plateDiameterPx', 'calibration', { exclusive: true });
+    const cm2PerPx = num(c, 'cm2PerPx', 'calibration', { exclusive: true });
+    const expected = (plateDiameterCm / plateDiameterPx) ** 2;
+    if (Math.abs(cm2PerPx - expected) > expected * 1e-3) {
+      throw new SenderError(`calibration.cm2PerPx ${cm2PerPx} != (plateDiameterCm / plateDiameterPx)^2`);
+    }
+    if (!Array.isArray(c.flags)) throw new SenderError('calibration.flags must be an array');
+    const flags = strArray(c, 'flags');
+    for (const f of flags) if (!CALIBRATION_FLAGS.has(f)) throw new SenderError(`calibration flag '${f}' is not allowed`);
+    if (method === 'configured-default' && !flags.includes('calibration_default')) {
+      throw new SenderError("a configured-default calibration must carry 'calibration_default'");
+    }
+    const dishType = optStr(c, 'dishType');
+    if (dishType !== undefined && !DISH_TYPES.has(dishType)) throw new SenderError(`calibration.dishType '${dishType}' is not allowed`);
+    calibration = {
+      method,
+      plateDiameterCm,
+      plateDiameterPx,
+      cm2PerPx,
+      dishType,
+      fullyVisible: typeof c.fullyVisible === 'boolean' ? c.fullyVisible : undefined,
+      flags,
+    };
+  }
+  if (overlayObjectId !== undefined) {
+    const overlay = ctx.db.imageObject.objectId.find(overlayObjectId);
+    if (!overlay || overlay.associationKind !== 'overlay' || overlay.associationId !== eventId) {
+      throw new SenderError(`overlay ${overlayObjectId} is not a registered overlay of capture ${eventId}`);
+    }
+  }
+  ctx.db.attemptCalibration.insert({ attemptId, eventId, calibration, overlayObjectId });
+}
+
+/** Append one attempt, its measurements, segmentation result, and calibration/overlay in a single transaction. */
 export const record_analysis = spacetimedb.reducer(
   { attemptJson: t.string(), measurementsJson: t.string() },
   (ctx, { attemptJson, measurementsJson }) => {
@@ -372,6 +426,7 @@ export const record_analysis = spacetimedb.reducer(
       if (typeof seg !== 'object' || seg === null) throw new SenderError('attempt.segmentation must be an object');
       insertSegmentation(ctx, attempt.attemptId, attempt.eventId, seg as Json, measuredPx);
     }
+    insertCalibration(ctx, attempt.attemptId, attempt.eventId, parse(attemptJson, 'attempt'));
   },
 );
 

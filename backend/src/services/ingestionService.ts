@@ -29,6 +29,8 @@ import type { CaptureSubmission } from './validation.js';
 import type {
   AnalysisAttempt,
   AnalysisResult,
+  CalibrationFlag,
+  PlateCalibration,
   CaptureEvent,
   FoodMeasurement,
   MenuBundle,
@@ -153,6 +155,15 @@ export class IngestionService {
         const stored = await this.images.storeMask(mask.measurementId, mask.png, event.geometry.widthPx, event.geometry.heightPx);
         m.maskCount!.maskObjectId = stored.objectId;
       }
+      // Plate calibration (BIG-PLAN D2): persisted only when valid. An
+      // invalid one is dropped (impact then reads "no calibration"), never
+      // guessed; the pixel counts stay valid either way.
+      const calibration = validCalibration(attempt.calibration ?? result.calibration);
+      if (calibration) attempt.calibration = calibration;
+      else delete attempt.calibration;
+      // Only the backend assigns storage references.
+      delete attempt.overlayObjectId;
+      if (result.overlay) attempt.overlayObjectId = await this.storeOverlay(event.eventId, attemptId, result.overlay);
     } catch (err) {
       // Infrastructure failure: record an explicit failed attempt, never
       // silence it and never leave the event stuck in `processing`.
@@ -188,6 +199,30 @@ export class IngestionService {
     await this.repo.upsertCaptureEvent(finalEvent);
 
     return { event: finalEvent, attempt, measurements, deduplicated: false };
+  }
+
+  /**
+   * The overlay is a display artifact: if it is malformed or storage rejects
+   * it, the capture keeps its validated counts and simply has no overlay.
+   * Logs the code only, never keys or URLs.
+   */
+  private async storeOverlay(
+    eventId: string,
+    attemptId: string,
+    overlay: NonNullable<AnalysisResult['overlay']>,
+  ): Promise<string | undefined> {
+    const { jpeg, widthPx, heightPx } = overlay;
+    const isJpeg = jpeg instanceof Uint8Array && jpeg.length > 3 && jpeg[0] === 0xff && jpeg[1] === 0xd8;
+    if (!isJpeg || !Number.isInteger(widthPx) || !Number.isInteger(heightPx) || widthPx <= 0 || heightPx <= 0) {
+      console.warn(`[backend] OVERLAY_INVALID for capture ${eventId}; stored without an overlay`);
+      return undefined;
+    }
+    try {
+      return (await this.images.storeOverlay(eventId, attemptId, jpeg, widthPx, heightPx)).objectId;
+    } catch {
+      console.warn(`[backend] OVERLAY_STORE_FAILED for capture ${eventId}; stored without an overlay`);
+      return undefined;
+    }
   }
 
   /**
@@ -318,4 +353,35 @@ export class IngestionService {
     }
     return normalized;
   }
+}
+
+const CALIBRATION_FLAGS = new Set<CalibrationFlag>(['calibration_default', 'plate_cut_off', 'bowl_size_assumed']);
+
+/**
+ * contracts PlateCalibration check (BIG-PLAN D2): known method, positive
+ * finite plate size, cm2PerPx = (plateDiameterCm / plateDiameterPx)², known
+ * flags. A configured default always carries 'calibration_default'.
+ * Returns a clean copy, or undefined when unusable.
+ */
+export function validCalibration(raw: PlateCalibration | undefined): PlateCalibration | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const { method, plateDiameterCm, plateDiameterPx, cm2PerPx } = raw;
+  if (method !== 'plate-fit-v1' && method !== 'configured-default') return undefined;
+  const positive = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0;
+  if (!positive(plateDiameterCm) || !positive(plateDiameterPx) || !positive(cm2PerPx)) return undefined;
+  const expected = (plateDiameterCm / plateDiameterPx) ** 2;
+  if (Math.abs(cm2PerPx - expected) > expected * 1e-3) return undefined;
+  if (!Array.isArray(raw.flags) || !raw.flags.every((f) => CALIBRATION_FLAGS.has(f))) return undefined;
+  const flags = [...new Set(raw.flags)];
+  if (method === 'configured-default' && !flags.includes('calibration_default')) flags.push('calibration_default');
+  if (raw.dishType !== undefined && !['plate', 'bowl', 'other'].includes(raw.dishType)) return undefined;
+  return {
+    method,
+    plateDiameterCm,
+    plateDiameterPx,
+    cm2PerPx,
+    ...(raw.dishType !== undefined ? { dishType: raw.dishType } : {}),
+    ...(typeof raw.fullyVisible === 'boolean' ? { fullyVisible: raw.fullyVisible } : {}),
+    flags,
+  };
 }

@@ -20,6 +20,7 @@ import type {
   MenuBundle,
   ReferencePortion,
   SegmentationResult,
+  PlateCalibration,
 } from '../src/types.js';
 
 const URI = process.env.SPACETIMEDB_URI;
@@ -257,6 +258,67 @@ test('SpacetimeDB repository round-trips every entity through the reducers', { s
     const badMeasurements = maskMeasurements.map((m) => ({ ...m, measurementId: `${m.measurementId}_bad`, attemptId: bad.attemptId }));
     await assert.rejects(repo.recordAnalysis(bad, badMeasurements), /capture union 901 != sum of measured pixels 900/);
     assert.deepEqual(await repo.listMeasurementsByAttempt(bad.attemptId), [], 'the rejected attempt stored nothing');
+  });
+
+  await t.test('calibration + overlay reference round-trip with their attempt (BIG-PLAN D2/D7)', async () => {
+    const overlay: ImageObject = {
+      ...image,
+      objectId: `img_${run}_overlay`,
+      objectKey: `overlays/2026-10-03/${event.eventId}_att_${run}_cal.jpg`,
+      mimeType: 'image/jpeg',
+      association: { kind: 'overlay', id: event.eventId },
+      state: 'finalized',
+      uploadedAt: '2026-10-03T16:20:01.000Z',
+    };
+    await repo.upsertImageObject(overlay);
+    assert.deepEqual(await repo.getImageObject(overlay.objectId), overlay);
+    const calibration: PlateCalibration = {
+      method: 'plate-fit-v1',
+      plateDiameterCm: 26.7,
+      plateDiameterPx: 812.5,
+      cm2PerPx: (26.7 / 812.5) ** 2,
+      dishType: 'plate',
+      fullyVisible: false,
+      flags: ['plate_cut_off'],
+    };
+    const calAttempt: AnalysisAttempt = {
+      ...attempt,
+      attemptId: `att_${run}_cal`,
+      createdAt: '2026-10-03T16:20:00.000Z',
+      calibration,
+      overlayObjectId: overlay.objectId,
+    };
+    await repo.recordAnalysis(calAttempt, []);
+    const stored = (await repo.listAnalysisAttempts(event.eventId)).find((a) => a.attemptId === calAttempt.attemptId);
+    assert.deepEqual(stored, calAttempt);
+
+    const defAttempt: AnalysisAttempt = {
+      ...attempt,
+      attemptId: `att_${run}_def`,
+      createdAt: '2026-10-03T16:21:00.000Z',
+      calibration: { method: 'configured-default', plateDiameterCm: 26.7, plateDiameterPx: 700, cm2PerPx: (26.7 / 700) ** 2, flags: ['calibration_default'] },
+    };
+    await repo.recordAnalysis(defAttempt, []);
+    const def = (await repo.listAnalysisAttempts(event.eventId)).find((a) => a.attemptId === defAttempt.attemptId);
+    assert.deepEqual(def, defAttempt, 'calibration without an overlay round-trips');
+
+    await assert.rejects(
+      repo.recordAnalysis({ ...calAttempt, attemptId: `att_${run}_cal_bad`, calibration: { ...calibration, cm2PerPx: 1 } }, []),
+      /cm2PerPx/,
+    );
+    await assert.rejects(
+      repo.recordAnalysis({ ...calAttempt, attemptId: `att_${run}_cal_bad2`, overlayObjectId: image.objectId }, []),
+      /not a registered overlay/,
+    );
+    await assert.rejects(
+      repo.recordAnalysis({ ...defAttempt, attemptId: `att_${run}_def_bad`, calibration: { ...defAttempt.calibration!, flags: [] } }, []),
+      /calibration_default/,
+    );
+    assert.equal(
+      (await repo.listAnalysisAttempts(event.eventId)).filter((a) => a.attemptId.includes('_bad')).length,
+      0,
+      'rejected attempts stored nothing',
+    );
   });
 
   await t.test('everything persists for a fresh connection', async () => {

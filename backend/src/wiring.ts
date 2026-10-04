@@ -15,6 +15,7 @@ import { IngestionService } from './services/ingestionService.js';
 import { SummaryService } from './services/summaryService.js';
 import { DashboardService } from './services/dashboardService.js';
 import { DishMatchService } from './services/dishMatchService.js';
+import { CaptureService } from './services/captureService.js';
 import { MockAnalyzer } from './analysis/mockAnalyzer.js';
 import { MaskAnalyzer } from './analysis/maskAnalyzer.js';
 import { createApp, type AppDeps } from './http/app.js';
@@ -73,6 +74,7 @@ export function buildBackend(options: BuildOptions = {}): AppDeps & { app: Retur
   const dashboard = new DashboardService(repo, ingestion, config, gateway.mode === 'live' ? gateway : undefined);
   // Same-dish checks for the camera bridge never run on mock text (BRIDGE.md §4.4).
   const dishMatch = new DishMatchService(gateway.mode === 'live' ? gateway : undefined);
-  const deps: AppDeps = { config, repo, storage, images, ingestion, summary, dashboard, dishMatch };
+  const captures = new CaptureService(repo, images, ingestion);
+  const deps: AppDeps = { config, repo, storage, images, ingestion, summary, dashboard, dishMatch, captures };
   return { ...deps, app: createApp(deps) };
 }

@@ -291,13 +291,13 @@ remaining work.
 
 | WS | State | Last update | Notes |
 | --- | --- | --- | --- |
-| C | running | 2026-10-04 | IT_4.md written; contracts next |
-| A | queued | | |
-| V | queued | | |
-| B | queued | | |
-| U | queued | | |
-| K | queued | | |
-| P | queued | | waits on user: `fly auth login`, `spacetime login`, domain |
+| C | **done** (phase 1) | 2026-10-04 | `d40c771`: IT_4.md, contracts IT_4 section, decisions, AGENTS.md §2 |
+| A | running | 2026-10-04 | launched |
+| V | running | 2026-10-04 | launched |
+| B | running | 2026-10-04 | launched (hardening + schema first) |
+| U | running | 2026-10-04 | launched (mocks first) |
+| K | running | 2026-10-04 | launched (client side + docs first) |
+| P | running | 2026-10-04 | launched; deploy waits on user: `fly auth login`, `spacetime login`, domain |
 
 ### Log
 - 2026-10-04: plan written. User chose Fly.io and will buy a domain.

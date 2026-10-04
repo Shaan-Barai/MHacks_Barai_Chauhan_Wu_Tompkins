@@ -75,6 +75,11 @@ export interface GeminiGatewayOptions {
   sleep?: (ms: number) => Promise<void>;
   /** Injectable env for tests; defaults to process.env. */
   env?: Record<string, string | undefined>;
+  /** Fixed sampling seed (D5). Env GEMINI_SEED (integer, or 'off' to omit), default 42. */
+  seed?: number | null;
+  /** Optional sampling caps. Env GEMINI_TOP_K / GEMINI_TOP_P; omitted when unset. */
+  topK?: number;
+  topP?: number;
 }
 
 export interface GeminiGateway {
@@ -106,8 +111,13 @@ export const defaultMockTransport: MockTransport = (req) =>
     ? JSON.stringify({ plateEmpty: true, ambiguous: false, items: [], unknown: [] })
     : '[mock-mode response] Gemini is not configured (GEMINI_API_KEY unset); this is fixture text, not a live model answer.';
 
+const DEFAULT_SEED = 42;
+
 class GatewayImpl implements GeminiGateway {
   readonly model: string;
+  private readonly seed: number | null;
+  private readonly topK: number | undefined;
+  private readonly topP: number | undefined;
   readonly mode: GatewayMode;
   callCount = 0;
 
@@ -123,6 +133,11 @@ class GatewayImpl implements GeminiGateway {
     const apiKey = opts.apiKey ?? env['GEMINI_API_KEY'];
     this.model = opts.model ?? env['GEMINI_MODEL'] ?? DEFAULT_MODEL;
     this.timeoutMs = opts.timeoutMs ?? parsePositiveInt(env['GEMINI_TIMEOUT_MS'], DEFAULT_TIMEOUT_MS);
+    const seedRaw = env['GEMINI_SEED']?.trim();
+    this.seed = opts.seed !== undefined ? opts.seed : seedRaw === 'off' ? null : parsePositiveInt(seedRaw, DEFAULT_SEED);
+    const num = (raw: string | undefined) => (raw !== undefined && raw.trim() !== '' && Number.isFinite(Number(raw)) ? Number(raw) : undefined);
+    this.topK = opts.topK ?? num(env['GEMINI_TOP_K']);
+    this.topP = opts.topP ?? num(env['GEMINI_TOP_P']);
     this.maxRetries = opts.maxRetries ?? parsePositiveInt(env['GEMINI_MAX_RETRIES'], DEFAULT_MAX_RETRIES);
     this.retryBaseDelayMs =
       opts.retryBaseDelayMs ?? parsePositiveInt(env['GEMINI_RETRY_BASE_DELAY_MS'], DEFAULT_RETRY_BASE_DELAY_MS);
@@ -181,6 +196,9 @@ class GatewayImpl implements GeminiGateway {
         abortSignal: AbortSignal.timeout(timeoutMs),
         ...(req.systemInstruction !== undefined ? { systemInstruction: req.systemInstruction } : {}),
         ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
+        ...(this.seed !== null ? { seed: this.seed } : {}),
+        ...(this.topK !== undefined ? { topK: this.topK } : {}),
+        ...(this.topP !== undefined ? { topP: this.topP } : {}),
         ...(req.maxOutputTokens !== undefined ? { maxOutputTokens: req.maxOutputTokens } : {}),
         ...(req.kind === 'structured'
           ? { responseMimeType: 'application/json', responseSchema: req.responseSchema as object }

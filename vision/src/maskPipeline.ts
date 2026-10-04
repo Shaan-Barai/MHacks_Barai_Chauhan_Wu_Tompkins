@@ -484,17 +484,27 @@ async function runStages(gateway: GeminiGateway, segmenter: Segmenter, input: Ma
     l.regions.map((r, idx) => ({ r, pass, idx, converted: geminiBoxToPixels(r.box2d, W, H) })),
   );
   const area = (b: [number, number, number, number]) => (b[2] - b[0]) * (b[3] - b[1]);
+  // Content-based total order (D5): never depends on which pass or list position Gemini used,
+  // so equal-area ties and region numbering are the same for the same set of boxes.
+  const candidateOrder = (x: (typeof candidates)[number], y: (typeof candidates)[number]): number => {
+    const bx = x.converted.ok ? x.converted.box.pixelXyxy : [0, 0, 0, 0];
+    const by = y.converted.ok ? y.converted.box.pixelXyxy : [0, 0, 0, 0];
+    for (let k = 0; k < 4; k++) if (bx[k] !== by[k]) return bx[k]! - by[k]!;
+    const ix = x.r.itemId ?? '\uffff';
+    const iy = y.r.itemId ?? '\uffff';
+    return ix < iy ? -1 : ix > iy ? 1 : x.pass - y.pass || x.idx - y.idx;
+  };
   const kept: typeof candidates = [];
   for (const c of candidates.filter((c) => c.converted.ok).sort((x, y) => {
     const ax = x.converted.ok ? area(x.converted.box.pixelXyxy) : 0;
     const ay = y.converted.ok ? area(y.converted.box.pixelXyxy) : 0;
-    return ax - ay || x.pass - y.pass || x.idx - y.idx;
+    return ax - ay || candidateOrder(x, y);
   })) {
     if (!c.converted.ok) continue;
     const box = c.converted.box.pixelXyxy;
     if (kept.every((k) => k.converted.ok && boxIoU(k.converted.box.pixelXyxy, box) <= MERGE_IOU)) kept.push(c);
   }
-  kept.sort((x, y) => x.pass - y.pass || x.idx - y.idx);
+  kept.sort((x, y) => x.pass - y.pass || x.idx - y.idx); // display order only; counts do not depend on it
   localization.mergedBoxes = kept.length;
   const keptFood = kept.filter((c) => c.r.onTargetDish);
   const keptOther = kept.filter((c) => !c.r.onTargetDish);

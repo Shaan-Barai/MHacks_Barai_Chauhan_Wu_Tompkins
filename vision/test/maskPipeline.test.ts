@@ -347,3 +347,26 @@ test('GEMINI_PASSES=1 makes a single Gemini call per capture with the unchanged 
   assert.equal(attempt.promptVersion, 'scrap-localize-v4');
   assert.deepEqual(localization.passBoxes, [1]);
 });
+
+// D5: our own code must not depend on the order Gemini lists boxes in.
+test('D5: equal-size overlapping boxes -> same kept box and item counts whichever order Gemini lists them', async () => {
+  const a = { ingredient: 'burger', menu_id: 1, box_2d: [0, 0, 400, 200] }; // x 0-20, y 0-20
+  const b = { ingredient: 'fries', menu_id: 2, box_2d: [0, 20, 400, 220] }; // x 2-22: same area, IoU ~0.82
+  const run = async (boxes: unknown[]) => {
+    const r = await analyzeCaptureWithMasks(gemini(boxes), boxFiller(), { ...input, geminiPasses: 1 });
+    return r.measurements.map((m) => `${m.itemId}:${JSON.stringify(m.maskCount)}`).sort();
+  };
+  assert.deepEqual(await run([b, a]), await run([a, b]));
+});
+
+test('D5: countPixels with equal-size overlapping masks of different items is order independent', () => {
+  const x = new Uint8Array(10).fill(1, 0, 6);
+  const y = new Uint8Array(10).fill(1, 3, 9);
+  const run = (rs: { regionId: string; itemId: string; bitmap: Uint8Array }[]) => {
+    const c = countPixels(rs, 10);
+    return [c.perItem.get('a'), c.perItem.get('b')];
+  };
+  const ra = { regionId: 'r1', itemId: 'a', bitmap: x };
+  const rb = { regionId: 'r2', itemId: 'b', bitmap: y };
+  assert.deepEqual(run([ra, rb]), run([{ ...rb, regionId: 'r1' }, { ...ra, regionId: 'r2' }]));
+});

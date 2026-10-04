@@ -4,7 +4,7 @@
  *
  * Counting rule "smallest-first-v1":
  *  - Region masks are sorted by their own foreground size, smallest first
- *    (ties keep classification order). Each mask claims only the pixels no
+ *    (ties: item id, then first foreground pixel; never list order). Each mask claims only the pixels no
  *    earlier mask has claimed, so where masks overlap the smaller mask wins
  *    (a carrot slice on rice keeps its pixels; the rice mask loses them).
  *  - Claimed pixels go to the region's bucket: its menu item, or the
@@ -129,9 +129,13 @@ export function countPixels(regions: CountedRegion[], size: number): PixelCounts
   const sized = regions.map((r, order) => {
     let px = 0;
     for (let i = 0; i < size; i++) if (r.bitmap[i]) px++;
-    return { r, order, px };
+    let first = -1;
+    for (let i = 0; i < size; i++) if (r.bitmap[i]) { first = i; break; }
+    return { r, order, px, first };
   });
-  sized.sort((a, b) => a.px - b.px || a.order - b.order);
+  // Ties (equal size) resolve by content, not list order: item id (unclassified last), first pixel.
+  const key = (id: string | null) => id ?? '\uffff';
+  sized.sort((a, b) => a.px - b.px || (key(a.r.itemId) < key(b.r.itemId) ? -1 : key(a.r.itemId) > key(b.r.itemId) ? 1 : 0) || a.first - b.first || a.order - b.order);
 
   const claimed = new Uint8Array(size);
   const perItem = new Map<string, number>();

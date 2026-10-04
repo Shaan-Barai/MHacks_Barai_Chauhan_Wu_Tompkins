@@ -92,6 +92,28 @@ export function parseWindow(query: Record<string, unknown>): ImpactWindow {
   return { start, end, ...(typeof hallId === 'string' ? { hallId } : {}) };
 }
 
+/** One headline period (pixels; relative impact points; never a physical unit). */
+export interface WasteTotal {
+  start: string;
+  end: string;
+  pixels: number;
+  impactPoints: number | null;
+  captures: number;
+  analyzedCaptures: number;
+  sampleCaptures: number;
+  /**
+   * Calibrated estimates for the same period (main's IT_4 design): null when no
+   * plate in it was scanned with a calibrated camera, never 0 for missing.
+   */
+  estimated: { grams: number; kgCo2e: number | null; waterLitres: number | null; calibratedCaptures: number } | null;
+}
+
+export interface WasteTotals {
+  today: WasteTotal;
+  week: WasteTotal;
+  month: WasteTotal;
+}
+
 export class ImpactService {
   private readonly recommendations = new Map<string, { value: Recommendation; storedAt: number }>();
   private readonly names: ItemNameResolver;
@@ -261,6 +283,47 @@ export class ImpactService {
     }
     items.sort((a, b) => b.capturedAt.localeCompare(a.capturedAt) || b.eventId.localeCompare(a.eventId));
     return items.slice(0, limit);
+  }
+
+  /**
+   * Headline totals for today, this week (Monday to today) and this month
+   * (1st to today), in pixels, from the same eligible rows as the dashboard.
+   */
+  async totals(hallId: string | undefined, today: string): Promise<WasteTotals> {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(today)) throw badRequest('INVALID_PARAMETER', "'today' must be YYYY-MM-DD.");
+    const t = new Date(`${today}T12:00:00Z`);
+    const monday = new Date(t);
+    monday.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7));
+    const periods = {
+      today: { start: today, end: today },
+      week: { start: monday.toISOString().slice(0, 10), end: today },
+      month: { start: `${today.slice(0, 8)}01`, end: today },
+    };
+    // One read for the widest window; each period is built from its own dates.
+    const earliest = periods.week.start < periods.month.start ? periods.week.start : periods.month.start;
+    const records = await this.gather({ start: earliest, end: today, ...(hallId ? { hallId } : {}) });
+    const sum = (p: { start: string; end: string }): WasteTotal => {
+      const rows = records.filter((r) => r.menu.service.serviceDate >= p.start && r.menu.service.serviceDate <= p.end);
+      const d = this.build({ ...p, ...(hallId ? { hallId } : {}) }, rows);
+      return {
+        ...p,
+        pixels: d.totals.pixels,
+        impactPoints: d.totals.impactPoints,
+        captures: d.totals.captures,
+        analyzedCaptures: d.totals.analyzedCaptures,
+        sampleCaptures: d.coverage.sampleCaptures ?? 0,
+        estimated:
+          d.totals.grams != null && (d.totals.physicalCoverage?.calibratedCaptures ?? 0) > 0
+            ? {
+                grams: d.totals.grams,
+                kgCo2e: d.totals.kgCo2e ?? null,
+                waterLitres: d.totals.waterLitres ?? null,
+                calibratedCaptures: d.totals.physicalCoverage!.calibratedCaptures,
+              }
+            : null,
+      };
+    };
+    return { today: sum(periods.today), week: sum(periods.week), month: sum(periods.month) };
   }
 
   /** Earlier/later halves of the window (by local date) for the recommendation's trend fact. */

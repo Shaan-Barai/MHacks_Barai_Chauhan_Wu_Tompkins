@@ -749,6 +749,15 @@ export function createApp(deps: AppDeps): express.Express {
     }),
   );
 
+  // Headline totals: today, this week (Mon-today), this month (1st-today), in pixels.
+  app.get(
+    '/api/dashboard/totals',
+    wrap(async (req, res) => {
+      const hallId = typeof req.query.hallId === 'string' && req.query.hallId ? req.query.hallId : undefined;
+      res.json(await impact.totals(hallId, requireQuery(req, 'today')));
+    }),
+  );
+
   // Regenerate on demand (dashboard button): always asks Gemini again and saves the result.
   app.post(
     '/api/recommendation/regenerate',

@@ -89,6 +89,7 @@ rm -rf backend/.local-storage          # local-dev images (R2 objects can stay; 
 | `502 STORAGE_UNAVAILABLE` | R2 credentials/bucket in `.env`, Cloudflare status | Fix `R2_*` / `OBJECT_STORAGE_CONTAINER`; retry |
 | R2 PUT returns 403 `SignatureDoesNotMatch` | PUT headers | Send exactly the returned `uploadHeaders` and the declared byte count |
 | Analysis `failed` | ApiError code | Retry if `retryable` (re-run replay); otherwise needs_review |
+| Every capture fails with `GEMINI_BAD_REQUEST`, and the recommendation stays `fallback` | `details.providerStatus` 402 / "prepayment credits are depleted" | Gemini billing is empty: top up the project in AI Studio. Rerun the bridge afterwards; it retries under the same eventIds |
 | `GEMINI_AUTH_FAILED` | Key in `.env` | Fix `GEMINI_API_KEY`; `cd vision && npm run smoke` |
 | `GEMINI_MODEL_NOT_FOUND` | `GEMINI_MODEL` | Use a model the key can access (`gemini-3.8-flash`) |
 | Tip says "rule-based (AI unavailable)" | Gemini error/truncation | Reload the meal; fallback tips are retried with Gemini |

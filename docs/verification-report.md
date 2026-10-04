@@ -32,7 +32,7 @@ format). **The Uno Q board was not used in this run.**
 | `GET /api/captures/:id/images` | live R2 | original + overlay + every mask returned HTTP 200 with an image content type (8 masks in total); URLs were not printed or logged |
 | SpacetimeDB rows (SQL over HTTP, owner token) | live | per capture: 1 `capture_event`, `image_object` rows for photo/overlay/masks (provider `r2`, `finalized`, kinds `capture`/`overlay`/`mask`, keys not URLs, no long strings), 1 `analysis_attempt`, 1 `attempt_calibration` (calibration + overlay id matching the overlay row), and `food_measurement` rows |
 | `GET /api/dashboard/impact?start=2026-10-03&end=2026-10-03&hallId=hall-main` | live | see totals below; `targets` and `mostWasted` filled; `labels.estimate = true`, `demoPortions = true` |
-| `GET /api/recommendation` (same window) | **live Gemini** | `source: gemini`, 4 bullets each citing a dashboard metric; mentions that only 3 plates were analyzed; no cause claimed |
+| `GET /api/recommendation` (same window, before credits ran out) | **live Gemini** | `source: gemini`, 4 bullets each citing a dashboard metric; mentions that only 3 plates were analyzed; no cause claimed |
 | Secrets/URLs | live | backend and E2E logs contain no signed URL (`X-Amz-Signature`: 0 matches) |
 
 Per photo (estimates; Pixels wasted is the raw measurement):
@@ -64,6 +64,20 @@ Impact totals (hall-main, 2026-10-03; only these 3 captures in the window):
 | `capture/uno-q` `python3 -B -m unittest discover -s capture/uno-q` (fake FFmpeg/SSH) | 57 OK |
 | `tests/` `npm test` (live suites skipped) | 18/18 |
 | `data/` 38/38 · `vision/` 68/68 · `analytics/` 57/57 · `backend/` 49/50 (1 live-only skip) · `frontend/` 46/46 | pass |
+
+### Gemini credits ran out right after the run (2026-10-04 04:12 UTC)
+
+After the run, the backend was restarted on `619cbaf`/`baab6d9`. The same 3 events were re-checked
+(`SCRAP_E2E_EVENT_IDS`): 7/7 pass, with the simulator step skipped. `/api/recommendation` now returns
+the labeled **`fallback`**, and keeps doing so after the 60 s Gemini retry. A direct gateway call shows
+why: Google returns **HTTP 402 `RESOURCE_EXHAUSTED`, "Your prepayment credits are depleted"**.
+
+- Until billing is topped up, **new captures will fail Gemini classification**, and recommendations stay
+  rule-based.
+- Stored results, R2 images and the impact dashboard are unaffected.
+- Defect, owner Agent 4 (`vision/`): the gateway maps the 402 to `GEMINI_BAD_REQUEST` ("The analysis
+  request was rejected"). That hides a billing/quota problem. It should get its own code (quota/billing)
+  and a clear message.
 
 ### Notes and limits
 

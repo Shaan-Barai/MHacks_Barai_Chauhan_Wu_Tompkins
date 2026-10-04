@@ -107,7 +107,8 @@ describe('IT_4 live: calibration → area / volume → estimated CO2e + water', 
     assert.notEqual(detail.event.state, 'failed', `${label}: ${JSON.stringify(detail.attempts?.at(-1)?.error ?? {})}`);
     const list = await api('GET', `/api/captures?hallId=${service.hallId}&start=${window.start}&end=${window.end}&limit=200`);
     assert.equal(list.status, 200);
-    const row = list.body.captures.find((c) => c.eventId === ids[0]);
+    const rows = Array.isArray(list.body) ? list.body : list.body.captures;
+    const row = rows.find((c) => c.eventId === ids[0]);
     assert.ok(row, `${label}: ${ids[0]} in GET /api/captures`);
     return { eventId: ids[0], detail, row };
   }

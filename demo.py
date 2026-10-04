@@ -598,7 +598,8 @@ def step_volume(demo):
     """Estimated area / volume / grams / CO2e / water per food, from the calibration (labeled estimates)."""
     q = urllib.parse.urlencode({"hallId": HALL_ID, "start": demo.date, "end": demo.date, "limit": 200})
     status, listing = demo.get(f"/api/captures?{q}")
-    captures = {c["eventId"]: c for c in (listing or {}).get("captures", [])} if status == 200 else {}
+    rows = listing if isinstance(listing, list) else (listing or {}).get("captures", [])
+    captures = {c["eventId"]: c for c in rows} if status == 200 else {}
     totals = {"grams": 0.0, "kgCo2e": 0.0, "waterLitres": 0.0, "areaCm2": 0.0, "volumeCm3": 0.0}
     counted = {k: 0 for k in totals}
     calibrated = 0
@@ -962,7 +963,8 @@ def main():
     parser.add_argument("--prod-url", default=os.environ.get("SCRAP_PROD_URL"),
                         help="Production URL for the deploy step (default $SCRAP_PROD_URL)")
     parser.add_argument("--recalibrate", action="store_true", help="Take a new calibration even if one is active")
-    parser.add_argument("--depth", choices=["on", "off"], help="Set Depth Anything V2 on/off for the hall")
+    parser.add_argument("--depth", choices=["on", "off"], default="off",
+                        help="Depth Anything V2 for the hall (default off: area method; DAv2 volume is unvalidated on food)")
     parser.add_argument("--known-area-cm2", type=float, default=46.21,
                         help="Calibration reference area in cm² (default 46.21 = credit card)")
     parser.add_argument("--reference-label", default="credit card", help="Calibration reference object")

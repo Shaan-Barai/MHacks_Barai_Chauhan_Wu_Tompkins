@@ -1,4 +1,4 @@
-/** Chart helpers: one bar per day. */
+/** Chart helpers: one point per day. */
 import { formatMedium, formatShort } from './dates'
 import type { DailyImpactPoint, DailyWastePoint } from '../data/types'
 
@@ -12,7 +12,7 @@ export interface ChartBucket {
   value: number | null
 }
 
-/** One bar per day of Pixels wasted (the chart is pixels only, BIG-PLAN v2). */
+/** One point per day of Pixels wasted (the chart is pixels only, BIG-PLAN v2). */
 export function dailyBuckets(points: DailyWastePoint[]): ChartBucket[] {
   return points.map((p) => ({
     key: p.date,
@@ -22,7 +22,7 @@ export function dailyBuckets(points: DailyWastePoint[]): ChartBucket[] {
   }))
 }
 
-/** One bar per day of estimated kg CO2e. */
+/** One point per day of estimated kg CO2e. */
 export function carbonBuckets(points: DailyImpactPoint[]): ChartBucket[] {
   return points.map((p) => ({
     key: p.date,

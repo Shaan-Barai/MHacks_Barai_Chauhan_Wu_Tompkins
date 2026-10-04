@@ -1,6 +1,7 @@
 /**
- * Per-day bar chart: estimated carbon emissions (kg CO2e) by day, black bars,
- * hover (and keyboard-focus) tooltip with the exact value and date. Hand-rolled SVG.
+ * Per-day line chart: estimated carbon emissions (kg CO2e) by day, a black line
+ * with a dot per day, hover (and keyboard-focus) tooltip with the exact value and
+ * date. Days with no data break the line (a gap, never a drop to zero). Hand-rolled SVG.
  */
 import { useLayoutEffect, useRef, useState } from 'react'
 import { formatKgCo2e } from '../lib/format'
@@ -9,7 +10,7 @@ import { niceCeil, type ChartBucket } from '../lib/grouping'
 const valueText = (v: number) => formatKgCo2e(v)
 const axisText = (v: number) => (v === 0 ? '0' : v >= 0.1 ? `${+v.toFixed(2)} kg` : `${Math.round(v * 1000)} g`)
 
-const BAR = '#000000'
+const LINE = '#000000'
 const GRID = '#000000'
 const LABEL = '#000000'
 
@@ -35,15 +36,27 @@ export function WasteChart({ buckets }: { buckets: ChartBucket[] }) {
   const plotH = HEIGHT - M.top - M.bottom
   const max = niceCeil(Math.max(0, ...buckets.map((b) => b.value ?? 0)))
   const band = plotW / Math.max(1, n)
-  const barW = Math.min(24, Math.max(2, band - 2)) // ≤24px thick, 2px surface gap
+  const xFor = (i: number) => M.left + i * band + band / 2
   const yFor = (v: number) => M.top + plotH - (v / max) * plotH
+
+  // Runs of consecutive days with data; a missing day ends the run.
+  const runs: Array<Array<{ x: number; y: number }>> = []
+  let run: Array<{ x: number; y: number }> = []
+  buckets.forEach((b, i) => {
+    if (b.value === null) {
+      if (run.length) runs.push(run)
+      run = []
+    } else run.push({ x: xFor(i), y: yFor(b.value) })
+  })
+  if (run.length) runs.push(run)
+  const dotR = band >= 10 ? 3 : 0 // dots only when days are far enough apart to read
 
   // ~6 evenly spaced x labels so they never collide.
   const labelEvery = Math.max(1, Math.ceil(n / 6))
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => f * max)
 
   const hovered = hover !== null ? buckets[hover] : null
-  const hoverCenter = hover !== null ? M.left + hover * band + band / 2 : 0
+  const hoverCenter = hover !== null ? xFor(hover) : 0
   const tooltipLeft = Math.min(Math.max(hoverCenter, 70), width - 70)
 
   return (
@@ -52,7 +65,7 @@ export function WasteChart({ buckets }: { buckets: ChartBucket[] }) {
         width={width}
         height={HEIGHT}
         role="img"
-        aria-label="Bar chart of estimated carbon emissions per day"
+        aria-label="Line chart of estimated carbon emissions per day"
       >
         {/* recessive hairline gridlines + y ticks */}
         {ticks.map((t) => (
@@ -64,18 +77,32 @@ export function WasteChart({ buckets }: { buckets: ChartBucket[] }) {
           </g>
         ))}
 
-        {/* Black bars: square at the baseline, 4px rounded data-end */}
+        {/* hover guide */}
+        {hovered && hovered.value !== null ? (
+          <line x1={hoverCenter} x2={hoverCenter} y1={M.top} y2={M.top + plotH} stroke={GRID} strokeWidth={1} />
+        ) : null}
+
+        {/* Black line, broken at days with no data */}
+        {runs.map((r) =>
+          r.length > 1 ? (
+            <polyline
+              key={`${r[0]!.x}`}
+              points={r.map((p) => `${p.x},${p.y}`).join(' ')}
+              fill="none"
+              stroke={LINE}
+              strokeWidth={2}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+          ) : null,
+        )}
+
+        {/* A dot per day (always for a lone day, so it isn't invisible); larger on hover */}
         {buckets.map((b, i) => {
           if (b.value === null) return null
-          const x = M.left + i * band + (band - barW) / 2
-          const y = yFor(b.value)
-          const h = M.top + plotH - y
-          const r = Math.min(4, barW / 2, h)
-          const d =
-            h <= 0.5
-              ? ''
-              : `M ${x} ${M.top + plotH} V ${y + r} Q ${x} ${y} ${x + r} ${y} H ${x + barW - r} Q ${x + barW} ${y} ${x + barW} ${y + r} V ${M.top + plotH} Z`
-          return <path key={b.key} d={d} fill={BAR} />
+          const lone = (i === 0 || buckets[i - 1]!.value === null) && (i === n - 1 || buckets[i + 1]!.value === null)
+          const r = hover === i ? 5 : lone ? Math.max(dotR, 3) : dotR
+          return r > 0 ? <circle key={b.key} cx={xFor(i)} cy={yFor(b.value)} r={r} fill={LINE} /> : null
         })}
 
         {/* baseline */}
@@ -86,7 +113,7 @@ export function WasteChart({ buckets }: { buckets: ChartBucket[] }) {
           i % labelEvery === 0 ? (
             <text
               key={b.key}
-              x={M.left + i * band + band / 2}
+              x={xFor(i)}
               y={HEIGHT - 10}
               textAnchor="middle"
               fontSize={12}

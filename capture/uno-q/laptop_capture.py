@@ -51,6 +51,25 @@ def ssh_command(args, remote_command):
     return command, interactive
 
 
+def focus_arguments(args):
+    """Board flags for the C920s focus lock. Defaults are omitted so older board scripts still run."""
+    extra = []
+    if args.no_focus_lock:
+        extra.append("--no-focus-lock")
+    elif args.focus_absolute != 0:
+        extra += ["--focus-absolute", str(args.focus_absolute)]
+    return extra
+
+
+def describe_focus(metadata):
+    focus = metadata.get("focus")
+    if not isinstance(focus, dict):
+        return "unknown (the board script predates the focus lock; copy the new uno_q_camera.py to the board)"
+    if focus.get("lock") == "locked":
+        return f"locked ({focus.get('control')}=0, focus_absolute={focus.get('absolute')})"
+    return f"NOT locked ({focus.get('lock')}{': ' + str(focus['detail']) if focus.get('detail') else ''})"
+
+
 def read_exact(stream, size, allow_eof=False):
     data = bytearray()
     while len(data) < size:
@@ -72,10 +91,12 @@ def receive_automatic(args):
         "/usr/bin/python3", args.remote_script, "--stream",
         "--device", args.device, "--width", str(args.width), "--height", str(args.height),
         "--warmup", str(args.warmup), "--interval", str(args.interval), "--count", str(args.count),
+        *focus_arguments(args),
     ])
     command, interactive = ssh_command(args, remote_command)
     print(f"Automatic photos every {args.interval:g} seconds. Ctrl+C stops capture.", flush=True)
     print("Timed frames can show the same dish; dish identity is unresolved.", flush=True)
+    focus_reported = False
     process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE)
     received = 0
     try:
@@ -115,6 +136,9 @@ def receive_automatic(args):
             photo, metadata = validate_bundle(data, capture_id)
             destination = save_capture(out, photo, metadata)
             received += 1
+            if not focus_reported:
+                print(f"Focus: {describe_focus(metadata)}", flush=True)
+                focus_reported = True
             print(f"Saved: {destination / 'photo.jpg'} ({metadata['widthPx']} x {metadata['heightPx']} pixels)", flush=True)
     finally:
         if process.poll() is None:
@@ -205,6 +229,8 @@ def receive_capture(args):
         "width": args.width,
         "height": args.height,
         "warmup": args.warmup,
+        "focus": focus_arguments(args),
+        "calibrate": args.calibrate,
     }
     if pending_path.exists():
         request = json.loads(pending_path.read_text())
@@ -231,6 +257,7 @@ def receive_capture(args):
         "--device", args.device,
         "--width", str(args.width), "--height", str(args.height),
         "--warmup", str(args.warmup),
+        *focus_arguments(args),
     ])
     command, interactive = ssh_command(args, remote_command)
     result = subprocess.run(
@@ -239,11 +266,23 @@ def receive_capture(args):
         timeout=150 if interactive else 45, check=True,
     )
     photo, metadata = validate_bundle(result.stdout, capture_id)
+    if args.calibrate:
+        # The bridge never ingests this frame as a dish; `npm run calibrate` uploads it.
+        metadata["capturePurpose"] = "calibration"
     destination = save_capture(out, photo, metadata)
     pending_path.unlink()
     print(f"Saved: {destination / 'photo.jpg'}")
     print(f"Metadata: {destination / 'metadata.json'}")
     print(f"Actual image: {metadata['widthPx']} x {metadata['heightPx']} pixels")
+    print(f"Focus: {describe_focus(metadata)}")
+    if (metadata["widthPx"], metadata["heightPx"]) != (args.width, args.height):
+        print(f"Warning: asked for {args.width} x {args.height}. A calibration only holds for the resolution "
+              "it was taken at.", file=sys.stderr)
+    if args.calibrate:
+        print("Calibration frame saved. Upload it with:")
+        print(f"  cd capture && npm run calibrate -- --inbox {out} --frame {capture_id} "
+              "--known-area-cm2 46.21 --reference-label \"credit card\"")
+        print("Keep the same focus and resolution for every capture after this.")
     return destination
 
 
@@ -254,6 +293,9 @@ def main():
     parser.add_argument("--width", type=int, default=1920)
     parser.add_argument("--height", type=int, default=1080)
     parser.add_argument("--warmup", type=float, default=2.0)
+    parser.add_argument("--focus-absolute", type=int, default=0,
+                        help="Locked C920s focus_absolute (0-255, default 0); keep it the same as the calibration")
+    parser.add_argument("--no-focus-lock", action="store_true", help="Leave the camera's autofocus on")
     parser.add_argument("--remote-script", default="scrap-camera/uno_q_camera.py")
     authentication = parser.add_mutually_exclusive_group()
     authentication.add_argument("--identity", type=Path, help="Existing SSH key for noninteractive authentication")
@@ -262,6 +304,8 @@ def main():
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--once", action="store_true", help="Capture/retry once and exit")
     mode.add_argument("--auto", action="store_true", help="Automatically receive timed photos; no OpenCV required")
+    mode.add_argument("--calibrate", action="store_true",
+                      help="Take one calibration frame (reference object of known area, no plate) and exit")
     parser.add_argument("--interval", type=float, default=1.0, help="Seconds between photos in --auto mode (default: 1)")
     parser.add_argument("--count", type=int, default=0, help="Stop after N automatic photos; 0 = continuous")
     args = parser.parse_args()
@@ -277,6 +321,14 @@ def main():
         parser.error("Count must be nonnegative.")
     if not args.auto and (args.interval != 1 or args.count):
         parser.error("--interval and --count require --auto.")
+    if not 0 <= args.focus_absolute <= 255:
+        parser.error("--focus-absolute must be between 0 and 255.")
+    if args.no_focus_lock and args.focus_absolute != 0:
+        parser.error("--focus-absolute and --no-focus-lock cannot be combined.")
+    if args.calibrate:
+        args.once = True
+        print("Calibration: lay the reference object (e.g. a credit card) flat on the tray where plates sit,")
+        print("fully inside the middle of the frame, with no plate covering it.")
 
     if args.auto:
         try:
@@ -286,7 +338,8 @@ def main():
             print("Complete saved photos are retained. Check the board and restart --auto.", file=sys.stderr)
             return 1
 
-    print("One operator/program per output folder. Place one dish before each capture.")
+    if not args.calibrate:
+        print("One operator/program per output folder. Place one dish before each capture.")
     while True:
         if not args.once:
             if (args.out.expanduser() / ".pending.json").exists():

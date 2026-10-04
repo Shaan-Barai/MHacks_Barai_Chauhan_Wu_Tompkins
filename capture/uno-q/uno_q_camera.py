@@ -12,6 +12,7 @@ import math
 import os
 from pathlib import Path
 import select
+import shutil
 import signal
 import struct
 import subprocess
@@ -178,6 +179,65 @@ def jpeg_dimensions(photo):
     raise ValueError("The camera JPEG has no valid image dimensions.")
 
 
+def v4l2_set(device, controls):
+    """Run v4l2-ctl -c for each control; return (ok, stderr text)."""
+    command = ["v4l2-ctl", "-d", device]
+    for control in controls:
+        command += ["-c", control]
+    try:
+        done = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5)
+    except subprocess.TimeoutExpired:
+        return False, "v4l2-ctl timed out"
+    return done.returncode == 0, (done.stderr or done.stdout or "").strip()
+
+
+def v4l2_get(device, control):
+    """Read one integer control back (``focus_absolute: 0``), or None."""
+    try:
+        done = subprocess.run(["v4l2-ctl", "-d", device, "-C", control], stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, text=True, timeout=5)
+    except subprocess.TimeoutExpired:
+        return None
+    if done.returncode != 0:
+        return None
+    value = done.stdout.strip().rpartition(":")[2].strip()
+    return int(value) if value.lstrip("-").isdigit() else None
+
+
+def lock_focus(args):
+    """Best-effort Logitech C920s focus lock (IT_4 I3); never fails the capture.
+
+    Autofocus changes the focal length, so calibration and every later capture
+    use the same fixed focus. Newer kernels name the control
+    focus_automatic_continuous, older ones focus_auto. The result is recorded in
+    the capture metadata so calibration and dish frames can be compared.
+    """
+    requested = getattr(args, "focus_absolute", 0)
+    if getattr(args, "no_focus_lock", False):
+        print("Focus lock disabled (--no-focus-lock): the camera may refocus between captures.", file=sys.stderr)
+        return {"lock": "disabled", "control": None, "absolute": None}
+    device = getattr(args, "device", "/dev/video0")
+    if shutil.which("v4l2-ctl") is None:
+        print("Warning: v4l2-ctl is not installed, so focus is NOT locked "
+              "(sudo apt install v4l-utils). Capturing anyway.", file=sys.stderr)
+        return {"lock": "unavailable", "control": None, "absolute": None,
+                "detail": "v4l2-ctl not installed"}
+    errors = []
+    for control in ("focus_automatic_continuous", "focus_auto"):
+        ok, detail = v4l2_set(device, [f"{control}=0", f"focus_absolute={requested}"])
+        if ok:
+            actual = v4l2_get(device, "focus_absolute")
+            absolute = requested if actual is None else actual
+            print(f"Focus locked: {control}=0, focus_absolute={absolute} on {device}.", file=sys.stderr)
+            if actual is not None and actual != requested:
+                print(f"Warning: requested focus_absolute={requested}, camera reports {actual}.", file=sys.stderr)
+            return {"lock": "locked", "control": control, "absolute": absolute}
+        errors.append(f"{control}: {detail[-200:]}")
+    print("Warning: could not lock focus with v4l2-ctl; capturing with the camera's own focus. "
+          + " | ".join(errors), file=sys.stderr)
+    return {"lock": "failed", "control": None, "absolute": None, "detail": " | ".join(errors)[-400:]}
+
+
 def camera_frames(args):
     """Yield validated native JPEGs; close FFmpeg when the caller is done."""
     command = [
@@ -224,6 +284,7 @@ def stream_captures(args):
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             raise RuntimeError("Another capture is using the camera. Stop it first.")
+        focus = lock_focus(args)
         with closing(camera_frames(args)) as frames:
             next_capture = None
             count = 0
@@ -246,7 +307,9 @@ def stream_captures(args):
                     "sha256": hashlib.sha256(photo).hexdigest(),
                     "triggerSource": "interval", "intervalSeconds": args.interval,
                     "dishIdentity": "unresolved",
+                    "focus": focus,
                 }
+                warn_resolution(args, width, height)
                 bundle = make_bundle(photo, metadata)
                 sys.stdout.buffer.write(struct.pack("!I", len(bundle)) + capture_id.bytes + bundle)
                 sys.stdout.buffer.flush()
@@ -262,6 +325,7 @@ def stream_captures(args):
 
 
 def capture_image(args):
+    focus = lock_focus(args)
     # Keep consuming native MJPEG frames while exposure/focus settles.
     with closing(camera_frames(args)) as frames:
         deadline = None
@@ -288,8 +352,17 @@ def capture_image(args):
             "normalized": False,
             "byteLength": len(photo),
             "sha256": hashlib.sha256(photo).hexdigest(),
+            "focus": focus,
         }
+        warn_resolution(args, width, height)
         return photo, metadata
+
+
+def warn_resolution(args, width, height):
+    # A calibration holds for one resolution only (IT_4 I2); say so when the camera picked another.
+    if (width, height) != (args.width, args.height):
+        print(f"Warning: asked for {args.width}x{args.height}, the camera sent {width}x{height}. "
+              "Calibrate at the resolution you capture with.", file=sys.stderr)
 
 
 def make_bundle(photo, metadata):
@@ -325,14 +398,21 @@ def main():
     parser.add_argument("--interval", type=float, default=1.0, help="Seconds between streamed photos")
     parser.add_argument("--count", type=int, default=0, help="Stop after this many streamed photos; 0 = continuous")
     parser.add_argument("--device", default="/dev/video0")
+    # Fixed C920s native mode. A calibration holds for one resolution only (IT_4 I2).
     parser.add_argument("--width", type=int, default=1920)
     parser.add_argument("--height", type=int, default=1080)
     parser.add_argument("--warmup", type=float, default=2.0)
+    parser.add_argument("--focus-absolute", type=int, default=0,
+                        help="Locked C920s focus_absolute (0-255; default 0). Same value for calibration and captures")
+    parser.add_argument("--no-focus-lock", action="store_true",
+                        help="Leave autofocus alone (physical estimates become unreliable)")
     parser.add_argument(
         "--cache-dir", type=Path,
         default=Path.home() / "scrap-camera" / "captures",
     )
     args = parser.parse_args()
+    if not 0 <= args.focus_absolute <= 255:
+        parser.error("--focus-absolute must be between 0 and 255.")
     if args.capture_id and str(uuid.UUID(args.capture_id)) != args.capture_id:
         parser.error("--capture-id must be a canonical UUID.")
     if not (1 <= args.width <= 8192 and 1 <= args.height <= 8192):

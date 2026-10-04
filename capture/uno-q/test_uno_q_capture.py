@@ -111,6 +111,30 @@ while True:
 '''
 
 
+FAKE_V4L2 = '''#!{python}
+import json, os, sys
+
+args = sys.argv[1:]
+with open(os.environ["FAKE_V4L2_LOG"], "a") as log:
+    log.write(json.dumps(args) + "\\n")
+state = os.environ["FAKE_V4L2_STATE"]
+if "-C" in args:
+    value = open(state).read() if os.path.exists(state) else "250"
+    print("focus_absolute: " + value)
+    sys.exit(0)
+controls = [args[i + 1] for i, a in enumerate(args) if a == "-c"]
+if os.environ.get("FAKE_V4L2_OLD_KERNEL") == "1" and any(c.startswith("focus_automatic_continuous") for c in controls):
+    sys.stderr.write("unknown control 'focus_automatic_continuous'\\n")
+    sys.exit(1)
+if os.environ.get("FAKE_V4L2_BROKEN") == "1":
+    sys.stderr.write("VIDIOC_S_EXT_CTRLS: failed: Input/output error\\n")
+    sys.exit(1)
+for control in controls:
+    if control.startswith("focus_absolute="):
+        open(state, "w").write(control.split("=", 1)[1])
+'''
+
+
 def load_laptop_module():
     spec = importlib.util.spec_from_file_location("laptop_capture", LAPTOP_SCRIPT)
     module = importlib.util.module_from_spec(spec)
@@ -488,6 +512,108 @@ class SimulatedRig(unittest.TestCase):
         for options in (("--auto", "--interval", "0"), ("--auto", "--interval", "nan"),
                         ("--auto", "--count", "-1"), ("--auto", "--once")):
             self.assertEqual(self.run_laptop(*options).returncode, 2)
+
+
+class FocusLock(unittest.TestCase):
+    """C920s focus lock through a fake v4l2-ctl (IT_4 I3). Reuses the rig without rerunning its tests."""
+
+    laptop_command = SimulatedRig.laptop_command
+    run_laptop = SimulatedRig.run_laptop
+    capture_dirs = SimulatedRig.capture_dirs
+    assert_saved = SimulatedRig.assert_saved
+
+    def setUp(self):
+        SimulatedRig.setUp(self)
+        v4l2 = self.root / "bin" / "v4l2-ctl"
+        v4l2.write_text(FAKE_V4L2.format(python=sys.executable))
+        v4l2.chmod(0o755)
+        self.v4l2_log = self.root / "v4l2.log"
+        self.v4l2_log.touch()
+        self.env.update(FAKE_V4L2_LOG=str(self.v4l2_log), FAKE_V4L2_STATE=str(self.root / "v4l2.state"))
+
+    def v4l2_calls(self):
+        return [json.loads(line) for line in self.v4l2_log.read_text().splitlines()]
+
+    def test_focus_is_locked_before_capture_and_recorded(self):
+        result = self.run_laptop("--once")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        [directory] = self.capture_dirs()
+        metadata = self.assert_saved(directory)
+        self.assertEqual(metadata["focus"], {"lock": "locked", "control": "focus_automatic_continuous", "absolute": 0})
+        calls = self.v4l2_calls()
+        self.assertEqual(calls[0], ["-d", "/dev/video0", "-c", "focus_automatic_continuous=0", "-c", "focus_absolute=0"])
+        self.assertIn("-C", calls[1])
+        self.assertIn("Focus: locked (focus_automatic_continuous=0, focus_absolute=0)", result.stdout)
+
+    def test_older_kernel_falls_back_to_focus_auto(self):
+        result = self.run_laptop("--once", FAKE_V4L2_OLD_KERNEL="1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        [directory] = self.capture_dirs()
+        self.assertEqual(self.assert_saved(directory)["focus"]["control"], "focus_auto")
+        self.assertIn(["-d", "/dev/video0", "-c", "focus_auto=0", "-c", "focus_absolute=0"], self.v4l2_calls())
+
+    def test_focus_absolute_is_configurable(self):
+        result = self.run_laptop("--once", "--focus-absolute", "40")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        [directory] = self.capture_dirs()
+        self.assertEqual(self.assert_saved(directory)["focus"]["absolute"], 40)
+        invocation = json.loads(self.ssh_log.read_text().splitlines()[0])
+        self.assertIn("--focus-absolute 40", invocation[-1])
+
+    def test_default_focus_is_not_passed_so_older_board_scripts_still_run(self):
+        self.assertEqual(self.run_laptop("--once").returncode, 0)
+        invocation = json.loads(self.ssh_log.read_text().splitlines()[0])
+        self.assertNotIn("focus", invocation[-1])
+
+    def test_no_focus_lock_skips_v4l2(self):
+        result = self.run_laptop("--once", "--no-focus-lock")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        [directory] = self.capture_dirs()
+        self.assertEqual(self.assert_saved(directory)["focus"]["lock"], "disabled")
+        self.assertEqual(self.v4l2_calls(), [])
+        self.assertEqual(self.run_laptop("--once", "--no-focus-lock", "--focus-absolute", "5").returncode, 2)
+
+    def test_v4l2_failure_never_fails_the_capture(self):
+        result = self.run_laptop("--once", FAKE_V4L2_BROKEN="1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        [directory] = self.capture_dirs()
+        focus = self.assert_saved(directory)["focus"]
+        self.assertEqual(focus["lock"], "failed")
+        self.assertIn("Input/output error", focus["detail"])
+        self.assertIn("Focus: NOT locked (failed", result.stdout)
+
+    def test_stream_locks_once_and_records_focus_per_frame(self):
+        result = self.run_laptop("--auto", "--interval", "0.1", "--count", "2", "--focus-absolute", "15")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for directory in self.capture_dirs():
+            self.assertEqual(self.assert_saved(directory)["focus"]["absolute"], 15)
+        self.assertEqual(sum(1 for call in self.v4l2_calls() if "-c" in call), 1)
+        self.assertIn("Focus: locked", result.stdout)
+
+    def test_calibrate_saves_one_marked_frame(self):
+        result = self.run_laptop("--calibrate")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        [directory] = self.capture_dirs()
+        metadata = self.assert_saved(directory)
+        self.assertEqual(metadata["capturePurpose"], "calibration")
+        self.assertEqual(metadata["focus"]["lock"], "locked")
+        self.assertIn("npm run calibrate", result.stdout)
+        self.assertIn(f"--frame {directory.name}", result.stdout)
+        self.assertFalse((self.out / ".pending.json").exists())
+        # A dish capture afterwards is not marked.
+        self.assertEqual(self.run_laptop("--once").returncode, 0)
+        purposes = sorted(json.loads((d / "metadata.json").read_text()).get("capturePurpose", "dish")
+                          for d in self.capture_dirs())
+        self.assertEqual(purposes, ["calibration", "dish"])
+        self.assertEqual(self.run_laptop("--calibrate", "--auto").returncode, 2)
+
+    def test_missing_v4l2_ctl_warns_and_captures(self):
+        args = SimpleNamespace(device="/dev/video0", focus_absolute=0, no_focus_lock=False)
+        stderr = io.StringIO()
+        with patch.object(board.shutil, "which", return_value=None), patch.object(board.sys, "stderr", stderr):
+            focus = board.lock_focus(args)
+        self.assertEqual(focus["lock"], "unavailable")
+        self.assertIn("v4l2-ctl is not installed", stderr.getvalue())
 
 
 class StreamParsing(unittest.TestCase):

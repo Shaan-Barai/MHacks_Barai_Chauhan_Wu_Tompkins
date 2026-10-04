@@ -353,14 +353,14 @@ test('recommendation facts and fallback cite labeled estimates when plates are c
   ]) {
     assert.ok(facts.allowedMetrics.includes(m), m);
   }
-  assert.match(recommendationInputVersion(facts), /^impact-rec-v3-physical\|waste-factors-v6\|[0-9a-f]{8}$/);
+  assert.match(recommendationInputVersion(facts), /^impact-rec-v4-physical\|waste-factors-v6\|[0-9a-f]{8}$/);
 
   const rec = fallbackRecommendation(d, NOW);
   assert.match(rec.text, /Calibrated plates \(2 of 3\): an estimated 3\.2 kg CO2e and 82 L water\./);
   assert.deepEqual(rec.bullets.map((b) => b.metric), [
     'Ancho Flank Steak: 2,000 pixels wasted per portion',
-    'Sticky Rice: 800 pixels wasted per portion',
-    'Estimated total: 3.2 kg CO2e (2 of 3 plates calibrated)', // steak (top CO2e) already has a bullet
+    // 2-3 bullets: the estimate comes before a second target; steak (top CO2e) already has a bullet
+    'Estimated total: 3.2 kg CO2e (2 of 3 plates calibrated)',
     '3 of 3 plates analyzed',
   ]);
   assert.doesNotMatch(rec.text, /because|dislike|\$|dollar/i);
@@ -370,7 +370,7 @@ test('recommendation facts and fallback cite labeled estimates when plates are c
   const plain = recommendationFacts(buildImpactDashboard(mixedInput({ measurements: MIXED.map(({ physical: _p, ...m }) => m) })));
   assert.equal(plain.estimated, undefined);
   assert.doesNotMatch(JSON.stringify(plain), /grams|kgCo2e|CO2e|litre|L water/);
-  assert.match(recommendationInputVersion(plain), /^impact-rec-v2\|/);
+  assert.match(recommendationInputVersion(plain), /^impact-rec-v4\|/);
 });
 
 test('Gemini output: physical units only next to "estimated", only with calibrated plates; never money', async () => {
@@ -378,10 +378,10 @@ test('Gemini output: physical units only next to "estimated", only with calibrat
   const facts = recommendationFacts(d);
   const STEAK_RATE = 'Ancho Flank Steak: 2,000 pixels wasted per portion';
   const CO2 = 'Estimated total: 3.2 kg CO2e (2 of 3 plates calibrated)';
-  const out = (text: string, bullet = 'Watch steak.') =>
+  const out = (text: string, bullet = 'Watch Ancho Flank Steak.') =>
     JSON.stringify({ text, bullets: [{ text: bullet, metric: STEAK_RATE }, { text: 'Calibrated plates only.', metric: CO2 }] });
   assert.ok(parseRecommendationOutput(out('Steak leads per portion. Calibrated plates add up to an estimated 3.2 kg CO2e.'), facts));
-  assert.ok(parseRecommendationOutput(out('Steak leads.', 'Steak leftovers: an estimated 46 L water.'), facts));
+  assert.ok(parseRecommendationOutput(out('Steak leads.', 'Ancho Flank Steak leftovers: an estimated 46 L water.'), facts));
   assert.equal(parseRecommendationOutput(out('Steak wasted 3.2 kg CO2e.'), facts), null, 'no "estimated"');
   assert.equal(parseRecommendationOutput(out('Estimated cost of $12.'), facts), null, 'money');
   assert.equal(parseRecommendationOutput(out('Estimated 3 dollars.'), facts), null, 'money');
@@ -389,7 +389,7 @@ test('Gemini output: physical units only next to "estimated", only with calibrat
   const plainFacts = recommendationFacts(buildImpactDashboard(mixedInput({ measurements: MIXED.map(({ physical: _p, ...m }) => m) })));
   const plainOut = JSON.stringify({
     text: 'Steak wasted an estimated 3 kg.',
-    bullets: [{ text: 'Watch steak.', metric: STEAK_RATE }, { text: 'Scan more.', metric: '3 of 3 plates analyzed' }],
+    bullets: [{ text: 'Watch Ancho Flank Steak.', metric: STEAK_RATE }, { text: 'Scan more.', metric: '3 of 3 plates analyzed' }],
   });
   assert.equal(parseRecommendationOutput(plainOut, plainFacts), null, 'no calibrated plates ⇒ no physical units at all');
 

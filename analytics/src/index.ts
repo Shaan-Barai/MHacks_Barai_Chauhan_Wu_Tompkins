@@ -86,6 +86,8 @@ export {
 
 export {
   recommendationFacts,
+  trendMetric,
+  type TrendHalf,
   buildRecommendationPrompt,
   fallbackRecommendation,
   generateRecommendation,

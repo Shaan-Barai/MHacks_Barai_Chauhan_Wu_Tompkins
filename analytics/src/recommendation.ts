@@ -22,10 +22,10 @@ import { formatCo2e, formatWaterLitres } from './physical.js';
 import type { TextGateway } from './suggestions.js';
 import { WASTE_FACTORS_VERSION } from './wasteImpact.js';
 
-/** Prompt version without calibrated estimates (unchanged since v2). */
-export const RECOMMENDATION_PROMPT_VERSION = 'impact-rec-v2';
+/** Prompt version without calibrated estimates (v4: 2-3 bullets that name their dish; trend fact). */
+export const RECOMMENDATION_PROMPT_VERSION = 'impact-rec-v4';
 /** Prompt version when the facts include calibrated estimates (IT_4: adds the estimated-units rules). */
-export const RECOMMENDATION_PROMPT_VERSION_PHYSICAL = 'impact-rec-v3-physical';
+export const RECOMMENDATION_PROMPT_VERSION_PHYSICAL = 'impact-rec-v4-physical';
 
 /** The prompt version a set of facts is sent with. */
 export function recommendationPromptVersion(facts: RecommendationFacts): string {
@@ -145,6 +145,13 @@ export interface RecommendationFacts {
   mostWasted: Array<{ food: string; pixels: number; impactPoints: number | null; metric: string }>;
   /** Top named foods by total relative impact points (beef outweighs rice for equal pixels). */
   highestImpact: Array<{ food: string; impactPoints: number; pixels: number; metric: string }>;
+  /** Pixels per analyzed plate, earlier vs later half of the window (absent without data in both). */
+  trend?: {
+    earlier: { start: string; end: string; pixelsPerPlate: number; plates: number };
+    later: { start: string; end: string; pixelsPerPlate: number; plates: number };
+    direction: 'down' | 'up' | 'flat';
+    metric: string;
+  };
   unknownFoodPixels: number;
   /** IT_4: absent unless some analyzed plates were calibrated. */
   estimated?: EstimatedFacts;
@@ -159,8 +166,26 @@ const r1 = (n: number): number => Math.round(n * 10) / 10;
 const sig = (n: number): number => Number(n.toPrecision(3));
 const r2 = (n: number | null): number | null => (n === null ? null : Math.round(n * 100) / 100);
 
-/** Compact, grounded facts for the prompt and the fallback. */
-export function recommendationFacts(d: ImpactDashboard): RecommendationFacts {
+/** Pixels and analyzed plates for one half of the window (computed by the caller from the same rows). */
+export interface TrendHalf {
+  start: string;
+  end: string;
+  pixels: number;
+  analyzedPlates: number;
+}
+
+/** "Sep 20" style label for a YYYY-MM-DD date (UTC, no timezone shift). */
+function shortDate(date: string): string {
+  return new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+}
+
+export function trendMetric(earlier: TrendHalf, later: TrendHalf): string {
+  const rate = (h: TrendHalf) => formatPixelRate(h.pixels / h.analyzedPlates);
+  return `Pixels wasted per plate: ${rate(earlier)} (${shortDate(earlier.start)} to ${shortDate(earlier.end)}) vs ${rate(later)} (${shortDate(later.start)} to ${shortDate(later.end)})`;
+}
+
+/** Compact, grounded facts for the prompt and the fallback. `halves` adds the trend fact. */
+export function recommendationFacts(d: ImpactDashboard, halves?: { earlier: TrendHalf; later: TrendHalf }): RecommendationFacts {
   const allowed: string[] = [];
   const add = (m: string | null) => {
     if (m !== null && !allowed.includes(m)) allowed.push(m);
@@ -235,6 +260,19 @@ export function recommendationFacts(d: ImpactDashboard): RecommendationFacts {
     };
   }
 
+  let trend: RecommendationFacts['trend'];
+  if (halves && halves.earlier.analyzedPlates > 0 && halves.later.analyzedPlates > 0) {
+    const e = halves.earlier.pixels / halves.earlier.analyzedPlates;
+    const l = halves.later.pixels / halves.later.analyzedPlates;
+    const change = e === 0 ? (l === 0 ? 0 : 1) : (l - e) / e;
+    trend = {
+      earlier: { start: halves.earlier.start, end: halves.earlier.end, pixelsPerPlate: Math.round(e), plates: halves.earlier.analyzedPlates },
+      later: { start: halves.later.start, end: halves.later.end, pixelsPerPlate: Math.round(l), plates: halves.later.analyzedPlates },
+      direction: Math.abs(change) < 0.05 ? 'flat' : change < 0 ? 'down' : 'up',
+      metric: add(trendMetric(halves.earlier, halves.later))!,
+    };
+  }
+
   return {
     window: d.window,
     plates,
@@ -255,6 +293,7 @@ export function recommendationFacts(d: ImpactDashboard): RecommendationFacts {
       foodsWithoutPortionRate: d.targets.filter((r) => r.perPortion == null).length,
     },
     labels: { ...d.labels },
+    ...(trend ? { trend } : {}),
     allowedMetrics: allowed,
   };
 }
@@ -294,7 +333,9 @@ export function buildRecommendationPrompt(facts: RecommendationFacts): string {
     'Reply with JSON only, no code fences, in exactly this shape:',
     '{"text": "<one or two short sentences, at most 300 characters>", "bullets": [{"text": "<one short action or observation>", "metric": "<one string copied exactly from allowedMetrics>"}]}',
     'Rules:',
-    '- 2 to 4 bullets. Each bullet cites exactly one metric copied character for character from allowedMetrics.',
+    '- 2 or 3 bullets, each one concrete action for staff. Each bullet cites exactly one metric copied character for character from allowedMetrics.',
+    '- When a bullet\'s metric is about a food, the bullet text names that food.',
+    '- If a trend is given, you may say whether waste per plate went down, up, or stayed about the same, citing the trend metric.',
     '- Focus on the foods with the most pixels wasted per portion (targets), e.g. suggest trying a smaller portion or batch and checking again.',
     `- You may point out a food with high ${RELATIVE_IMPACT_POINTS} (highestImpact): it costs the planet more per pixel left.`,
     `- Always say "${RELATIVE_IMPACT_POINTS}" in full, never just "points", and never convert them to kg, liters, or dollars.`,
@@ -332,6 +373,12 @@ function cleanText(v: unknown, max: number, estimatesAllowed: boolean): string |
   return t;
 }
 
+/** The food a metric string is about ("<Food>: …"), if it is a food metric. */
+function foodOfMetric(metric: string, facts: RecommendationFacts): string | null {
+  const foods = [...facts.targets, ...facts.mostWasted, ...facts.highestImpact].map((f) => f.food);
+  return foods.find((f) => metric.startsWith(`${f}: `)) ?? null;
+}
+
 /** Validates model output. Returns null when anything is off. */
 export function parseRecommendationOutput(
   raw: string,
@@ -352,7 +399,7 @@ export function parseRecommendationOutput(
   const obj = parsed as Record<string, unknown>;
   const est = facts.estimated !== undefined;
   const text = cleanText(obj.text, est ? 500 : 400, est);
-  if (text === null || !Array.isArray(obj.bullets) || obj.bullets.length < 2 || obj.bullets.length > 4) return null;
+  if (text === null || !Array.isArray(obj.bullets) || obj.bullets.length < 2 || obj.bullets.length > 3) return null;
   const allowed = new Set(facts.allowedMetrics);
   const bullets: Recommendation['bullets'] = [];
   for (const b of obj.bullets) {
@@ -360,6 +407,9 @@ export function parseRecommendationOutput(
     const bt = cleanText((b as Record<string, unknown>).text, 240, est);
     const metric = (b as Record<string, unknown>).metric;
     if (bt === null || typeof metric !== 'string' || !allowed.has(metric.trim())) return null;
+    // A bullet grounded in a food's statistic must name that food.
+    const food = foodOfMetric(metric.trim(), facts);
+    if (food !== null && !bt.toLowerCase().includes(food.toLowerCase())) return null;
     bullets.push({ text: bt, metric: metric.trim() });
   }
   return { text, bullets };
@@ -372,8 +422,8 @@ export function recommendationInputVersion(facts: RecommendationFacts): string {
 }
 
 /** Labeled rule-based recommendation built only from dashboard metrics. */
-export function fallbackRecommendation(d: ImpactDashboard, now: Date): Recommendation {
-  const facts = recommendationFacts(d);
+export function fallbackRecommendation(d: ImpactDashboard, now: Date, halves?: { earlier: TrendHalf; later: TrendHalf }): Recommendation {
+  const facts = recommendationFacts(d, halves);
   const platesMetric = facts.allowedMetrics[0]!;
   const analyzed = facts.plates.analyzed;
   const caveat =
@@ -409,13 +459,15 @@ export function fallbackRecommendation(d: ImpactDashboard, now: Date): Recommend
     text = `${first.food} had the most food left in total. Enter portions served to compare foods fairly.${estimate} ${caveat}`;
     bullets.push({ text: `${first.food} left the most food overall.`, metric: first.metric });
   }
+  // With calibrated plates, the estimate is the second bullet (ahead of a second target).
+  let estimateBullet: Recommendation['bullets'][number] | undefined;
   if (est !== undefined) {
     const co2 = est.topCo2[0];
     if (co2 !== undefined && !bullets.some((b) => b.text.includes(co2.food))) {
-      bullets.push({ text: `${co2.food} leftovers have the largest estimated CO2e on calibrated plates.`, metric: co2.metric });
+      estimateBullet = { text: `${co2.food} leftovers have the largest estimated CO2e on calibrated plates.`, metric: co2.metric };
     } else {
       const total = facts.allowedMetrics.find((m) => m.startsWith('Estimated total:') && m.includes('CO2e'));
-      if (total !== undefined) bullets.push({ text: 'Estimated CO2e of the leftovers on calibrated plates.', metric: total });
+      if (total !== undefined) estimateBullet = { text: 'Estimated CO2e of the leftovers on calibrated plates.', metric: total };
     }
   }
   const heavy = facts.highestImpact[0];
@@ -425,11 +477,14 @@ export function fallbackRecommendation(d: ImpactDashboard, now: Date): Recommend
       metric: heavy.metric,
     });
   }
-  // Keep the plate-count bullet: at most three bullets before it.
+  // 2-3 bullets: at most two food bullets, then the plate-count bullet.
   return {
     ...base,
     text,
-    bullets: [...bullets.slice(0, 3), { text: 'Keep scanning plates so the numbers get more reliable.', metric: platesMetric }],
+    bullets: [
+      ...(estimateBullet ? [...bullets.slice(0, 1), estimateBullet] : bullets.slice(0, 2)),
+      { text: 'Keep scanning plates so the numbers get more reliable.', metric: platesMetric },
+    ],
   };
 }
 
@@ -441,8 +496,9 @@ export async function generateRecommendation(
   gateway: TextGateway | null,
   dashboard: ImpactDashboard,
   now: Date,
+  halves?: { earlier: TrendHalf; later: TrendHalf },
 ): Promise<Recommendation> {
-  const facts = recommendationFacts(dashboard);
+  const facts = recommendationFacts(dashboard, halves);
   const hasData = facts.plates.analyzed > 0 && (facts.targets.length > 0 || facts.mostWasted.length > 0);
   if (gateway !== null && hasData) {
     try {
@@ -467,5 +523,5 @@ export async function generateRecommendation(
       console.warn(`[recommendation] Gemini unavailable (${code}); using rule-based fallback.`);
     }
   }
-  return fallbackRecommendation(dashboard, now);
+  return fallbackRecommendation(dashboard, now, halves);
 }

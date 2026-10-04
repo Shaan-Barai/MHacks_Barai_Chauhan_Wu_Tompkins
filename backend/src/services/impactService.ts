@@ -17,6 +17,8 @@ import {
   type CapturePhysicalContext,
   generateRecommendation,
   recommendationFacts,
+  RECOMMENDATION_PROMPT_VERSION,
+  type TrendHalf,
   recommendationInputVersion,
   selectImpactMeasurements,
   UNKNOWN_FOOD_LABEL,
@@ -261,21 +263,99 @@ export class ImpactService {
     return items.slice(0, limit);
   }
 
-  /**
-   * Grounded recommendation (D8). Cached by window + analytics
-   * `recommendationInputVersion` (a hash of the facts the prompt cites): the
-   * same statistics never pay for a second Gemini call. A labeled fallback is
-   * served when Gemini is unavailable and retried after a short delay.
-   */
-  async recommendation(window: ImpactWindow): Promise<Recommendation> {
-    const dashboard = await this.dashboard(window);
-    const key = `${JSON.stringify(dashboard.window)}|${recommendationInputVersion(recommendationFacts(dashboard))}`;
-    const cached = this.recommendations.get(key);
-    if (cached && (cached.value.source === 'gemini' || this.gateway === undefined || this.now() - cached.storedAt < FALLBACK_RETRY_MS)) {
-      return cached.value;
+  /** Earlier/later halves of the window (by local date) for the recommendation's trend fact. */
+  private halves(window: ImpactWindow, records: ServiceRecords[]): { earlier: TrendHalf; later: TrendHalf } | undefined {
+    const day = (d: string, n: number) => {
+      const t = new Date(`${d}T12:00:00Z`);
+      t.setUTCDate(t.getUTCDate() + n);
+      return t.toISOString().slice(0, 10);
+    };
+    const days = Math.round((Date.parse(`${window.end}T12:00:00Z`) - Date.parse(`${window.start}T12:00:00Z`)) / 86_400_000) + 1;
+    if (days < 2) return undefined;
+    const midEnd = day(window.start, Math.floor(days / 2) - 1);
+    const half = (start: string, end: string): TrendHalf => {
+      const d = this.build({ ...window, start, end }, records.filter((r) => r.menu.service.serviceDate >= start && r.menu.service.serviceDate <= end));
+      return { start, end, pixels: d.totals.pixels, analyzedPlates: d.totals.analyzedCaptures };
+    };
+    return { earlier: half(window.start, midEnd), later: half(day(midEnd, 1), window.end) };
+  }
+
+  /** Saved impact recommendations for a hall (insight rows), newest first. */
+  async savedRecommendations(hallId: string): Promise<Recommendation[]> {
+    const out: Recommendation[] = [];
+    for (const i of await this.repo.listInsights(hallId)) {
+      if (i.metrics.kind !== 'impact-recommendation') continue;
+      try {
+        const body = JSON.parse(i.recommendation) as Pick<Recommendation, 'text' | 'bullets'>;
+        out.push({
+          text: body.text,
+          bullets: body.bullets,
+          source: i.source === 'gemini' ? 'gemini' : 'fallback',
+          generatedAt: i.generatedAt,
+          inputVersion: i.dataVersion,
+          window: { start: i.windowStart, end: i.windowEnd },
+        });
+      } catch {
+        // An unreadable row is skipped, never shown.
+      }
     }
-    const value = await generateRecommendation(this.gateway ?? null, dashboard, new Date(this.now()));
-    this.recommendations.set(key, { value, storedAt: this.now() });
+    return out.sort((a, b) => b.generatedAt.localeCompare(a.generatedAt));
+  }
+
+  /**
+   * Grounded recommendation (D8), stored in SpacetimeDB (insight table) with
+   * its window, the exact facts it was given and their input version.
+   * - A saved Gemini recommendation for the same window and inputs is reused
+   *   (the same statistics never pay for a second Gemini call) unless
+   *   `regenerate` is set.
+   * - If Gemini fails, the last saved Gemini recommendation is returned,
+   *   marked `stale` with its own window; with none saved, the labeled
+   *   rule-based fallback (retried after a short delay).
+   */
+  async recommendation(window: ImpactWindow, options: { regenerate?: boolean } = {}): Promise<Recommendation> {
+    const records = await this.gather(window);
+    const dashboard = this.build(window, records);
+    const halves = this.halves(window, records);
+    const facts = recommendationFacts(dashboard, halves);
+    const inputVersion = recommendationInputVersion(facts);
+    const hallId = window.hallId ?? 'all';
+    const saved = await this.savedRecommendations(hallId);
+    const sameWindow = (r: Recommendation) => r.window?.start === window.start && r.window?.end === window.end;
+    if (!options.regenerate) {
+      const reuse = saved.find((r) => r.source === 'gemini' && r.inputVersion === inputVersion && sameWindow(r));
+      if (reuse) return reuse;
+      const cached = this.recommendations.get(`${hallId}|${inputVersion}|${window.start}|${window.end}`);
+      if (cached && this.now() - cached.storedAt < FALLBACK_RETRY_MS) return cached.value;
+    }
+
+    const generated = { ...(await generateRecommendation(this.gateway ?? null, dashboard, new Date(this.now()), halves)), window: { start: window.start, end: window.end } };
+    const hasData = facts.plates.analyzed > 0 && (facts.targets.length > 0 || facts.mostWasted.length > 0);
+    if (generated.source === 'gemini' || options.regenerate) await this.store(hallId, window, generated, facts);
+    if (generated.source === 'gemini') return generated;
+
+    const lastGemini = saved.find((r) => r.source === 'gemini');
+    const value = hasData && lastGemini ? { ...lastGemini, stale: true } : generated;
+    this.recommendations.set(`${hallId}|${inputVersion}|${window.start}|${window.end}`, { value, storedAt: this.now() });
     return value;
+  }
+
+  private async store(hallId: string, window: ImpactWindow, rec: Recommendation, facts: ReturnType<typeof recommendationFacts>): Promise<void> {
+    await this.repo.upsertInsight({
+      insightId: `rec_${hallId}_${window.start}_${window.end}_${rec.generatedAt}`,
+      hallId,
+      windowStart: window.start,
+      windowEnd: window.end,
+      metrics: {
+        kind: 'impact-recommendation',
+        promptVersion: RECOMMENDATION_PROMPT_VERSION,
+        inputVersion: rec.inputVersion,
+        // The exact numbers the recommendation was allowed to use.
+        facts: JSON.stringify(facts),
+      },
+      dataVersion: rec.inputVersion,
+      recommendation: JSON.stringify({ text: rec.text, bullets: rec.bullets }),
+      source: rec.source === 'gemini' ? 'gemini' : 'fallback_rules',
+      generatedAt: rec.generatedAt,
+    });
   }
 }

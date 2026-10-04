@@ -11,11 +11,15 @@
 import type { ApiError } from './contract-types.js';
 import type { CaptureResult, ReplayCaptureAdapter } from './adapter.js';
 import type { DishGroup, DishGrouper, GroupEvent } from './dishGrouper.js';
-import { scanInbox, type InboxIssue } from './inbox.js';
+import { scanInbox, type InboxFrame, type InboxIssue } from './inbox.js';
 
 export type BridgeEvent =
   | GroupEvent
   | { kind: 'issue'; issue: InboxIssue }
+  /** A calibration frame in the inbox: skipped here, uploaded by `npm run calibrate`. */
+  | { kind: 'calibration_frame'; captureId: string }
+  /** A camera frame whose focus is not locked, or not locked like the newest calibration frame. */
+  | { kind: 'focus_warning'; captureId: string; message: string }
   | { kind: 'paused'; captureId: string; error: ApiError | { message: string } }
   | { kind: 'ingested'; group: DishGroup; result: CaptureResult };
 
@@ -36,20 +40,31 @@ export interface PassResult {
 export class InboxBridge {
   /** Issues already reported by this process, so --watch does not repeat them. */
   private readonly reported = new Set<string>();
+  /** Calibration frames already seen; they are never dishes, so skip re-reading them. */
+  private readonly calibrationIds = new Set<string>();
+  private calibrationFocus: InboxFrame['focus'] | undefined;
+  private focusWarned = false;
 
   constructor(private readonly options: InboxBridgeOptions) {}
 
   async pass(): Promise<PassResult> {
     const { grouper, hallId, serviceId } = this.options;
-    const scan = await scanInbox(this.options.inbox, grouper.processedIds());
+    const skip = new Set([...grouper.processedIds(), ...this.calibrationIds]);
+    const scan = await scanInbox(this.options.inbox, skip);
     for (const issue of scan.issues) {
       const key = `${issue.captureId}:${issue.error.code}`;
       if (this.reported.has(key)) continue;
       this.reported.add(key);
       this.emit({ kind: 'issue', issue });
     }
+    for (const frame of scan.calibrations) {
+      this.calibrationIds.add(frame.captureId);
+      this.calibrationFocus = frame.focus ?? this.calibrationFocus;
+      this.emit({ kind: 'calibration_frame', captureId: frame.captureId });
+    }
     let paused = false;
     for (const frame of scan.frames) {
+      this.checkFocus(frame);
       try {
         for (const event of await grouper.process(frame, { hallId, serviceId })) this.emit(event);
       } catch (err) {
@@ -88,6 +103,28 @@ export class InboxBridge {
       if (result.ok) grouper.markIngested(group.groupId, result.event.eventId);
       this.emit({ kind: 'ingested', group, result });
     }
+  }
+
+  /**
+   * Autofocus changes the focal length, which breaks a calibration (IT_4 I3).
+   * Warn once per run; the dish is still ingested (pixels stay valid).
+   */
+  private checkFocus(frame: InboxFrame): void {
+    if (this.focusWarned || frame.simulated || !frame.focus) return;
+    let message: string | undefined;
+    if (frame.focus.lock !== 'locked') {
+      message = `focus is not locked on the camera (${frame.focus.lock}); physical estimates may be off`;
+    } else if (
+      this.calibrationFocus?.lock === 'locked' &&
+      this.calibrationFocus.absolute !== frame.focus.absolute
+    ) {
+      message =
+        `focus_absolute=${frame.focus.absolute} differs from the calibration frame ` +
+        `(${this.calibrationFocus.absolute}); recalibrate or use the same --focus-absolute`;
+    }
+    if (!message) return;
+    this.focusWarned = true;
+    this.emit({ kind: 'focus_warning', captureId: frame.captureId, message });
   }
 
   private emit(event: BridgeEvent): void {

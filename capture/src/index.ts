@@ -5,6 +5,11 @@
 
 export type {
   ApiError,
+  CalibrationDepth,
+  CameraCalibration,
+  CameraCalibrationFlag,
+  CameraIntrinsics,
+  MeasurementSettings,
   CaptureEvent,
   CaptureSource,
   DishMatchImage,
@@ -58,10 +63,37 @@ export {
   HttpUploader,
   HttpIngestionSink,
   HttpDishMatcher,
+  HttpCalibrationClient,
   BackendRequestError,
+  type CalibrationApi,
+  type CalibrationRequest,
   type DishMatcher,
+  type HttpClientOptions,
   type SubmittedCapture,
 } from './http.js';
+
+export {
+  DEFAULT_API_URL,
+  DEFAULT_TOKEN_ENV,
+  authHeaders,
+  describeBackend,
+  isLocalUrl,
+  resolveBackend,
+  type BackendConfig,
+} from './backendConfig.js';
+
+export {
+  CREDIT_CARD_AREA_CM2,
+  DEFAULT_CAMERA_ID,
+  DEFAULT_REFERENCE_LABEL,
+  activateCalibration,
+  calibrateFromFrame,
+  calibrationKey,
+  describeCalibration,
+  validateCalibrationInput,
+  type CalibrateOptions,
+  type CalibrateResult,
+} from './calibration.js';
 
 export {
   ReplayCaptureAdapter,
@@ -71,7 +103,15 @@ export {
   type ManualUploadOptions,
 } from './adapter.js';
 
-export { SIMULATED_CAPTURE_SOURCE, scanInbox, type InboxFrame, type InboxIssue, type InboxScan } from './inbox.js';
+export {
+  CALIBRATION_PURPOSE,
+  SIMULATED_CAPTURE_SOURCE,
+  scanInbox,
+  type FrameFocus,
+  type InboxFrame,
+  type InboxIssue,
+  type InboxScan,
+} from './inbox.js';
 
 export { DEFAULT_PREFILTER_MAD, PREFILTER_VERSION, fingerprint, meanAbsDiff, thumbnail } from './frames.js';
 

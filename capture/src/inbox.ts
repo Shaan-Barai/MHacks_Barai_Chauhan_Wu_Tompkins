@@ -6,6 +6,10 @@
  * module lists complete captures, re-verifies each photo's length and
  * SHA-256 against its metadata, and reports everything else as an issue
  * instead of dropping it. The inbox is read-only: nothing is moved or deleted.
+ *
+ * Calibration frames (`laptop_capture.py --calibrate`, `simulate-camera
+ * --calibrate`) carry `capturePurpose: "calibration"`. They are listed
+ * separately and never become dishes; `npm run calibrate` uploads them.
  */
 
 import { createHash } from 'node:crypto';
@@ -27,7 +31,23 @@ export interface InboxFrame {
    * `source: 'replay'` so simulated photos never pass as real camera captures.
    */
   simulated: boolean;
+  /** 'calibration' frames show a reference object, not a dish (IT_4 I2). */
+  purpose: 'dish' | 'calibration';
+  /** C920s focus lock the board applied (uno_q_camera.py); absent for older boards and simulated frames. */
+  focus?: FrameFocus;
+  widthPx?: number;
+  heightPx?: number;
 }
+
+export interface FrameFocus {
+  /** 'locked' | 'disabled' | 'unavailable' | 'failed' */
+  lock: string;
+  control: string | null;
+  absolute: number | null;
+}
+
+/** metadata.capturePurpose of a calibration frame. */
+export const CALIBRATION_PURPOSE = 'calibration';
 
 /** metadata.captureSource written by capture/scripts/simulate-camera.mjs. */
 export const SIMULATED_CAPTURE_SOURCE = 'simulated_camera';
@@ -38,8 +58,10 @@ export interface InboxIssue {
 }
 
 export interface InboxScan {
-  /** Verified frames in capture order (capturedAt, then captureId). */
+  /** Verified dish frames in capture order (capturedAt, then captureId). */
   frames: InboxFrame[];
+  /** Verified calibration frames, oldest first. Never ingested as dishes. */
+  calibrations: InboxFrame[];
   issues: InboxIssue[];
 }
 
@@ -51,6 +73,21 @@ interface UnoQMetadata {
   sha256?: unknown;
   triggerSource?: unknown;
   captureSource?: unknown;
+  capturePurpose?: unknown;
+  focus?: unknown;
+  widthPx?: unknown;
+  heightPx?: unknown;
+}
+
+function readFocus(value: unknown): FrameFocus | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const f = value as Record<string, unknown>;
+  if (typeof f.lock !== 'string') return undefined;
+  return {
+    lock: f.lock,
+    control: typeof f.control === 'string' ? f.control : null,
+    absolute: typeof f.absolute === 'number' && Number.isFinite(f.absolute) ? f.absolute : null,
+  };
 }
 
 function issue(captureId: string, code: string, message: string, retryable: boolean): InboxIssue {
@@ -87,12 +124,17 @@ async function readFrame(inbox: string, name: string): Promise<InboxFrame | Inbo
       false,
     );
   }
+  const focus = readFocus(metadata.focus);
   return {
     captureId: name,
     capturedAt: new Date(capturedAt).toISOString(),
     photoPath: path.join(dir, 'photo.jpg'),
     trigger: metadata.triggerSource === 'interval' ? 'interval' : 'manual',
     simulated: metadata.captureSource === SIMULATED_CAPTURE_SOURCE,
+    purpose: metadata.capturePurpose === CALIBRATION_PURPOSE ? 'calibration' : 'dish',
+    ...(focus ? { focus } : {}),
+    ...(typeof metadata.widthPx === 'number' ? { widthPx: metadata.widthPx } : {}),
+    ...(typeof metadata.heightPx === 'number' ? { heightPx: metadata.heightPx } : {}),
   };
 }
 
@@ -100,13 +142,18 @@ async function readFrame(inbox: string, name: string): Promise<InboxFrame | Inbo
 export async function scanInbox(inbox: string, skip: ReadonlySet<string> = new Set()): Promise<InboxScan> {
   const names = (await readdir(inbox)).filter((n) => !n.startsWith('.') && !skip.has(n));
   const frames: InboxFrame[] = [];
+  const calibrations: InboxFrame[] = [];
   const issues: InboxIssue[] = [];
   for (const name of names) {
     if (!(await stat(path.join(inbox, name))).isDirectory()) continue;
     const result = await readFrame(inbox, name);
     if ('error' in result) issues.push(result);
+    else if (result.purpose === 'calibration') calibrations.push(result);
     else frames.push(result);
   }
-  frames.sort((a, b) => a.capturedAt.localeCompare(b.capturedAt) || a.captureId.localeCompare(b.captureId));
-  return { frames, issues };
+  const order = (a: InboxFrame, b: InboxFrame) =>
+    a.capturedAt.localeCompare(b.capturedAt) || a.captureId.localeCompare(b.captureId);
+  frames.sort(order);
+  calibrations.sort(order);
+  return { frames, calibrations, issues };
 }

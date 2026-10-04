@@ -1,0 +1,57 @@
+{
+  "synthetic": true,
+  "description": "SYNTHETIC calibration fixture: a drawn credit-card-sized rectangle on an empty table patch from test2/IMG_2704.jpeg. Not a camera photo.",
+  "generator": "capture/scripts/make-calibration-fixture.mjs",
+  "background": {
+    "file": "test2/IMG_2704.jpeg",
+    "exifRotated": true,
+    "region": {
+      "left": 0,
+      "top": 4500,
+      "width": 2155,
+      "height": 1212
+    },
+    "resizedTo": [
+      1920,
+      1080
+    ]
+  },
+  "frame": {
+    "widthPx": 1920,
+    "heightPx": 1080
+  },
+  "reference": {
+    "label": "credit card",
+    "knownAreaCm2": 46.21,
+    "physicalMm": {
+      "w": 85.6,
+      "h": 53.98,
+      "r": 3.18
+    },
+    "drawnPx": {
+      "left": 831,
+      "top": 720,
+      "width": 259,
+      "height": 163,
+      "cornerRadius": 10
+    },
+    "areaRawPx": 42131.2
+  },
+  "design": {
+    "cameraHeightCm": 45,
+    "fxNativePx": 1360.18,
+    "intrinsicsSource": "nominal-fov"
+  },
+  "normalized": {
+    "coordinateSpace": "topdown-normalized-v1",
+    "widthPx": 1024,
+    "heightPx": 1024,
+    "cropLeftPx": 420,
+    "scale": 0.948148,
+    "expectedReferencePixels": 37875,
+    "expectedCm2PerPx": 0.00122006,
+    "fxPx": 1289.65,
+    "expectedCameraHeightCmGeometric": 45.05,
+    "note": "Expected values assume SAM segments the drawn card exactly; JPEG edges and segmentation move N_ref by a few percent. If intrinsics are scaled by width alone (1360 × 1024/1920) instead of the crop-aware 1360 × 1024/1080, the geometric height comes out ≈ 0.56× too low."
+  }
+}

@@ -45,6 +45,8 @@ export interface SimulatedCaptureMetadata {
   normalized: false;
   byteLength: number;
   sha256: string;
+  /** Present only on calibration frames (`simulate-camera --calibrate`). */
+  capturePurpose?: 'calibration';
 }
 
 export interface SimulatedCapture {
@@ -65,6 +67,8 @@ export interface SimulateCameraOptions {
   idFactory?: () => string;
   sleep?: (ms: number) => Promise<void>;
   onSaved?: (capture: SimulatedCapture) => void;
+  /** 'calibration' marks the frames like `laptop_capture.py --calibrate` (never ingested as dishes). */
+  purpose?: 'dish' | 'calibration';
 }
 
 const JPEG_EXTENSIONS = new Set(['.jpg', '.jpeg']);
@@ -137,6 +141,7 @@ export async function simulateCamera(options: SimulateCameraOptions): Promise<Si
       normalized: false,
       byteLength: photo.byteLength,
       sha256: createHash('sha256').update(photo).digest('hex'),
+      ...(options.purpose === 'calibration' ? { capturePurpose: 'calibration' as const } : {}),
     };
 
     const destination = path.join(inbox, captureId);

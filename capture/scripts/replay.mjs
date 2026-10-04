@@ -4,7 +4,8 @@
  *
  *   npm run replay                         # every fixtures/replay/demo-*.json
  *   npm run replay -- path/to/manifest.json [more.json …]
- *   API_URL=http://host:port npm run replay
+ *   SCRAP_API_URL=https://host npm run replay   (API_URL still works)
+ *   SCRAP_INGEST_TOKEN=…  bearer token for the uploads (or --token-env NAME); never printed
  *
  * Event IDs are kept in .replay-state.json, so running it again re-submits
  * the same dishes (deduplicated by the backend) instead of adding new ones.
@@ -14,12 +15,32 @@
 import { readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { HttpIngestionSink, HttpUploader, ReplayCaptureAdapter } from '../dist/src/index.js';
+import { parseArgs } from 'node:util';
+import {
+  HttpIngestionSink,
+  HttpUploader,
+  ReplayCaptureAdapter,
+  describeBackend,
+  resolveBackend,
+} from '../dist/src/index.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const api = (process.env.API_URL ?? 'http://localhost:8787').replace(/\/$/, '');
+const { values: options, positionals } = parseArgs({
+  allowPositionals: true,
+  options: { 'token-env': { type: 'string' } },
+});
+let backend;
+try {
+  backend = resolveBackend(process.env, options['token-env']);
+} catch (error) {
+  console.error(error.message);
+  process.exit(1);
+}
+for (const warning of backend.warnings) console.error(`! ${warning}`);
+const api = backend.apiUrl;
+const client = { token: backend.token };
 
-let manifests = process.argv.slice(2);
+let manifests = positionals;
 if (manifests.length === 0) {
   const dir = path.join(root, 'fixtures/replay');
   manifests = readdirSync(dir)
@@ -35,8 +56,9 @@ try {
   process.exit(1);
 }
 
-const sink = new HttpIngestionSink(api);
-const adapter = new ReplayCaptureAdapter(new HttpUploader(api), sink, {
+console.log(`Backend: ${describeBackend(backend)}`);
+const sink = new HttpIngestionSink(api, client);
+const adapter = new ReplayCaptureAdapter(new HttpUploader(api, client), sink, {
   stateFile: path.join(root, '.replay-state.json'),
 });
 

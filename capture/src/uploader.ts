@@ -19,7 +19,7 @@ export interface UploadRequest {
   sizeBytes: number;
   widthPx: number;
   heightPx: number;
-  association: { kind: 'capture' | 'reference'; id: string };
+  association: { kind: 'capture' | 'reference' | 'calibration'; id: string };
 }
 
 export interface UploadAuthorization {

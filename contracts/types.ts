@@ -372,14 +372,15 @@ export interface WasteFactor {
   impactUsdPerKg: number;
   largestFactor: 'carbon' | 'water';
   /**
-   * Which table supplied the row: the hall's own table (menu_waste_factors_EastQuad.csv) wins;
+   * Which table supplied the row: the restaurant tables (menu_waste_factors_EastQuad.csv, then
+   * menu_waste_factors_halal_bros.csv) win;
    * menu items it doesn't cover fall back to the 500 common foods (menu_waste_factors_500.csv)
    * by exact factorKey. Absent on legacy rows = 'east-quad'.
    */
   table?: WasteFactorTable;
 }
 
-export type WasteFactorTable = 'east-quad' | 'common-500';
+export type WasteFactorTable = 'east-quad' | 'halal-bros' | 'common-500';
 
 /** One row of menu_nutrition_factors.csv. Reported separately; never in the score. */
 export interface NutritionFactor {

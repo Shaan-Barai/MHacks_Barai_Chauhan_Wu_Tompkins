@@ -8,6 +8,8 @@ export { parsePortionsServed, parsePortionsCsv, MAX_PORTIONS_SERVED } from './po
 export { DataValidationError } from './errors.js';
 export {
   COMMON_WASTE_FACTORS,
+  HALAL_BROS_NUTRITION_FACTORS,
+  HALAL_BROS_WASTE_FACTORS,
   WASTE_FACTORS,
   NUTRITION_FACTORS,
   WASTE_FACTOR_MENU_TEXT,

@@ -5,6 +5,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import {
   COMMON_WASTE_FACTORS,
+  HALAL_BROS_NUTRITION_FACTORS,
+  HALAL_BROS_WASTE_FACTORS,
   NUTRITION_FACTORS,
   WASTE_FACTORS,
   WASTE_FACTORS_VERSION,
@@ -64,7 +66,7 @@ test('factors: score is 0.19*C + 1.50*W with no nutrition term', () => {
   for (const col of Object.keys(rows[0]!)) {
     assert.doesNotMatch(col, /nutri|^O_|kcal|quality/i, `nutrition column ${col} in the waste file`);
   }
-  assert.equal(WASTE_FACTORS_VERSION, 'waste-factors-v5');
+  assert.equal(WASTE_FACTORS_VERSION, 'waste-factors-v6');
 });
 
 test('factors: generated nutrition table matches menu_nutrition_factors.csv', () => {
@@ -84,7 +86,7 @@ test('factors: generated nutrition table matches menu_nutrition_factors.csv', ()
 test('factors: committed factors.generated.ts is up to date with the CSVs', async () => {
   const scriptUrl = pathToFileURL(join(repoRoot, 'data', 'scripts', 'generate-factors.mjs')).href;
   const gen = (await import(scriptUrl)) as {
-    buildTables(w: string, n: string, c?: string): unknown;
+    buildTables(w: string, n: string, c?: string, h?: string): unknown;
     renderModule(t: unknown): string;
   };
   const expected = gen.renderModule(
@@ -92,6 +94,7 @@ test('factors: committed factors.generated.ts is up to date with the CSVs', asyn
       readFileSync(join(repoRoot, 'menu_waste_factors_EastQuad.csv'), 'utf8'),
       readFileSync(join(repoRoot, 'menu_nutrition_factors_EastQuad.csv'), 'utf8'),
       readFileSync(join(repoRoot, 'menu_waste_factors_500.csv'), 'utf8'),
+      readFileSync(join(repoRoot, 'menu_waste_factors_halal_bros.csv'), 'utf8'),
     ),
   );
   const actual = readFileSync(join(repoRoot, 'data', 'src', 'factors.generated.ts'), 'utf8');
@@ -129,6 +132,39 @@ test('factors: common-foods fallback (menu_waste_factors_500.csv) only for items
   const hallKeys = new Set(WASTE_FACTORS.map((f) => f.factorKey));
   assert.ok(COMMON_WASTE_FACTORS.every((f) => !hallKeys.has(f.factorKey) && f.table === 'common-500'));
   assert.ok(COMMON_WASTE_FACTORS.length >= 490);
+});
+
+test('factors: Halal Bros table (menu_waste_factors_halal_bros.csv) is looked up after East Quad', () => {
+  const rows = csvObjects('menu_waste_factors_halal_bros.csv');
+  assert.equal(HALAL_BROS_WASTE_FACTORS.length, rows.length);
+  rows.forEach((r, i) => {
+    assert.deepEqual(HALAL_BROS_WASTE_FACTORS[i], {
+      factorKey: factorKeyFor(r.food!),
+      food: r.food,
+      station: r.station,
+      weightGPerCm2: Number(r.weight_g_per_cm2),
+      kgCo2ePerKg: Number(r.C_kg_co2e_per_kg),
+      waterM3PerKg: Number(r.W_water_m3_per_kg),
+      impactUsdPerKg: Number(r.impact_score_usd_per_kg),
+      largestFactor: r.largest_factor,
+      table: 'halal-bros',
+    });
+    assert.deepEqual(HALAL_BROS_NUTRITION_FACTORS[i], {
+      factorKey: factorKeyFor(r.food!),
+      nutrientDaysPerKg: Number(r.O_nutrient_days_per_kg),
+      kcalPerKg: Number(r.kcal_per_kg),
+    });
+  });
+  const chicken = findWasteFactor('Halal Chicken');
+  assert.equal(chicken?.table, 'halal-bros');
+  assert.equal(chicken?.weightGPerCm2, 1.2);
+  assert.equal(findNutritionFactor('Halal Chicken')?.nutrientDaysPerKg, 0.73);
+  assert.equal(findWasteFactor('Yellow Rice')?.table, 'halal-bros');
+  // East Quad's own rows are unchanged, and the dinner seed (WASTE_FACTORS) stays East Quad only.
+  assert.equal(findWasteFactor('Halal Rice')?.table, 'east-quad');
+  const eastKeys = new Set(WASTE_FACTORS.map((f) => f.factorKey));
+  assert.ok(HALAL_BROS_WASTE_FACTORS.every((f) => !eastKeys.has(f.factorKey)));
+  assert.ok(COMMON_WASTE_FACTORS.every((f) => !HALAL_BROS_WASTE_FACTORS.some((h) => h.factorKey === f.factorKey)));
 });
 
 /** Round half up to cents (the CSVs' rule: 1.605 -> 1.61), via integer micro-units to avoid float drift. */

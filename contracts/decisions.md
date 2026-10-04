@@ -489,3 +489,14 @@ matching. Each factor row carries `table: 'east-quad' | 'common-500'`. `ItemImpa
 tells the dashboard, which labels fallback rows "factors: common foods table". The fallback has no
 nutrition rows, so those foods have null nutrition points. Unmatched foods stay "no impact factor",
 never 0. Factor version `waste-factors-v5`.
+
+## 2026-10-04: Halal Bros factor table in the main app
+
+`menu_waste_factors_halal_bros.csv` (Halal Bros 2 Go, 810 S State St, Ann Arbor: Halal Chicken, Yellow
+Rice, Diced Tomatoes, Shredded Lettuce) was read only by `upload_demo/`. It is now a second restaurant
+table in `data/` (`HALAL_BROS_WASTE_FACTORS`, `HALAL_BROS_NUTRITION_FACTORS`), looked up after East Quad
+and before the 500-food fallback, so calibrated Halal Bros plates get estimated grams, CO2e and water.
+Rows carry `table: 'halal-bros'`; its keys may not overlap another table's. The East Quad dinner seed is
+unchanged (`WASTE_FACTORS` stays East Quad only). The restaurant publishes no nutrition data, so the
+CSV's nutrition labels remain made-up test values and its g/cm² values unverified estimates. Factor
+version `waste-factors-v6`.

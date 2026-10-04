@@ -232,3 +232,9 @@ rounded half up to cents, `impact_score_usd_per_kg` = the unrounded 0.19·C + 1.
 and `largest_factor` = the larger of the two. When the 500-food table arrived (2026-10-04), 52 of its
 derived cells were 1 cent off that rule; they were recomputed from C and W (C and W unchanged), as was
 one half-cent cell in the Halal Bros table (Diced Tomatoes water, 0.555 → 0.56).
+
+## Halal Bros table (`menu_waste_factors_halal_bros.csv`)
+
+Four foods from Halal Bros 2 Go (810 S State St, Ann Arbor): Halal Chicken, Yellow Rice, Diced Tomatoes and Shredded Lettuce. The restaurant describes its chicken over rice as seasoned basmati rice topped with marinated chicken, lettuce, tomatoes, and white, green and red sauces. It publishes no nutrition or portion weights, so the nutrition labels in this file are **made-up test values** and the g/cm² values are unverified estimates.
+
+The app looks this table up after East Quad and before the 500-food fallback (`table: 'halal-bros'`), so a menu item named exactly like a row gets its factors, including estimated grams on calibrated plates. The sauces have no row: leftover sauce counts as unclassified pixels with no grams.

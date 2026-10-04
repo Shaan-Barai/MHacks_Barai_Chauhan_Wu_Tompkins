@@ -302,7 +302,7 @@ export interface WasteFactor {
   table?: WasteFactorTable;
 }
 
-export type WasteFactorTable = 'east-quad' | 'common-500';
+export type WasteFactorTable = 'east-quad' | 'halal-bros' | 'common-500';
 
 /** One row of menu_nutrition_factors.csv. Reported separately; never in the score. */
 export interface NutritionFactor {

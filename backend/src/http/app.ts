@@ -521,11 +521,13 @@ export function createApp(deps: AppDeps): express.Express {
     wrap(async (req, res) => {
       requireAdmin(res);
       const window = parseWindow(req.query);
-      const [items, hidden] = await Promise.all([
-        impact.captures(window, CAPTURE_LIST_MAX_LIMIT, { includeHidden: true }),
+      const [{ items, total }, hidden] = await Promise.all([
+        impact.capturesPage(window, CAPTURE_LIST_MAX_LIMIT, { includeHidden: true }),
         repo.listHiddenCaptureIds(),
       ]);
-      res.json({ captures: items.map((c) => ({ ...c, hidden: hidden.has(c.eventId) })) });
+      // `total` counts every plate in the window; `truncated` means only the newest
+      // CAPTURE_LIST_MAX_LIMIT are listed and older ones need a narrower window.
+      res.json({ captures: items.map((c) => ({ ...c, hidden: hidden.has(c.eventId) })), total, truncated: total > items.length });
     }),
   );
 
@@ -544,6 +546,25 @@ export function createApp(deps: AppDeps): express.Express {
       }
       await repo.setCaptureVisibility(eventIds as string[], hidden, new Date(now()).toISOString());
       res.json({ eventIds, hidden });
+    }),
+  );
+
+  // D14: failed / needs_review plates INCLUDING hidden ones, for retry-failed.mjs.
+  // Hiding is display-only and must not block a retry; the ingest token may call
+  // this (it can already resubmit any capture) but it never lists healthy plates.
+  app.get(
+    '/api/captures/retryable',
+    wrap(async (req, res) => {
+      const principal = res.locals.principal;
+      if (principal !== 'admin' && principal !== 'open' && principal !== 'ingest') {
+        throw new HttpError(401, apiError('AUTH_REQUIRED', 'Sign in or use the ingest token to list plates that need a retry.', false));
+      }
+      const { items } = await impact.capturesPage(parseWindow(req.query), Number.MAX_SAFE_INTEGER, { includeHidden: true });
+      const hidden = await repo.listHiddenCaptureIds();
+      const captures = items
+        .filter((c) => c.state === 'failed' || c.state === 'needs_review')
+        .map((c) => ({ eventId: c.eventId, state: c.state, hidden: hidden.has(c.eventId) }));
+      res.json({ captures });
     }),
   );
 

@@ -25,6 +25,7 @@ import { newId } from '../ids.js';
 import type { Analyzer } from '../analysis/analyzer.js';
 import { AREA_METHOD, computeAreaEstimate, type LabelSuffix, type PhysicalCalibration, type PhysicalStageInput } from '@scrap/vision';
 import { log } from '../log.js';
+import { ProviderStatus } from './providerStatus.js';
 import type { Repository } from '../repo/repository.js';
 import type { ImageService } from './imageService.js';
 import type { CaptureSubmission } from './validation.js';
@@ -51,13 +52,18 @@ export interface IngestResult {
 }
 
 export class IngestionService {
+  /** D6: whether the analysis provider is down for a reason an operator must fix. */
+  readonly providerStatus: ProviderStatus;
+
   constructor(
     private readonly repo: Repository,
     private readonly images: ImageService,
     private readonly analyzer: Analyzer,
     private readonly now: () => number = () => Date.now(),
     private readonly labelSuffix?: LabelSuffixFactory,
-  ) {}
+  ) {
+    this.providerStatus = new ProviderStatus(now);
+  }
 
   /**
    * IT_4 I9: snapshot the hall's active calibration.
@@ -248,6 +254,7 @@ export class IngestionService {
     }
 
     await this.repo.recordAnalysis(attempt, measurements);
+    this.providerStatus.observe(attempt.status, attempt.error?.code);
 
     const finalState: ProcessingState =
       attempt.status === 'succeeded'

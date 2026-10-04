@@ -7,6 +7,7 @@
  */
 
 import type { Repository } from '../repo/repository.js';
+import type { ProviderStatus, ProviderStatusReport } from './providerStatus.js';
 import type { ObjectStorageAdapter } from '../storage/objectStorage.js';
 
 export interface ReadinessCheck {
@@ -19,6 +20,8 @@ export interface ReadinessCheck {
 export interface ReadinessReport {
   ready: boolean;
   checks: Record<'database' | 'objectStorage' | 'samWorker', ReadinessCheck>;
+  /** D6: informational (never changes `ready`): a Gemini billing outage seen by recent captures. */
+  providers: { gemini: ProviderStatusReport };
 }
 
 export interface ReadinessOptions {
@@ -28,6 +31,7 @@ export interface ReadinessOptions {
   workerToken?: string;
   /** SAM is needed only for live mask analysis (not the mock analyzer). */
   samRequired: boolean;
+  providerStatus?: ProviderStatus;
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
 }
@@ -50,7 +54,11 @@ export class ReadinessService {
       timed(this.opts.samRequired, timeoutMs, () => this.worker(this.opts.samWorkerUrl, timeoutMs)),
     ]);
     const checks = { database, objectStorage, samWorker };
-    return { ready: Object.values(checks).every((c) => c.ok || !c.required), checks };
+    return {
+      ready: Object.values(checks).every((c) => c.ok || !c.required),
+      checks,
+      providers: { gemini: this.opts.providerStatus?.report() ?? { ok: true } },
+    };
   }
 
   private async worker(url: string | undefined, timeoutMs: number): Promise<void> {

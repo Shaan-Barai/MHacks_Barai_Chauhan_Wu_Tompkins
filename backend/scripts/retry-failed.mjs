@@ -38,7 +38,16 @@ async function getJson(path, init) {
 }
 
 const q = new URLSearchParams({ start: args.start, end: args.end, hallId: args.hall, limit: '200' });
-const list = await getJson(`/api/captures?${q}`);
+// /api/captures/retryable includes plates hidden from the dashboard (hiding is
+// display-only and must not block a retry) and is not capped at 200. Falls back
+// to the public list on an older backend (hidden plates are then not retried).
+let list;
+try {
+  list = await getJson(`/api/captures/retryable?${q}`, { headers: auth });
+} catch (e) {
+  console.log(`(retryable list unavailable: ${e.message}; hidden plates will not be retried)`);
+  list = await getJson(`/api/captures?${q}`);
+}
 const captures = Array.isArray(list) ? list : list.captures ?? [];
 const failed = captures.filter((c) => c.state === 'failed' || c.state === 'needs_review');
 console.log(`${failed.length} of ${captures.length} captures need a retry (${args.start}..${args.end}, ${args.hall}).`);

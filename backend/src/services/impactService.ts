@@ -236,6 +236,11 @@ export class ImpactService {
 
   /** Recent plates, newest first, capped (contracts CaptureListItem). */
   async captures(window: ImpactWindow, limit = CAPTURE_LIST_DEFAULT_LIMIT, opts: { includeHidden?: boolean } = {}): Promise<CaptureListItem[]> {
+    return (await this.capturesPage(window, limit, opts)).items;
+  }
+
+  /** Newest `limit` captures plus the full count (D14: callers can show truncation). */
+  async capturesPage(window: ImpactWindow, limit: number, opts: { includeHidden?: boolean } = {}): Promise<{ items: CaptureListItem[]; total: number }> {
     const records = await this.gather(window, opts);
     const items: CaptureListItem[] = [];
     for (const r of records) {
@@ -299,7 +304,7 @@ export class ImpactService {
       }
     }
     items.sort((a, b) => b.capturedAt.localeCompare(a.capturedAt) || b.eventId.localeCompare(a.eventId));
-    return items.slice(0, limit);
+    return { items: items.slice(0, limit), total: items.length };
   }
 
   /**

@@ -131,6 +131,7 @@ export function buildBackend(options: BuildOptions = {}): AppDeps & { app: Retur
     samWorkerUrl: config.samWorkerUrl,
     workerToken: config.workerToken,
     samRequired: analyzer instanceof MaskAnalyzer,
+    providerStatus: ingestion.providerStatus,
   });
   // Calibration needs live Gemini + SAM (no mock: a fake k would be worse than none).
   const calibrationRunner =

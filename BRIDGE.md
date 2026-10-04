@@ -24,6 +24,7 @@ cd capture && npm run ingest-inbox -- --service svc_hall-main_2026-10-03_lunch -
 | `--inbox <dir>` | Default `<repo>/images/arduino-inbox` |
 | `--poll <s>` / `--idle <s>` | Scan interval (default 2) / close the open dish after this long with no new photos (default 10) |
 | `--no-dedupe` | One dish per manual photo, no Gemini; `--auto` frames are skipped. Prints a warning |
+| `--state-dir <dir>` | Where `.inbox-groups.json` / `.inbox-ingest.json` live. Default `capture/` |
 | `API_URL` | Backend, default `http://localhost:8787` |
 
 Output: `+` new dish, `■` dish closed, `✓ dish … → <eventId> (<state>)` ingested, `?` an unsure
@@ -174,7 +175,9 @@ Capture suite: 28/28 passing.
 - R2 and SpacetimeDB with this bridge;
 - latency at 1 fps.
 
-Live check: run steps 1–3 above while passing three plates under the camera with gaps between them,
+Live check, scripted: `python3 capture/scripts/live_camera_test.py --target arduino@YOUR_BOARD_IP --service <id>` checks the board, takes manual and 5-frame auto photos, probes `/api/dish-match`, then cues you through the plate run below with the bridge in the background. It verifies one `camera` event per plate and a no-op rerun. It uses its own inbox and `--state-dir` under `images/camera-test/`, so the real inbox and bridge state are untouched. `--stage camera` needs no backend.
+
+Live check, by hand: run steps 1–3 above while passing three plates under the camera with gaps between them,
 holding one plate still for about 10 s. Expect exactly three `✓ dish` lines and three `capture_event`
 rows with `source = camera` (`spacetime sql scrap "SELECT * FROM capture_event"`). Rerun and expect
 nothing new. Note the Gemini checks against the frame count.

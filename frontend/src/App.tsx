@@ -3,18 +3,16 @@ import { defaultRange, type DateRange } from './components/DateRangePicker'
 import { SetupWizard } from './components/SetupWizard'
 import { BehindScenesPage } from './pages/BehindScenesPage'
 import { DashboardPage } from './pages/DashboardPage'
-import { MenusPage } from './pages/MenusPage'
+import { MenuSchedulePage } from './pages/MenuSchedulePage'
 import { PortionsPage } from './pages/PortionsPage'
-import { SchedulePage } from './pages/SchedulePage'
 import { SettingsPage } from './pages/SettingsPage'
 import { useHallSettings } from './state/settings'
 
-type Page = 'dashboard' | 'schedule' | 'menus' | 'portions' | 'behind' | 'settings'
+type Page = 'dashboard' | 'menu-schedule' | 'portions' | 'behind' | 'settings'
 
 const NAV: { page: Page; label: string }[] = [
   { page: 'dashboard', label: 'Dashboard' },
-  { page: 'schedule', label: 'Schedule' },
-  { page: 'menus', label: 'Menus' },
+  { page: 'menu-schedule', label: 'Menu Schedule' },
   { page: 'portions', label: 'Portions served' },
   { page: 'behind', label: 'Behind the scenes' },
   { page: 'settings', label: 'Settings' },
@@ -73,8 +71,7 @@ export default function App() {
             onHallChange={setHall}
           />
         )}
-        {page === 'schedule' && <SchedulePage settings={settings} dataRevision={dataRevision} />}
-        {page === 'menus' && <MenusPage locations={settings.locations} />}
+        {page === 'menu-schedule' && <MenuSchedulePage settings={settings} dataRevision={dataRevision} />}
         {page === 'portions' && <PortionsPage onSaved={() => setDataRevision((r) => r + 1)} />}
         {page === 'behind' && <BehindScenesPage />}
         {page === 'settings' && <SettingsPage settings={settings} onSave={update} />}

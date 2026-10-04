@@ -4,7 +4,7 @@ The **Portions served** screen accepts total portions actually handed out for
 each food during a selected meal. Include seconds, use a consistent portion
 size, and keep prepared quantities and attendance separate.
 
-1. Save the meal menu in **Menus**.
+1. Save the meal menu in **Menu Schedule**.
 2. Open **Portions served** and select the date and meal for your configured hall.
 3. Enter each food's served count, or download the CSV template, fill it in,
    and upload it. Leave an unknown count blank. Use 0 only when none were served.

@@ -71,8 +71,8 @@ Top to bottom, all driven by the lookback buttons:
    renewed once via `/api/captures/:id/images`, then "Photo unavailable".
 7. **Nutrition lost**: separate dashed card, "not part of the impact score".
 
-Schedule, Menus, Portions served, Behind the scenes, and Settings pages are
-unchanged.
+Menu Schedule (adding menus plus the day-by-day schedule), Portions served,
+Behind the scenes, and Settings pages are unchanged.
 
 ## Deferred / out of scope here
 

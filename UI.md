@@ -38,12 +38,11 @@ segmentation; "Pixels wasted" is the one technical label kept.
 2. Add menus: pick a date and "Repeat:" (Never, Every day, Every week, Every other week; repeats ask for an end date), type foods under Breakfast / Lunch / Dinner, or upload a spreadsheet (.csv). Or choose "API" (with a "?" explaining it) to see the address, dining hall codes and an example for sending menus from other software. Then go to the Dashboard.
 
 ## LAYOUT
-[ Left: Nav ] [ Page ]. There is no right-hand panel; day details live on the Schedule page.
+[ Left: Nav ] [ Page ]. There is no right-hand panel; day details live on the Menu Schedule page.
 
 ### NAV
 - Dashboard
-- Schedule
-- Menus: add a day's menu (same options as setup step 2); a calendar marks days with "No menu". Menus are saved for the first dining hall.
+- Menu Schedule: one page for adding menus and looking back at days (replaces the separate Menus and Schedule pages).
 - Portions served
 - Behind the scenes
 - Settings
@@ -64,8 +63,10 @@ Everything follows the lookback buttons at the top: Today, Last 7 days, Last 30 
 6. **Plates**: recent plate photos as a grid (time and grams left, or check failed / needs a person to look / being checked / clean plate). Picking one shows the photo and the AI outline image side by side, or one at a time, with each food's Pixels wasted and estimated weight. Expired photo links are renewed once; then "Photo unavailable".
 7. **Nutrition lost**: a small, separate card marked "not part of the impact score", in nutrient-days (enough nutrients for one adult for one day).
 
-### SCHEDULE
-- Month calendar; special events from Settings show on their dates.
+### MENU SCHEDULE
+- Top: add a menu, with the same options as setup step 2 (type or upload a spreadsheet, or API). Menus are saved for the first dining hall.
+- Below, under "Schedule": one month calendar. Days with no menu say "No menu"; special events from Settings show on their dates.
+- Clicking a day shows its details beside the calendar without touching the form above. "Add or replace this day's menu" loads that day into the form and scrolls up to it.
 - Clicking a day shows that day's meal times and events, then Breakfast | Lunch | Dinner tabs. Each tab: a finding headline (most wasted food), Pixels wasted, plates scanned, clean plates, plates not counted, food not on the menu (unclassified pixels), meal swipes (simulated), the foods left on plates with their share of the meal's wasted pixels, and a suggestion labeled "written by AI" or "basic rule, AI unavailable".
 
 ### BEHIND THE SCENES

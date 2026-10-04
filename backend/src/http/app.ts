@@ -718,6 +718,14 @@ export function createApp(deps: AppDeps): express.Express {
     }),
   );
 
+  // Per-day series for the dashboard chart: pixels, estimated kg CO2e (null without a calibrated plate), CO2 points.
+  app.get(
+    '/api/dashboard/impact/daily',
+    wrap(async (req, res) => {
+      res.json({ days: await impact.daily(parseWindow(req.query)) });
+    }),
+  );
+
   app.get(
     '/api/recommendation',
     geminiCap,

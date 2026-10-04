@@ -35,6 +35,7 @@ import type {
   CameraCalibration,
   CaptureEvent,
   CaptureListItem,
+  DailyImpactPoint,
   FoodMeasurement,
   ImpactDashboard,
   MenuBundle,
@@ -106,6 +107,16 @@ export interface WasteTotal {
    * plate in it was scanned with a calibrated camera, never 0 for missing.
    */
   estimated: { grams: number; kgCo2e: number | null; waterLitres: number | null; calibratedCaptures: number } | null;
+}
+
+/** Longest window GET /api/dashboard/impact/daily accepts, in days. */
+export const DAILY_IMPACT_MAX_DAYS = 366;
+
+/** YYYY-MM-DD plus n days (calendar arithmetic at UTC noon). */
+function addDays(d: string, n: number): string {
+  const t = new Date(`${d}T12:00:00Z`);
+  t.setUTCDate(t.getUTCDate() + n);
+  return t.toISOString().slice(0, 10);
 }
 
 export interface WasteTotals {
@@ -348,13 +359,38 @@ export class ImpactService {
     return { today: sum(periods.today), week: sum(periods.week), month: sum(periods.month) };
   }
 
+  /**
+   * One point per local date in the window (inclusive), each built from that
+   * date's records exactly like the dashboard totals; one gather for the window.
+   */
+  async daily(window: ImpactWindow): Promise<DailyImpactPoint[]> {
+    const days = Math.round((Date.parse(`${window.end}T12:00:00Z`) - Date.parse(`${window.start}T12:00:00Z`)) / 86_400_000) + 1;
+    if (!Number.isFinite(days) || days < 1 || days > DAILY_IMPACT_MAX_DAYS) {
+      throw badRequest('INVALID_WINDOW', `The window must cover 1 to ${DAILY_IMPACT_MAX_DAYS} days.`, { start: window.start, end: window.end });
+    }
+    const records = await this.gather(window);
+    const out: DailyImpactPoint[] = [];
+    for (let i = 0; i < days; i++) {
+      const date = addDays(window.start, i);
+      const d = this.build({ ...window, start: date, end: date }, records.filter((r) => r.menu.service.serviceDate === date));
+      const calibratedCaptures = d.totals.physicalCoverage?.calibratedCaptures ?? 0;
+      const analyzedCaptures = d.totals.analyzedCaptures;
+      out.push({
+        date,
+        pixels: analyzedCaptures > 0 ? d.totals.pixels : null,
+        // Same rule as totals().estimated: only with a calibrated plate that day.
+        kgCo2e: calibratedCaptures > 0 && d.totals.kgCo2e != null ? d.totals.kgCo2e : null,
+        co2Points: analyzedCaptures > 0 ? d.totals.co2Points ?? null : null,
+        analyzedCaptures,
+        calibratedCaptures,
+      });
+    }
+    return out;
+  }
+
   /** Earlier/later halves of the window (by local date) for the recommendation's trend fact. */
   private halves(window: ImpactWindow, records: ServiceRecords[]): { earlier: TrendHalf; later: TrendHalf } | undefined {
-    const day = (d: string, n: number) => {
-      const t = new Date(`${d}T12:00:00Z`);
-      t.setUTCDate(t.getUTCDate() + n);
-      return t.toISOString().slice(0, 10);
-    };
+    const day = addDays;
     const days = Math.round((Date.parse(`${window.end}T12:00:00Z`) - Date.parse(`${window.start}T12:00:00Z`)) / 86_400_000) + 1;
     if (days < 2) return undefined;
     const midEnd = day(window.start, Math.floor(days / 2) - 1);

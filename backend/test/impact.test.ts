@@ -308,6 +308,36 @@ test('GET /api/dashboard/daily: pixels per day, no grams; null (never 0) without
   assert.equal('grams' in day, false);
 });
 
+test('GET /api/dashboard/impact/daily: per-day pixels and CO2 points; kgCo2e null (never 0) without a calibrated plate', async (t) => {
+  const s = await seeded();
+  t.after(() => s.close());
+  const res = await s.api('GET', `/api/dashboard/impact/daily?hallId=${HALL}&start=2026-10-01&end=2026-10-03`);
+  assert.equal(res.status, 200, JSON.stringify(res.json));
+  assert.deepEqual(Object.keys(res.json), ['days']);
+  const [before, day, after] = res.json.days;
+  const empty = { pixels: null, kgCo2e: null, co2Points: null, analyzedCaptures: 0, calibratedCaptures: 0 };
+  assert.deepEqual(before, { date: '2026-10-01', ...empty });
+  assert.deepEqual(after, { date: '2026-10-03', ...empty });
+  assert.equal(day.date, DATE);
+  assert.equal(day.pixels, 20000);
+  assert.equal(day.analyzedCaptures, 2, 'the failed capture is excluded');
+  assert.equal(day.calibratedCaptures, 0);
+  assert.equal(day.kgCo2e, null, 'no calibrated plate: no kg estimate');
+  // ham 14,000 px -> base 12.6 x 12.39 = 156.114; potatoes 5,000 px -> base 8 x 0.62 = 4.96
+  close(day.co2Points, 161.074, 'co2Points');
+  const dash = await s.api('GET', `/api/dashboard/impact?start=${DATE}&end=${DATE}&hallId=${HALL}`);
+  close(day.co2Points, dash.json.totals.co2Points, 'matches the dashboard totals');
+
+  for (const q of ['', '?start=2026-10-02', '?start=2026-10-03&end=2026-10-02', '?start=2025-01-01&end=2026-10-02']) {
+    const bad = await s.api('GET', `/api/dashboard/impact/daily${q}`);
+    assert.equal(bad.status, 400, q);
+    assert.equal(bad.json.error.code, 'INVALID_WINDOW', q);
+  }
+  const year = await s.api('GET', '/api/dashboard/impact/daily?start=2025-10-03&end=2026-10-03');
+  assert.equal(year.status, 200, '366 days is allowed');
+  assert.equal(year.json.days.length, 366);
+});
+
 test('impact totals, capture list, daily: missing points stay null, clean plates are a measured 0', async (t) => {
   const s = await startTestServer();
   t.after(() => s.close());

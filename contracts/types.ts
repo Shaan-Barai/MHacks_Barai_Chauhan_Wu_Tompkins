@@ -503,6 +503,23 @@ export interface ImpactDashboard {
   labels: { relativeImpact: true; demoPortions: boolean; sampleData?: boolean };
 }
 
+/**
+ * GET /api/dashboard/impact/daily?start&end[&hallId] -> { days: DailyImpactPoint[] }
+ * One point per local date, start..end inclusive (max 366 days, else 400
+ * INVALID_WINDOW). Each point uses the same eligible rows as the dashboard totals.
+ */
+export interface DailyImpactPoint {
+  date: string;
+  /** null (never 0) when no plate that day has a counted analysis; a counted clean plate is 0. */
+  pixels: number | null;
+  /** ESTIMATED kg CO2e; null (never 0) unless a calibrated plate was counted that day. */
+  kgCo2e: number | null;
+  /** Relative CO2 points (unitless); null when no counted item has a factor. */
+  co2Points: number | null;
+  analyzedCaptures: number;
+  calibratedCaptures: number;
+}
+
 /** GET /api/captures?start&end — recent plates for the dashboard gallery. */
 export interface CaptureListItem {
   eventId: string;

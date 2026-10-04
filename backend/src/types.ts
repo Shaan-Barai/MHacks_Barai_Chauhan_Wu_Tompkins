@@ -43,6 +43,7 @@ export type {
   PerPortion,
   ItemImpactRow,
   ImpactDashboard,
+  DailyImpactPoint,
   CaptureListItem,
   SignedImage,
   CaptureImages,

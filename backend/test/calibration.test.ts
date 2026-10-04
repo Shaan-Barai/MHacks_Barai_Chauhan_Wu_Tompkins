@@ -196,6 +196,14 @@ test('ingestion snapshots the active calibration; activating another one never r
   const dash = await s.api('GET', `/api/dashboard/impact?start=2026-10-03&end=2026-10-03&hallId=${HALL}`);
   assert.equal(dash.status, 200);
   assert.deepEqual(dash.json.totals.physicalCoverage, { calibratedCaptures: 1, analyzedCaptures: 2 });
+  // The per-day chart series carries the same calibrated estimate (only the calibrated plate's kg CO2e).
+  const daily = await s.api('GET', `/api/dashboard/impact/daily?start=2026-10-03&end=2026-10-03&hallId=${HALL}`);
+  assert.equal(daily.status, 200);
+  const [d] = daily.json.days;
+  assert.deepEqual([d.date, d.analyzedCaptures, d.calibratedCaptures], ['2026-10-03', 2, 1]);
+  assert.equal(d.pixels, dash.json.totals.pixels);
+  assert.ok(typeof d.kgCo2e === 'number' && d.kgCo2e > 0, `kgCo2e ${d.kgCo2e}`);
+  assert.equal(d.kgCo2e, dash.json.totals.kgCo2e);
   const gallery = await s.api('GET', `/api/captures?start=2026-10-03&end=2026-10-03&hallId=${HALL}`);
   const row = gallery.json.find((c: any) => c.eventId === 'cap_cal');
   assert.equal(row.calibrationId, 'cal_1');

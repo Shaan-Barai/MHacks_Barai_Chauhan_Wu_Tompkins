@@ -297,11 +297,12 @@ remaining work.
 | C | **done** (phase 1) | 2026-10-04 | `d40c771`: IT_4.md, contracts IT_4 section, decisions, AGENTS.md §2 |
 | A | **done** | 2026-10-04 | `b031707` `b7cd23f` `ca764d5`: density column (26 foods, FAO/INFOODS + USDA, analogues labeled; pizzas + cheese bread null → area method), waste-factors-v3, grams/kgCo2e/waterLitres, coverage, `formatPhysicalLabel`; analytics 74/74, data 39/39 (fixtures). Backend impact test assertion needs B |
 | V | running | 2026-10-04 | launched |
-| B | running | 2026-10-04 | launched (hardening + schema first) |
+| B | **done** | 2026-10-04 | `05d2fd9` `750c21d` `f33b4f3` `6fcbbcb` `2739f93` `bf2a2ce`; backend 67/67; schema published in place to local `scrap` (no wipe); live prod-mode run on :8797: auth 401s, calibration on K's synthetic card (N_ref 42,516, height 44.8 cm vs 45 designed, `depth_scale_disagrees`), area + volume captures, legend suffix in overlay. Test rows left under `hall-it4-test` |
 | U | running | 2026-10-04 | launched (mocks first) |
 | K | running | 2026-10-04 | launched (client side + docs first) |
 | P | **done** | 2026-10-04 | `f9a7496`: `deploy/local.sh up/down/status/smoke/seed`, `smoke.mjs` 16/16 on test ports (live Gemini+SAM capture on `hall-smoke`), `docs/deploy.md` (tunnel documented only), r2-cors.local.json (not applied). Main checkout still runs the old dev backend on :8787; restart from main after A/V land |
 
 ### Log
 - 2026-10-04: plan written. User chose Fly.io and will buy a domain.
+- 2026-10-04: Gemini billing works again (B's live run, no 402).
 - 2026-10-04: user: run DAv2 + SAM locally, don't worry about Fly.io. P, B and V redirected.

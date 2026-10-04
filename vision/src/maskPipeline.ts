@@ -34,11 +34,13 @@ import { imageInputToPart } from './image.js';
 import {
   buildLocalizePrompt,
   buildLocalizeSchema,
+  CLOSEUP_LINE,
   LOCALIZE_PROMPT_VERSION,
   LOCALIZE_SYSTEM_INSTRUCTION,
   validateLocalizeText,
 } from './localize.js';
 import {
+  boxIoU,
   COUNTING_RULE_VERSION,
   countPixels,
   decodeBinaryMask,
@@ -57,7 +59,20 @@ export interface MaskAnalysisInput {
   menu: { menuId: string; menuVersion: number; items: MenuItem[] };
   /** Optional auxiliary baselines; never required for Pixels wasted. */
   baselines?: ReferencePortion[];
+  /** Gemini localization passes (1 or 2). Default: env GEMINI_PASSES, else 2. */
+  geminiPasses?: 1 | 2;
   now?: () => Date;
+}
+
+/** Per-plate localization diagnostics (box counts per pass and after merge). */
+export interface LocalizationStats {
+  passes: 1 | 2;
+  /** Boxes returned by each pass; null when that pass failed. */
+  passBoxes: (number | null)[];
+  /** Why a pass failed (error code or validation reason). */
+  failedPasses: string[];
+  /** Valid boxes kept after the IoU merge (sent to SAM). */
+  mergedBoxes: number;
 }
 
 export interface MaskAnalysisResult {
@@ -71,7 +86,11 @@ export interface MaskAnalysisResult {
    * { ...count, maskObjectId }.
    */
   itemMasks: { measurementId: string; png: Uint8Array; count: Omit<MaskPixelCount, 'maskObjectId'> }[];
+  localization: LocalizationStats;
 }
+
+/** Boxes from the two passes overlapping more than this are the same piece; the smaller is kept. */
+const MERGE_IOU = 0.5;
 
 const NOT_RUN: SegmenterInfo = { model: 'not-run', checkpoint: 'not-run', codeRevision: 'not-run', device: 'none', settingsVersion: 'not-run' };
 
@@ -83,6 +102,9 @@ export async function analyzeCaptureWithMasks(
   const now = input.now ?? (() => new Date());
   const { widthPx: W, heightPx: H } = input.geometry;
   const flags = new Set<QualityFlag>(['ai_estimate']);
+  const passes: 1 | 2 = input.geminiPasses ?? (Number(process.env.GEMINI_PASSES ?? 2) === 1 ? 1 : 2);
+  const promptVersion = passes === 2 ? `${LOCALIZE_PROMPT_VERSION}+closeup` : LOCALIZE_PROMPT_VERSION;
+  const localization: LocalizationStats = { passes, passBoxes: [], failedPasses: [], mergedBoxes: 0 };
 
   const finish = (
     status: AnalysisStatus,
@@ -102,7 +124,7 @@ export async function analyzeCaptureWithMasks(
       menuVersion: input.menu.menuVersion,
       baselineVersions: {},
       model: gateway.model,
-      promptVersion: LOCALIZE_PROMPT_VERSION,
+      promptVersion,
       status,
       ...(error ? { error } : {}),
       qualityFlags: [...flags],
@@ -125,54 +147,90 @@ export async function analyzeCaptureWithMasks(
     measurements,
     masks,
     itemMasks,
+    localization,
   });
 
-  // 1. Classification + localization.
+  // 1. Classification + localization: 1 or 2 Gemini passes, in parallel.
+  //    Pass 1 = scrap-localize-v2 unchanged; pass 2 = the same prompt plus
+  //    CLOSEUP_LINE (a different prompt, so it can find different boxes).
   const menuIds = input.menu.items.map((i) => i.itemId);
-  let text: string;
+  const basePrompt = buildLocalizePrompt(input.menu.items, input.geometry);
+  const prompts = passes === 2 ? [basePrompt, `${basePrompt}\n${CLOSEUP_LINE}`] : [basePrompt];
+  let imagePart;
   try {
-    const imagePart = await imageInputToPart({ kind: 'bytes', bytes: input.image.bytes, mimeType: input.image.mimeType });
-    text = await gateway.generateStructured({
-      parts: [imagePart, { text: buildLocalizePrompt(input.menu.items, input.geometry) }],
-      systemInstruction: LOCALIZE_SYSTEM_INSTRUCTION,
-      responseSchema: buildLocalizeSchema(menuIds.length),
-      temperature: 0,
-    });
+    imagePart = await imageInputToPart({ kind: 'bytes', bytes: input.image.bytes, mimeType: input.image.mimeType });
   } catch (err) {
     const error = err instanceof GatewayError ? err.apiError : makeApiError('VISION_INTERNAL', 'Unexpected classification error.', false);
     return finish('failed', { info: NOT_RUN, status: 'skipped', countStatus: 'unavailable', regions: [] }, [], [], error);
   }
-  const located = validateLocalizeText(text, menuIds);
-  if (!located.ok) {
-    return finish(
-      'failed',
-      { info: NOT_RUN, status: 'skipped', countStatus: 'unavailable', regions: [] },
-      [],
-      [],
-      makeApiError('VISION_INVALID_RESPONSE', 'The classification answer was unusable.', true, { reason: located.reason }),
-    );
+  const settled = await Promise.allSettled(
+    prompts.map((text) =>
+      gateway.generateStructured({
+        parts: [imagePart, { text }],
+        systemInstruction: LOCALIZE_SYSTEM_INSTRUCTION,
+        responseSchema: buildLocalizeSchema(menuIds.length),
+        temperature: 0,
+      }),
+    ),
+  );
+  // A failed, timed-out, or invalid pass is dropped; the plate fails only if every pass did.
+  const usable: Extract<ReturnType<typeof validateLocalizeText>, { ok: true }>[] = [];
+  let firstError: AnalysisAttempt['error'];
+  for (const outcome of settled) {
+    if (outcome.status === 'rejected') {
+      const err = outcome.reason;
+      const error = err instanceof GatewayError ? err.apiError : makeApiError('VISION_INTERNAL', 'Unexpected classification error.', false);
+      firstError ??= error;
+      localization.passBoxes.push(null);
+      localization.failedPasses.push(error.code);
+      continue;
+    }
+    const located = validateLocalizeText(outcome.value, menuIds);
+    if (!located.ok) {
+      firstError ??= makeApiError('VISION_INVALID_RESPONSE', 'The classification answer was unusable.', true, { reason: located.reason });
+      localization.passBoxes.push(null);
+      localization.failedPasses.push(`invalid:${located.reason}`);
+      continue;
+    }
+    localization.passBoxes.push(located.regions.length);
+    usable.push(located);
   }
-  if (located.ambiguous) flags.add('ambiguous_items');
+  if (usable.length === 0) {
+    return finish('failed', { info: NOT_RUN, status: 'skipped', countStatus: 'unavailable', regions: [] }, [], [], firstError);
+  }
+  const ambiguous = usable.some((l) => l.ambiguous);
+  if (ambiguous) flags.add('ambiguous_items');
 
-  // Explicit empty plate: a real zero, with no segmentation needed.
-  if (located.plateEmpty) {
+  // Explicit empty plate only when every usable pass returned [] (a pass with pieces wins).
+  const withPieces = usable.filter((l) => l.regions.length > 0);
+  if (withPieces.length === 0) {
     flags.add('empty_plate');
     return finish('succeeded', { info: NOT_RUN, status: 'skipped', countStatus: 'empty', capturePixelsWasted: 0, regions: [] });
   }
-  if (located.regions.length === 0) {
-    flags.add('ambiguous_items');
-    return finish(
-      'needs_review',
-      { info: NOT_RUN, status: 'skipped', countStatus: 'unavailable', regions: [] },
-      [],
-      [],
-      makeApiError('NO_FOOD_REGIONS', 'Food was reported but no regions were located.', true),
-    );
-  }
 
-  // 2. Box conversion + validation.
-  const regions: ClassificationRegion[] = located.regions.map((r, n) => {
-    const converted = geminiBoxToPixels(r.box2d, W, H);
+  // 2. Box conversion + validation, then merge across passes: keep every
+  //    box, except where two boxes overlap heavily (IoU > 0.5) keep only the
+  //    smaller one — same menu_id (duplicate) or different (more specific piece).
+  const candidates = withPieces.flatMap((l, pass) =>
+    l.regions.map((r, idx) => ({ r, pass, idx, converted: geminiBoxToPixels(r.box2d, W, H) })),
+  );
+  const area = (b: [number, number, number, number]) => (b[2] - b[0]) * (b[3] - b[1]);
+  const kept: typeof candidates = [];
+  for (const c of candidates.filter((c) => c.converted.ok).sort((x, y) => {
+    const ax = x.converted.ok ? area(x.converted.box.pixelXyxy) : 0;
+    const ay = y.converted.ok ? area(y.converted.box.pixelXyxy) : 0;
+    return ax - ay || x.pass - y.pass || x.idx - y.idx;
+  })) {
+    if (!c.converted.ok) continue;
+    const box = c.converted.box.pixelXyxy;
+    if (kept.every((k) => k.converted.ok && boxIoU(k.converted.box.pixelXyxy, box) <= MERGE_IOU)) kept.push(c);
+  }
+  kept.sort((x, y) => x.pass - y.pass || x.idx - y.idx);
+  localization.mergedBoxes = kept.length;
+  // An unusable box fails its region (-> partial count) only when it is the sole source;
+  // with two passes contributing pieces, the other pass's boxes cover that area.
+  const invalid = withPieces.length === 1 ? candidates.filter((c) => !c.converted.ok) : [];
+  const regions: ClassificationRegion[] = [...kept, ...invalid].map(({ r, converted }, n) => {
     const base = {
       regionId: `${input.attemptId}_r${n + 1}`,
       eventId: input.eventId,
@@ -311,7 +369,7 @@ export async function analyzeCaptureWithMasks(
 
   const partial = failed > 0;
   const countStatus: CountStatus = partial ? 'partial' : 'complete';
-  const status: AnalysisStatus = partial || located.ambiguous ? 'needs_review' : 'succeeded';
+  const status: AnalysisStatus = partial || ambiguous ? 'needs_review' : 'succeeded';
   return finish(
     status,
     { info, status: partial ? 'partial' : 'succeeded', countStatus, capturePixelsWasted: counts.capturePx, regions },

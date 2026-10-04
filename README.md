@@ -67,6 +67,11 @@ python3 demo.py --plates 3 --yes # three plates, no pauses
 python3 demo.py --list           # the steps; --only/--skip pick some, --events cap_… re-shows captures
 ```
 
+**Upload website:** `node upload_demo/server.mjs` → http://localhost:8795. Anyone can upload a food
+photo and see the original, Gemini's boxes, SAM 2.1's masks, the final Pixels wasted, and each food's
+carbon and water factors from the 27-food database ([`upload_demo/README.md`](upload_demo/README.md)).
+[`demo_pictures/`](demo_pictures/README.md) shows every step for the halal chicken + rice bowl.
+
 It needs the stack from [Setup](#setup) (it offers to start missing services) and writes its
 photos and logs to `images/demo-runs/` (gitignored). **Adding a feature? Add a demo step**
 (AGENTS.md §3 rule 13).

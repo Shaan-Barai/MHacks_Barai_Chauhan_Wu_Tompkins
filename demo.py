@@ -38,6 +38,7 @@ The captures it creates are real rows in the configured database (default `scrap
 """
 
 import argparse
+import base64
 from datetime import datetime, timezone
 import csv
 import json
@@ -830,6 +831,56 @@ def step_dashboard(demo):
     demo.check("PASS", f"Opened {url}")
 
 
+def step_upload_site(demo):
+    """Public upload website: any food photo → every pipeline stage + carbon/water factors (upload_demo/)."""
+    port = int(os.environ.get("UPLOAD_DEMO_PORT", "8795"))
+    url = f"http://localhost:{port}"
+    up = http_ok(url + "/api/foods")[0]
+    if not up and not demo.args.no_start and ask("The upload website is not running. Start it now?"):
+        log = demo.run / "logs" / "upload-site.log"
+        log.parent.mkdir(parents=True, exist_ok=True)
+        process = subprocess.Popen(["node", "upload_demo/server.mjs"], cwd=REPO, stdout=open(log, "w"),
+                                   stderr=subprocess.STDOUT, start_new_session=True)
+        demo.started.append(("Upload website", process.pid, log))
+        print(dim(f"    started upload website (pid {process.pid}), log {show_path(log)}"))
+        deadline = time.time() + 20
+        while time.time() < deadline and not up:
+            time.sleep(0.5)
+            up = http_ok(url + "/api/foods")[0]
+    if not up:
+        demo.check("FAIL", f"Upload website not reachable at {url}  (start: node upload_demo/server.mjs)")
+        return
+    _, body = http_ok(url + "/api/foods")
+    foods = json.loads(body)["foods"]
+    demo.check("PASS", f"Upload website at {url}: {len(foods)} foods with carbon + water factors")
+    print(f"  Running the sample halal chicken + rice bowl through the website's API (2 Gemini calls)...")
+    sample = urllib.request.urlopen(url + "/sample.jpg", timeout=10).read()
+    req = urllib.request.Request(url + "/api/analyze?menu=all&name=demo.py", data=sample, method="POST",
+                                 headers={"content-type": "image/jpeg"})
+    try:
+        with urllib.request.urlopen(req, timeout=180) as r:
+            result = json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        demo.check("FAIL", f"Upload analysis HTTP {e.code}: {e.read()[:200].decode(errors='replace')}")
+        return
+    s = result["summary"]
+    rows = [[f["food"], num(f["pixelsWasted"]), num((f["factors"] or {}).get("co2KgPerKg"), 2),
+             num((f["points"] or {}).get("co2Points"), 1), num((f["points"] or {}).get("waterPoints"), 1)] for f in s["foods"]]
+    table(rows, ["Food", "Pixels wasted", "kg CO2e/kg", "CO2 pts", "Water pts"], "lrrrr")
+    out = demo.run / "upload-site"
+    out.mkdir(parents=True, exist_ok=True)
+    for key, name in [("original", "1_original"), ("boxes", "2_gemini_boxes"), ("masks", "3_sam_segmentation"), ("final", "4_final_result")]:
+        if result["images"].get(key):
+            (out / f"{name}.jpg").write_bytes(base64.b64decode(result["images"][key].split(",", 1)[1]))
+    print(dim(f"  Step pictures: {show_path(out)}/  (halal bowl reference set: demo_pictures/)"))
+    found = {f["food"] for f in s["foods"]}
+    ok = s["countStatus"] == "complete" and {"Halal Chicken", "Halal Rice"} <= found
+    demo.check("PASS" if ok else "WARN", f"Sample bowl: {num(s['capturePixelsWasted'])} px, {s['countStatus']}, "
+               f"found {', '.join(sorted(found)) or 'nothing'} out of {len(foods)} foods in {s['seconds']} s")
+    if not demo.args.no_open:
+        webbrowser.open(url)
+
+
 def step_deploy(demo):
     """The production URL (SCRAP_PROD_URL) answers: health, readiness, dashboard over HTTPS."""
     url = (demo.args.prod_url or "").rstrip("/")
@@ -867,6 +918,7 @@ STEPS = [
     ("stats", "Waste statistics", step_stats),
     ("recommendation", "AI recommendation", step_recommendation),
     ("dashboard", "Dashboard", step_dashboard),
+    ("upload_site", "Upload website: any photo → every step + carbon data", step_upload_site),
     ("deploy", "Production URL", step_deploy),
 ]
 NEEDS_EVENTS = {"analysis", "area", "storage", "images"}

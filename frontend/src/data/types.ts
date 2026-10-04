@@ -21,11 +21,36 @@ export interface MealHours {
   end: string // "10:30"
 }
 
-/** Saved by first-time setup (localStorage); mirrors contract MealService hall fields. */
+/** Days of the week, Monday first. */
+export type Weekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
+export const WEEKDAYS: Weekday[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+export const WEEKDAY_NAME: Record<Weekday, string> = {
+  mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun',
+}
+
+/** One set of meal times and the days it applies to, e.g. "Weekdays". */
+export interface MealTimeSet {
+  id: string
+  name: string
+  days: Weekday[]
+  meals: Record<MealLabel, MealHours>
+}
+
+/** A one-off event with its own hours, e.g. a football game. */
+export interface SpecialEvent {
+  id: string
+  name: string
+  date: IsoDate
+  start: string
+  end: string
+}
+
+/** Saved by first-time setup and Settings (localStorage). */
 export interface HallSettings {
   hallId: string
   name: string
-  mealTimes: Record<MealLabel, MealHours>
+  timeSets: MealTimeSet[]
+  events: SpecialEvent[]
 }
 
 export interface MenuItemLite {
@@ -126,6 +151,30 @@ export interface PeriodSummary {
   wasteUnits: number
   /** Same-length window immediately before; null when it has no data. */
   previousWasteUnits: number | null
+  /** Mean percent of a full serving left per plate (clean plates 0%); null without plates. */
+  averagePlateWastePercent: number | null
+  platesCounted: number
+}
+
+/** One food label on a scanned plate ("Behind the scenes"). */
+export interface PlateFood {
+  itemId: string | null
+  name: string
+  wasteUnits: number
+  /** Leftover as a percent of a full serving (capped at 100); null without a reference serving. */
+  percentOfServing: number | null
+  flags: string[]
+}
+
+/** One scanned plate with its photo reference and labels. */
+export interface PlateRecord {
+  eventId: string
+  capturedAt: string
+  source: string
+  state: 'pending' | 'processing' | 'succeeded' | 'needs_review' | 'failed'
+  imageObjectId: string
+  plateWastePercent: number | null
+  foods: PlateFood[]
 }
 
 /** The three summary cards (Today / This week / This month). */

@@ -5,7 +5,7 @@
  * menus kept in localStorage), with the same signatures as liveApi.ts.
  */
 import { addDays, eachDay, startOfMonth, startOfWeek, todayIso } from '../lib/dates'
-import { MOCK_FUTURE_MENU_DAYS, mockMealDetail, mockMenuFor } from './mockData'
+import { MOCK_FUTURE_MENU_DAYS, mockMealDetail, mockMenuFor, rng } from './mockData'
 import type {
   DailyWastePoint,
   DayMenu,
@@ -18,6 +18,7 @@ import type {
   PortionService,
   PortionEntry,
   PortionBenchmark,
+  PlateRecord,
 } from './types'
 import { MEALS } from './types'
 
@@ -65,7 +66,7 @@ export async function getMenu(date: IsoDate): Promise<DayMenu | null> {
   return menuFor(date, todayIso())
 }
 
-/** Which days in [start, end] have a menu — feeds the Menus calendar. */
+/** Which days in [start, end] have a menu, feeds the Menus calendar. */
 export async function getMenuDays(start: IsoDate, end: IsoDate): Promise<Record<IsoDate, boolean>> {
   await wait()
   const today = todayIso()
@@ -85,15 +86,6 @@ export async function saveUserMenu(date: IsoDate, meals: Record<MealLabel, MenuI
   for (const meal of MEALS) delete counts[`mock|${date}|${meal}`]
   localStorage.setItem(PORTIONS_KEY, JSON.stringify(counts))
   return menu
-}
-
-/** Mock "Test connection" for the menu-API option (no real network call). */
-export async function testMenuConnection(url: string, apiKey: string): Promise<{ ok: boolean; message: string }> {
-  await wait()
-  if (!url.trim() || !apiKey.trim()) {
-    return { ok: false, message: 'Enter both the API URL and the key, then try again.' }
-  }
-  return { ok: true, message: 'Connection looks good! (Demo: no data was really fetched.)' }
 }
 
 /** Daily waste series for the chart; null wasteUnits = no data that day. */
@@ -213,15 +205,29 @@ function period(start: IsoDate, end: IsoDate, today: IsoDate): PeriodSummary {
     }
     return any ? total : null
   }
+  // Demo plate percent: a steady 15 to 40% per day, averaged over days with data.
+  const percents = days.filter((d) => dailyTotal(d, today) !== null).map((d) => 15 + rng(`plate:${d}`)() * 25)
   return {
     start,
     end,
     wasteUnits: sum(days) ?? 0,
     previousWasteUnits: sum(eachDay(prevStart, prevEnd)),
+    averagePlateWastePercent: percents.length ? Math.round((percents.reduce((a, b) => a + b, 0) / percents.length) * 10) / 10 : null,
+    platesCounted: percents.length,
   }
 }
 
 /** Latest selectable menu date (mock menus run a few days ahead). */
 export function latestMenuDate(): IsoDate {
   return addDays(todayIso(), MOCK_FUTURE_MENU_DAYS)
+}
+
+/** Demo mode has no photos: Behind the scenes shows its empty state. */
+export async function getPlates(_date: IsoDate, _meal: MealLabel): Promise<PlateRecord[]> {
+  await wait()
+  return []
+}
+
+export async function getImageUrl(_objectId: string): Promise<string> {
+  throw new Error('Demo mode has no photos.')
 }

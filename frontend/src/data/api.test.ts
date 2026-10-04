@@ -7,7 +7,6 @@ import {
   getSummaryCards,
   saveUserMenu,
   setApiLatency,
-  testMenuConnection,
 } from './api'
 import { addDays, eachDay, todayIso } from '../lib/dates'
 
@@ -94,14 +93,7 @@ describe('getSummaryCards', () => {
     // previous window exists in 400 days of mock history
     expect(cards.thisWeek.previousWasteUnits).not.toBeNull()
     expect(cards.thisMonth.wasteUnits).toBeGreaterThan(0)
-  })
-})
-
-describe('testMenuConnection (mock)', () => {
-  it('fails friendly without both fields, succeeds with them', async () => {
-    expect((await testMenuConnection('', '')).ok).toBe(false)
-    const ok = await testMenuConnection('https://menus.example.edu/api', 'key123')
-    expect(ok.ok).toBe(true)
-    expect(ok.message).toMatch(/demo/i)
+    expect(cards.thisMonth.averagePlateWastePercent).toBeGreaterThanOrEqual(0)
+    expect(cards.thisMonth.averagePlateWastePercent).toBeLessThanOrEqual(100)
   })
 })

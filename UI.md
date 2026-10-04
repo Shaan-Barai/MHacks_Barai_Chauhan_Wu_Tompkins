@@ -1,4 +1,4 @@
-Web dashboard called "Scrap" (placeholder name) that helps dining hall and cafeteria managers track plate food waste. The user is a busy, non-technical dining manager. Keep it to one main screen with big numbers, plain language, and as few clicks as possible. If a feature isn't listed here, leave it out.
+Web dashboard called **ScrapSaver** that helps dining hall managers and chefs track food left on plates. The users are busy, non-technical kitchen staff. Keep screens simple, numbers big, and words plain. If a feature isn't listed here, leave it out.
 
 ## CURRENT MEASUREMENT CONTEXT (2026-10-03)
 
@@ -12,67 +12,53 @@ is a breakdown statistic, not percentage of food originally served. Camera
 placement/conveyor work is deferred. See `contracts/measurement.md`; runtime
 and dashboard migration remain separate implementation work.
 
-## FIRST-TIME SETUP (3 steps, shown once)
-1. Dining hall name and meal times (Breakfast / Lunch / Dinner, with editable default hours).
-2. Add menus. Offer two big buttons:
-   • "Connect a menu API": fields for API URL and key, plus a "Test connection" button (mock success).
-   • "Upload menus myself": pick a date, then add items under Breakfast / Lunch / Dinner (type item names or upload a CSV). Allow adding several days at once.
-3. "You're all set" screen, then go to the Dashboard.
+## WRITING RULES (2026-10-03)
+- Plain words a chef would use. No technical terms on screen (API, pixels, baseline, mask, benchmark, CSV as a noun; say "spreadsheet (.csv)").
+- No em dashes, no emoji, and none of: leverage, seamless, robust, unlock, elevate, "in today's fast-paced", "at the end of the day", "in conclusion".
+- Brief. Cut text before adding it; not every card needs a paragraph.
+- Headings that report a finding are full sentences ("Teriyaki Salmon was the most wasted food at dinner."), not labels.
+- No filler screens such as a closing "You're all set" card.
+- AI-written suggestions pass through the same rules (dashes and emoji are stripped on display).
 
-## LAYOUT: THREE COLUMNS
-[ Left: Nav ] [ Middle: Dashboard ] [ Right: Yesterday's Details ]
+## FIRST-TIME SETUP (2 steps, shown once)
+1. Dining hall name. Meal times start from defaults (weekdays and weekends) and are edited in Settings.
+2. Add menus: pick a date, type foods under Breakfast / Lunch / Dinner, or upload a spreadsheet (.csv). Then go to the Dashboard.
 
-### LEFT: NAV (narrow)
+## LAYOUT
+[ Left: Nav ] [ Page ]. There is no right-hand panel; day details live on the Schedule page.
+
+### NAV
 - Dashboard
-- Menus: the same two options as setup step 2, plus a calendar showing which days have a menu. Highlight days missing a menu in Squash.
-- Settings: hall name, meal times, export CSV
+- Schedule
+- Menus: add a day's menu; a calendar marks days with "No menu".
+- Portions served
+- Behind the scenes
+- Settings
 
-### MIDDLE: DASHBOARD
-- Top bar: date picker that accepts a single date or a date range. Default: last 30 days.
-- Three summary cards in a row:
-  • Today's waste
-  • This week's waste
-  • This month's waste
-  Each card shows Pixels wasted in pixels and a small ↑/↓ vs the previous period (the arrow shows the direction).
-- One main chart: waste (y-axis) vs date (x-axis), following the selected date range. Put a small toggle above it for Daily / Weekly / Monthly grouping. Hovering shows the exact value and date.
-- Nothing else goes in the middle column.
+### DASHBOARD
+- Three summary cards: Today, This week, This month. Each shows waste units, the average percent of a serving left per plate (clean plates count as 0%, a food left above a full serving counts as 100%), how many plates that averages, and the change from the same days before.
+- One chart, one bar per day. Lookback buttons only: Today, Last 7 days, Last 30 days, Last 90 days. No weekly/monthly grouping and no custom date range.
 
-### RIGHT: YESTERDAY'S DETAILS
-- Header: "Yesterday, [date]". If the manager picks a single date in the date picker, this panel shows that date instead.
-- Tabs: Breakfast | Lunch | Dinner
-- Each tab shows:
-  • Total waste for that meal (big number), plates scanned, and meal swipes
-  • "Most wasted": the top item, with its counted pixels and share of that meal's wasted pixels, plus a one-line tip from Gemini (e.g., "Scrambled eggs made up 31% of breakfast's wasted pixels. Review the serving scoop size.")
-  • A short ranked list of the next 4 most wasted items, each with a severity color dot
+### SCHEDULE
+- Month calendar; special events from Settings show on their dates.
+- Clicking a day shows that day's meal times and events, then Breakfast | Lunch | Dinner tabs. Each tab: a finding headline (most wasted food), waste units, plates scanned, foods not counted, meal swipes (simulated), the foods left on plates with their share of the meal's waste, and a suggestion labeled "written by AI" or "basic rule, AI unavailable".
 
-## SEVERITY COLORS (for items)
-Based on the item's share of that meal's total waste:
-- Low (<10%): white dot with a black outline
-- Medium (10–25%): grey dot
-- High (>25%): black dot
+### BEHIND THE SCENES
+- Pick a date and meal. Every scanned plate photo with the AI's labels: food, units left, percent of a serving, and notes (AI estimate, more than a full serving, not on the menu). Clean plates say so. Photo links are temporary and renewed when they expire.
 
-## COLOR PALETTE: MVP monochrome (2026-10-03)
-Black, white, and greys only. The Tailwind token names from the earlier
-"Kitchen Garden" palette are kept so components didn't change.
---bg:           #FFFFFF  /* oat: page background */
---surface:      #FFFFFF  /* cream: cards, right panel */
---border:       #D4D4D4  /* linen: dividers, card borders */
---ink:          #000000  /* ink: primary text */
---ink-muted:    #555555  /* thyme: labels, secondary text */
---primary:      #000000  /* basil: nav background, buttons, active tab */
---primary-soft: #EBEBEB  /* basil-tint: hover, selected states */
---low:          #FFFFFF  /* sage (outlined dot) */
---medium:       #808080  /* squash */
---high:         #000000  /* tomato */
---info:         #000000  /* blueberry: chart bars/line */
+### SETTINGS
+- Hall name.
+- Meal times: several named sets (e.g. Weekdays, Weekends), each with the days it covers and Breakfast/Lunch/Dinner hours. Warn about days with no set or in two sets (the first set wins).
+- Special events: name, date, from, to (e.g. Football game).
+- Download the last 30 days as a spreadsheet.
 
-## VISUAL STYLE
-- Font: "Times New Roman" (Times, serif fallback) for all text, including big numbers and page titles.
+## COLOR AND TYPE (2026-10-03)
+- Black and white only, including form controls. Styling comes later.
+- Font: "Times New Roman" (Times, serif fallback) everywhere.
 - Body text at least 16px; summary card numbers large (40px+).
-- Flat: small 4px corners, no shadows, generous whitespace.
-- Left nav black with white text. Middle and right panel white; right panel has a grey left border.
-- Friendly empty states, e.g., "No menu for this day yet. Add one in Menus."
+- Flat: small 4px corners, black borders, no shadows, no fades.
+- The Tailwind token names from the earlier palette are kept so components didn't change; every color token is black or white.
 
 ## TECH
-- React + Tailwind, with the palette mapped to Tailwind theme tokens.
+- React + Tailwind, with colors mapped to Tailwind theme tokens.
 - All mock data in one file so it can be swapped for SpacetimeDB queries later.

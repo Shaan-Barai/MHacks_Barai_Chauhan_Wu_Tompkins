@@ -9,7 +9,7 @@ export function PrimaryButton(props: React.ButtonHTMLAttributes<HTMLButtonElemen
   return (
     <button
       {...rest}
-      className={`rounded-btn bg-basil px-5 py-2.5 text-base font-semibold text-cream transition-colors hover:bg-[#333333] disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+      className={`rounded-btn bg-basil px-5 py-2.5 text-base font-semibold text-cream transition-colors hover:underline disabled:cursor-not-allowed disabled:border disabled:border-dashed disabled:border-ink disabled:bg-cream disabled:text-ink disabled:no-underline ${className}`}
     />
   )
 }
@@ -19,7 +19,7 @@ export function GhostButton(props: React.ButtonHTMLAttributes<HTMLButtonElement>
   return (
     <button
       {...rest}
-      className={`rounded-btn border border-linen bg-cream px-5 py-2.5 text-base font-medium text-ink transition-colors hover:bg-basil-tint disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+      className={`rounded-btn border border-linen bg-cream px-5 py-2.5 text-base font-medium text-ink transition-colors hover:underline disabled:cursor-not-allowed disabled:border-dashed disabled:no-underline ${className}`}
     />
   )
 }
@@ -33,7 +33,7 @@ export function FieldLabel({ htmlFor, children }: { htmlFor?: string; children: 
 }
 
 export const inputClass =
-  'w-full rounded-btn border border-linen bg-cream px-3 py-2 text-base text-ink placeholder:text-thyme/70 focus:border-basil'
+  'w-full rounded-btn border border-linen bg-cream px-3 py-2 text-base text-ink placeholder:italic placeholder:text-ink'
 
 /**
  * Accessible "?" tooltip: shows on hover and keyboard focus; the text is also
@@ -46,7 +46,7 @@ export function InfoTip({ id, text }: { id: string; text: string }) {
         type="button"
         aria-describedby={id}
         aria-label="What does this mean?"
-        className="ml-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-linen bg-cream text-xs font-semibold text-thyme hover:bg-basil-tint"
+        className="ml-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-linen bg-cream text-xs font-semibold text-ink"
       >
         ?
       </button>
@@ -62,26 +62,26 @@ export function InfoTip({ id, text }: { id: string; text: string }) {
 }
 
 export const WASTE_UNITS_EXPLANATION =
-  'Waste units are the AI-estimated leftover food area seen on plates by the camera (a prototype estimate — not grams or servings).'
+  'Waste units measure how much food is left on plates in the photos. They are an AI estimate, not weight or servings.'
 
 export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
   return (
-    <div className="rounded-card border border-dashed border-linen bg-cream/60 p-8 text-center">
+    <div className="rounded-card border border-dashed border-linen bg-cream p-8 text-center">
       <p className="text-lg font-medium text-ink">{title}</p>
       {children ? <p className="mt-2 text-base text-thyme">{children}</p> : null}
     </div>
   )
 }
 
-export function LoadingBlock({ label = 'Loading…' }: { label?: string }) {
+export function LoadingBlock({ label = 'Loading' }: { label?: string }) {
   return (
-    <div role="status" aria-live="polite" className="animate-pulse rounded-card border border-linen bg-cream/70 p-8 text-center text-base text-thyme">
+    <div role="status" aria-live="polite" className="rounded-card border border-linen bg-cream p-8 text-center text-base text-thyme">
       {label}
     </div>
   )
 }
 
-/** Small pill reminding that a value is simulated / AI-generated. */
+/** Small pill reminding that a value is simulated or AI-generated. */
 export function Badge({ children }: { children: ReactNode }) {
   return (
     <span className="rounded-full border border-linen bg-oat px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-thyme">

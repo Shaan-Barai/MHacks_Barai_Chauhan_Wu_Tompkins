@@ -1,18 +1,14 @@
 /**
- * The two menu options (UI.md setup step 2, reused on the Menus page):
- *   • "Connect a menu API" — URL + key fields and a mock "Test connection".
- *   • "Upload menus myself" — pick a date, add items under each meal by typing
- *     or via CSV, several days allowed.
+ * Add a menu: pick a date, type the foods for each meal (or upload a
+ * spreadsheet), save, and move on to the next day.
  */
 import { useRef, useState } from 'react'
-import { saveUserMenu, testMenuConnection } from '../data/api'
+import { saveUserMenu } from '../data/api'
 import type { IsoDate, MealLabel, MenuItemLite } from '../data/types'
 import { MEALS, MEAL_NAME } from '../data/types'
 import { itemIdFor } from '../data/mockData'
 import { addDays, todayIso } from '../lib/dates'
 import { Card, FieldLabel, GhostButton, PrimaryButton, inputClass } from './ui'
-
-type Source = 'api' | 'manual' | null
 
 export function MenuSource({
   initialDate,
@@ -21,108 +17,7 @@ export function MenuSource({
   initialDate?: IsoDate
   onMenuSaved?: (date: IsoDate) => void
 }) {
-  const [source, setSource] = useState<Source>(initialDate ? 'manual' : null)
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <BigChoice
-          title="Connect a menu API"
-          description="Pull menus automatically from your menu provider."
-          active={source === 'api'}
-          onClick={() => setSource(source === 'api' ? null : 'api')}
-        />
-        <BigChoice
-          title="Upload menus myself"
-          description="Type items for each meal, or upload a CSV."
-          active={source === 'manual'}
-          onClick={() => setSource(source === 'manual' ? null : 'manual')}
-        />
-      </div>
-      {source === 'api' && <ApiConnectPanel />}
-      {source === 'manual' && <ManualMenuPanel initialDate={initialDate} onMenuSaved={onMenuSaved} />}
-    </div>
-  )
-}
-
-function BigChoice({
-  title,
-  description,
-  active,
-  onClick,
-}: {
-  title: string
-  description: string
-  active: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      aria-expanded={active}
-      onClick={onClick}
-      className={`rounded-card border-2 p-6 text-left shadow-soft transition-colors ${
-        active ? 'border-basil bg-basil-tint' : 'border-linen bg-cream hover:bg-basil-tint/50'
-      }`}
-    >
-      <span className="block font-display text-xl font-semibold text-ink">{title}</span>
-      <span className="mt-1 block text-base text-thyme">{description}</span>
-    </button>
-  )
-}
-
-function ApiConnectPanel() {
-  const [url, setUrl] = useState('')
-  const [key, setKey] = useState('')
-  const [testing, setTesting] = useState(false)
-  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null)
-
-  const test = async () => {
-    setTesting(true)
-    setResult(null)
-    setResult(await testMenuConnection(url, key))
-    setTesting(false)
-  }
-
-  return (
-    <Card>
-      <h3 className="text-lg font-semibold text-ink">Connect a menu API</h3>
-      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div>
-          <FieldLabel htmlFor="menu-api-url">API URL</FieldLabel>
-          <input
-            id="menu-api-url"
-            type="url"
-            placeholder="https://menus.example.edu/api"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            className={inputClass}
-          />
-        </div>
-        <div>
-          <FieldLabel htmlFor="menu-api-key">API key</FieldLabel>
-          <input
-            id="menu-api-key"
-            type="password"
-            placeholder="Paste your key"
-            value={key}
-            onChange={(e) => setKey(e.target.value)}
-            className={inputClass}
-          />
-        </div>
-      </div>
-      <div className="mt-4 flex items-center gap-3">
-        <PrimaryButton type="button" onClick={test} disabled={testing}>
-          {testing ? 'Testing…' : 'Test connection'}
-        </PrimaryButton>
-        {result && (
-          <p role="status" className={`text-base font-medium ${result.ok ? 'text-basil' : 'text-tomato'}`}>
-            {result.message}
-          </p>
-        )}
-      </div>
-    </Card>
-  )
+  return <ManualMenuPanel initialDate={initialDate} onMenuSaved={onMenuSaved} />
 }
 
 function emptyMeals(): Record<MealLabel, string[]> {
@@ -173,7 +68,7 @@ function ManualMenuPanel({
   }
 
   /**
-   * CSV (untrusted input — parsed as plain text only):
+   * CSV (untrusted input, parsed as plain text only):
    *   meal,item            → applies to the picked date
    *   date,meal,item       → several days at once
    */
@@ -194,7 +89,7 @@ function ManualMenuPanel({
       rows++
     }
     if (rows === 0) {
-      setCsvNote('No rows recognized. Use "meal,item" lines (or "date,meal,item" for several days).')
+      setCsvNote('No foods found. Use one row per food: meal, food (or date, meal, food).')
       return
     }
     for (const [d, m] of byDate) {
@@ -206,12 +101,12 @@ function ManualMenuPanel({
       setSavedDates((prev) => [...prev, d])
       onMenuSaved?.(d)
     }
-    setCsvNote(`Added menus for ${byDate.size} day${byDate.size === 1 ? '' : 's'} from the CSV.`)
+    setCsvNote(`Added menus for ${byDate.size} day${byDate.size === 1 ? '' : 's'} from the spreadsheet.`)
   }
 
   return (
     <Card>
-      <h3 className="text-lg font-semibold text-ink">Upload menus myself</h3>
+      <h2 className="text-lg font-semibold text-ink">Add a menu</h2>
       <div className="mt-3">
         <FieldLabel htmlFor="menu-date">Menu date</FieldLabel>
         <input
@@ -219,7 +114,7 @@ function ManualMenuPanel({
           type="date"
           value={date}
           onChange={(e) => e.target.value && setDate(e.target.value)}
-          className="rounded-btn border border-linen bg-cream px-3 py-2 text-base text-ink"
+          className="rounded-btn border border-ink bg-cream px-3 py-2 text-base text-ink"
         />
       </div>
 
@@ -241,9 +136,9 @@ function ManualMenuPanel({
                     type="button"
                     aria-label={`Remove ${MEAL_NAME[meal]} item ${i + 1}`}
                     onClick={() => removeItem(meal, i)}
-                    className="rounded-btn border border-linen px-2 text-thyme hover:bg-basil-tint"
+                    className="rounded-btn border border-ink px-2 hover:underline"
                   >
-                    ✕
+                    Remove
                   </button>
                 </li>
               ))}
@@ -251,7 +146,7 @@ function ManualMenuPanel({
             <button
               type="button"
               onClick={() => addItem(meal)}
-              className="mt-2 rounded-btn px-2 py-1 text-base font-medium text-basil hover:bg-basil-tint"
+              className="mt-2 rounded-btn px-2 py-1 text-base font-semibold underline"
             >
               + Add item
             </button>
@@ -264,30 +159,30 @@ function ManualMenuPanel({
           {saving ? 'Saving…' : 'Save this day'}
         </PrimaryButton>
         <GhostButton type="button" onClick={() => fileRef.current?.click()}>
-          Upload a CSV instead
+          Upload a spreadsheet instead
         </GhostButton>
         <input
           ref={fileRef}
           type="file"
           accept=".csv,text/csv"
           className="sr-only"
-          aria-label="Upload a menu CSV"
+          aria-label="Upload a menu spreadsheet (.csv)"
           onChange={(e) => {
             const f = e.target.files?.[0]
             if (f) void onCsv(f)
             e.target.value = ''
           }}
         />
-        <p className="text-sm text-thyme">CSV lines: “meal,item” — or “date,meal,item” for several days.</p>
+        <p className="text-sm">Save the spreadsheet as .csv with one food per row: meal, food. Add a date column first to fill several days.</p>
       </div>
 
       {csvNote && (
-        <p role="status" className="mt-3 text-base font-medium text-basil">
+        <p role="status" className="mt-3 text-base font-semibold">
           {csvNote}
         </p>
       )}
       {savedDates.length > 0 && (
-        <p role="status" className="mt-2 text-base text-basil">
+        <p role="status" className="mt-2 text-base">
           Saved: {savedDates.join(', ')}. Add another day above, or move on when you're done.
         </p>
       )}

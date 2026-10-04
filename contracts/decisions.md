@@ -249,3 +249,29 @@ pending details arrive; agreed items came from the team or AGENTS.md.
   and [FFmpeg's Linux camera reference](https://ffmpeg.org/ffmpeg-devices.html#video4linux2_002c-v4l2).
 - Verification uses simulated FFmpeg/SSH with OpenCV imports blocked. The
   previous automatic hardware smoke check does not verify the new manual path.
+
+## 2026-10-03: ScrapSaver, simpler dashboard for kitchen staff
+
+User-directed changes (UI.md has the full spec):
+- Product name is **ScrapSaver**. Pure black and white, Times New Roman.
+- Plain-language copy with no technical terms, em dashes, emoji, or listed
+  filler words. The menu "API" connector and the closing setup card are removed.
+- Dashboard: daily chart only; lookback presets Today / 7 / 30 / 90 days only.
+- The right-hand panel is gone. Day details and suggestions move to a new
+  **Schedule** tab (click a calendar day).
+- New **Behind the scenes** tab shows every plate photo with its labels
+  (`GET /api/dashboard/plates`; photos via the existing temporary read links).
+- Settings hold several meal-time sets by weekday plus special events
+  (browser storage only for now; not sent to the backend).
+- Summary cards add **average plate waste percent**: per plate,
+  `sum(min(leftover, full serving)) / sum(full serving)` over known menu foods
+  with a reference serving; a scanned plate with no leftovers is 0%; a food
+  above a full serving counts as 100%; unknown food is ignored; failed plates
+  are excluded, not 0%. Auxiliary AI-estimated percent; Pixels wasted stays the
+  primary measurement. Formula in `analytics/src/plateWaste.ts`.
+- Suggestions: per-portion rates still rank suggestions when they exist. Until
+  validated mask counts exist, the meal endpoint falls back to the
+  waste-share suggestion (`generateInsight`) so each meal gets a usable tip.
+  Prompts and fallback text use plain words for kitchen staff.
+- Item names: when a menu no longer lists a measured item (for example after a
+  menu edit), display a readable name derived from its stable ID.

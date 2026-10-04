@@ -1,6 +1,6 @@
-# Scrap — dining hall food-waste tracker (MHacks prototype)
+# ScrapSaver: dining hall food-waste tracker (MHacks prototype)
 
-Scrap helps dining hall managers see what food comes back uneaten. The agreed
+ScrapSaver helps dining hall managers see what food comes back uneaten. The agreed
 analysis flow is **Gemini food classification → segmentation mask → pixel
 counting in code**. The primary metric is **Pixels wasted**: foreground pixels
 in validated masks of visible leftover food. A beginner-friendly dashboard
@@ -45,7 +45,7 @@ the new pipeline. See [the measurement contract](contracts/measurement.md).
 | `vision/` | Agent 4 | Gemini classification, segmentation, mask pixel counting |
 | `backend/` | Agent 5 | API, object-storage adapter, orchestration |
 | `analytics/` | Agent 6 | Aggregates, simulated attendance, suggestions |
-| `frontend/` | Agent 7 | Scrap dashboard (React + Tailwind) |
+| `frontend/` | Agent 7 | ScrapSaver dashboard (React + Tailwind) |
 | `docs/`, `tests/` | Agent 8 | Demo docs, fixtures, integration/e2e tests |
 
 ## Setup

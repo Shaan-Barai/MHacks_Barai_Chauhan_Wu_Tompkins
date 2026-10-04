@@ -1,5 +1,5 @@
 /**
- * The one main chart (UI.md): waste units vs date, black bars, hover (and
+ * The one main chart (UI.md): waste units per day, black bars, hover (and
  * keyboard-focus) tooltip with the exact value and date. Hand-rolled SVG.
  */
 import { useLayoutEffect, useRef, useState } from 'react'
@@ -7,8 +7,8 @@ import { formatCompact, formatNumber } from '../lib/format'
 import { niceCeil, type ChartBucket } from '../lib/grouping'
 
 const BAR = '#000000'
-const GRID = '#D4D4D4'
-const LABEL = '#555555'
+const GRID = '#000000'
+const LABEL = '#000000'
 
 const M = { top: 12, right: 8, bottom: 30, left: 52 }
 const HEIGHT = 300
@@ -49,12 +49,12 @@ export function WasteChart({ buckets }: { buckets: ChartBucket[] }) {
         width={width}
         height={HEIGHT}
         role="img"
-        aria-label="Bar chart of waste units per period for the selected date range"
+        aria-label="Bar chart of waste units per day for the selected days"
       >
         {/* recessive hairline gridlines + y ticks */}
         {ticks.map((t) => (
           <g key={t}>
-            <line x1={M.left} x2={width - M.right} y1={yFor(t)} y2={yFor(t)} stroke={GRID} strokeWidth={1} />
+            <line x1={M.left} x2={width - M.right} y1={yFor(t)} y2={yFor(t)} stroke={GRID} strokeWidth={1} strokeDasharray="2 4" />
             <text x={M.left - 8} y={yFor(t) + 4} textAnchor="end" fontSize={12} fill={LABEL}>
               {formatCompact(t)}
             </text>
@@ -72,7 +72,7 @@ export function WasteChart({ buckets }: { buckets: ChartBucket[] }) {
             h <= 0.5
               ? ''
               : `M ${x} ${M.top + plotH} V ${y + r} Q ${x} ${y} ${x + r} ${y} H ${x + barW - r} Q ${x + barW} ${y} ${x + barW} ${y + r} V ${M.top + plotH} Z`
-          return <path key={b.key} d={d} fill={BAR} opacity={hover === null || hover === i ? 1 : 0.55} />
+          return <path key={b.key} d={d} fill={BAR} />
         })}
 
         {/* baseline */}
@@ -127,7 +127,7 @@ export function WasteChart({ buckets }: { buckets: ChartBucket[] }) {
           <span className="font-semibold">
             {hovered.wasteUnits === null ? 'No data' : `${formatNumber(hovered.wasteUnits)} waste units`}
           </span>
-          <span className="ml-2 opacity-80">{hovered.tooltipLabel}</span>
+          <span className="ml-2">{hovered.tooltipLabel}</span>
         </div>
       ) : null}
     </div>

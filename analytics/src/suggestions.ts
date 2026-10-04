@@ -9,6 +9,7 @@
 import type { Insight, MenuItem, MealLabel } from './contracts.js';
 import type { ServiceSummary } from './aggregates.js';
 import { computeDataVersion } from './aggregates.js';
+import { readableItemName } from './names.js';
 
 export const SUGGESTION_PROMPT_VERSION = 'suggest-v1';
 
@@ -46,12 +47,13 @@ export interface SuggestionOptions {
 }
 
 const SYSTEM_INSTRUCTION = [
-  'You write short, beginner-friendly recommendations for dining hall staff.',
-  'Ground every claim in the supplied metrics only.',
-  'Never invent causes. Say the pattern is observed, not proven.',
-  'Mention that leftover areas are AI estimates and attendance is simulated.',
-  'Mention limited plate coverage when analyzedCaptures is small.',
-  'Keep the answer to 1–3 sentences. No markdown headings or bullet lists.',
+  'You write short suggestions for dining hall chefs and staff who are not technical.',
+  'Use plain everyday words. Do not use technical terms such as pixels, area, baseline, mask, model, metric, or benchmark.',
+  'Ground every claim in the supplied numbers only. Never invent causes; say it is a pattern, not proof.',
+  'Say the amounts are estimates from plate photos, and mention when only a few plates were checked.',
+  'If you mention meal swipes, say they are simulated.',
+  'Do not use em dashes, emojis, markdown, or the words leverage, seamless, robust, unlock, or elevate.',
+  'Write at most two short sentences.',
 ].join(' ');
 
 function defaultId(): string {
@@ -59,7 +61,7 @@ function defaultId(): string {
 }
 
 function itemName(itemId: string, menuItems: MenuItem[] | undefined): string {
-  return menuItems?.find((m) => m.itemId === itemId)?.displayName ?? itemId;
+  return menuItems?.find((m) => m.itemId === itemId)?.displayName ?? readableItemName(itemId);
 }
 
 function mealWord(label: MealLabel | undefined): string {
@@ -130,43 +132,30 @@ export function buildFallbackRecommendation(
 ): string {
   const meal = mealWord(summary.mealLabel);
   const analyzed = summary.succeededCaptureCount;
-  const excluded = summary.excludedCaptureCount + summary.excludedMeasurementCount;
-  const coverageNote =
-    analyzed === 0
-      ? 'No plates were successfully analyzed for this service yet, so treat any guidance as unavailable until captures succeed.'
-      : analyzed < 10
-        ? `This is based on only ${analyzed} analyzed plate(s) (AI estimates)` +
-          (excluded > 0 ? `, with ${excluded} excluded` : '') +
-          ' — coverage is limited.'
-        : `Based on ${analyzed} analyzed plate(s) (AI estimates)` +
-          (excluded > 0 ? `; ${excluded} observation(s) excluded` : '') +
-          '.';
+  const plates = `${analyzed} plate${analyzed === 1 ? '' : 's'}`;
+  const caveat =
+    analyzed < 10
+      ? `Only ${plates} checked so far, and amounts are an AI estimate from photos, not proof of why food was left.`
+      : `Based on ${plates}. Amounts are an AI estimate from photos, not proof of why food was left.`;
 
-  const topId = metrics['topItemId'];
   const topName = typeof metrics['topItemName'] === 'string' ? metrics['topItemName'] : undefined;
   const share = metrics['topItemShareOfMealWastePercent'];
-  const wastePct = metrics['topItemWastePercent'];
 
-  if (typeof topId === 'string' && topName !== undefined && typeof share === 'number') {
+  if (analyzed > 0 && topName !== undefined && typeof share === 'number') {
     return (
-      `${topName} accounted for ${share}% of observed ${meal} leftover area` +
-      (typeof wastePct === 'number' ? ` (about ${wastePct}% of its uneaten-serving baseline)` : '') +
-      `. ${coverageNote} Consider testing a smaller batch or scoop for ${topName}; ` +
-      `this is an observed pattern, not proof of the cause. Attendance is simulated.`
+      `${topName} made up ${Math.round(share)}% of the food left on ${meal} plates. ` +
+      `Try a smaller scoop or batch of ${topName} and see if that drops. ${caveat}`
     );
   }
 
-  if (summary.overallWastePercent !== null) {
+  if (analyzed > 0 && summary.overallWastePercent !== null) {
     return (
-      `Observed ${meal} leftover area is about ${summary.overallWastePercent}% of assessed uneaten-serving baselines. ` +
-      `${coverageNote} Review the highest leftover items once more plates are analyzed. Attendance is simulated.`
+      `About ${Math.round(summary.overallWastePercent)}% of each ${meal} serving came back on the plate. ${caveat} ` +
+      `Check again once more plates are scanned.`
     );
   }
 
-  return (
-    `Not enough eligible measurements to score ${meal} waste yet. ${coverageNote} ` +
-    `Add menu baselines and successful analyses before acting on suggestions.`
-  );
+  return `Not enough ${meal} plates checked to make a suggestion yet. Scan more plates and make sure this meal has a menu.`;
 }
 
 function sanitizeModelText(text: string): string {

@@ -79,15 +79,15 @@ describe('buildInsightMetrics / fallback', () => {
     assert.equal(metrics['simulatedAttendance'], 742);
   });
 
-  it('fallback mentions the top item, AI estimates, and simulated attendance', () => {
+  it('fallback mentions the top item and AI estimates in plain words', () => {
     const metrics = buildInsightMetrics(summary, [
       { itemId: 'item_eggs', menuId: 'menu_1', displayName: 'Scrambled Eggs' },
     ]);
     const text = buildFallbackRecommendation(summary, metrics);
     assert.match(text, /Scrambled Eggs/);
     assert.match(text, /AI estimate/i);
-    assert.match(text, /simulated/i);
     assert.match(text, /not proof/i);
+    assert.doesNotMatch(text, /\u2014|pixel|baseline/i);
   });
 });
 

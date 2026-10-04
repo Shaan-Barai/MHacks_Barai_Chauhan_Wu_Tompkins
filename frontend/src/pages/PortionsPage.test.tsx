@@ -27,8 +27,8 @@ describe('Portions served', () => {
     await waitFor(() => expect(savePortions).toHaveBeenCalledWith(service, [{ itemId: 'rice', count: 0 }, { itemId: 'soup', count: null }]))
     expect(onSaved).toHaveBeenCalledOnce()
     expect(await screen.findByRole('status')).toHaveTextContent('Counts saved')
-    expect(await screen.findByRole('table')).toHaveTextContent('Pixels/portion')
-    expect(screen.getByText(/Coverage is limited/)).toBeInTheDocument()
+    expect(await screen.findByRole('table')).toHaveTextContent('Waste per portion')
+    expect(screen.getByText(/Based on 3 of 4 scanned plates/)).toBeInTheDocument()
   })
 
   it('provides a missing-menu action and reports failed saves', async () => {

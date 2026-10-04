@@ -1,6 +1,6 @@
 /**
  * ALL demo data lives in this one file (UI.md "TECH") so it can be swapped for
- * the real backend / SpacetimeDB later — components never import it directly,
+ * the real backend / SpacetimeDB later, components never import it directly,
  * they go through src/data/api.ts.
  *
  * Nothing here is real. "Waste units" are mock AI-style estimates of leftover
@@ -40,7 +40,7 @@ const ITEMS: Record<MealLabel, MockItemDef[]> = {
     { name: 'Hash Browns', waste: 0.18, take: 0.5, tip: 'Cook smaller rounds so they stay crisp through service.' },
     { name: 'Turkey Sausage', waste: 0.12, take: 0.35, tip: 'Serve two links instead of three.' },
     { name: 'Oatmeal', waste: 0.26, take: 0.25, tip: 'Put toppings out so students can make it their own.' },
-    { name: 'Fresh Fruit Cup', waste: 0.08, take: 0.4, tip: 'Portions look right for this item — keep them steady.' },
+    { name: 'Fresh Fruit Cup', waste: 0.08, take: 0.4, tip: 'Portions look right for this item, keep them steady.' },
     { name: 'Yogurt Parfait', waste: 0.1, take: 0.2, tip: 'Use a smaller cup for parfaits.' },
   ],
   lunch: [
@@ -56,15 +56,15 @@ const ITEMS: Record<MealLabel, MockItemDef[]> = {
     { name: 'Roast Chicken', waste: 0.18, take: 0.45, tip: 'Carve smaller pieces.' },
     { name: 'Mashed Potatoes', waste: 0.29, take: 0.5, tip: 'Use a smaller scoop for mashed potatoes.' },
     { name: 'Steamed Broccoli', waste: 0.38, take: 0.4, tip: 'Try roasting it with seasoning instead of steaming.' },
-    { name: 'Beef Stir Fry', waste: 0.15, take: 0.35, tip: 'Keep the recipe — serve a little less rice with it.' },
+    { name: 'Beef Stir Fry', waste: 0.15, take: 0.35, tip: 'Keep the recipe, serve a little less rice with it.' },
     { name: 'Brown Rice', waste: 0.31, take: 0.4, tip: 'Offer a half scoop of rice by default.' },
-    { name: 'Mac & Cheese', waste: 0.12, take: 0.45, tip: 'Popular item — keep portions steady.' },
+    { name: 'Mac & Cheese', waste: 0.12, take: 0.45, tip: 'Popular item, keep portions steady.' },
     { name: 'Garden Salad', waste: 0.27, take: 0.3, tip: 'Pre-portion smaller side salads.' },
   ],
 }
 
 /** Small deterministic PRNG seeded from a string (mulberry32 over a hash). */
-function rng(seed: string): () => number {
+export function rng(seed: string): () => number {
   let h = 1779033703 ^ seed.length
   for (let i = 0; i < seed.length; i++) {
     h = Math.imul(h ^ seed.charCodeAt(i), 3432918353)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { groupPoints, niceCeil } from './grouping'
+import { dailyBuckets, niceCeil } from './grouping'
 import type { DailyWastePoint } from '../data/types'
 
 const points: DailyWastePoint[] = [
@@ -9,30 +9,12 @@ const points: DailyWastePoint[] = [
   { date: '2026-10-05', wasteUnits: 70 }, // next Monday
 ]
 
-describe('groupPoints', () => {
-  it('daily keeps one bucket per point and preserves nulls', () => {
-    const b = groupPoints(points, 'daily')
+describe('dailyBuckets', () => {
+  it('keeps one bucket per day and preserves days without data as null', () => {
+    const b = dailyBuckets(points)
     expect(b).toHaveLength(4)
+    expect(b.map((x) => x.key)).toEqual(points.map((p) => p.date))
     expect(b[1].wasteUnits).toBeNull()
-  })
-
-  it('weekly sums within Monday-start weeks and ignores null days', () => {
-    const b = groupPoints(points, 'weekly')
-    expect(b).toHaveLength(2)
-    expect(b[0].wasteUnits).toBe(150)
-    expect(b[1].wasteUnits).toBe(70)
-  })
-
-  it('monthly sums by calendar month', () => {
-    const b = groupPoints(points, 'monthly')
-    expect(b).toHaveLength(2)
-    expect(b[0].wasteUnits).toBe(150)
-    expect(b[1].wasteUnits).toBe(70)
-  })
-
-  it('an all-null bucket stays null (no data ≠ zero waste)', () => {
-    const b = groupPoints([{ date: '2026-09-29', wasteUnits: null }], 'weekly')
-    expect(b[0].wasteUnits).toBeNull()
   })
 })
 

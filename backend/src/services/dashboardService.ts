@@ -18,12 +18,17 @@ import {
   portionDataVersion,
   generatePortionInsight,
   type PortionBenchmark,
+  generateInsight,
+  computeDataVersion,
+  plateWastePercent,
+  averagePlateWaste,
+  readableItemName,
 } from '@scrap/analytics';
 import { notFound } from '../errors.js';
 import type { BackendConfig } from '../config.js';
 import type { Repository } from '../repo/repository.js';
 import type { IngestionService } from './ingestionService.js';
-import type { Attendance, FoodMeasurement, Insight, MealLabel, MenuBundle } from '../types.js';
+import type { Attendance, CaptureEvent, FoodMeasurement, Insight, MealLabel, MenuBundle } from '../types.js';
 
 const MEALS: MealLabel[] = ['breakfast', 'lunch', 'dinner'];
 
@@ -33,6 +38,8 @@ export interface DailyPoint {
   observedRemainingAreaPx: number | null;
   capturedDishes: number;
   analyzedDishes: number;
+  /** One entry per scanned plate: its waste percent, or null when unavailable. */
+  plateWastePercents: (number | null)[];
 }
 
 export interface PeriodTotal {
@@ -41,6 +48,30 @@ export interface PeriodTotal {
   observedRemainingAreaPx: number;
   /** Same-length window immediately before; null when it has no data. */
   previousObservedRemainingAreaPx: number | null;
+  /** Mean per-plate waste percent (clean plates 0%); null without plates. */
+  averagePlateWastePercent: number | null;
+  platesCounted: number;
+  platesWithoutPercent: number;
+}
+
+/** One scanned plate for the "Behind the scenes" view. */
+export interface PlateRecord {
+  eventId: string;
+  capturedAt: string;
+  source: string;
+  state: CaptureEvent['state'];
+  imageObjectId: string;
+  /** null when the plate has no usable percent (see analytics plateWaste). */
+  plateWastePercent: number | null;
+  foods: {
+    itemId: string | null;
+    name: string;
+    leftoverPx: number;
+    fullServingPx: number | null;
+    /** Leftover as a percent of a full serving, capped at 100; null without one. */
+    percentOfServing: number | null;
+    flags: string[];
+  }[];
 }
 
 export interface MealDetailResponse {
@@ -96,16 +127,21 @@ export class DashboardService {
     return generated;
   }
 
-  async serviceSummary(menu: MenuBundle, attendance?: Attendance | null): Promise<ServiceSummary> {
+  /** Captures plus only the counted (latest succeeded) attempt per dish, never double-counted. */
+  private async observations(menu: MenuBundle): Promise<{ captures: CaptureEvent[]; measurements: FoodMeasurement[] }> {
     const captures = await this.repo.listCaptureEvents({
       hallId: menu.service.hallId,
       serviceId: menu.service.serviceId,
     });
-    // Only the counted (latest succeeded) attempt per dish — never double-counted.
     const measurements: FoodMeasurement[] = [];
     for (const event of captures) {
       if (event.state === 'succeeded') measurements.push(...(await this.ingestion.countedMeasurements(event)));
     }
+    return { captures, measurements };
+  }
+
+  async serviceSummary(menu: MenuBundle, attendance?: Attendance | null): Promise<ServiceSummary> {
+    const { captures, measurements } = await this.observations(menu);
     return summarizeService({
       service: menu.service,
       captures,
@@ -123,13 +159,16 @@ export class DashboardService {
     for (const service of services) {
       const menu = await this.repo.getMenuByService(service.serviceId);
       if (!menu) continue;
-      const summary = await this.serviceSummary(menu);
+      const { captures, measurements } = await this.observations(menu);
+      const summary = summarizeService({ service: menu.service, captures, measurements, attendance: null, menuItems: menu.items });
       const point = byDate.get(service.serviceDate) ?? {
         date: service.serviceDate,
         observedRemainingAreaPx: null,
         capturedDishes: 0,
         analyzedDishes: 0,
+        plateWastePercents: [],
       };
+      for (const capture of captures) point.plateWastePercents.push(plateWastePercent(capture, measurements));
       point.capturedDishes += summary.captureCount;
       point.analyzedDishes += summary.succeededCaptureCount;
       if (summary.succeededCaptureCount > 0) {
@@ -138,7 +177,8 @@ export class DashboardService {
       byDate.set(service.serviceDate, point);
     }
     return eachDay(start, end).map(
-      (date) => byDate.get(date) ?? { date, observedRemainingAreaPx: null, capturedDishes: 0, analyzedDishes: 0 },
+      (date) =>
+        byDate.get(date) ?? { date, observedRemainingAreaPx: null, capturedDishes: 0, analyzedDishes: 0, plateWastePercents: [] },
     );
   }
 
@@ -168,11 +208,13 @@ export class DashboardService {
     const period = (start: string): PeriodTotal => {
       const days = eachDay(start, today).length;
       const prevEnd = addDays(start, -1);
+      const plates = averagePlateWaste(eachDay(start, today).flatMap((d) => points.get(d)?.plateWastePercents ?? []));
       return {
         start,
         end: today,
         observedRemainingAreaPx: sum(start, today) ?? 0,
         previousObservedRemainingAreaPx: sum(addDays(prevEnd, -(days - 1)), prevEnd),
+        ...plates,
       };
     };
     return {
@@ -196,10 +238,71 @@ export class DashboardService {
     }
     const attendance = await this.ensureAttendance(menu);
     const summary = await this.serviceSummary(menu, attendance);
-    // A tip needs at least one counted item to be grounded in (6.4).
     const portionBenchmark = await this.portionBenchmark(menu);
-    const insight = await this.portionInsightFor(portionBenchmark);
+    // Per-portion rates rank suggestions when they exist; until validated mask
+    // counts do, suggest from the meal's observed waste share instead.
+    const insight = portionBenchmark.items.some((i) => i.pixelsWastedPerPortion !== null)
+      ? await this.portionInsightFor(portionBenchmark)
+      : await this.summaryInsightFor(menu, summary);
     return { serviceId: menu.service.serviceId, date, meal, summary, attendance, insight, portionBenchmark };
+  }
+
+  /** Every scanned plate for a meal with its labels, for the "Behind the scenes" view. */
+  async plates(hallId: string, date: string, meal: MealLabel): Promise<{ serviceId: string | null; plates: PlateRecord[] }> {
+    const [menu] = await this.repo.findMenus(hallId, date, meal);
+    if (!menu) return { serviceId: null, plates: [] };
+    const { captures, measurements } = await this.observations(menu);
+    const names = new Map(menu.items.map((i) => [i.itemId, i.displayName]));
+    const plates = captures
+      .slice()
+      .sort((a, b) => a.capturedAt.localeCompare(b.capturedAt))
+      .map((capture): PlateRecord => ({
+        eventId: capture.eventId,
+        capturedAt: capture.capturedAt,
+        source: capture.source,
+        state: capture.state,
+        imageObjectId: capture.imageObjectId,
+        plateWastePercent: plateWastePercent(capture, measurements),
+        foods: measurements
+          .filter((m) => m.eventId === capture.eventId)
+          .map((m) => {
+            const full = typeof m.baselineAreaPx === 'number' && m.baselineAreaPx > 0 ? m.baselineAreaPx : null;
+            return {
+              itemId: m.itemId,
+              name: m.itemId === null ? 'Unknown food' : names.get(m.itemId) ?? readableItemName(m.itemId),
+              leftoverPx: m.remainingAreaPx,
+              fullServingPx: full,
+              percentOfServing: full === null ? null : Math.round(Math.min(100, (100 * m.remainingAreaPx) / full) * 10) / 10,
+              flags: m.qualityFlags,
+            };
+          }),
+      }));
+    return { serviceId: menu.service.serviceId, plates };
+  }
+
+  /** Waste-share suggestion, stored and reused for identical data like the portion insight. */
+  private async summaryInsightFor(menu: MenuBundle, summary: ServiceSummary): Promise<Insight> {
+    const dataVersion = `summary-plain-v1|${computeDataVersion(summary)}`;
+    const stored = (await this.repo.listInsights(menu.service.hallId)).find(
+      (i) => i.dataVersion === dataVersion && (i.source === 'gemini' || this.gateway === undefined),
+    );
+    if (stored) return stored;
+    const captures = await this.repo.listCaptureEvents({ hallId: menu.service.hallId, serviceId: menu.service.serviceId });
+    const times = captures.map((c) => c.capturedAt).filter((t) => Number.isFinite(Date.parse(t))).sort();
+    const now = new Date().toISOString();
+    const insight = await generateInsight(
+      {
+        hallId: menu.service.hallId,
+        windowStart: times[0] ?? now,
+        windowEnd: times.at(-1) ?? now,
+        summary,
+        menuItems: menu.items,
+        dataVersion,
+      },
+      this.gateway ? { gateway: this.gateway } : {},
+    );
+    await this.repo.upsertInsight(insight);
+    return insight;
   }
 
   /**

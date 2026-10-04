@@ -25,6 +25,7 @@ import {
   isFinitePositive,
   type ExclusionReason,
 } from './eligibility.js';
+import { readableItemName } from './names.js';
 
 export const METRIC_LABELS = {
   remainingArea: 'observed estimated leftover area (pixels)',
@@ -227,8 +228,7 @@ export function summarizeService(input: AggregateInput): ServiceSummary {
         wastePercent,
         shareOfMealWastePercent,
       };
-      const name = menuNames.get(b.itemId);
-      if (name !== undefined) row.displayName = name;
+      row.displayName = menuNames.get(b.itemId) ?? readableItemName(b.itemId);
       return row;
     })
     .sort((a, b) => b.remainingAreaPx - a.remainingAreaPx);

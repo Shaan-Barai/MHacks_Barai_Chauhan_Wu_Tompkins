@@ -14,9 +14,10 @@ export async function generatePortionInsight(summary: PortionBenchmark, gateway?
     itemsWithoutBenchmark: missing, coverageNote: summary.coverageNote,
     itemBenchmarks: JSON.stringify(summary.items),
   };
-  let recommendation = 'No menu item has an available pixels-per-portion benchmark. ' +
-    (summary.items.some(i => i.portionsServed === null || i.portionsServed === 0) ? 'Enter missing portions served or check zero counts. ' : 'Portions served are saved. ') +
-    'Resolve unavailable mask measurements before comparing foods; current area estimates cannot establish this benchmark.';
+  let recommendation = 'No suggestion yet. ' +
+    (summary.items.some(i => i.portionsServed === null || i.portionsServed === 0)
+      ? 'Enter how many portions of each food were served on the Portions served page.'
+      : 'More plate scans are needed first.');
   if (top) {
     Object.assign(metrics, {
       topItemId: top.itemId, topItemName: top.displayName, pixelsWasted: top.pixelsWasted!,

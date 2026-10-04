@@ -4,7 +4,7 @@
  *
  * The backend reports pixels ("observed estimated leftover area", AGENTS.md
  * §7); the UI shows friendly "waste units" = thousands of pixels. Analytics
- * (shares, totals, exclusions) are computed server-side by analytics/ —
+ * (shares, totals, exclusions) are computed server-side by analytics/ , 
  * components never redo canonical math.
  */
 import { loadSettings } from '../state/settings'
@@ -20,6 +20,7 @@ import type {
   PortionService,
   PortionEntry,
   PortionBenchmark,
+  PlateRecord,
 } from './types'
 import { MEALS } from './types'
 import { todayIso } from '../lib/dates'
@@ -56,7 +57,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     res = await fetch(`${API_BASE}${path}`, init)
   } catch {
-    throw new Error("Can't reach the Scrap server. Check that the backend is running, then try again.")
+    throw new Error("Can't reach ScrapSaver right now. Try again in a minute.")
   }
   const body = (await res.json().catch(() => ({}))) as T & ApiErrorBody
   if (!res.ok) {
@@ -110,7 +111,7 @@ function nextDay(d: IsoDate): IsoDate {
   return t.toISOString().slice(0, 10)
 }
 
-/** POST /api/menus/upload — parsed and versioned by the backend (data/ helpers). */
+/** POST /api/menus/upload, parsed and versioned by the backend (data/ helpers). */
 export async function saveUserMenu(date: IsoDate, meals: Record<MealLabel, MenuItemLite[]>): Promise<DayMenu> {
   const day: Record<string, unknown> = { date }
   for (const meal of MEALS) if (meals[meal].length > 0) day[meal] = meals[meal].map((i) => i.displayName)
@@ -120,14 +121,6 @@ export async function saveUserMenu(date: IsoDate, meals: Record<MealLabel, MenuI
     body: JSON.stringify({ hallId: hallId(), hallTimezone: HALL_TIMEZONE, days: [day] }),
   })
   return (await getMenu(date)) ?? { date, menuId: '', source: 'user', meals }
-}
-
-/** UI.md: the menu-API connector is a mock in the prototype (no network call). */
-export async function testMenuConnection(url: string, apiKey: string): Promise<{ ok: boolean; message: string }> {
-  if (!url.trim() || !apiKey.trim()) {
-    return { ok: false, message: 'Enter both the API URL and the key, then try again.' }
-  }
-  return { ok: true, message: 'Connection looks good! (Demo: no data was really fetched.)' }
 }
 
 // ---------------------------------------------------------------------------
@@ -224,6 +217,8 @@ interface PeriodResponse {
   end: IsoDate
   observedRemainingAreaPx: number
   previousObservedRemainingAreaPx: number | null
+  averagePlateWastePercent: number | null
+  platesCounted: number
 }
 
 export async function getSummaryCards(): Promise<SummaryCards> {
@@ -235,6 +230,38 @@ export async function getSummaryCards(): Promise<SummaryCards> {
     end: p.end,
     wasteUnits: units(p.observedRemainingAreaPx),
     previousWasteUnits: p.previousObservedRemainingAreaPx === null ? null : units(p.previousObservedRemainingAreaPx),
+    averagePlateWastePercent: p.averagePlateWastePercent ?? null,
+    platesCounted: p.platesCounted ?? 0,
   })
   return { today: period(body.today), thisWeek: period(body.thisWeek), thisMonth: period(body.thisMonth) }
+}
+
+// ---------------------------------------------------------------------------
+// Behind the scenes: scanned plates, their labels, and photo links
+// ---------------------------------------------------------------------------
+
+interface PlatesResponse {
+  plates: (Omit<PlateRecord, 'foods'> & {
+    foods: { itemId: string | null; name: string; leftoverPx: number; percentOfServing: number | null; flags: string[] }[]
+  })[]
+}
+
+export async function getPlates(date: IsoDate, meal: MealLabel): Promise<PlateRecord[]> {
+  const body = await call<PlatesResponse>(`/api/dashboard/plates?${q({ hallId: hallId(), date, meal })}`)
+  return body.plates.map((p) => ({
+    ...p,
+    foods: p.foods.map((f) => ({
+      itemId: f.itemId,
+      name: f.name,
+      wasteUnits: units(f.leftoverPx),
+      percentOfServing: f.percentOfServing,
+      flags: f.flags,
+    })),
+  }))
+}
+
+/** Short-lived link to a plate photo; ask again when it expires. */
+export async function getImageUrl(objectId: string): Promise<string> {
+  const body = await call<{ url: string }>(`/api/images/${encodeURIComponent(objectId)}/access`)
+  return body.url
 }

@@ -459,7 +459,16 @@ export function createApp(deps: AppDeps): express.Express {
     }),
   );
 
-  // ---- suggestions (stored Insights; generation is Agent 6's) ----
+  app.get(
+    '/api/dashboard/plates',
+    wrap(async (req, res) => {
+      const hallId = requireQuery(req, 'hallId');
+      const date = requireQuery(req, 'date');
+      res.json(await dashboard.plates(hallId, date, requireQuery(req, 'meal') as MealLabel));
+    }),
+  );
+
+    // ---- suggestions (stored Insights; generation is Agent 6's) ----
   app.get(
     '/api/suggestions',
     wrap(async (req, res) => {

@@ -11,7 +11,7 @@ function escapeCell(value: string | number): string {
 
 /**
  * One row per item per meal per day. Waste units are AI-estimated leftover
- * food area; meal swipes are simulated — both labeled in the header.
+ * food area; meal swipes are simulated, both labeled in the header.
  */
 export async function buildWasteCsv(days = 30): Promise<string> {
   const today = todayIso()

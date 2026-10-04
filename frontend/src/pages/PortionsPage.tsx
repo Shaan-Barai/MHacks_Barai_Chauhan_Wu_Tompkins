@@ -16,16 +16,16 @@ export function PortionsPage({ onSaved }: { onSaved: () => void }) {
   const selected = useAsync(() => getPortionService(date, meal), [date, meal, revision])
   return <div className="space-y-5">
     <h1 className="font-display text-3xl font-semibold text-ink">Portions served</h1>
-    <p className="text-thyme">Enter the total portions actually served for each food during this meal, including seconds. Use a consistent serving size. Prepared portions and attendance are different counts.</p>
-    {USE_MOCK && <p className="text-sm text-thyme">Demo mode: counts are saved in this browser and labeled demo.</p>}
+    <p>Enter how many portions of each food were served at this meal, including seconds. Count served portions, not portions cooked.</p>
+    {USE_MOCK && <p className="text-sm">Demo mode: counts are saved in this browser and labeled demo.</p>}
     <Card><div className="flex flex-wrap gap-4">
       <div><FieldLabel htmlFor="portions-date">Date</FieldLabel><input id="portions-date" type="date" className={inputClass} value={date} onChange={e => { setDate(e.target.value); setSavedNote(false) }} /></div>
       <div><FieldLabel htmlFor="portions-meal">Meal</FieldLabel><select id="portions-meal" className={inputClass} value={meal} onChange={e => { setMeal(e.target.value as MealLabel); setSavedNote(false) }}>
         {MEALS.map(m => <option key={m} value={m}>{MEAL_NAME[m]}</option>)}
       </select></div>
     </div></Card>
-    {savedNote && <p role="status" className="text-basil">Counts saved. Recommendations use the updated counts.</p>}
-    {selected.status === 'loading' && <LoadingBlock label="Loading meal counts…" />}
+    {savedNote && <p role="status" className="font-semibold">Counts saved.</p>}
+    {selected.status === 'loading' && <LoadingBlock label="Loading counts" />}
     {selected.status === 'error' && <EmptyState title="Couldn't load portions.">{selected.error}</EmptyState>}
     {selected.status === 'ready' && (selected.data
       ? <PortionsEditor key={`${date}-${meal}-${revision}`} service={selected.data} onSaved={() => { setRevision(r => r + 1); setSavedNote(true); onSaved() }} />
@@ -58,14 +58,14 @@ function PortionsEditor({ service, onSaved }: { service: PortionService; onSaved
       void complete(async () => {
         const entries = service.items.map(i => {
           const text = values[i.itemId].trim()
-          if (text && !/^\d+$/.test(text)) throw new Error('Use nonnegative whole-number counts or leave unknown counts blank.')
+          if (text && !/^\d+$/.test(text)) throw new Error('Use whole numbers, or leave the box blank.')
           return { itemId: i.itemId, count: text === '' ? null : Number(text) }
         })
         await savePortions(service, entries)
       })
     }} className="space-y-4">
       <h2 className="text-lg font-semibold text-ink">Counts for this meal</h2>
-      <p className="text-sm text-thyme">Leave unknown counts blank. Enter 0 only when none were served. Saving or uploading a CSV replaces this meal’s counts.</p>
+      <p className="text-sm">Leave a food blank if you don’t know. Enter 0 only if none were served. Saving replaces this meal’s earlier counts.</p>
       <div className="grid gap-3 sm:grid-cols-2">{service.items.map((item, n) => <div key={item.itemId}>
         <FieldLabel htmlFor={`portion-count-${n}`}>{item.displayName}</FieldLabel>
         <input id={`portion-count-${n}`} type="number" min="0" max="4294967295" step="1" placeholder="Unknown" className={inputClass}
@@ -73,17 +73,17 @@ function PortionsEditor({ service, onSaved }: { service: PortionService; onSaved
       </div>)}</div>
       <div className="flex flex-wrap items-center gap-3">
         <PrimaryButton type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save portions served'}</PrimaryButton>
-        <GhostButton type="button" onClick={template} disabled={busy}>Download CSV template</GhostButton>
-        <label className="text-sm text-thyme">Upload filled CSV<input type="file" accept=".csv,text/csv" disabled={busy} aria-label="Upload portions served CSV" className="mt-1 block max-w-full"
+        <GhostButton type="button" onClick={template} disabled={busy}>Download blank sheet</GhostButton>
+        <label className="text-sm">Upload filled sheet (.csv)<input type="file" accept=".csv,text/csv" disabled={busy} aria-label="Upload filled portions sheet" className="mt-1 block max-w-full file:mr-3 file:rounded-btn file:border file:border-solid file:border-ink file:bg-cream file:px-3 file:py-1 file:font-sans file:text-ink"
           onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void complete(async () => {
-            if (file.size > 1_000_000) throw new Error('Upload a CSV of at most 1 MB.')
+            if (file.size > 1_000_000) throw new Error('That file is too big. Use the blank sheet from this page.')
             await importPortionsCsv(service, await file.text())
           }) }} /></label>
       </div>
       {error && <p role="alert" className="font-semibold text-ink">{error}</p>}
     </form></Card>
-    <Card>{benchmark.status === 'loading' && <LoadingBlock label="Loading benchmarks…" />}
-      {benchmark.status === 'error' && <EmptyState title="Couldn't load benchmarks.">{benchmark.error}</EmptyState>}
+    <Card>{benchmark.status === 'loading' && <LoadingBlock label="Loading" />}
+      {benchmark.status === 'error' && <EmptyState title="Couldn't load waste per portion.">{benchmark.error}</EmptyState>}
       {benchmark.status === 'ready' && <PortionBenchmarkView benchmark={benchmark.data} />}
     </Card>
   </>

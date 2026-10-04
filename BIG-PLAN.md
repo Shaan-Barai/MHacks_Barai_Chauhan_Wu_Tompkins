@@ -147,14 +147,16 @@ once D lands → C does the final review, updates README/AGENTS, and merges `big
 | WS | State | Last update | Notes |
 | --- | --- | --- | --- |
 | M | running | 2026-10-03 | 22 conflicts. The frontend base is main's redesign |
-| C | contracts published | 2026-10-03 | §3 types in `contracts/types.ts`, D1–D8 in `contracts/decisions.md` |
+| C | **done** | 2026-10-04 | contracts, decisions, README/.env.example/AGENTS.md (`baab6d9`), GEMINI_BILLING + fallback logging (`e54c29e`), EXPLAIN.md, merge to main |
 | A | **done** | 2026-10-04 | `1290f52` `f0221be` `fe7be24` `bc293c6`; data 38/38, analytics 57/57 (fixtures). Water is the largest factor for 17 foods, carbon for 6 |
 | B | **done** | 2026-10-04 | `997eeac` `bb7a7a3` `6857fae` (merge of the user's two-pass localization) `2ada2a2` `71ef028`; vision 68/68; **live** smoke on 4 photos: all plate-fit-v1, foods match ground truth; SAM worker running on :8790 |
 | D | **done** | 2026-10-04 | `a8919d6` `714e158` `5fd5838` `8ef4ecd` `12fd391` `6c34b80`; backend 49 pass; live repo test 13/13 on `scrap-bigplan`; seeded |
-| E | running (worktree) | 2026-10-03 | new dashboard against mocks, then live API |
-| F | phase 2 running | 2026-10-04 | phase 1 `2d03127` `af46873` `1c5f3ad` (simulate-camera, gated live E2E); now running the live E2E |
+| E | **done** | 2026-10-04 | `27fdaa5` `4feb9c2` (+ coordinator polish `563de3f`); frontend 46/46; checked in headless Chrome against live data: cards, targets, most wasted, chart in grams, plate gallery with R2 photo + segmented overlay |
+| F | **done** | 2026-10-04 | `2d03127` `af46873` `1c5f3ad` `ade68d4` `2684e85`; **live E2E 8/8** on 3 photos (simulate-camera → bridge → R2 → scrap-bigplan → Gemini+SAM → overlay → dashboard API) |
 
 ### Log
 - 2026-10-03: user pushed `85ba842` (capture/scripts/live_camera_test.py, ingest-inbox `--state-dir`) to `big-plan`, and `fef1065` (two Gemini localization passes merged by IoU) + `df909ca` (before/after mixed-dish data) to `menu-source-experiment`. All agents notified; WS-B owns merging `menu-source-experiment` again (overlaps its maskPipeline.ts work); WS-F builds on live_camera_test.py.
 - Landed so far: A `1290f52` (score without nutrition), `f0221be` (factor tables), `fe7be24` (demo dinner + portions); B `997eeac` (calibration + overlay); D `a8919d6` (calibration/overlay persistence, images endpoint), `714e158` (seed), `5fd5838`, `8ef4ecd`.
 - Open judgement calls: (1) clip food counts to the fitted dish? Not enabled: a bad fit would delete real food; `diagnostics.pixelsOutsideDish` reports it instead (it matters for multi-dish phone photos, less so for the single-plate camera). (2) The 900 px default plate diameter should be measured from a real C920s frame. (3) `scrap-bigplan` has one stray test capture (hall `hall-tmuta9xkt`); the dashboard always passes `hallId=hall-main`. Wiping it is the user's call.
+- 2026-10-04 live E2E result: 3 captures, 413,044 px ≈ 337 g, 0.59 kg CO2e, 132 L water, $0.31 impact; top target Baked Sweet Potatoes 1.4 g/portion (demo portions). After the run, the Gemini key's prepaid credits were depleted (HTTP 402). New captures will fail classification and the recommendation shows the labeled fallback until billing is topped up.
+- Not verified live: the real Uno Q board with this pipeline (`capture/scripts/live_camera_test.py`), Gemini same-dish dedupe (E2E used `--no-dedupe`).

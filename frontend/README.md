@@ -68,29 +68,32 @@ origin). Pages have their own paths (`/`, `/schedule`, `/menus`, `/portions`,
 ## Camera calibration and estimates (IT_4)
 
 - **Settings -> Camera calibration**: known area in cm² (credit-card preset
-  46.21 cm²), Depth Anything V2 toggle (experimental, off by default;
-  `PUT /api/settings/measurement` `depthEnabled`), calibration photo upload:
+  46.21 cm²), reference label, calibration photo upload:
   the browser normalizes it like a capture (`topdown-normalized-v1`: centre
   square, 1024 x 1024 JPEG q90, `src/lib/normalizePhoto.ts`), then
   `POST /api/images/uploads` with `associationKind: 'calibration'` and a new
   `cal_<id>` as `associationId` -> PUT -> finalize -> `POST /api/calibrations`.
   The browser PUT goes straight to object storage, so the bucket's CORS must
   allow PUT from the dashboard origin; result with the reference outline
-  (`GET /api/calibrations/:id/images`), cm²/px, camera height from the photo
-  vs Depth Anything V2, flags in plain words, Activate, history, plate
-  thickness. Processing calibrations are polled every 2 s.
+  (`GET /api/calibrations/:id/images`), cm²/px, camera height from the photo,
+  `reference_*` flags in plain words (unknown legacy flags are hidden),
+  Activate (`PUT /api/settings/measurement` `{ hallId, activeCalibrationId }`),
+  history. Processing calibrations are polled every 2 s. Area comes only from
+  the calibration; grams = area x the food's typical weight per cm². Depth
+  Anything V2 (toggle, depth height, plate thickness, volume) was removed
+  2026-10-04.
 - **Food labels**: `38 g · 1.1 kg CO2e · 18 L water est.` chips with inline
   SVG cloud/droplet icons, rounded like analytics' overlay label (whole
   grams; CO2e and litres to 2 significant digits; CO2e in g below 0.1 kg).
   Missing = a muted reason or nothing, never 0.
-- **Headline cards**: Estimated CO2e and Estimated water with calibrated-plate
-  coverage and method (area / depth volume / mixed).
-- **Mock data**: days over 20 days ago are uncalibrated, days 3-20 ago use
-  the area method, the last 3 days depth volume (so Today = volume, 7 days =
-  mixed, 30 days = partly calibrated, 90 days = mostly uncalibrated); a
-  no-density food, a no-factor food, unknown food, a demo photo at another
-  picture size, and four past calibrations (active, heights disagree, no depth
-  + card at the edge, failed).
+- **Headline cards**: Estimated CO2e and Estimated water with "From X of Y
+  plates (calibrated)"; no method breakdown.
+- **Mock data**: days over 20 days ago are uncalibrated, the last 20 days use
+  the calibrated area (so Today and 7 days are fully calibrated, 30 days
+  partly, 90 days mostly uncalibrated); a no-factor food, unknown food, a demo
+  photo at another picture size, and four past 1024 x 1024 calibrations
+  (active card at 30,730 px = 0.0015 cm²/px and 50.0 cm, an older card, an
+  index card at the edge, failed).
 
 ## Dashboard (UI.md, BIG-PLAN v2 + IT_4)
 
@@ -100,12 +103,12 @@ plates only. Top to bottom, all driven by the lookback buttons:
 
 1. One-line "how we measure" note (the AI outlines the leftover food on the
    plate being scanned and counts its pixels; impact points weight pixels by
-   each food's density and greenhouse-gas / water footprint; relative, not a
+   each food's typical weight per cm² and greenhouse-gas / water footprint; relative, not a
    scale reading).
 2. Four headline cards (IT_4 added Estimated CO2e and Estimated water between these two): **Total waste** (Pixels wasted, unit "pixels", "from X
    of Y plates scanned", plates not counted) and **Relative impact**
    ("relative points" badge: impactPoints with co2Points and waterPoints
-   under it; the "?" tip gives points = pixels/1000 x density x factor and
+   under it; the "?" tip gives points = pixels/1000 x weight per cm² x factor and
    0.19 x CO2 + 1.50 x water). Missing points say "Not available", never 0.
 3. **What to try next**: recommendation text + bullets with their supporting
    metric, "AI" / "Rule-based fallback" badge, generated time.

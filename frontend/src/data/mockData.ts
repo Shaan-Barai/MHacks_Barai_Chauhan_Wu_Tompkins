@@ -3,10 +3,9 @@
  * the real backend / SpacetimeDB later, components never import it directly,
  * they go through src/data/api.ts.
  *
- * Nothing here is real. "Waste units" are mock AI-style estimates of leftover
- * food area (contracts/README.md: observed estimated leftover area in pixels;
- * here pre-scaled so 1 waste unit ≈ 1,000 px² in the normalized top-down
- * space). Attendance ("meal swipes") is simulated, per AGENTS.md §7.
+ * Nothing here is real. Pixels wasted are mock values shaped like mask pixel
+ * counts in the normalized 1024x1024 top-down space (contracts/measurement.md).
+ * Attendance ("meal swipes") is simulated, per AGENTS.md §7.
  * Everything is deterministic for a given date so the demo is repeatable.
  */
 import { addDays, fromIso } from '../lib/dates'
@@ -144,7 +143,7 @@ export function mockMealDetail(date: IsoDate, meal: MealLabel, menu: DayMenu | n
     const r = rng(`waste:${date}:${meal}:${it.itemId}`)
     const waste = def ? def.waste : 0.12 + r() * 0.2
     const take = def ? def.take : 0.2 + r() * 0.3
-    const perPlate = 20 + r() * 25 // mock serving size in waste units
+    const perPlate = 20_000 + r() * 25_000 // mock leftover pixels per plate
     const noise = 0.75 + r() * 0.5
     const units = platesScanned * take * waste * perPlate * noise * weekend * drift
     return { it, def, units: Math.max(1, Math.round(units)) }
@@ -155,27 +154,28 @@ export function mockMealDetail(date: IsoDate, meal: MealLabel, menu: DayMenu | n
     .map(({ it, units }) => ({
       itemId: it.itemId,
       displayName: it.displayName,
-      wasteUnits: units,
-      shareOfMealWastePercent: (units / total) * 100,
+      pixelsWasted: units,
+      shareOfMealPixelsPercent: (units / total) * 100,
     }))
-    .sort((a, b) => b.wasteUnits - a.wasteUnits)
+    .sort((a, b) => b.pixelsWasted - a.pixelsWasted)
 
   const top = sorted[0]
   const topDef = rows.find((r) => r.it.itemId === top.itemId)?.def
   const tipLine = topDef ? topDef.tip : 'Watch this item for a few services before changing the recipe.'
-  const share = Math.round(top.shareOfMealWastePercent)
+  const share = Math.round(top.shareOfMealPixelsPercent)
 
   return {
     serviceId: `svc_${MOCK_HALL_ID}_${date}_${meal}`,
     date,
     meal,
-    totalWasteUnits: total,
+    pixelsWasted: total,
     platesScanned,
-    coverage: { platesAnalyzed: platesScanned, platesLeftOut: 0, itemsLeftOut: 0 },
+    unclassifiedPixels: 0,
+    coverage: { platesCounted: platesScanned, emptyPlates: 0, platesLeftOut: 0 },
     mealSwipes: { count: attendance, source: 'simulated' },
     items: sorted,
     tip: {
-      recommendation: `${top.displayName} made up ${share}% of ${MEAL_NAME[meal].toLowerCase()} waste. ${tipLine}`,
+      recommendation: `${top.displayName} made up ${share}% of ${MEAL_NAME[meal].toLowerCase()}'s wasted pixels. ${tipLine}`,
       source: 'gemini',
     },
   }

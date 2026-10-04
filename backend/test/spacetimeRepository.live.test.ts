@@ -19,6 +19,7 @@ import type {
   Insight,
   MenuBundle,
   ReferencePortion,
+  SegmentationResult,
 } from '../src/types.js';
 
 const URI = process.env.SPACETIMEDB_URI;
@@ -202,11 +203,67 @@ test('SpacetimeDB repository round-trips every entity through the reducers', { s
     assert.deepEqual(await repo.listInsights(hall), [insight]);
   });
 
+  await t.test('mask pipeline: segmentation result + regions round-trip; the database enforces the pixel union', async () => {
+    const seg: SegmentationResult = {
+      model: 'sam2.1-hiera-small',
+      checkpoint: 'facebook/sam2.1-hiera-small',
+      codeRevision: 'sam2@test',
+      promptSource: 'gemini_box',
+      settingsVersion: 'sam2-box-v1',
+      countingRuleVersion: 'smallest-first-v1',
+      status: 'succeeded',
+      countStatus: 'complete',
+      capturePixelsWasted: 900,
+      widthPx: 1024,
+      heightPx: 1024,
+      regions: [
+        {
+          regionId: `${run}_mask_r1`,
+          eventId: event.eventId,
+          attemptId: `att_${run}_mask`,
+          itemId: ref.itemId,
+          visualLabel: 'bitten burger',
+          box: { gemini: [100, 200, 300, 400], pixelXyxy: [204.8, 102.4, 409.6, 307.2], convention: 'gemini-yxyx-1000_to_xyxy-px_v1' },
+          segmentationStatus: 'succeeded',
+          maskObjectId: `img_${run}_mask`,
+          maskPixels: 700,
+          score: 0.97,
+        },
+        {
+          regionId: `${run}_mask_r2`,
+          eventId: event.eventId,
+          attemptId: `att_${run}_mask`,
+          itemId: null,
+          visualLabel: 'unknown crumbs',
+          box: { gemini: [500, 500, 600, 600], pixelXyxy: [512, 512, 614.4, 614.4], convention: 'gemini-yxyx-1000_to_xyxy-px_v1' },
+          segmentationStatus: 'succeeded',
+          maskObjectId: `img_${run}_mask2`,
+          maskPixels: 200,
+        },
+      ],
+    };
+    const maskAttempt: AnalysisAttempt = { ...attempt, attemptId: `att_${run}_mask`, createdAt: '2026-10-03T16:10:00.000Z', segmentation: seg };
+    const maskMeasurements: FoodMeasurement[] = [
+      { measurementId: `meas_${run}_m1`, eventId: event.eventId, attemptId: maskAttempt.attemptId, itemId: ref.itemId, remainingAreaPx: 700, regionIds: [`${run}_mask_r1`], unavailableReason: 'no_baseline_auxiliary_only', method: 'mask_pixel_count', qualityFlags: ['ai_estimate'] },
+      { measurementId: `meas_${run}_m2`, eventId: event.eventId, attemptId: maskAttempt.attemptId, itemId: null, remainingAreaPx: 200, regionIds: [`${run}_mask_r2`], unavailableReason: 'unclassified_food', method: 'mask_pixel_count', qualityFlags: ['ai_estimate'] },
+    ];
+    await repo.recordAnalysis(maskAttempt, maskMeasurements);
+    const stored = (await repo.listAnalysisAttempts(event.eventId)).find((a) => a.attemptId === maskAttempt.attemptId);
+    assert.deepEqual(stored, maskAttempt);
+    const storedMeasurements = (await repo.listMeasurementsByAttempt(maskAttempt.attemptId)).sort((a, b) => a.measurementId.localeCompare(b.measurementId));
+    assert.deepEqual(storedMeasurements, maskMeasurements);
+
+    const bad = { ...maskAttempt, attemptId: `att_${run}_mask_bad`, segmentation: { ...seg, capturePixelsWasted: 901, regions: [] } };
+    const badMeasurements = maskMeasurements.map((m) => ({ ...m, measurementId: `${m.measurementId}_bad`, attemptId: bad.attemptId }));
+    await assert.rejects(repo.recordAnalysis(bad, badMeasurements), /capture union 901 != sum of measured pixels 900/);
+    assert.deepEqual(await repo.listMeasurementsByAttempt(bad.attemptId), [], 'the rejected attempt stored nothing');
+  });
+
   await t.test('everything persists for a fresh connection', async () => {
     const fresh = new SpacetimeRepository(config);
     assert.deepEqual(await fresh.getMenuByService(menu.service.serviceId), menu);
     assert.equal((await fresh.listCaptureEvents({ hallId: hall })).length, 1);
-    assert.equal((await fresh.listMeasurementsByEvent(event.eventId)).length, 2);
+    assert.equal((await fresh.listMeasurementsByEvent(event.eventId)).length, 4);
     assert.equal((await fresh.getAttendance(menu.service.serviceId))?.source, 'simulated');
   });
 

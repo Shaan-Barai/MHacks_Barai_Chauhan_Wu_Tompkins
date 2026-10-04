@@ -24,3 +24,8 @@ images/
 
 # Local segmentation experiments
 test2_segmentation/
+
+# Python environments and caches
+.venv/
+__pycache__/
+*.pyc

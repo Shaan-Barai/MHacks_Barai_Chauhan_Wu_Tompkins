@@ -1,22 +1,22 @@
 /**
- * Three summary cards: today, this week, this month. Each shows waste units,
+ * Three summary cards: today, this week, this month. Each shows Pixels wasted,
  * the average share of a serving left per plate (clean plates count as 0%),
  * and the change from the same stretch of time before.
  */
 import { useId } from 'react'
 import type { PeriodSummary, SummaryCards as SummaryCardsData } from '../data/types'
 import { formatCompact, formatNumber, formatPercent } from '../lib/format'
-import { Card, InfoTip, WASTE_UNITS_EXPLANATION } from './ui'
+import { Card, InfoTip, PIXELS_WASTED_EXPLANATION } from './ui'
 
 const PLATE_PERCENT_EXPLANATION =
   'For each scanned plate, how much of a full serving came back. Clean plates count as 0%. A food with more than a full serving left counts as 100%.'
 
 function Change({ summary, before }: { summary: PeriodSummary; before: string }) {
-  const prev = summary.previousWasteUnits
+  const prev = summary.previousPixelsWasted
   if (prev === null || prev <= 0) {
     return <p className="mt-1 text-sm">Nothing to compare with {before} yet</p>
   }
-  const pct = Math.round(((summary.wasteUnits - prev) / prev) * 100)
+  const pct = Math.round(((summary.pixelsWasted - prev) / prev) * 100)
   if (pct === 0) return <p className="mt-1 text-sm">Same as {before}</p>
   return (
     <p className="mt-1 text-sm">
@@ -34,12 +34,12 @@ function SummaryCard({ label, before, summary }: { label: string; before: string
   return (
     <Card>
       <h3 className="text-base font-semibold text-ink">{label}</h3>
-      <p className="mt-2 font-display text-[44px] font-semibold leading-none text-ink" title={`${formatNumber(summary.wasteUnits)} waste units`}>
-        {formatCompact(summary.wasteUnits)}
+      <p className="mt-2 font-display text-[44px] font-semibold leading-none text-ink" title={`${formatNumber(summary.pixelsWasted)} pixels wasted`}>
+        {formatCompact(summary.pixelsWasted)}
       </p>
       <p className="mt-1 text-sm">
-        waste units
-        <InfoTip id={unitsTip} text={WASTE_UNITS_EXPLANATION} />
+        Pixels wasted
+        <InfoTip id={unitsTip} text={PIXELS_WASTED_EXPLANATION} />
       </p>
       <p className="mt-3 text-lg font-semibold">
         {summary.averagePlateWastePercent === null

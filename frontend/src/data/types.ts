@@ -1,8 +1,10 @@
 /**
  * Frontend view types. Field names and conventions mirror contracts/types.ts
  * and the backend GET endpoints (backend/README.md): meal labels, service
- * dates (local YYYY-MM-DD), item/menu IDs, "waste units" = observed estimated
- * leftover food area (AI estimate), attendance always labeled "simulated".
+ * dates (local YYYY-MM-DD), item/menu IDs. The primary metric is Pixels wasted
+ * (contracts/measurement.md): foreground pixels counted in AI-generated
+ * leftover-food masks, not grams or servings. Attendance is always labeled
+ * "simulated".
  */
 import type { IsoDate } from '../lib/dates'
 
@@ -69,17 +71,17 @@ export interface DayMenu {
 /** One point of the main chart (dashboard summary series). */
 export interface DailyWastePoint {
   date: IsoDate
-  /** Observed estimated leftover food area (AI estimate); null = no data that day. */
-  wasteUnits: number | null
+  /** Pixels wasted that day (counted mask pixels); null = no counted plates. */
+  pixelsWasted: number | null
 }
 
 export interface ItemWaste {
   itemId: string
   displayName: string
-  /** AI-estimated leftover area for this item across the meal. */
-  wasteUnits: number
-  /** Share of the meal's total waste, 0–100. */
-  shareOfMealWastePercent: number
+  /** Mask pixels counted for this item across the meal. */
+  pixelsWasted: number
+  /** Share of the meal's wasted pixels, 0–100 (not % of food served). */
+  shareOfMealPixelsPercent: number
 }
 
 /** AI-generated tip (contract Insight), from mock data in the prototype. */
@@ -88,23 +90,26 @@ export interface MealTip {
   source: 'gemini' | 'fallback_rules'
 }
 
-/** Right-panel data per meal (GET /api/dashboard/summary per service). */
+/** Day-details data per meal (GET /api/dashboard/meal). */
 export interface MealDetail {
   portionBenchmark?: PortionBenchmark;
   serviceId: string
   date: IsoDate
   meal: MealLabel
-  totalWasteUnits: number
+  /** Union of counted mask pixels across the meal's counted plates. */
+  pixelsWasted: number
+  /** Food pixels not attributable to a menu item (unknown food or overlapping masks). */
+  unclassifiedPixels: number
   platesScanned: number
   /**
-   * Analysis coverage (AGENTS.md §9.7): plates whose analysis counted, and
-   * plates/food items left out of the totals (failed or needing review,
-   * unknown food, missing or above-baseline estimates). Never counted as zero.
+   * Coverage (AGENTS.md §9.7): plates in the total (incl. validated empty
+   * plates) and plates left out (failed, partial, or still processing).
+   * Left-out plates are never counted as zero.
    */
-  coverage: { platesAnalyzed: number; platesLeftOut: number; itemsLeftOut: number }
+  coverage: { platesCounted: number; emptyPlates: number; platesLeftOut: number }
   /** Simulated attendance (contract Attendance; source is always "simulated"). */
   mealSwipes: { count: number; source: 'simulated' }
-  /** Sorted by wasteUnits, descending. Empty when every estimate was left out. */
+  /** Sorted by pixelsWasted, descending. Empty when no plate was counted. */
   items: ItemWaste[]
   /** Null when no item counted yet (nothing to ground a tip in). */
   tip: MealTip | null
@@ -148,9 +153,9 @@ export interface PeriodSummary {
   /** Inclusive local-date window the number covers. */
   start: IsoDate
   end: IsoDate
-  wasteUnits: number
+  pixelsWasted: number
   /** Same-length window immediately before; null when it has no data. */
-  previousWasteUnits: number | null
+  previousPixelsWasted: number | null
   /** Mean percent of a full serving left per plate (clean plates 0%); null without plates. */
   averagePlateWastePercent: number | null
   platesCounted: number
@@ -160,7 +165,8 @@ export interface PeriodSummary {
 export interface PlateFood {
   itemId: string | null
   name: string
-  wasteUnits: number
+  /** Counted leftover pixels for this food (mask pixels, or a legacy estimate). */
+  pixelsWasted: number
   /** Leftover as a percent of a full serving (capped at 100); null without a reference serving. */
   percentOfServing: number | null
   flags: string[]

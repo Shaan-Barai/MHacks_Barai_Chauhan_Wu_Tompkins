@@ -88,11 +88,11 @@ export async function saveUserMenu(date: IsoDate, meals: Record<MealLabel, MenuI
   return menu
 }
 
-/** Daily waste series for the chart; null wasteUnits = no data that day. */
+/** Daily waste series for the chart; null pixelsWasted = no data that day. */
 export async function getDailyWaste(start: IsoDate, end: IsoDate): Promise<DailyWastePoint[]> {
   await wait()
   const today = todayIso()
-  return eachDay(start, end).map((date) => ({ date, wasteUnits: dailyTotal(date, today) }))
+  return eachDay(start, end).map((date) => ({ date, pixelsWasted: dailyTotal(date, today) }))
 }
 
 function dailyTotal(date: IsoDate, today: IsoDate): number | null {
@@ -102,7 +102,7 @@ function dailyTotal(date: IsoDate, today: IsoDate): number | null {
   let sum = 0
   for (const meal of MEALS) {
     const d = mockMealDetail(date, meal, menu, today)
-    if (d) sum += d.totalWasteUnits
+    if (d) sum += d.pixelsWasted
   }
   return sum
 }
@@ -210,8 +210,8 @@ function period(start: IsoDate, end: IsoDate, today: IsoDate): PeriodSummary {
   return {
     start,
     end,
-    wasteUnits: sum(days) ?? 0,
-    previousWasteUnits: sum(eachDay(prevStart, prevEnd)),
+    pixelsWasted: sum(days) ?? 0,
+    previousPixelsWasted: sum(eachDay(prevStart, prevEnd)),
     averagePlateWastePercent: percents.length ? Math.round((percents.reduce((a, b) => a + b, 0) / percents.length) * 10) / 10 : null,
     platesCounted: percents.length,
   }

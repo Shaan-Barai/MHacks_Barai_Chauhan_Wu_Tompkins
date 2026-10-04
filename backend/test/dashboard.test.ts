@@ -46,10 +46,38 @@ test('plates endpoint lists every scanned plate with readable labels', async t =
   assert.deepEqual(none.json, { serviceId: null, plates: [] });
 });
 
+/** Mask-counted plates (union-v1): the pixel summary counts these, unlike legacy area estimates. */
+async function seedMaskPlates(s: Awaited<ReturnType<typeof startTestServer>>) {
+  await s.seedMenuAndBaselines();
+  const plates: [string, [string | null, number][]][] = [
+    ['mask-a', [['item_eggs', 200], ['item_toast', 600]]],
+    ['mask-b', [['item_toast', 400], [null, 50]]],
+  ];
+  for (const [n, [eventId, foods]] of plates.entries()) {
+    await s.repo.upsertCaptureEvent({ eventId, hallId: HALL, serviceId: SERVICE, capturedAt: `2026-10-03T16:00:0${n}Z`, imageObjectId: `img-${eventId}`, geometry: GEOMETRY, source: 'replay', qualityFlags: [], state: 'succeeded' });
+    const measurements: FoodMeasurement[] = foods.map(([itemId, px], i) => ({
+      measurementId: `${eventId}-${i}`, eventId, attemptId: `att-${eventId}`, itemId, remainingAreaPx: px, method: 'mask_pixel_count', qualityFlags: [],
+    }));
+    const total = foods.reduce((sum, [, px]) => sum + px, 0);
+    await s.repo.recordAnalysis({ eventId, attemptId: `att-${eventId}`, menuId: MENU.service.menuId, menuVersion: 1, baselineVersions: {}, model: 'fixture', promptVersion: 'fixture', status: 'succeeded', qualityFlags: [], createdAt: '2026-10-03T16:01:00Z',
+      segmentation: { model: 'fixture', checkpoint: 'fixture', codeRevision: 'fixture', promptSource: 'gemini_box', settingsVersion: 'fixture', countingRuleVersion: 'union-v1', status: 'succeeded', countStatus: 'complete', capturePixelsWasted: total, widthPx: GEOMETRY.widthPx, heightPx: GEOMETRY.heightPx, regions: [] } }, measurements);
+  }
+}
+
 test('meal suggestion names the top food in plain words while per-portion rates are unavailable', async t => {
+  const s = await startTestServer(); t.after(() => s.close()); await seedMaskPlates(s);
+  const res = await s.api('GET', `/api/dashboard/meal?hallId=${HALL}&date=2026-10-03&meal=lunch`);
+  assert.equal(res.status, 200);
+  assert.equal(res.json.summary.pixelsWasted, 1250);
+  assert.match(res.json.insight.recommendation, new RegExp(`^${MENU.items.find(i => i.itemId === 'item_toast')!.displayName} made up`));
+  assert.doesNotMatch(res.json.insight.recommendation, /baseline|—/i);
+});
+
+test('legacy area estimates are not counted as Pixels wasted and get no named-food tip', async t => {
   const s = await startTestServer(); t.after(() => s.close()); await seedPlates(s);
   const res = await s.api('GET', `/api/dashboard/meal?hallId=${HALL}&date=2026-10-03&meal=lunch`);
   assert.equal(res.status, 200);
-  assert.match(res.json.insight.recommendation, new RegExp(`^${MENU.items.find(i => i.itemId === 'item_toast')!.displayName} made up`));
-  assert.doesNotMatch(res.json.insight.recommendation, /pixel|baseline|—/i);
+  assert.equal(res.json.summary.pixelsWasted, 0);
+  assert.equal(res.json.summary.exclusionReasons.legacy_estimate, 3);
+  assert.doesNotMatch(res.json.insight.recommendation, /made up/);
 });

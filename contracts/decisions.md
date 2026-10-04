@@ -289,3 +289,88 @@ User-directed changes (UI.md has the full spec):
 - Verdicts and minted event IDs persist in gitignored state files, so reruns
   never regroup frames or add dishes. Provisional thresholds (3 s no-plate
   grace, 10 s idle) need tuning on real conveyor footage. Details: BRIDGE.md.
+
+## 2026-10-03: SAM 2.1 mask pipeline implemented
+
+Executes [MVP_AI.md](../MVP_AI.md) steps 1, 4, 5 and a preliminary 2–3.
+Choices the plan left open, now made (provisional until the annotated
+evaluation and team thresholds):
+
+- **Checkpoint / host:** `facebook/sam2.1-hiera-small` (SAM 2.1 Small), Meta
+  `sam2` at `2b90b9f`, torch 2.14.1, on the team MacBook M1 Max via MPS
+  (CPU fallback). Worker: `vision/sam/worker.py` (Python, stdlib HTTP,
+  127.0.0.1:8790), one serialized predictor. Gemini stays in the TS gateway.
+- **Localization:** Gemini (`gemini-3.8-flash`, prompt `scrap-localize-v1`)
+  returns menu item IDs or `unknown`, a visual label, and one or more
+  `[ymin, xmin, ymax, xmax]` 0–1000 boxes per item, plus explicit
+  `plateEmpty`/`ambiguous`. No quantities are requested. Grounding DINO was
+  not needed for the images tested; revisit if localization dominates errors.
+- **Box conversion:** `gemini-yxyx-1000_to_xyxy-px_v1` — `[xmin·W/1000,
+  ymin·H/1000, xmax·W/1000, ymax·H/1000]`; nonfinite, out-of-range,
+  reversed, and sub-pixel boxes fail their region. Both forms are stored.
+- **Mask settings `sam2-box-v1`:** `multimask_output=False`, logit threshold
+  0.0, no hole filling or small-component removal. **Format:** lossless
+  8-bit PNG at the analyzed image's exact size, 255 food / 0 background;
+  rejected unless exactly that size and strictly binary.
+- **Counting rule `union-v1`:** item pixels = union of that item's regions;
+  a pixel claimed by two different items goes to the unclassified bucket and
+  the capture is flagged `overlapping_masks`; unknown-food regions feed the
+  unclassified bucket; capture total = union of all valid masks = sum of
+  item + unclassified counts (enforced by the backend and the SpacetimeDB
+  reducer).
+- **Stage outcomes:** classification failure → attempt `failed`, nothing
+  counted. Explicit `plateEmpty` → `succeeded`, count status `empty`, 0
+  pixels (no SAM call). Some regions fail → `needs_review`, `partial`
+  (lower bound, excluded from totals). All segmentation fails / worker down
+  → `failed`, retryable, never zero. There is no fallback to Gemini-guessed
+  areas; the legacy `GeminiAnalyzer` was removed.
+- **Contracts:** `AnalysisAttempt.segmentation` (`SegmentationResult` with
+  `ClassificationRegion[]`), `MeasurementMethod` `mask_pixel_count`,
+  `FoodMeasurement.regionIds`, image association kind `mask`, quality flags
+  `segmentation_failed` / `overlapping_masks`. All additive; legacy
+  attempts stay readable and are excluded from pixel totals as
+  `legacy_estimate`.
+- **Persistence:** additive SpacetimeDB tables `capture_count` (stage
+  provenance + union count) and `segmentation_region` (boxes, status, mask
+  object id); published in place. Masks are stored through the backend's
+  storage adapter (`masks/<date>/<regionId>.png`, R2 or local-dev) — never in
+  rows.
+- **Analytics/dashboard:** `summarizePixels` counts captures with
+  `complete` or `empty` counts once each; exclusions by reason; geometry
+  groups not pooled. Dashboard API and UI report **Pixels wasted** in pixels;
+  the "waste units" ÷1,000 scaling is gone. Suggestions cite measured pixels
+  (`suggest-pixels-v1`).
+- **Integration with portions served (merge of `main`, 2026-10-03):** the
+  method is named `mask_pixel_count` (one name for both features). Vision
+  returns one exclusive mask per measurement (the pixels `union-v1` assigned
+  to that item or to the unclassified bucket, so masks are disjoint and sum to
+  the capture union). The backend stores each PNG
+  (`masks/<date>/<measurementId>.png`) and fills `FoodMeasurement.maskCount`
+  (classification `model/prompt`, segmentation `model/checkpoint/settings`,
+  processing `union-v1`). Ingestion validates count provenance; quality-flag
+  eligibility stays an aggregation-time decision. The dashboard tip is the
+  Pixels-wasted-per-portion recommendation (AGENTS.md 7); `summarizePixels`
+  still drives totals, items, and coverage.
+- **Still open:** the annotated 20–30-image evaluation set and held-out split
+  (step 2); acceptable error/latency thresholds; point-prompt refinement
+  policy; a second detector only if localization errors dominate.
+
+## 2026-10-03: merge of the SAM 2.1 mask pipeline with the ScrapSaver dashboard
+
+- `menu-source-experiment` (mask pipeline, Pixels wasted) merged into the
+  `main` line (Uno Q bridge, dish match, ScrapSaver redesign). Both feature
+  sets are kept.
+- Dashboard API: `DailyPoint` = `pixelsWasted`, `capturedDishes`,
+  `countedDishes`, plus main's `plateWastePercents`; `PeriodTotal` =
+  `pixelsWasted`, `previousPixelsWasted`, plus main's auxiliary
+  `averagePlateWastePercent` / `platesCounted` / `platesWithoutPercent`. The
+  meal `summary` is the `PixelServiceSummary`. `GET /api/dashboard/plates`
+  stays; its `leftoverPx` is the counted mask pixels for mask measurements.
+- Meal suggestion: the Pixels-wasted-per-portion insight when any rate
+  exists; otherwise a Pixels-wasted suggestion (`generatePixelInsight`, data
+  version `pixel-summary-v1|…`) replaces main's legacy waste-share fallback,
+  so tips are never grounded in Gemini-guessed areas. Its fallback text no
+  longer uses an em dash.
+- Frontend keeps main's ScrapSaver layout and plain-language copy, labels the
+  metric **Pixels wasted** (unscaled pixels), and shows clean plates, plates
+  not counted, and food not on the menu (unclassified pixels) in day details.

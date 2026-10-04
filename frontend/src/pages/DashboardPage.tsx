@@ -12,7 +12,7 @@ export function DashboardPage({ range, onRangeChange }: { range: DateRange; onRa
   const summary = useAsync(() => getSummaryCards(), [])
   const series = useAsync(() => getDailyWaste(range.start, range.end), [range.start, range.end])
   const buckets = useMemo(() => (series.data ? dailyBuckets(series.data) : []), [series.data])
-  const hasAnyData = buckets.some((b) => b.wasteUnits !== null)
+  const hasAnyData = buckets.some((b) => b.pixelsWasted !== null)
 
   return (
     <div className="space-y-5">

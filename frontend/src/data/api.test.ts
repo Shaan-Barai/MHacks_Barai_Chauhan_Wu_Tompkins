@@ -33,7 +33,7 @@ describe('getDailyWaste', () => {
 
   it('has no data for future days', async () => {
     const points = await getDailyWaste(addDays(today, 1), addDays(today, 3))
-    expect(points.every((p) => p.wasteUnits === null)).toBe(true)
+    expect(points.every((p) => p.pixelsWasted === null)).toBe(true)
   })
 })
 
@@ -49,11 +49,11 @@ describe('getMealDetail', () => {
 
   it('items are sorted by waste, shares sum to ~100%, swipes labeled simulated', async () => {
     const d = await someDayWithData()
-    const shares = d.items.map((i) => i.shareOfMealWastePercent)
-    expect([...d.items].sort((a, b) => b.wasteUnits - a.wasteUnits)).toEqual(d.items)
+    const shares = d.items.map((i) => i.shareOfMealPixelsPercent)
+    expect([...d.items].sort((a, b) => b.pixelsWasted - a.pixelsWasted)).toEqual(d.items)
     expect(shares.reduce((s, v) => s + v, 0)).toBeCloseTo(100, 5)
     expect(d.mealSwipes.source).toBe('simulated')
-    expect(d.totalWasteUnits).toBe(d.items.reduce((s, i) => s + i.wasteUnits, 0))
+    expect(d.pixelsWasted).toBe(d.items.reduce((s, i) => s + i.pixelsWasted, 0))
     expect(d.tip?.recommendation.length).toBeGreaterThan(0)
   })
 
@@ -91,8 +91,8 @@ describe('getSummaryCards', () => {
     expect(cards.thisMonth.start).toBe(today.slice(0, 8) + '01')
     expect(cards.thisWeek.end).toBe(today)
     // previous window exists in 400 days of mock history
-    expect(cards.thisWeek.previousWasteUnits).not.toBeNull()
-    expect(cards.thisMonth.wasteUnits).toBeGreaterThan(0)
+    expect(cards.thisWeek.previousPixelsWasted).not.toBeNull()
+    expect(cards.thisMonth.pixelsWasted).toBeGreaterThan(0)
     expect(cards.thisMonth.averagePlateWastePercent).toBeGreaterThanOrEqual(0)
     expect(cards.thisMonth.averagePlateWastePercent).toBeLessThanOrEqual(100)
   })

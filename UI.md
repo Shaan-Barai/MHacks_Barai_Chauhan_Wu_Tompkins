@@ -36,12 +36,12 @@ and dashboard migration remain separate implementation work.
 - Settings
 
 ### DASHBOARD
-- Three summary cards: Today, This week, This month. Each shows waste units, the average percent of a serving left per plate (clean plates count as 0%, a food left above a full serving counts as 100%), how many plates that averages, and the change from the same days before.
+- Three summary cards: Today, This week, This month. Each shows Pixels wasted, the average percent of a serving left per plate (clean plates count as 0%, a food left above a full serving counts as 100%), how many plates that averages, and the change from the same days before.
 - One chart, one bar per day. Lookback buttons only: Today, Last 7 days, Last 30 days, Last 90 days. No weekly/monthly grouping and no custom date range.
 
 ### SCHEDULE
 - Month calendar; special events from Settings show on their dates.
-- Clicking a day shows that day's meal times and events, then Breakfast | Lunch | Dinner tabs. Each tab: a finding headline (most wasted food), waste units, plates scanned, foods not counted, meal swipes (simulated), the foods left on plates with their share of the meal's waste, and a suggestion labeled "written by AI" or "basic rule, AI unavailable".
+- Clicking a day shows that day's meal times and events, then Breakfast | Lunch | Dinner tabs. Each tab: a finding headline (most wasted food), Pixels wasted, plates scanned, clean plates, plates not counted, food not on the menu (unclassified pixels), meal swipes (simulated), the foods left on plates with their share of the meal's wasted pixels, and a suggestion labeled "written by AI" or "basic rule, AI unavailable".
 
 ### BEHIND THE SCENES
 - Pick a date and meal. Every scanned plate photo with the AI's labels: food, units left, percent of a serving, and notes (AI estimate, more than a full serving, not on the menu). Clean plates say so. Photo links are temporary and renewed when they expire.

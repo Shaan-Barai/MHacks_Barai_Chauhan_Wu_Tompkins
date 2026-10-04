@@ -1,0 +1,668 @@
+[
+  {
+    "file": "IMG_2695.jpeg",
+    "width": 1200,
+    "height": 1600,
+    "status": "succeeded",
+    "countStatus": "complete",
+    "flags": [
+      "ai_estimate",
+      "overlapping_masks"
+    ],
+    "capturePixels": 335554,
+    "pixelsOutsideDish": 0,
+    "plate": {
+      "dishType": "plate",
+      "fullyVisible": false,
+      "diameterPx": 1207,
+      "cm2PerPx": 0.0004893369182392958
+    },
+    "items": [
+      {
+        "food": "Sticky Rice",
+        "station": "Halal",
+        "pixels": 161561,
+        "flags": [],
+        "impact": {
+          "cm2": 79.05776184765888,
+          "grams": 126.49241895625421,
+          "kgCo2e": 0.2251565057421325,
+          "waterM3": 0.11371668464167253,
+          "nutrientDays": 0.020238787033000673,
+          "usd": 0.4047757406600135,
+          "usdCarbon": 0.04300742244512643,
+          "usdWater": 0.1707647655909432,
+          "usdNutrition": 0.1922684768135064
+        }
+      },
+      {
+        "food": "unknown (unclassified)",
+        "station": "",
+        "pixels": 143962,
+        "flags": [],
+        "cm2": 70.44592142356551,
+        "impact": null
+      },
+      {
+        "food": "Vegetable Stir Fry Blend",
+        "station": "Halal",
+        "pixels": 30031,
+        "flags": [],
+        "impact": {
+          "cm2": 14.695276991644294,
+          "grams": 11.756221593315436,
+          "kgCo2e": 0.007171295171922416,
+          "waterM3": 0.0010463037218050738,
+          "nutrientDays": 0.011991346025181744,
+          "usd": 0.11532853383042443,
+          "usdCarbon": 0.0014107465911978522,
+          "usdWater": 0.0015283088071310067,
+          "usdNutrition": 0.11238947843209557
+        }
+      }
+    ],
+    "totalUsd": 0.520104274490438,
+    "totalGrams": 138.24864054956964,
+    "totalKgCo2e": 0.23232780091405492,
+    "seconds": 23.850541292000003
+  },
+  {
+    "file": "IMG_2696.jpeg",
+    "width": 1200,
+    "height": 1600,
+    "status": "needs_review",
+    "countStatus": "complete",
+    "flags": [
+      "ai_estimate",
+      "ambiguous_items"
+    ],
+    "capturePixels": 329059,
+    "pixelsOutsideDish": 0,
+    "plate": {
+      "dishType": "plate",
+      "fullyVisible": true,
+      "diameterPx": 1084,
+      "cm2PerPx": 0.0006066859792214158
+    },
+    "items": [
+      {
+        "food": "Cheese Pizza",
+        "station": "Pizziti",
+        "pixels": 329059,
+        "flags": [],
+        "impact": {
+          "cm2": 199.63548163661986,
+          "grams": 199.63548163661986,
+          "kgCo2e": 1.5272114345201422,
+          "waterM3": 0.3872928343750425,
+          "nutrientDays": 0.1377484823292677,
+          "usd": 2.170037685390058,
+          "usdCarbon": 0.2894714483730988,
+          "usdWater": 0.5809392515625639,
+          "usdNutrition": 1.2996269854543954
+        }
+      }
+    ],
+    "totalUsd": 2.170037685390058,
+    "totalGrams": 199.63548163661986,
+    "totalKgCo2e": 1.5272114345201422,
+    "seconds": 22.046220291999997
+  },
+  {
+    "file": "IMG_2697.jpeg",
+    "width": 1200,
+    "height": 1600,
+    "status": "succeeded",
+    "countStatus": "complete",
+    "flags": [
+      "ai_estimate"
+    ],
+    "capturePixels": 259165,
+    "pixelsOutsideDish": 49441,
+    "plate": {
+      "dishType": "plate",
+      "fullyVisible": false,
+      "diameterPx": 1139,
+      "cm2PerPx": 0.000549509335006525
+    },
+    "items": [
+      {
+        "food": "Baked Sweet Potatoes",
+        "station": "Signature Maize",
+        "pixels": 113812,
+        "flags": [],
+        "impact": {
+          "cm2": 62.540756435762624,
+          "grams": 125.08151287152525,
+          "kgCo2e": 0.05378505053475586,
+          "waterM3": 0.003502282360402707,
+          "nutrientDays": 0.22514672316874546,
+          "usd": 2.1238840885584986,
+          "usdCarbon": 0.010006521029722019,
+          "usdWater": 0.0050032605148610096,
+          "usdNutrition": 2.1088743070139158
+        }
+      },
+      {
+        "food": "Roasted Cauliflower",
+        "station": "Signature Maize",
+        "pixels": 110329,
+        "flags": [],
+        "impact": {
+          "cm2": 60.6268154219349,
+          "grams": 60.6268154219349,
+          "kgCo2e": 0.04547011156645117,
+          "waterM3": 0.012792258054028264,
+          "nutrientDays": 0.04789518418332857,
+          "usd": 0.477739305524847,
+          "usdCarbon": 0.008487754159070887,
+          "usdWater": 0.019400580935019167,
+          "usdNutrition": 0.44985097043075695
+        }
+      },
+      {
+        "food": "Baked Boneless Ham",
+        "station": "Signature Maize",
+        "pixels": 35024,
+        "flags": [],
+        "impact": {
+          "cm2": 19.24601494926853,
+          "grams": 17.321413454341677,
+          "kgCo2e": 0.25982120181512514,
+          "waterM3": 0.03793389546500827,
+          "nutrientDays": 0.008141064323540587,
+          "usd": 0.18256769780876125,
+          "usdCarbon": 0.04936602834487378,
+          "usdWater": 0.0568142361302407,
+          "usdNutrition": 0.07621421919910339
+        }
+      }
+    ],
+    "totalUsd": 2.7841910918921067,
+    "totalGrams": 203.0297417478018,
+    "totalKgCo2e": 0.35907636391633213,
+    "seconds": 10.450094959000001
+  },
+  {
+    "file": "IMG_2698.jpeg",
+    "width": 1200,
+    "height": 1600,
+    "status": "succeeded",
+    "countStatus": "complete",
+    "flags": [
+      "ai_estimate"
+    ],
+    "capturePixels": 316538,
+    "pixelsOutsideDish": 25,
+    "plate": {
+      "dishType": "plate",
+      "fullyVisible": false,
+      "diameterPx": 1339,
+      "cm2PerPx": 0.00039761372642743313
+    },
+    "items": [
+      {
+        "food": "Vegetable Stir Fry Blend",
+        "station": "Halal",
+        "pixels": 303039,
+        "flags": [],
+        "impact": {
+          "cm2": 120.4924660428429,
+          "grams": 96.39397283427434,
+          "kgCo2e": 0.05880032342890734,
+          "waterM3": 0.008579063582250416,
+          "nutrientDays": 0.09832185229095983,
+          "usd": 0.9456248735042313,
+          "usdCarbon": 0.01156727674011292,
+          "usdWater": 0.012531216468455664,
+          "usdNutrition": 0.9215263802956627
+        }
+      },
+      {
+        "food": "Sticky Rice",
+        "station": "Halal",
+        "pixels": 13499,
+        "flags": [],
+        "impact": {
+          "cm2": 5.36738769304392,
+          "grams": 8.587820308870272,
+          "kgCo2e": 0.015286320149789085,
+          "waterM3": 0.007720450457674375,
+          "nutrientDays": 0.0013740512494192436,
+          "usd": 0.027481024988384874,
+          "usdCarbon": 0.002919858905015893,
+          "usdWater": 0.011593557416974869,
+          "usdNutrition": 0.013053486869482815
+        }
+      }
+    ],
+    "totalUsd": 0.9731058984926162,
+    "totalGrams": 104.98179314314461,
+    "totalKgCo2e": 0.07408664357869643,
+    "seconds": 10.053204708999997
+  },
+  {
+    "file": "IMG_2699.jpeg",
+    "width": 1600,
+    "height": 1200,
+    "status": "succeeded",
+    "countStatus": "complete",
+    "flags": [
+      "ai_estimate",
+      "overlapping_masks"
+    ],
+    "capturePixels": 193078,
+    "pixelsOutsideDish": 619,
+    "plate": {
+      "dishType": "plate",
+      "fullyVisible": false,
+      "diameterPx": 1197,
+      "cm2PerPx": 0.000497547125960264
+    },
+    "items": [
+      {
+        "food": "Vegetable Stir Fry Blend",
+        "station": "Halal",
+        "pixels": 136798,
+        "flags": [],
+        "impact": {
+          "cm2": 68.0634517371122,
+          "grams": 54.45076138968977,
+          "kgCo2e": 0.03321496444771076,
+          "waterM3": 0.004846117763682389,
+          "nutrientDays": 0.05553977661748356,
+          "usd": 0.5341619692328566,
+          "usdCarbon": 0.006534091366762772,
+          "usdWater": 0.00707859898065967,
+          "usdNutrition": 0.5205492788854342
+        }
+      },
+      {
+        "food": "Sticky Rice",
+        "station": "Halal",
+        "pixels": 43919,
+        "flags": [],
+        "impact": {
+          "cm2": 21.851772225048837,
+          "grams": 34.96283556007814,
+          "kgCo2e": 0.06223384729693909,
+          "waterM3": 0.03143158916851025,
+          "nutrientDays": 0.005594053689612502,
+          "usd": 0.11188107379225005,
+          "usdCarbon": 0.011887364090426568,
+          "usdWater": 0.04719982800610549,
+          "usdNutrition": 0.053143510051318774
+        }
+      },
+      {
+        "food": "unknown (unclassified)",
+        "station": "",
+        "pixels": 12361,
+        "flags": [],
+        "cm2": 6.150180023994824,
+        "impact": null
+      }
+    ],
+    "totalUsd": 0.6460430430251067,
+    "totalGrams": 89.4135969497679,
+    "totalKgCo2e": 0.09544881174464985,
+    "seconds": 11.971853958000008
+  },
+  {
+    "file": "IMG_2700.jpeg",
+    "width": 1600,
+    "height": 1200,
+    "status": "succeeded",
+    "countStatus": "complete",
+    "flags": [
+      "ai_estimate"
+    ],
+    "capturePixels": 174697,
+    "pixelsOutsideDish": 3225,
+    "plate": {
+      "dishType": "bowl",
+      "fullyVisible": true,
+      "diameterPx": 1028,
+      "cm2PerPx": 0.0006745843994610061
+    },
+    "items": [
+      {
+        "food": "Panzanella Salad",
+        "station": "24 Carrots",
+        "pixels": 174697,
+        "flags": [],
+        "impact": {
+          "cm2": 117.84787083263939,
+          "grams": 106.06308374937545,
+          "kgCo2e": 0.1845497657239133,
+          "waterM3": 0.05695587597341462,
+          "nutrientDays": 0.05939532689965026,
+          "usd": 0.678803735996003,
+          "usdCarbon": 0.0350008176372939,
+          "usdWater": 0.08591109783699412,
+          "usdNutrition": 0.5589524513592086
+        }
+      }
+    ],
+    "totalUsd": 0.678803735996003,
+    "totalGrams": 106.06308374937545,
+    "totalKgCo2e": 0.1845497657239133,
+    "seconds": 9.496643792000002
+  },
+  {
+    "file": "IMG_2701.jpeg",
+    "width": 1200,
+    "height": 1600,
+    "status": "needs_review",
+    "countStatus": "complete",
+    "flags": [
+      "ai_estimate",
+      "ambiguous_items"
+    ],
+    "capturePixels": 23811,
+    "pixelsOutsideDish": 0,
+    "plate": {
+      "dishType": "plate",
+      "fullyVisible": true,
+      "diameterPx": 988,
+      "cm2PerPx": 0.0007303123309675622
+    },
+    "items": [
+      {
+        "food": "Michigan Farmers 4 Bean Stew",
+        "station": "24 Carrots",
+        "pixels": 23811,
+        "flags": [],
+        "impact": {
+          "cm2": 17.389466912668624,
+          "grams": 26.084200369002936,
+          "kgCo2e": 0.027388410387453082,
+          "waterM3": 0.005816776682287654,
+          "nutrientDays": 0.017476414247231967,
+          "usd": 0.17763340451290996,
+          "usdCarbon": 0.0052168400738005875,
+          "usdWater": 0.008868628125460997,
+          "usdNutrition": 0.1635479363136484
+        }
+      }
+    ],
+    "totalUsd": 0.17763340451290996,
+    "totalGrams": 26.084200369002936,
+    "totalKgCo2e": 0.027388410387453082,
+    "seconds": 11.49928291699999
+  },
+  {
+    "file": "IMG_2702.jpeg",
+    "width": 1200,
+    "height": 1600,
+    "status": "needs_review",
+    "countStatus": "complete",
+    "flags": [
+      "ai_estimate",
+      "ambiguous_items"
+    ],
+    "capturePixels": 113769,
+    "pixelsOutsideDish": 0,
+    "plate": {
+      "dishType": "plate",
+      "fullyVisible": false,
+      "diameterPx": 952,
+      "cm2PerPx": 0.0007865903714426947
+    },
+    "items": [
+      {
+        "food": "Pepperoni Pizza",
+        "station": "Pizziti",
+        "pixels": 113769,
+        "flags": [],
+        "impact": {
+          "cm2": 89.48959996866394,
+          "grams": 89.48959996866394,
+          "kgCo2e": 0.9360612156722249,
+          "waterM3": 0.17754736633782928,
+          "nutrientDays": 0.059958031979004844,
+          "usd": 1.0094426876465292,
+          "usdCarbon": 0.17808430393764124,
+          "usdWater": 0.2666790079066185,
+          "usdNutrition": 0.5646793758022695
+        }
+      }
+    ],
+    "totalUsd": 1.0094426876465292,
+    "totalGrams": 89.48959996866394,
+    "totalKgCo2e": 0.9360612156722249,
+    "seconds": 11.838223000000013
+  },
+  {
+    "file": "IMG_2703.jpeg",
+    "width": 1200,
+    "height": 1600,
+    "status": "succeeded",
+    "countStatus": "complete",
+    "flags": [
+      "ai_estimate"
+    ],
+    "capturePixels": 38536,
+    "pixelsOutsideDish": 0,
+    "plate": {
+      "dishType": "plate",
+      "fullyVisible": true,
+      "diameterPx": 736,
+      "cm2PerPx": 0.0013160333471172023
+    },
+    "items": [
+      {
+        "food": "Vegetable Stir Fry Blend",
+        "station": "Halal",
+        "pixels": 38536,
+        "flags": [],
+        "impact": {
+          "cm2": 50.714661064508505,
+          "grams": 40.57172885160681,
+          "kgCo2e": 0.02474875459948015,
+          "waterM3": 0.0036108838677930055,
+          "nutrientDays": 0.041383163428638944,
+          "usd": 0.3980086600342628,
+          "usdCarbon": 0.004868607462192817,
+          "usdWater": 0.005274324750708885,
+          "usdNutrition": 0.3878657278213611
+        }
+      }
+    ],
+    "totalUsd": 0.3980086600342628,
+    "totalGrams": 40.57172885160681,
+    "totalKgCo2e": 0.02474875459948015,
+    "seconds": 9.613309166000006
+  },
+  {
+    "file": "IMG_2704.jpeg",
+    "width": 1200,
+    "height": 1600,
+    "status": "needs_review",
+    "countStatus": "complete",
+    "flags": [
+      "ai_estimate",
+      "ambiguous_items"
+    ],
+    "capturePixels": 121546,
+    "pixelsOutsideDish": 0,
+    "plate": {
+      "dishType": "plate",
+      "fullyVisible": true,
+      "diameterPx": 1072,
+      "cm2PerPx": 0.0006203445227222099
+    },
+    "items": [
+      {
+        "food": "Cheese Pizza",
+        "station": "Pizziti",
+        "pixels": 121546,
+        "flags": [],
+        "impact": {
+          "cm2": 75.40039535879373,
+          "grams": 75.40039535879373,
+          "kgCo2e": 0.576813024494772,
+          "waterM3": 0.14627676699605982,
+          "nutrientDays": 0.05202627279756767,
+          "usd": 0.8196022975500877,
+          "usdCarbon": 0.1093305732702509,
+          "usdWater": 0.21941515049408974,
+          "usdNutrition": 0.49085657378574715
+        }
+      }
+    ],
+    "totalUsd": 0.8196022975500877,
+    "totalGrams": 75.40039535879373,
+    "totalKgCo2e": 0.576813024494772,
+    "seconds": 6.737496083000005
+  },
+  {
+    "file": "IMG_2705.jpeg",
+    "width": 1200,
+    "height": 1600,
+    "status": "succeeded",
+    "countStatus": "complete",
+    "flags": [
+      "ai_estimate"
+    ],
+    "capturePixels": 266270,
+    "pixelsOutsideDish": 0,
+    "plate": {
+      "dishType": "bowl",
+      "fullyVisible": true,
+      "diameterPx": 992,
+      "cm2PerPx": 0.0007244345896201871
+    },
+    "items": [
+      {
+        "food": "unknown (pasta with tomato sauce)",
+        "station": "",
+        "pixels": 266270,
+        "flags": [],
+        "cm2": 192.89519817816722,
+        "impact": null
+      }
+    ],
+    "totalUsd": 0,
+    "totalGrams": 0,
+    "totalKgCo2e": 0,
+    "seconds": 8.511376916999987
+  },
+  {
+    "file": "IMG_2706.jpeg",
+    "width": 1200,
+    "height": 1600,
+    "status": "needs_review",
+    "countStatus": "complete",
+    "flags": [
+      "ai_estimate",
+      "ambiguous_items"
+    ],
+    "capturePixels": 143173,
+    "pixelsOutsideDish": 13556,
+    "plate": {
+      "dishType": "plate",
+      "fullyVisible": true,
+      "diameterPx": 959,
+      "cm2PerPx": 0.0007751492093454143
+    },
+    "items": [
+      {
+        "food": "Chocolate Coconut Cream Pie",
+        "station": "MBakery",
+        "pixels": 126568,
+        "flags": [],
+        "impact": {
+          "cm2": 98.1090851284304,
+          "grams": 235.46180430823293,
+          "kgCo2e": 1.8507297818627109,
+          "waterM3": 0.2632462972166045,
+          "nutrientDays": 0.09653933976637549,
+          "usd": 1.6482326301576307,
+          "usdCarbon": 0.35083808841926706,
+          "usdWater": 0.3955758312378313,
+          "usdNutrition": 0.9018187105005322
+        }
+      },
+      {
+        "food": "unknown (melon slice; pizza crust edge)",
+        "station": "",
+        "pixels": 16605,
+        "flags": [],
+        "cm2": 12.871352621180604,
+        "impact": null
+      }
+    ],
+    "totalUsd": 1.6482326301576307,
+    "totalGrams": 235.46180430823293,
+    "totalKgCo2e": 1.8507297818627109,
+    "seconds": 17.34114516700001
+  },
+  {
+    "file": "IMG_2707.jpeg",
+    "width": 1200,
+    "height": 1600,
+    "status": "succeeded",
+    "countStatus": "complete",
+    "flags": [
+      "ai_estimate",
+      "overlapping_masks"
+    ],
+    "capturePixels": 83715,
+    "pixelsOutsideDish": 0,
+    "plate": {
+      "dishType": "bowl",
+      "fullyVisible": true,
+      "diameterPx": 708,
+      "cm2PerPx": 0.001422184717035335
+    },
+    "items": [
+      {
+        "food": "Roasted Cauliflower",
+        "station": "Signature Maize",
+        "pixels": 47886,
+        "flags": [],
+        "impact": {
+          "cm2": 68.10273735995405,
+          "grams": 68.10273735995405,
+          "kgCo2e": 0.05107705301996554,
+          "waterM3": 0.014369677582950303,
+          "nutrientDays": 0.053801162514363704,
+          "usd": 0.5366495703964379,
+          "usdCarbon": 0.009534383230393568,
+          "usdWater": 0.021792875955185295,
+          "usdNutrition": 0.505322311210859
+        }
+      },
+      {
+        "food": "Baked Sweet Potatoes",
+        "station": "Signature Maize",
+        "pixels": 33360,
+        "flags": [],
+        "impact": {
+          "cm2": 47.44408216029877,
+          "grams": 94.88816432059754,
+          "kgCo2e": 0.040801910657856946,
+          "waterM3": 0.0026568686009767312,
+          "nutrientDays": 0.1707986957770756,
+          "usd": 1.6112010301637463,
+          "usdCarbon": 0.007591053145647804,
+          "usdWater": 0.003795526572823902,
+          "usdNutrition": 1.5998144504452745
+        }
+      },
+      {
+        "food": "unknown (unclassified)",
+        "station": "",
+        "pixels": 2469,
+        "flags": [],
+        "cm2": 3.5113740663602417,
+        "impact": null
+      }
+    ],
+    "totalUsd": 2.1478506005601843,
+    "totalGrams": 162.9909016805516,
+    "totalKgCo2e": 0.09187896367782249,
+    "seconds": 9.725628625000011
+  }
+]

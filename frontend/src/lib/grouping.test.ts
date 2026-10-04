@@ -3,10 +3,10 @@ import { dailyBuckets, niceCeil } from './grouping'
 import type { DailyWastePoint } from '../data/types'
 
 const points: DailyWastePoint[] = [
-  { date: '2026-09-28', wasteUnits: 100 }, // Monday
-  { date: '2026-09-29', wasteUnits: null },
-  { date: '2026-09-30', wasteUnits: 50 },
-  { date: '2026-10-05', wasteUnits: 70 }, // next Monday
+  { date: '2026-09-28', pixelsWasted: 100 }, // Monday
+  { date: '2026-09-29', pixelsWasted: null },
+  { date: '2026-09-30', pixelsWasted: 50 },
+  { date: '2026-10-05', pixelsWasted: 70 }, // next Monday
 ]
 
 describe('dailyBuckets', () => {
@@ -14,7 +14,7 @@ describe('dailyBuckets', () => {
     const b = dailyBuckets(points)
     expect(b).toHaveLength(4)
     expect(b.map((x) => x.key)).toEqual(points.map((p) => p.date))
-    expect(b[1].wasteUnits).toBeNull()
+    expect(b[1].pixelsWasted).toBeNull()
   })
 })
 

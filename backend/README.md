@@ -121,10 +121,11 @@ Every error returns the shared envelope `{ "error": { code, message, details?, r
 - Both return `{ results: [{ action: 'create'|'revise'|'unchanged', menu }] }`; re-uploads with changed items bump `menuVersion`.
 - `GET /api/menus/days?hallId=…&start=…&end=…` — `{ dates }` that have a menu (Menus calendar).
 
-### Dashboard read models (formulas from `@scrap/analytics`)
-- `GET /api/dashboard/daily?hallId=…&start=…&end=…` — per local date: eligible `observedRemainingAreaPx` (null = no analyzed plate), captured/analyzed dishes.
-- `GET /api/dashboard/cards?hallId=…&today=…` — today / this week (Mon start) / this month totals and the same-length previous window (null = no data).
-- `GET /api/dashboard/meal?hallId=…&date=…&meal=…` — analytics `ServiceSummary`, the persisted simulated attendance (generated once on first read), and an `Insight` (Gemini, or labeled `fallback_rules`; null when no item counted). Insights are stored per data version; a stored fallback is retried with Gemini.
+### Dashboard read models — Pixels wasted (formulas from `@scrap/analytics`)
+- `GET /api/dashboard/daily?hallId=…&start=…&end=…` — per local date: `pixelsWasted` (null = no counted plate), `capturedDishes`, `countedDishes`.
+- `GET /api/dashboard/cards?hallId=…&today=…` — today / this week (Mon start) / this month `pixelsWasted` and `previousPixelsWasted` for the same-length previous window (null = no data).
+- `GET /api/dashboard/meal?hallId=…&date=…&meal=…` — analytics `PixelServiceSummary` (total, per-item pixels and share, unclassified pixels, counted/empty/excluded plates with reasons), the persisted simulated attendance (generated once on first read), and an `Insight` citing measured pixels (Gemini, or labeled `fallback_rules`; null when no food pixels are attributed). Insights are stored per data version; a stored fallback is retried with Gemini.
+- `GET /api/dashboard/summary` — legacy baseline-percentage summary (`SummaryService`); auxiliary only.
 
 ### Suggestions
 - `GET /api/suggestions?hallId=…` — serves stored `Insight` records. Generation
@@ -170,10 +171,18 @@ Gemini calls and object-storage I/O stay in the service layer
 
 ## Analysis
 
-`GeminiAnalyzer` (`src/analysis/geminiAnalyzer.ts`) adapts `@scrap/vision`'s
-`analyzeCapture` to the `Analyzer` seam and is used when the Gemini gateway is
-live; otherwise the deterministic `MockAnalyzer` runs. Mock gateway text is
-never used for suggestions.
+`MaskAnalyzer` (`src/analysis/maskAnalyzer.ts`) runs the
+contracts/measurement.md pipeline through `@scrap/vision`
+`analyzeCaptureWithMasks`: Gemini classification + boxes → SAM 2.1 worker
+(`SAM_WORKER_URL`, `vision/sam/`) → validated masks → counted Pixels wasted.
+Ingestion stores each mask PNG through the storage adapter
+(`masks/<date>/<regionId>.png`, image association kind `mask`) and records
+the attempt, measurements, `capture_count`, and `segmentation_region` rows in
+one reducer call; it re-checks that item + unclassified pixels equal the
+capture union. If the worker is down, captures fail retryably — there is no
+fallback to Gemini-guessed areas. Without a Gemini key the deterministic
+`MockAnalyzer` runs (labeled `mock-segmenter`). Mock gateway text is never
+used for suggestions.
 
 ## Object storage: Cloudflare R2 (and `local-dev` offline)
 

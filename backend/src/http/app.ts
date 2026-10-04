@@ -468,7 +468,7 @@ export function createApp(deps: AppDeps): express.Express {
     }),
   );
 
-    // ---- suggestions (stored Insights; generation is Agent 6's) ----
+  // ---- suggestions (stored Insights; generation is Agent 6's) ----
   app.get(
     '/api/suggestions',
     wrap(async (req, res) => {

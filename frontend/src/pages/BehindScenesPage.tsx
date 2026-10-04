@@ -113,7 +113,7 @@ export function BehindScenesPage() {
                       <thead>
                         <tr className="border-b border-ink">
                           <th scope="col" className="py-1 pr-2">Food</th>
-                          <th scope="col" className="py-1 pr-2">Units left</th>
+                          <th scope="col" className="py-1 pr-2">Pixels wasted</th>
                           <th scope="col" className="py-1 pr-2">Of a serving</th>
                           <th scope="col" className="py-1">Notes</th>
                         </tr>
@@ -122,7 +122,7 @@ export function BehindScenesPage() {
                         {plate.foods.map((f, i) => (
                           <tr key={i} className="border-b border-ink align-top">
                             <th scope="row" className="py-1 pr-2 font-semibold">{f.name}</th>
-                            <td className="py-1 pr-2">{formatNumber(f.wasteUnits)}</td>
+                            <td className="py-1 pr-2">{formatNumber(f.pixelsWasted)}</td>
                             <td className="py-1 pr-2">{f.percentOfServing === null ? 'Not known' : formatPercent(f.percentOfServing)}</td>
                             <td className="py-1">{note(f)}</td>
                           </tr>

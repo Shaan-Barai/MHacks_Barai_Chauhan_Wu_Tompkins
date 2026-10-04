@@ -124,6 +124,26 @@ describe('demo flow e2e (live stack)', { skip: !LIVE_E2E }, () => {
       assert.ok(m.itemId === null || menu.items.some((i) => i.itemId === m.itemId), 'no invented menu items');
     }
 
+    // Pixels wasted (contracts/measurement.md): classification -> masks -> counted pixels.
+    const seg = first.body.attempt.segmentation;
+    assert.ok(seg, 'the attempt carries a segmentation result');
+    assert.ok(['complete', 'empty', 'partial', 'unavailable'].includes(seg.countStatus));
+    if (seg.countStatus === 'complete') {
+      const sum = first.body.measurements.reduce((total, m) => total + m.remainingAreaPx, 0);
+      assert.equal(seg.capturePixelsWasted, sum, 'capture union = item + unclassified pixels');
+      for (const m of first.body.measurements) {
+        assert.equal(m.method, 'mask_pixel_count');
+        assert.ok(Number.isInteger(m.remainingAreaPx) && m.remainingAreaPx > 0);
+      }
+      for (const region of seg.regions.filter((r) => r.segmentationStatus === 'succeeded')) {
+        const mask = await api('GET', `/api/images/${region.maskObjectId}/access`);
+        assert.equal(mask.status, 200, 'each mask is a finalized object in external storage');
+        const png = Buffer.from(await (await fetch(new URL(mask.body.url, `${API}/`))).arrayBuffer());
+        assert.equal(png.readUInt32BE(16), seg.widthPx, 'mask width matches the analyzed image');
+        assert.equal(png.readUInt32BE(20), seg.heightPx, 'mask height matches the analyzed image');
+      }
+    }
+
     // Repeated ingestion must not duplicate the dish.
     const second = await api('POST', '/api/captures', capture);
     if (first.body.event.state === 'succeeded') assert.equal(second.body.deduplicated, true);

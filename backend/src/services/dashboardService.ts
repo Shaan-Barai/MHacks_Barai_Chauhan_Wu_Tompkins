@@ -1,25 +1,28 @@
 /**
  * Dashboard read models for Agent 7's UI (UI.md): daily series, the three
- * summary cards, and per-meal detail with a grounded suggestion.
+ * summary cards, and per-meal detail with a grounded suggestion — all in
+ * **Pixels wasted** (contracts/measurement.md): integer counts of foreground
+ * pixels in validated leftover-food masks, one union per capture.
  *
  * All formulas come from Agent 6's analytics package (AGENTS.md 5.6): this
- * service only gathers the counted observations, makes sure each service has
- * one persisted simulated attendance value, and stores generated insights.
- * Values stay in pixels ("observed estimated leftover area"); the UI decides
- * how to scale them into friendly "waste units".
+ * service only gathers each capture's counted attempt and measurements, makes
+ * sure each service has one persisted simulated attendance value, and stores
+ * generated insights. The auxiliary per-plate waste percent (analytics
+ * plateWaste) and the "Behind the scenes" plate list ride alongside; they
+ * never gate Pixels wasted.
  */
 
 import {
   generateAttendance,
-  summarizeService,
-  type ServiceSummary,
+  summarizePixels,
+  type PixelServiceSummary,
   type TextGateway,
   summarizePortionBenchmarks,
   portionDataVersion,
   generatePortionInsight,
   type PortionBenchmark,
-  generateInsight,
-  computeDataVersion,
+  generatePixelInsight,
+  computePixelDataVersion,
   plateWastePercent,
   averagePlateWaste,
   readableItemName,
@@ -28,16 +31,16 @@ import { notFound } from '../errors.js';
 import type { BackendConfig } from '../config.js';
 import type { Repository } from '../repo/repository.js';
 import type { IngestionService } from './ingestionService.js';
-import type { Attendance, CaptureEvent, FoodMeasurement, Insight, MealLabel, MenuBundle } from '../types.js';
+import type { AnalysisAttempt, Attendance, CaptureEvent, FoodMeasurement, Insight, MealLabel, MenuBundle } from '../types.js';
 
 const MEALS: MealLabel[] = ['breakfast', 'lunch', 'dinner'];
 
 export interface DailyPoint {
   date: string;
-  /** Eligible observed leftover area that day; null = no analyzed plates. */
-  observedRemainingAreaPx: number | null;
+  /** Pixels wasted that day; null = no counted plates. */
+  pixelsWasted: number | null;
   capturedDishes: number;
-  analyzedDishes: number;
+  countedDishes: number;
   /** One entry per scanned plate: its waste percent, or null when unavailable. */
   plateWastePercents: (number | null)[];
 }
@@ -45,9 +48,9 @@ export interface DailyPoint {
 export interface PeriodTotal {
   start: string;
   end: string;
-  observedRemainingAreaPx: number;
+  pixelsWasted: number;
   /** Same-length window immediately before; null when it has no data. */
-  previousObservedRemainingAreaPx: number | null;
+  previousPixelsWasted: number | null;
   /** Mean per-plate waste percent (clean plates 0%); null without plates. */
   averagePlateWastePercent: number | null;
   platesCounted: number;
@@ -74,13 +77,17 @@ export interface PlateRecord {
   }[];
 }
 
+
 export interface MealDetailResponse {
   serviceId: string;
   date: string;
   meal: MealLabel;
-  summary: ServiceSummary;
+  summary: PixelServiceSummary;
   attendance: Attendance;
-  /** Null when no counted item exists yet (nothing to ground a tip in). */
+  /**
+   * Grounded in the Pixels-wasted-per-portion benchmark (AGENTS.md 7) when a
+   * rate exists; otherwise in the meal's measured Pixels wasted.
+   */
   insight: Insight | null;
   portionBenchmark: PortionBenchmark;
 }
@@ -128,27 +135,50 @@ export class DashboardService {
   }
 
   /** Captures plus only the counted (latest succeeded) attempt per dish, never double-counted. */
-  private async observations(menu: MenuBundle): Promise<{ captures: CaptureEvent[]; measurements: FoodMeasurement[] }> {
+  private async observations(menu: MenuBundle): Promise<{
+    captures: CaptureEvent[];
+    countedAttempts: Map<string, AnalysisAttempt>;
+    latestAttempts: Map<string, AnalysisAttempt>;
+    measurements: FoodMeasurement[];
+  }> {
     const captures = await this.repo.listCaptureEvents({
       hallId: menu.service.hallId,
       serviceId: menu.service.serviceId,
     });
+    const countedAttempts = new Map<string, AnalysisAttempt>();
+    const latestAttempts = new Map<string, AnalysisAttempt>();
     const measurements: FoodMeasurement[] = [];
     for (const event of captures) {
-      if (event.state === 'succeeded') measurements.push(...(await this.ingestion.countedMeasurements(event)));
+      const attempts = await this.repo.listAnalysisAttempts(event.eventId);
+      const latest = attempts.at(-1);
+      if (latest) latestAttempts.set(event.eventId, latest);
+      if (event.state !== 'succeeded') continue;
+      const counted = await this.ingestion.countedAttempt(event.eventId);
+      if (!counted) continue;
+      countedAttempts.set(event.eventId, counted);
+      measurements.push(...(await this.repo.listMeasurementsByAttempt(counted.attemptId)));
     }
-    return { captures, measurements };
+    return { captures, countedAttempts, latestAttempts, measurements };
   }
 
-  async serviceSummary(menu: MenuBundle, attendance?: Attendance | null): Promise<ServiceSummary> {
-    const { captures, measurements } = await this.observations(menu);
-    return summarizeService({
+  private summarize(
+    menu: MenuBundle,
+    obs: Awaited<ReturnType<DashboardService['observations']>>,
+    attendance: Attendance | null,
+  ): PixelServiceSummary {
+    return summarizePixels({
       service: menu.service,
-      captures,
-      measurements,
-      attendance: attendance ?? null,
+      captures: obs.captures,
+      countedAttempts: obs.countedAttempts,
+      latestAttempts: obs.latestAttempts,
+      measurements: obs.measurements,
+      attendance,
       menuItems: menu.items,
     });
+  }
+
+  async serviceSummary(menu: MenuBundle, attendance?: Attendance | null): Promise<PixelServiceSummary> {
+    return this.summarize(menu, await this.observations(menu), attendance ?? null);
   }
 
   async daily(hallId: string, start: string, end: string): Promise<DailyPoint[]> {
@@ -159,26 +189,25 @@ export class DashboardService {
     for (const service of services) {
       const menu = await this.repo.getMenuByService(service.serviceId);
       if (!menu) continue;
-      const { captures, measurements } = await this.observations(menu);
-      const summary = summarizeService({ service: menu.service, captures, measurements, attendance: null, menuItems: menu.items });
+      const obs = await this.observations(menu);
+      const summary = this.summarize(menu, obs, null);
       const point = byDate.get(service.serviceDate) ?? {
         date: service.serviceDate,
-        observedRemainingAreaPx: null,
+        pixelsWasted: null,
         capturedDishes: 0,
-        analyzedDishes: 0,
+        countedDishes: 0,
         plateWastePercents: [],
       };
-      for (const capture of captures) point.plateWastePercents.push(plateWastePercent(capture, measurements));
+      for (const capture of obs.captures) point.plateWastePercents.push(plateWastePercent(capture, obs.measurements));
       point.capturedDishes += summary.captureCount;
-      point.analyzedDishes += summary.succeededCaptureCount;
-      if (summary.succeededCaptureCount > 0) {
-        point.observedRemainingAreaPx = (point.observedRemainingAreaPx ?? 0) + summary.observedRemainingAreaPx;
+      point.countedDishes += summary.countedCaptureCount;
+      if (summary.countedCaptureCount > 0) {
+        point.pixelsWasted = (point.pixelsWasted ?? 0) + summary.pixelsWasted;
       }
       byDate.set(service.serviceDate, point);
     }
     return eachDay(start, end).map(
-      (date) =>
-        byDate.get(date) ?? { date, observedRemainingAreaPx: null, capturedDishes: 0, analyzedDishes: 0, plateWastePercents: [] },
+      (date) => byDate.get(date) ?? { date, pixelsWasted: null, capturedDishes: 0, countedDishes: 0, plateWastePercents: [] },
     );
   }
 
@@ -200,7 +229,7 @@ export class DashboardService {
     const sum = (start: string, end: string): number | null => {
       let total: number | null = null;
       for (const d of eachDay(start, end)) {
-        const v = points.get(d)?.observedRemainingAreaPx ?? null;
+        const v = points.get(d)?.pixelsWasted ?? null;
         if (v !== null) total = (total ?? 0) + v;
       }
       return total;
@@ -212,8 +241,8 @@ export class DashboardService {
       return {
         start,
         end: today,
-        observedRemainingAreaPx: sum(start, today) ?? 0,
-        previousObservedRemainingAreaPx: sum(addDays(prevEnd, -(days - 1)), prevEnd),
+        pixelsWasted: sum(start, today) ?? 0,
+        previousPixelsWasted: sum(addDays(prevEnd, -(days - 1)), prevEnd),
         ...plates,
       };
     };
@@ -239,11 +268,11 @@ export class DashboardService {
     const attendance = await this.ensureAttendance(menu);
     const summary = await this.serviceSummary(menu, attendance);
     const portionBenchmark = await this.portionBenchmark(menu);
-    // Per-portion rates rank suggestions when they exist; until validated mask
-    // counts do, suggest from the meal's observed waste share instead.
+    // Per-portion rates rank suggestions when they exist (AGENTS.md 7); without
+    // one, suggest from the meal's measured Pixels wasted so each meal gets a tip.
     const insight = portionBenchmark.items.some((i) => i.pixelsWastedPerPortion !== null)
       ? await this.portionInsightFor(portionBenchmark)
-      : await this.summaryInsightFor(menu, summary);
+      : await this.pixelInsightFor(menu, summary);
     return { serviceId: menu.service.serviceId, date, meal, summary, attendance, insight, portionBenchmark };
   }
 
@@ -280,9 +309,9 @@ export class DashboardService {
     return { serviceId: menu.service.serviceId, plates };
   }
 
-  /** Waste-share suggestion, stored and reused for identical data like the portion insight. */
-  private async summaryInsightFor(menu: MenuBundle, summary: ServiceSummary): Promise<Insight> {
-    const dataVersion = `summary-plain-v1|${computeDataVersion(summary)}`;
+  /** Pixels-wasted suggestion, stored and reused for identical data like the portion insight. */
+  private async pixelInsightFor(menu: MenuBundle, summary: PixelServiceSummary): Promise<Insight> {
+    const dataVersion = `pixel-summary-v1|${computePixelDataVersion(summary)}`;
     const stored = (await this.repo.listInsights(menu.service.hallId)).find(
       (i) => i.dataVersion === dataVersion && (i.source === 'gemini' || this.gateway === undefined),
     );
@@ -290,7 +319,7 @@ export class DashboardService {
     const captures = await this.repo.listCaptureEvents({ hallId: menu.service.hallId, serviceId: menu.service.serviceId });
     const times = captures.map((c) => c.capturedAt).filter((t) => Number.isFinite(Date.parse(t))).sort();
     const now = new Date().toISOString();
-    const insight = await generateInsight(
+    const insight = await generatePixelInsight(
       {
         hallId: menu.service.hallId,
         windowStart: times[0] ?? now,

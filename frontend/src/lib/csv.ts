@@ -10,8 +10,8 @@ function escapeCell(value: string | number): string {
 }
 
 /**
- * One row per item per meal per day. Waste units are AI-estimated leftover
- * food area; meal swipes are simulated, both labeled in the header.
+ * One row per item per meal per day. Pixels wasted are counted inside AI-drawn
+ * leftover-food outlines; meal swipes are simulated, both labeled in the header.
  */
 export async function buildWasteCsv(days = 30): Promise<string> {
   const today = todayIso()
@@ -21,8 +21,8 @@ export async function buildWasteCsv(days = 30): Promise<string> {
       'date',
       'meal',
       'item',
-      'waste_units_ai_estimated_leftover_area',
-      'share_of_meal_waste_percent',
+      'pixels_wasted_ai_mask_count',
+      'share_of_meal_wasted_pixels_percent',
       'plates_scanned',
       'meal_swipes_simulated',
     ].join(','),
@@ -37,8 +37,8 @@ export async function buildWasteCsv(days = 30): Promise<string> {
             date,
             meal,
             escapeCell(item.displayName),
-            item.wasteUnits,
-            item.shareOfMealWastePercent.toFixed(1),
+            item.pixelsWasted,
+            item.shareOfMealPixelsPercent.toFixed(1),
             detail.platesScanned,
             detail.mealSwipes.count,
           ].join(','),

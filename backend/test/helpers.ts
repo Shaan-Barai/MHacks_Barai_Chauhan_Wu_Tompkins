@@ -7,9 +7,9 @@ import type { AddressInfo } from 'node:net';
 import { buildBackend } from '../src/wiring.js';
 import { MockAnalyzer, type MockFixture } from '../src/analysis/mockAnalyzer.js';
 import type { BackendConfig } from '../src/config.js';
+import type { Analyzer } from '../src/analysis/analyzer.js';
 import type { MenuBundle, ReferencePortion } from '../src/types.js';
 import type { Repository } from '../src/repo/repository.js';
-import type { Analyzer } from '../src/analysis/analyzer.js';
 
 export const HALL = 'hall-main';
 export const SERVICE = 'svc_hall-main_2026-10-03_lunch';
@@ -84,6 +84,7 @@ export async function startTestServer(analyzer?: Analyzer): Promise<TestServer> 
       orphanMaxAgeMs: 60_000,
     },
     attendance: { min: 300, max: 1200 },
+    samWorkerUrl: 'http://127.0.0.1:1',
   };
   const backend = buildBackend({ config, analyzer: analyzer ?? new MockAnalyzer(fixtures) });
   const server = backend.app.listen(0, '127.0.0.1');

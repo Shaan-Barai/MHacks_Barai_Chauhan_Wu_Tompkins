@@ -9,7 +9,7 @@ export interface ChartBucket {
   /** Full label for the tooltip. */
   tooltipLabel: string
   /** null = no data that day. */
-  wasteUnits: number | null
+  pixelsWasted: number | null
 }
 
 export function dailyBuckets(points: DailyWastePoint[]): ChartBucket[] {
@@ -17,7 +17,7 @@ export function dailyBuckets(points: DailyWastePoint[]): ChartBucket[] {
     key: p.date,
     label: formatShort(p.date),
     tooltipLabel: formatMedium(p.date),
-    wasteUnits: p.wasteUnits,
+    pixelsWasted: p.pixelsWasted,
   }))
 }
 

@@ -2,7 +2,7 @@
 
 Local HTTP service for the segmentation stage of
 **Gemini classification + boxes + target dish → SAM 2.1 masks → target-dish clip → counted Pixels wasted**
-([MVP_AI.md](../../MVP_AI.md), [measurement contract](../../contracts/measurement.md)).
+([MVP_AI.md](../../docs/plans/MVP_AI.md), [measurement contract](../../contracts/measurement.md)).
 The TypeScript side (`vision/src/maskPipeline.ts`) calls it through
 `createSamWorkerClient()`; the backend selects it automatically when
 `GEMINI_API_KEY` is set.

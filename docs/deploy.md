@@ -290,7 +290,7 @@ cd capture && npm run ingest-inbox -- --service "svc_hall-main_$(TZ=America/Detr
 ```
 
 The scripts send `Authorization: Bearer …` only to the backend, never to R2's presigned URLs, and never
-print the token ([BRIDGE.md](../BRIDGE.md)). A 401 means the token is missing or different from the server's.
+print the token ([BRIDGE.md](BRIDGE.md)). A 401 means the token is missing or different from the server's.
 
 ## 14. Verify the public site
 

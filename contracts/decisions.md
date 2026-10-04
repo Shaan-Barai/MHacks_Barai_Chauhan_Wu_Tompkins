@@ -23,7 +23,7 @@ pending details arrive; agreed items came from the team or AGENTS.md.
 - **Vision flow (updated 2026-10-03):** Gemini API for food classification
   first, then a separate segmentation-mask stage, then foreground pixel
   counting in application code. The planned segmentation model is Meta SAM 2.1;
-  [MVP_AI.md](../MVP_AI.md) proposes SAM 2.1 Small with Gemini boxes for initial
+  [MVP_AI.md](../docs/plans/MVP_AI.md) proposes SAM 2.1 Small with Gemini boxes for initial
   evaluation. Exact checkpoint/host selection remains provisional. SAM 3
   implementation and evaluation are deferred. No custom model training.
 - **Frontend:** React + Tailwind, "Kitchen Garden" palette mapped to Tailwind
@@ -109,7 +109,7 @@ pending details arrive; agreed items came from the team or AGENTS.md.
 
 - Exact Meta SAM checkpoint, execution host, localization method, mask
   serialization/alignment, processing settings, and quality criteria. The
-  [MVP AI plan](../MVP_AI.md) proposes initial choices, pending evaluation.
+  [MVP AI plan](../docs/plans/MVP_AI.md) proposes initial choices, pending evaluation.
 - Coordinated migration of shared types, vision, persistence, analytics,
   fixtures, and dashboards from scalar estimates to mask provenance/counts.
 - The earlier conditional mean-percentage recommendation request remains
@@ -189,7 +189,7 @@ pending details arrive; agreed items came from the team or AGENTS.md.
 
 ## 2026-10-03: future DepthAnythingV2 volume extension
 
-- The user requests a future volume-data extension documented in root `AI.md`:
+- The user requests a future volume-data extension documented in `docs/plans/AI.md`:
   classify food, obtain segmentation masks, estimate per-pixel depth with
   DepthAnythingV2, then integrate food height above the plate over physical
   area to estimate leftover volume.
@@ -203,7 +203,7 @@ pending details arrive; agreed items came from the team or AGENTS.md.
 ## 2026-10-03: Meta SAM segmentation and localization plan
 
 - The user requests a Meta SAM segmentation plan and bounding-box model
-  research. Root [MVP_AI.md](../MVP_AI.md) records the proposal and sources.
+  research. Root [MVP_AI.md](../docs/plans/MVP_AI.md) records the proposal and sources.
 - Proposed first evaluation: Gemini classification plus boxes → SAM 2.1
   Hiera Small masks → validated code-counted Pixels wasted. Grounding DINO is
   the first dedicated detector to compare if Gemini localization is inadequate;
@@ -292,7 +292,7 @@ User-directed changes (UI.md has the full spec):
 
 ## 2026-10-03: SAM 2.1 mask pipeline implemented
 
-Executes [MVP_AI.md](../MVP_AI.md) steps 1, 4, 5 and a preliminary 2–3.
+Executes [MVP_AI.md](../docs/plans/MVP_AI.md) steps 1, 4, 5 and a preliminary 2–3.
 Choices the plan left open, now made (provisional until the annotated
 evaluation and team thresholds):
 
@@ -378,7 +378,7 @@ evaluation and team thresholds):
 ## 2026-10-03: waste impact, waste per portion, images, recommendation (BIG-PLAN.md)
 
 User request (2026-10-03): camera → R2/SpacetimeDB → Gemini + SAM → waste
-impact → dashboard. Full plan and tracker: [BIG-PLAN.md](../BIG-PLAN.md).
+impact → dashboard. Full plan and tracker: [BIG-PLAN.md](../docs/plans/BIG-PLAN.md).
 
 - **D1 score without nutrition:** `waste_impact_usd_per_kg = 0.19·C + 1.50·W`
   (C kg CO2e/kg, W m³ freshwater/kg, `menu_waste_factors_EastQuad.csv`). Nutrition
@@ -443,7 +443,7 @@ User direction (2026-10-04):
 
 ## 2026-10-04: IT_4: production deploy, calibrated area, Depth Anything V2 volume
 
-Full plan and rationale: [IT_4.md](../IT_4.md) §2 (I1–I12). Summary:
+Full plan and rationale: [IT_4.md](../docs/plans/IT_4.md) §2 (I1–I12). Summary:
 
 - **Physical units via calibration (I1).** A per-camera calibration (user-entered known reference area,
   `reference-area-v1`) plus per-food density factors is the independently specified conversion

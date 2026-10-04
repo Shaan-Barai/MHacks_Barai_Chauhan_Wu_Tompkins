@@ -9,8 +9,8 @@ import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const OLD = /menu_waste_factors\.csv|menu_nutrition_factors\.csv|dining_hall_menu_labels\.(csv|pdf)/;
-// DEBUG-PLAN.md describes the bug itself; demo.py and pipeline.mjs keep deliberate legacy-name fallbacks.
-const ALLOWED = new Set(['DEBUG-PLAN.md', 'demo.py', 'upload_demo/pipeline.mjs', 'tests/integration/no-stale-data-filenames.test.mjs']);
+// docs/plans/DEBUG-PLAN.md describes the bug itself; demo.py and pipeline.mjs keep deliberate legacy-name fallbacks.
+const ALLOWED = new Set(['docs/plans/DEBUG-PLAN.md', 'demo.py', 'upload_demo/pipeline.mjs', 'tests/integration/no-stale-data-filenames.test.mjs']);
 
 test('no stale pre-rename data filenames in tracked files', () => {
   const files = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean);

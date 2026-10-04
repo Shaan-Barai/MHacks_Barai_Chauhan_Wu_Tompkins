@@ -16,7 +16,7 @@ step below in order and pauses between them, so you can narrate. The script belo
    (frontend on :5173) works too. Run `cd backend && npm run seed -- --live-dinner` once: it seeds the 26-food dinner menus
    (2026-10-01..03 and today), demo portions, and leaves old analyses on the menu version they used.
 2. Decide which capture path you will show:
-   - **Real camera:** the Uno Q with the C920s (`capture/uno-q/README.md`, [BRIDGE.md](../BRIDGE.md)) into
+   - **Real camera:** the Uno Q with the C920s (`capture/uno-q/README.md`, [BRIDGE.md](BRIDGE.md)) into
      today's dinner (`svc_hall-main_<today>_dinner`). These dishes are labeled `camera`.
    - **No board:** `npm run simulate-camera`. It writes real `test2/` plate photos into the same inbox layout
      the board uses. These dishes are labeled **`replay`**, so don't call them live camera captures.
@@ -59,7 +59,7 @@ the card was not fully segmented: retake the frame.
 ### 2. Capture (1.5 min)
 
 Real board: `python3 capture/uno-q/laptop_capture.py --target arduino@BOARD --auto`, plus the bridge
-in `--watch` mode for `svc_hall-main_<today>_dinner` (see [BRIDGE.md](../BRIDGE.md)).
+in `--watch` mode for `svc_hall-main_<today>_dinner` (see [BRIDGE.md](BRIDGE.md)).
 
 No board: one command writes 3 photos and runs one bridge pass.
 

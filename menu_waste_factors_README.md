@@ -108,7 +108,7 @@ Both plates together: 24 + 40 = **64 g**, 3.16 + 0.07 = **3.2 kg CO2e**, 46.2 + 
 | `largest_factor` | `carbon` or `water`, whichever contributes more to the score |
 | `menu_co2_label` | The dining hall's own CO2 icon (high / medium / low), for comparison |
 | `allergens_listed` | The "Contains" list from the dining hall's label |
-| `gemini_ingredients` | Gemini's inferred ingredient list, from `gemini_menu_guesses_raw.txt` |
+| `gemini_ingredients` | Gemini's inferred ingredient list, from `experiments/gemini_menu_guesses_raw.txt` |
 | `gemini_visible_components` | Gemini's description of what the dish looks like on a plate. Used in the classification prompt and as the demo menu description |
 | `recipe_kg_per_kg` | Recipe used for C and W: kg of each ingredient per kg of finished dish |
 | `label_serving_g` | Serving weight from the dining hall label, useful for checking `weight_g_per_cm2` |
@@ -170,9 +170,9 @@ The result is always positive. Desserts get small values (0.39–0.55 per kg; pu
 Neither model knows the real recipes, since the dining hall only publishes allergens. To find which ingredient descriptions work better for classification:
 
 1. **Source data:** Gemini was given `dining_hall_menu_labels_EastQuad.pdf` (the original screenshots) and `dining_hall_menu_labels_EastQuad.csv` (the same data transcribed). Neither file contains any of Claude's guesses.
-2. **Gemini's guesses:** Gemini filled in `gemini_ingredients` and `gemini_visible_components` from that source data alone (`gemini_menu_guesses_raw.txt`). Baked Sweet Potatoes is not on that sheet, so it has no Gemini guess.
+2. **Gemini's guesses:** Gemini filled in `gemini_ingredients` and `gemini_visible_components` from that source data alone (`experiments/gemini_menu_guesses_raw.txt`). Baked Sweet Potatoes is not on that sheet, so it has no Gemini guess.
 3. **Run both:** the same plate photos went through the same pipeline twice, once with Claude's descriptions in the classification prompt and once with Gemini's. Nothing else changed.
-4. **Compare** against hand-labeled plates (`experiment_summary.csv`): Gemini's descriptions scored slightly better overall (36 correct vs 35 over 24 vs 23 scored runs, a lower unknown share and a lower run-to-run disagreement rate, though 3 wrong vs 2). The difference is small, but the app and the demo menu use the Gemini descriptions. Claude's columns were dropped from this file.
+4. **Compare** against hand-labeled plates (`experiments/experiment_summary.csv`): Gemini's descriptions scored slightly better overall (36 correct vs 35 over 24 vs 23 scored runs, a lower unknown share and a lower run-to-run disagreement rate, though 3 wrong vs 2). The difference is small, but the app and the demo menu use the Gemini descriptions. Claude's columns were dropped from this file.
 
 ## Results at a glance
 Scores per kg (`impact_score_usd_per_kg`); the app turns them into relative impact points:

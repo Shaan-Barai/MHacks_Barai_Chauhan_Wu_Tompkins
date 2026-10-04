@@ -3,8 +3,8 @@
 Recorded October 3, 2026. Owner: Agent 1 for this planning document.
 Status: **vertical slice implemented 2026-10-03** (classification + boxes →
 SAM 2.1 Small → counted Pixels wasted, persisted and on the dashboard); see
-[implementation decisions](contracts/decisions.md#2026-10-03-sam-21-mask-pipeline-implemented)
-and [verification](docs/verification-report.md). The 20–30-image annotated
+[implementation decisions](../../contracts/decisions.md#2026-10-03-sam-21-mask-pipeline-implemented)
+and [verification](../verification-report.md). The 20–30-image annotated
 evaluation set (step 2) does not exist yet; only a 5-image proxy evaluation
 has been run. Quality thresholds remain a team decision.
 
@@ -27,7 +27,7 @@ The exact checkpoint and execution host remain provisional until evaluation.
 This task creates a plan only: no dependencies, model weights, runtime fields,
 or inference code are added. Uploaded/replayed images remain the input; camera
 placement, conveyor integration, and [DepthAnythingV2 volume work](AI.md) are
-deferred. [The measurement contract](contracts/measurement.md) governs counts.
+deferred. [The measurement contract](../../contracts/measurement.md) governs counts.
 
 ## Do SAM models need bounding boxes?
 
@@ -132,7 +132,7 @@ support. It demonstrates integration, not reliable leftover-food measurement.
 - Baseline photos and serving-area ratios do not gate pixel counts. The
   earlier conditional mean-percentage recommendation request remains an
   auxiliary item with an unresolved denominator, as recorded in the
-  [measurement contract](contracts/measurement.md).
+  [measurement contract](../../contracts/measurement.md).
 
 ## Runtime and contract proposal
 

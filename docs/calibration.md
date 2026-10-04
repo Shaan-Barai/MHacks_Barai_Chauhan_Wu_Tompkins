@@ -1,6 +1,6 @@
 # Camera calibration
 
-IT_4 (2026-10-04), decisions I1–I3 and I9 in [IT_4.md](../IT_4.md) (amended in §10). This page covers
+IT_4 (2026-10-04), decisions I1–I3 and I9 in [IT_4.md](plans/IT_4.md) (amended in §10). This page covers
 what a calibration is, how to take one with a credit card, and when to redo it. The app uses the **area
 method** only; Depth Anything V2 was tried and removed (see the end of this page).
 

@@ -94,7 +94,7 @@ ssh -i "$HOME/.ssh/scrap_unoq" -o IdentitiesOnly=yes -o BatchMode=yes arduino@YO
 ```
 
 Verify the board's host key on the first SSH connection. Keep the private key
-on the laptop. [ARDUINO.md](../../ARDUINO.md) includes Windows SSH-agent setup;
+on the laptop. [ARDUINO.md](../../docs/ARDUINO.md) includes Windows SSH-agent setup;
 on Windows use `python` instead of `python3` below. The laptop does not need
 FFmpeg or OpenCV.
 
@@ -226,7 +226,7 @@ get it. See [docs/calibration.md](../../docs/calibration.md).
   inbox bridge (`cd capture && npm run ingest-inbox -- --service <id> --watch`),
   which groups frames into dishes with Gemini so each dish is counted once and
   stores them in SpacetimeDB database `scrap`. Tonight's service is
-  `svc_hall-main_<today>_dinner`. See [BRIDGE.md](../../BRIDGE.md).
+  `svc_hall-main_<today>_dinner`. See [BRIDGE.md](../../docs/BRIDGE.md).
 - The only transport addition is an automatic stream envelope containing the
   bundle length and capture UUID; the JPEG/metadata bundle remains protocol v1.
   No shared application contract or package dependency changed.

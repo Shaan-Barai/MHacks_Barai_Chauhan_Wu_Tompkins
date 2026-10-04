@@ -1,6 +1,6 @@
 /**
  * The detection scorer used by the live image test reproduces the last
- * experiment (experiment_summary.csv) from its recorded runs.
+ * experiment (experiments/experiment_summary.csv) from its recorded runs.
  */
 
 import { it } from 'node:test';
@@ -17,7 +17,7 @@ const skip = existsSync(TRUTH) ? false : 'ground_truth.csv is not in the repo (d
 it('reproduces experiment_summary.csv (gemini: 36 correct, 0 missed, 3 wrong; claude: 35/0/2)', { skip }, () => {
   const truth = loadGroundTruth(TRUTH);
   assert.deepEqual([...truth.get('IMG_2697')].sort(), ['Baked Boneless Ham', 'Baked Sweet Potatoes', 'Roasted Cauliflower']);
-  const runs = JSON.parse(readFileSync(path.join(REPO, 'experiment_overlays/results.json'), 'utf8'));
+  const runs = JSON.parse(readFileSync(path.join(REPO, 'experiments/experiment_overlays/results.json'), 'utf8'));
   for (const [source, expected] of [['gemini', [36, 0, 3, 24]], ['claude', [35, 0, 2, 23]]]) {
     const score = scoreRuns(
       runs

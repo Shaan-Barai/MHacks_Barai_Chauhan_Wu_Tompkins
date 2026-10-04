@@ -1,6 +1,6 @@
 """Smoke test: SAM 2.1 (hiera-tiny) on Apple Silicon.
 
-Run with the project venv:  .venv/bin/python test_sam.py [--margin 0.25] [image or folder ...]
+Run with the project venv:  .venv/bin/python experiments/test_sam.py [--margin 0.25] [image or folder ...]
 (default: images/; --margin is the box's inset from each edge as a fraction,
 0.25 = the center half of the image; --point also adds a positive click at the
 image center, which stops a loose box from selecting the background)

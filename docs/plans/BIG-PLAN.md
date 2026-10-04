@@ -63,8 +63,8 @@ status table below as agents report back.
   unavailable (AGENTS.md §7).
 - **D6. Demo menu and dummy portions.** (2026-10-04: now 26 foods, adding Halal Rice, Tomatoes and Lettuce.) The demo dinner menu uses the 23 foods in
   `menu_waste_factors_EastQuad.csv`. Descriptions are the `gemini_visible_components` text from
-  `gemini_menu_guesses_raw.txt`, because Gemini descriptions scored slightly better in
-  `experiment_summary.csv`. Dummy portions use a seeded, plausible 40–260 range per item, with
+  `experiments/gemini_menu_guesses_raw.txt`, because Gemini descriptions scored slightly better in
+  `experiments/experiment_summary.csv`. Dummy portions use a seeded, plausible 40–260 range per item, with
   source `demo`, labeled demo.
 - **D7. Images.** For each capture, R2 holds the normalized photo (existing), every per-food mask PNG
   (existing), and **a new segmented overlay JPEG** (masks tinted per food, plate rim outlined, legend).

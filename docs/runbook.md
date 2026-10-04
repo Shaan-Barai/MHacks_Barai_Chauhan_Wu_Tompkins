@@ -160,7 +160,7 @@ python3 capture/scripts/live_camera_test.py --target arduino@35.1.88.76 --identi
 ```
 
 It writes everything (frames and bridge state) into a fresh `images/camera-test/<UTC time>/`, so the
-real inbox and `capture/.inbox-*.json` are untouched. See [BRIDGE.md](../BRIDGE.md) §6.
+real inbox and `capture/.inbox-*.json` are untouched. See [BRIDGE.md](BRIDGE.md) §6.
 
 ## Demo data is never wiped
 

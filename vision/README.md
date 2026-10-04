@@ -349,7 +349,7 @@ plate's other items still count.
 
 ## IT_4: camera calibration and calibrated area
 
-See [IT_4.md](../IT_4.md) §2 (I2, I3, I6, I8) and §10, and `contracts/types.ts` (IT_4 section).
+See [IT_4.md](../docs/plans/IT_4.md) §2 (I2, I3, I6, I8) and §10, and `contracts/types.ts` (IT_4 section).
 Everything below is exported from `@scrap/vision`. Vision never computes grams, CO2e or water: the
 backend gets those from `analytics/` and can pass legend text back through `labelSuffix`.
 

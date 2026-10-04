@@ -23,8 +23,8 @@ grounded AI recommendation.
 **End-to-end path:** Uno Q camera → laptop inbox → bridge (one capture per
 dish) → R2 upload → SpacetimeDB records → Gemini classify + boxes → SAM 2.1
 masks → counted pixels on the target dish, overlay JPEG (stored in R2) →
-dashboard. See [BIG-PLAN.md](BIG-PLAN.md), [BRIDGE.md](BRIDGE.md), and
-[EXPLAIN.md](EXPLAIN.md) for a plain-language tour of the database.
+dashboard. See [BIG-PLAN.md](docs/plans/BIG-PLAN.md), [BRIDGE.md](docs/BRIDGE.md), and
+[EXPLAIN.md](docs/EXPLAIN.md) for a plain-language tour of the database.
 
 **Portions served:** enter actual per-food counts under **Portions served**,
 or upload a CSV for a selected meal. Counts persist by service and menu
@@ -45,7 +45,7 @@ the food's label on the plate image and on the dashboard.
    Settings → Camera calibration.
 3. Grams = area × the food's `weight_g_per_cm2`; kg CO2e and litres of water
    follow from grams. See [docs/calibration.md](docs/calibration.md) and
-   [IT_4.md](IT_4.md).
+   [IT_4.md](docs/plans/IT_4.md).
 
 Pixels wasted stays the primary measurement. Without a calibration, the
 physical numbers are blank, never zero.
@@ -80,18 +80,18 @@ photos and logs to `images/demo-runs/` (gitignored). **Adding a feature? Add a d
 
 ## Documents
 
-- [`IT_4.md`](IT_4.md) — calibrated area, estimated CO2e/water, local production stack (plan + tracker; Depth Anything V2 was tried and removed).
+- [`IT_4.md`](docs/plans/IT_4.md) — calibrated area, estimated CO2e/water, local production stack (plan + tracker; Depth Anything V2 was tried and removed).
 - [`docs/deploy.md`](docs/deploy.md) — **deploy the website**: local production stack (`deploy/local.sh`) + Cloudflare Tunnel + custom domain, step by step.
-- [`BIG-PLAN.md`](BIG-PLAN.md) — the camera → impact → dashboard plan and its tracker.
-- [`EXPLAIN.md`](EXPLAIN.md) — the whole database (SpacetimeDB + R2) in plain language.
+- [`BIG-PLAN.md`](docs/plans/BIG-PLAN.md) — the camera → impact → dashboard plan and its tracker.
+- [`EXPLAIN.md`](docs/EXPLAIN.md) — the whole database (SpacetimeDB + R2) in plain language.
 - [`menu_waste_factors_README.md`](menu_waste_factors_README.md) — the waste
   impact formula and per-food factors (nutrition in `menu_nutrition_factors_EastQuad.csv`).
 - [`AGENTS.md`](AGENTS.md) — the working plan: agent roles, ownership, rules,
   measurement formulas, and completion checks.
-- [`UI.md`](UI.md) — dashboard spec (layout, palette, copy).
-- [`MVP_AI.md`](MVP_AI.md) — researched Meta SAM segmentation plan and
+- [`UI.md`](docs/plans/UI.md) — dashboard spec (layout, palette, copy).
+- [`MVP_AI.md`](docs/plans/MVP_AI.md) — researched Meta SAM segmentation plan and
   bounding-box model options; implementation and food-image evaluation are pending.
-- [`AI.md`](AI.md) — current AI flow. The DepthAnythingV2 volume idea was
+- [`AI.md`](docs/plans/AI.md) — current AI flow. The DepthAnythingV2 volume idea was
   tried in IT_4 and removed (see `contracts/decisions.md`).
 - [`contracts/`](contracts/) — shared entity types, error format, sample
   records, and [recorded decisions](contracts/decisions.md).
@@ -108,6 +108,17 @@ photos and logs to `images/demo-runs/` (gitignored). **Adding a feature? Add a d
 | `analytics/` | Agent 6 | Aggregates, simulated attendance, suggestions |
 | `frontend/` | Agent 7 | ScrapSaver dashboard (React + Tailwind) |
 | `docs/`, `tests/` | Agent 8 | Demo docs, fixtures, integration/e2e tests |
+| `docs/plans/` | Agent 1 | Planning/spec docs and trackers (BIG-PLAN, IT_4, DEBUG-PLAN, UI, AI, MVP_AI) |
+| `deploy/` | — | Local production stack, smoke test, Cloudflare Tunnel |
+| `experiments/` | — | One-off segmentation/menu experiment outputs and `test_sam.py` (not used at runtime) |
+| `test2/`, `demo_pictures/`, `upload_demo/` | — | Demo plate photos, pipeline pictures, upload demo site (used by `demo.py`) |
+| `mhacks/` | — | Earlier standalone preview app, superseded by `frontend/` + `backend/` |
+
+Root files: `demo.py` (one-command demo), `test-all.sh` (every test), and the
+EastQuad menu/factor data (`menu_waste_factors_*.csv`,
+`menu_nutrition_factors_EastQuad.csv`, `dining_hall_menu_labels_EastQuad.*`,
+`menu_waste_factors_README.md`), which `data/` and `analytics/` load by path.
+`images/` holds local, gitignored photos and demo-run logs.
 
 ## Setup
 
@@ -136,7 +147,7 @@ cd backend && npm ci && SPACETIMEDB_MODULE=scrap npm start   # own terminal
 # 6. Demo data: seed menus (incl. the 26-food dinner) + demo portions served
 cd backend && SPACETIMEDB_MODULE=scrap npm run seed -- --live-dinner   # adds today's 26-food dinner
 
-# 7a. Real camera: Uno Q → laptop inbox, then the bridge (BRIDGE.md, ARDUINO.md)
+# 7a. Real camera: Uno Q → laptop inbox, then the bridge (docs/BRIDGE.md, docs/ARDUINO.md)
 python3 capture/uno-q/laptop_capture.py --target arduino@YOUR_BOARD_IP --auto
 cd capture && npm ci && npm run ingest-inbox -- --service svc_hall-main_2026-10-03_dinner --watch
 # 7b. No board: simulate the camera with the test2/ photos (one dish per photo)

@@ -10,7 +10,7 @@ Gemini classifies visible food against the applicable menu. The proposed
 [Meta SAM segmentation stage](MVP_AI.md) produces masks of the leftover food.
 Application code counts foreground
 pixels in validated masks, counting overlaps once. The primary metric remains
-**Pixels wasted**, as defined in [the measurement contract](contracts/measurement.md).
+**Pixels wasted**, as defined in [the measurement contract](../../contracts/measurement.md).
 
 ## Future extension: DepthAnythingV2 volume data
 

@@ -3,7 +3,7 @@
 **Manual and automatic capture:** both use FFmpeg and Python's standard
 library on the Uno Q; **OpenCV is no longer required**. Omit `--auto` for
 Enter-triggered photos, or add `--once` for a single capture.
-[The camera-capture guide](capture/uno-q/README.md) covers both modes.
+[The camera-capture guide](../capture/uno-q/README.md) covers both modes.
 Copy the current board script again when upgrading an older installation.
 
 This guide gets a photo from the Logitech C920s connected to the **Arduino Uno Q** onto your laptop. Press Enter on the laptop, wait a few seconds, and receive a JPEG plus a small metadata file. Once those files exist, your laptop can use the project's upload flow.
@@ -186,8 +186,8 @@ Continue only after the test prints `SSH ready`. Keep the private key on the lap
 
 Use the current checked-in files rather than copying an older embedded version:
 
-- [Board program: `capture/uno-q/uno_q_camera.py`](capture/uno-q/uno_q_camera.py)
-- [Laptop program: `capture/uno-q/laptop_capture.py`](capture/uno-q/laptop_capture.py)
+- [Board program: `capture/uno-q/uno_q_camera.py`](../capture/uno-q/uno_q_camera.py)
+- [Laptop program: `capture/uno-q/laptop_capture.py`](../capture/uno-q/laptop_capture.py)
 
 The board uses FFmpeg to consume native MJPEG frames during exposure/focus
 warmup, validates the selected JPEG, reads its actual dimensions, and caches a
@@ -277,7 +277,7 @@ is still taken.
 | `--calibrate` | Take one **calibration frame** (a credit card flat on the tray, no plate on it) and exit. It is marked `capturePurpose: "calibration"`, so the bridge never counts it as a dish. The laptop then prints the `npm run calibrate -- …` command |
 
 The resolution stays fixed at 1920 × 1080. A calibration holds for that resolution, camera height and
-focus only. The board warns if the camera delivers another size. Full procedure: [docs/calibration.md](docs/calibration.md).
+focus only. The board warns if the camera delivers another size. Full procedure: [docs/calibration.md](calibration.md).
 
 The flags need the current board script (§7). An older board script still captures, without a focus
 lock, and the laptop prints `Focus: unknown (… copy the new uno_q_camera.py …)`.
@@ -413,7 +413,7 @@ actual JPEG dimensions, warmup, missing/disconnected camera errors, empty and
 malformed packets, bounded camera padding, cached transfer retries, locking,
 and bundle validation, plus the C920s focus lock (fake `v4l2-ctl`) and `--calibrate`. Run `python3 -B -m unittest discover -s capture/uno-q -v`
 from the repository root. These checks do not exercise live hardware or
-networking. [The camera-capture guide](capture/uno-q/README.md) records the
+networking. [The camera-capture guide](../capture/uno-q/README.md) records the
 prior automatic-mode hardware smoke check; the new FFmpeg manual path still
 needs its own hardware check.
 

@@ -1,6 +1,6 @@
 """Step 5: score experiment runs against ground_truth.csv.
 
-    python3 vision/scripts/score-experiment.py experiment_overlays/results.json ground_truth.csv experiment_summary.csv
+    python3 vision/scripts/score-experiment.py experiments/experiment_overlays/results.json ground_truth.csv experiments/experiment_summary.csv
 
 Rules (agreed 2026-10-03):
 - Ground-truth names are mapped to menu names (misspellings fixed; "Baked Potato"

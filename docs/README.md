@@ -13,6 +13,15 @@ Owner: Agent 8 — demo walkthrough, setup, runbook, fixture provenance, limitat
 | [portions-served.md](portions-served.md) | Portion entry/CSV, normalized recommendations, API, and mask-integration handoff |
 | [calibration.md](calibration.md) | IT_4 camera calibration (credit card), focus lock, recalibration; area method (why depth was removed) |
 | [deploy.md](deploy.md) | Step-by-step: local production stack + Cloudflare Tunnel on your own domain |
+| [testing.md](testing.md) | What each test suite covers |
+| [ARDUINO.md](ARDUINO.md) | Uno Q + C920s camera board setup |
+| [BRIDGE.md](BRIDGE.md) | Camera inbox → backend bridge (one capture per dish), simulator, live check |
+| [EXPLAIN.md](EXPLAIN.md) | The whole database (SpacetimeDB tables + R2 objects) in plain language |
+| `CAMERA-GUIDE.md` | Private teammate camera guide (gitignored; local only) |
+
+Planning docs and trackers live in [`plans/`](plans/): [BIG-PLAN.md](plans/BIG-PLAN.md) (camera → impact →
+dashboard), [IT_4.md](plans/IT_4.md) (calibration, CO2e/water), [DEBUG-PLAN.md](plans/DEBUG-PLAN.md),
+[UI.md](plans/UI.md) (dashboard spec), [AI.md](plans/AI.md) and [MVP_AI.md](plans/MVP_AI.md) (AI flow and SAM plan).
 
 Root install narrative stays in [`README.md`](../README.md) (Agent 1).
 

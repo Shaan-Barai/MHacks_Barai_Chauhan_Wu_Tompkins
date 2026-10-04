@@ -27,7 +27,7 @@ const ANY_PIZZA = new Set(['IMG_2696', 'IMG_2704']);
 const NOT_SCORED = new Set(['IMG_2705']);
 const NO_WRONG = new Set(['IMG_2706']);
 
-/** The last experiment (experiment_summary.csv, Gemini descriptions): 36 correct, 0 missed, 3 wrong. */
+/** The last experiment (experiments/experiment_summary.csv, Gemini descriptions): 36 correct, 0 missed, 3 wrong. */
 export const BASELINE = { recall: 1, precision: 36 / 39 };
 
 function canon(raw) {

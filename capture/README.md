@@ -9,7 +9,7 @@ SSH, without OpenCV. `--auto` transfers one raw photo per second to the laptop.
 Timed frames have unresolved dish identity, so they are never submitted one
 per frame: the inbox bridge (`npm run ingest-inbox -- --service <id>`) groups
 frames into dishes with Gemini and submits one `camera` capture per dish. See
-[BRIDGE.md](../BRIDGE.md).
+[BRIDGE.md](../docs/BRIDGE.md).
 
 Captures go to the backend, which stores them in SpacetimeDB database
 **`scrap`** (BIG-PLAN v2). Pixels wasted is the only measurement (no plate
@@ -215,7 +215,7 @@ npm run simulate-camera -- --count 3 --service svc_hall-main_2026-10-03_dinner -
 atomic rename. Each photo is one distinct dish. `captureSource: "simulated_camera"` makes the bridge
 submit these dishes as `source: 'replay'`, never `'camera'`. With `--service` it then runs one
 `ingest-inbox` pass (`--no-dedupe` unless `--dedupe`). Options and rationale:
-[BRIDGE.md](../BRIDGE.md#run-it-without-the-board-simulate-camera).
+[BRIDGE.md](../docs/BRIDGE.md#run-it-without-the-board-simulate-camera).
 
 Use the bridge's `--state-dir <dir>` to keep a demo or E2E run's grouping/event-ID state out of
 `capture/.inbox-*.json`. For the real board, `scripts/live_camera_test.py` is the hardware check

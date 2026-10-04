@@ -60,7 +60,7 @@ the backend calibration tests and `npm run test:e2e:calibration` (live).
   - portion snapshots
   - `clear_demo_data`
   - the full backend on SpacetimeDB, where totals equal the rows
-- `scoring.test.mjs`: the ground-truth scorer reproduces `experiment_summary.csv`.
+- `scoring.test.mjs`: the ground-truth scorer reproduces `experiments/experiment_summary.csv`.
 
 ## Image tests (live)
 

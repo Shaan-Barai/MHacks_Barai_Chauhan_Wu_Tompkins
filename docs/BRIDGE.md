@@ -46,7 +46,7 @@ merge, `✗` a bad capture or failed upload, `⏸` paused because dish compariso
 
 ### Auth (production mode)
 
-A backend started in production mode (`deploy/local.sh up`, [docs/deploy.md](docs/deploy.md)) refuses
+A backend started in production mode (`deploy/local.sh up`, [docs/deploy.md](deploy.md)) refuses
 every mutation without `Authorization: Bearer $SCRAP_INGEST_TOKEN`. The bridge sends the token to the
 backend only, never to the presigned R2 upload URL. Without it the first upload fails with:
 
@@ -69,7 +69,7 @@ cd capture && npm run calibrate -- --known-area-cm2 46.21 --reference-label "cre
 `npm run calibrate` is `ingest-inbox --calibrate`. It normalizes the frame exactly like a dish (1024²),
 uploads it through presign → PUT → finalize with association kind `calibration`, calls
 `POST /api/calibrations`, prints k, the camera height and the flags, and makes it the hall's active
-calibration. See [docs/calibration.md](docs/calibration.md).
+calibration. See [docs/calibration.md](calibration.md).
 
 ### Run it without the board: `simulate-camera`
 
@@ -132,19 +132,19 @@ Uno Q + C920s ── SSH ──▶ laptop_capture.py ──▶ images/arduino-in
 
 | Piece | Owner | Location |
 | --- | --- | --- |
-| Inbox reader (complete dirs, checksum re-verify) | 3 | [capture/src/inbox.ts](capture/src/inbox.ts) |
-| Pre-filter fingerprint + dish-match thumbnail | 3 | [capture/src/frames.ts](capture/src/frames.ts) |
-| Dish grouper (verdicts, groups, persisted state) | 3 | [capture/src/dishGrouper.ts](capture/src/dishGrouper.ts) |
-| Bridge pass (scan → group → ingest) | 3 | [capture/src/inboxBridge.ts](capture/src/inboxBridge.ts) |
-| `HttpDishMatcher` client | 3 | [capture/src/http.ts](capture/src/http.ts) |
-| `ReplayCaptureAdapter.ingestCameraCapture` (`source: 'camera'`) | 3 | [capture/src/adapter.ts](capture/src/adapter.ts) |
-| CLI | 3 | [capture/scripts/ingest-inbox.mjs](capture/scripts/ingest-inbox.mjs) |
-| Camera simulator (inbox writer, no board) | 3 | [capture/src/simulateCamera.ts](capture/src/simulateCamera.ts), [capture/scripts/simulate-camera.mjs](capture/scripts/simulate-camera.mjs) |
-| Live E2E (inbox → R2/SpacetimeDB → Gemini+SAM → dashboard API) | 8 | [tests/e2e/scrap-live.test.mjs](tests/e2e/scrap-live.test.mjs) |
-| Live hardware test (board → bridge → `scrap`) | 3/8 | [capture/scripts/live_camera_test.py](capture/scripts/live_camera_test.py) |
-| `judgeSameDish` prompt, schema, validation | 4 | [vision/src/dishMatch.ts](vision/src/dishMatch.ts) |
-| `POST /api/dish-match` | 5 | [backend/src/services/dishMatchService.ts](backend/src/services/dishMatchService.ts), [backend/src/http/app.ts](backend/src/http/app.ts) |
-| `DishMatchRequest` / `DishMatchResult` | 1 | [contracts/types.ts](contracts/types.ts) |
+| Inbox reader (complete dirs, checksum re-verify) | 3 | [capture/src/inbox.ts](../capture/src/inbox.ts) |
+| Pre-filter fingerprint + dish-match thumbnail | 3 | [capture/src/frames.ts](../capture/src/frames.ts) |
+| Dish grouper (verdicts, groups, persisted state) | 3 | [capture/src/dishGrouper.ts](../capture/src/dishGrouper.ts) |
+| Bridge pass (scan → group → ingest) | 3 | [capture/src/inboxBridge.ts](../capture/src/inboxBridge.ts) |
+| `HttpDishMatcher` client | 3 | [capture/src/http.ts](../capture/src/http.ts) |
+| `ReplayCaptureAdapter.ingestCameraCapture` (`source: 'camera'`) | 3 | [capture/src/adapter.ts](../capture/src/adapter.ts) |
+| CLI | 3 | [capture/scripts/ingest-inbox.mjs](../capture/scripts/ingest-inbox.mjs) |
+| Camera simulator (inbox writer, no board) | 3 | [capture/src/simulateCamera.ts](../capture/src/simulateCamera.ts), [capture/scripts/simulate-camera.mjs](../capture/scripts/simulate-camera.mjs) |
+| Live E2E (inbox → R2/SpacetimeDB → Gemini+SAM → dashboard API) | 8 | [tests/e2e/scrap-live.test.mjs](../tests/e2e/scrap-live.test.mjs) |
+| Live hardware test (board → bridge → `scrap`) | 3/8 | [capture/scripts/live_camera_test.py](../capture/scripts/live_camera_test.py) |
+| `judgeSameDish` prompt, schema, validation | 4 | [vision/src/dishMatch.ts](../vision/src/dishMatch.ts) |
+| `POST /api/dish-match` | 5 | [backend/src/services/dishMatchService.ts](../backend/src/services/dishMatchService.ts), [backend/src/http/app.ts](../backend/src/http/app.ts) |
+| `DishMatchRequest` / `DishMatchResult` | 1 | [contracts/types.ts](../contracts/types.ts) |
 
 Reused without changes: `HttpUploader`, `HttpIngestionSink`, `normalizeImage` (1024² center crop),
 the adapter's exactly-once registry, and the Gemini gateway. No `db/` or schema changes were needed.

@@ -328,3 +328,11 @@ remaining work.
 | **R2** data + analytics + frontend | `data/`, `analytics/`, `frontend/`, `UI.md`, factor CSVs + README | Drop the density columns and the volume branch ('mixed', volumeCaptures, no_density). Frontend: remove the toggle, depth height, volume/mixed method text and mocks. Tests |
 | **R3** capture + demo + deploy + docs + tests | `capture/`, `demo.py`, `deploy/`, `docs/`, `tests/`, `BRIDGE.md`, `ARDUINO.md`, new root `test-all.sh` | Remove `--depth` flags and the depth service. The demo `volume` step becomes `area`. **`./test-all.sh`** runs every suite, and with `--live` also the stack + smoke + E2E + demo. **`docs/deploy.md`** is a complete step-by-step deploy guide (local stack + Cloudflare Tunnel + custom domain) |
 | C | `contracts/`, `IT_4.md`, `AGENTS.md`, `README.md`, `.env.example` | contracts (done first), docs, final verification |
+
+**Status (2026-10-04): done.**
+- R1: `6b0e35d` `ac20fdc` `991249f`.
+- R2: `e4a8d02` `5f3b410` `1a4efb9` `cd82da5`.
+- R3: `94e6145` `5aaeff7` `af84bb6`.
+- C: `0ffe459` `c347abe` + README.
+- The area comes only from the active calibration (pixels × cm²/px); legacy depth-trial rows are recomputed that way when read.
+- `./test-all.sh --install --live` on clean main: **ALL PASSED**, 19 suites in 216 s: data 38, vision 88, analytics 72, capture 53, backend 68 (+1 skip), frontend 95 + build, db, tests 22, python 66, scripts 28, stack, seed, smoke 16, e2e-flow 5, e2e-scrap 8, e2e-calibration 3, demo 21 (+1 skip).

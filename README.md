@@ -65,6 +65,7 @@ python3 demo.py                  # real camera (arduino@35.1.88.76), press Enter
 python3 demo.py --simulate       # no board: test2/ photos through the same path (labeled replay)
 python3 demo.py --plates 3 --yes # three plates, no pauses
 python3 demo.py --list           # the steps; --only/--skip pick some, --events cap_… re-shows captures
+python3 demo.py --simulate --hall hall-test   # run on a test hall instead of hall-main
 ```
 
 **Upload website:** `node upload_demo/server.mjs` → http://localhost:8795. Anyone can upload a food
@@ -79,7 +80,7 @@ photos and logs to `images/demo-runs/` (gitignored). **Adding a feature? Add a d
 ## Documents
 
 - [`IT_4.md`](IT_4.md) — calibrated area, estimated CO2e/water, local production stack (plan + tracker; Depth Anything V2 was tried and removed).
-- [`docs/deploy.md`](docs/deploy.md) — run the whole stack locally in production mode: `deploy/local.sh up | status | smoke | down`.
+- [`docs/deploy.md`](docs/deploy.md) — **deploy the website**: local production stack (`deploy/local.sh`) + Cloudflare Tunnel + custom domain, step by step.
 - [`BIG-PLAN.md`](BIG-PLAN.md) — the camera → impact → dashboard plan and its tracker.
 - [`EXPLAIN.md`](EXPLAIN.md) — the whole database (SpacetimeDB + R2) in plain language.
 - [`menu_waste_factors_README.md`](menu_waste_factors_README.md) — the waste
@@ -156,6 +157,16 @@ deterministic mock analyzer; without `SPACETIMEDB_URI` it uses an in-memory
 store. `VITE_USE_MOCK=1 npm run dev` runs the dashboard on demo data alone.
 
 ## Verify
+
+**One command runs everything** (see [docs/runbook.md](docs/runbook.md)):
+
+```bash
+./test-all.sh            # offline: every package, dashboard build, db typecheck, integration, Python, scripts
+./test-all.sh --live     # + starts the local stack: smoke test, live E2E suites, demo.py --simulate (test halls only)
+./test-all.sh --list     # suites; --only a,b / --skip a,b / --install / --fail-fast
+```
+
+Individual suites:
 
 ```bash
 cd tests && npm test                          # fixture + formula checks

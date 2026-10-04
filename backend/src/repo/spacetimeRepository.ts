@@ -308,15 +308,28 @@ export class SpacetimeRepository implements Repository {
     const [events, hidden, views] = await Promise.all([
       this.sql(q),
       filter?.includeHidden ? Promise.resolve(new Set<string>()) : this.listHiddenCaptureIds(),
-      filter?.includeHidden ? Promise.resolve([] as Row[]) : this.sql('SELECT * FROM dashboard_view'),
+      filter?.includeHidden ? Promise.resolve([] as Row[]) : this.dashboardViews(),
     ]);
     const cutoffs = new Map(views.map((v) => [String(v.hallId), typeof v.clearedAt === 'string' ? v.clearedAt : null]));
     return clean((events as CaptureEvent[]).filter((e) => !hidden.has(e.eventId) && !isBeforeCutoff(e, cutoffs.get(e.hallId))));
   }
 
   // --- dashboard cutoff ---
+  /**
+   * All dashboard_view rows. A module published before the table existed answers
+   * with an error: treat that as "no cutoff" so the dashboard keeps working until
+   * the additive schema is published (only the demo-data buttons need it).
+   */
+  private async dashboardViews(): Promise<Row[]> {
+    try {
+      return await this.sql('SELECT * FROM dashboard_view');
+    } catch (err) {
+      if (/dashboard_view/i.test(err instanceof Error ? err.message : String(err))) return [];
+      throw err;
+    }
+  }
   async getDashboardView(hallId: string) {
-    const row = (await this.sql(`SELECT * FROM dashboard_view WHERE hall_id = ${quote(hallId)}`))[0];
+    const row = (await this.dashboardViews()).find((v) => String(v.hallId) === hallId);
     if (!row) return undefined;
     return { hallId, clearedAt: typeof row.clearedAt === 'string' ? row.clearedAt : null, updatedAt: String(row.updatedAt) };
   }

@@ -129,3 +129,18 @@ test('anonymous callers cannot change demo data but can read its status', async 
   assert.equal(status.status, 200);
   assert.equal(((await status.json()) as { hallId: string }).hallId, HALL);
 });
+
+test('SpacetimeDB module without dashboard_view (not yet published): no cutoff, other errors still throw', async () => {
+  const { SpacetimeRepository } = await import('../src/repo/spacetimeRepository.js');
+  const realFetch = globalThis.fetch;
+  let body = 'no such table: `dashboard_view`. If the table exists, it may be marked private.';
+  globalThis.fetch = (async () => new Response(body, { status: 400 })) as typeof fetch;
+  try {
+    const repo = new SpacetimeRepository({ uri: 'http://127.0.0.1:1', module: 'scrap' });
+    assert.equal(await repo.getDashboardView(HALL), undefined);
+    body = 'some other failure';
+    await assert.rejects(repo.getDashboardView(HALL), /some other failure/);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});

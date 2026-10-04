@@ -5,8 +5,22 @@
  * menus kept in localStorage), with the same signatures as liveApi.ts.
  */
 import { addDays, eachDay, startOfMonth, startOfWeek, todayIso } from '../lib/dates'
-import { MOCK_FUTURE_MENU_DAYS, mockMealDetail, mockMenuFor, rng } from './mockData'
+import {
+  MOCK_FUTURE_MENU_DAYS,
+  mockCaptureImages,
+  mockCaptures,
+  mockDailyGrams,
+  mockImpactDashboard,
+  mockMealDetail,
+  mockMenuFor,
+  mockRecommendation,
+  rng,
+} from './mockData'
 import type {
+  CaptureImages,
+  CaptureListItem,
+  ImpactDashboard,
+  Recommendation,
   DailyWastePoint,
   DayMenu,
   IsoDate,
@@ -92,7 +106,10 @@ export async function saveUserMenu(date: IsoDate, meals: Record<MealLabel, MenuI
 export async function getDailyWaste(start: IsoDate, end: IsoDate): Promise<DailyWastePoint[]> {
   await wait()
   const today = todayIso()
-  return eachDay(start, end).map((date) => ({ date, pixelsWasted: dailyTotal(date, today) }))
+  return eachDay(start, end).map((date) => {
+    const pixelsWasted = dailyTotal(date, today)
+    return { date, pixelsWasted, grams: pixelsWasted === null ? null : mockDailyGrams(date, today) }
+  })
 }
 
 function dailyTotal(date: IsoDate, today: IsoDate): number | null {
@@ -230,4 +247,30 @@ export async function getPlates(_date: IsoDate, _meal: MealLabel): Promise<Plate
 
 export async function getImageUrl(_objectId: string): Promise<string> {
   throw new Error('Demo mode has no photos.')
+}
+
+// ---------------------------------------------------------------------------
+// Waste impact dashboard (BIG-PLAN D1-D8)
+// ---------------------------------------------------------------------------
+
+export async function getImpactDashboard(start: IsoDate, end: IsoDate): Promise<ImpactDashboard> {
+  await wait()
+  return mockImpactDashboard(start, end, todayIso())
+}
+
+export async function getCaptures(start: IsoDate, end: IsoDate): Promise<CaptureListItem[]> {
+  await wait()
+  return mockCaptures(start, end, todayIso())
+}
+
+export async function getCaptureImages(eventId: string): Promise<CaptureImages> {
+  await wait()
+  const images = mockCaptureImages(eventId, todayIso(), new Date())
+  if (!images) throw new Error('This plate is no longer available.')
+  return images
+}
+
+export async function getRecommendation(start: IsoDate, end: IsoDate): Promise<Recommendation> {
+  await wait()
+  return mockRecommendation(mockImpactDashboard(start, end, todayIso()), new Date())
 }

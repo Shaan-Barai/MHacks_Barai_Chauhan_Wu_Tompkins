@@ -9,6 +9,10 @@
  */
 import { loadSettings } from '../state/settings'
 import type {
+  CaptureImages,
+  CaptureListItem,
+  ImpactDashboard,
+  Recommendation,
   DailyWastePoint,
   DayMenu,
   IsoDate,
@@ -124,10 +128,11 @@ export async function saveUserMenu(date: IsoDate, meals: Record<MealLabel, MenuI
 // ---------------------------------------------------------------------------
 
 export async function getDailyWaste(start: IsoDate, end: IsoDate): Promise<DailyWastePoint[]> {
-  const { days } = await call<{ days: { date: IsoDate; pixelsWasted: number | null }[] }>(
+  const { days } = await call<{ days: { date: IsoDate; pixelsWasted: number | null; grams?: number | null }[] }>(
     `/api/dashboard/daily?${q({ hallId: hallId(), start, end })}`,
   )
-  return days.map((d) => ({ date: d.date, pixelsWasted: d.pixelsWasted }))
+  // grams is optional: when the backend sends it the chart shows estimated grams.
+  return days.map((d) => ({ date: d.date, pixelsWasted: d.pixelsWasted, ...(d.grams !== undefined ? { grams: d.grams } : {}) }))
 }
 
 interface MealResponse {
@@ -259,4 +264,29 @@ export async function getPlates(date: IsoDate, meal: MealLabel): Promise<PlateRe
 export async function getImageUrl(objectId: string): Promise<string> {
   const body = await call<{ url: string }>(`/api/images/${encodeURIComponent(objectId)}/access`)
   return body.url
+}
+
+// ---------------------------------------------------------------------------
+// Waste impact dashboard (BIG-PLAN D1-D8, contracts/types.ts waste-impact section)
+// ---------------------------------------------------------------------------
+
+export async function getImpactDashboard(start: IsoDate, end: IsoDate): Promise<ImpactDashboard> {
+  return call<ImpactDashboard>(`/api/dashboard/impact?${q({ hallId: hallId(), start, end })}`)
+}
+
+/** Accepts a bare array or `{ captures: [...] }`. */
+export async function getCaptures(start: IsoDate, end: IsoDate): Promise<CaptureListItem[]> {
+  const body = await call<CaptureListItem[] | { captures: CaptureListItem[] }>(
+    `/api/captures?${q({ hallId: hallId(), start, end })}`,
+  )
+  return Array.isArray(body) ? body : body.captures ?? []
+}
+
+/** Short-lived read links for a plate's photo, AI outline image and masks. Ask again when they expire. */
+export async function getCaptureImages(eventId: string): Promise<CaptureImages> {
+  return call<CaptureImages>(`/api/captures/${encodeURIComponent(eventId)}/images`)
+}
+
+export async function getRecommendation(start: IsoDate, end: IsoDate): Promise<Recommendation> {
+  return call<Recommendation>(`/api/recommendation?${q({ hallId: hallId(), start, end })}`)
 }

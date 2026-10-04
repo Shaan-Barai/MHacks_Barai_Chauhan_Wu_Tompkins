@@ -5,11 +5,13 @@
  *
  * Values are random but fixed per hall and date (seeded), so reloads, the
  * cards and the chart agree, and each dining hall gets its own numbers.
+ * The cards cover today, the last 7 days and the last 30 days, so the
+ * month card always covers more than the week card.
  * Same signatures as liveApi's getDailyWaste / getSummaryCards; api.ts
  * picks this module unless VITE_DEMO_METRICS=0.
  */
 import type { DailyWastePoint, IsoDate, PeriodSummary, SummaryCards } from './types'
-import { addDays, eachDay, startOfMonth, startOfWeek, todayIso } from '../lib/dates'
+import { addDays, eachDay, todayIso } from '../lib/dates'
 
 export const DEMO_DAYS = 30
 export const WASTE_SCORE_RANGE = [100, 500] as const
@@ -52,7 +54,7 @@ export async function getSummaryCards(hallIds: string[] = ['hall-main']): Promis
     const days = eachDay(start, end).map((d) => demoTotal(hallIds, d, today)).filter((d) => d !== null)
     return days.length === 0 ? null : { wasteScore: days.reduce((s, d) => s + d.wasteScore, 0), plates: days.reduce((s, d) => s + d.plates, 0) }
   }
-  // Same windows as the backend's cards: the period so far, compared with the same number of days just before.
+  // Each period is compared with the same number of days just before it.
   const period = (start: IsoDate): PeriodSummary => {
     const length = eachDay(start, today).length
     const prevEnd = addDays(start, -1)
@@ -66,5 +68,5 @@ export async function getSummaryCards(hallIds: string[] = ['hall-main']): Promis
       platesCounted: now?.plates ?? 0,
     }
   }
-  return { today: period(today), thisWeek: period(startOfWeek(today)), thisMonth: period(startOfMonth(today)) }
+  return { today: period(today), thisWeek: period(addDays(today, -6)), thisMonth: period(addDays(today, -(DEMO_DAYS - 1))) }
 }

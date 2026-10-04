@@ -68,12 +68,32 @@ function SummaryCard({ label, before, summary, unit }: { label: string; before: 
   )
 }
 
-export function SummaryCardsRow({ data, unit = 'pixels' }: { data: SummaryCardsData; unit?: SummaryUnit }) {
+/**
+ * 'calendar': this week and this month so far (the backend's cards).
+ * 'rolling': the last 7 and last 30 days (demo numbers).
+ */
+export type SummaryPeriods = 'calendar' | 'rolling'
+
+const PERIOD_TEXT: Record<SummaryPeriods, { week: [string, string]; month: [string, string] }> = {
+  calendar: { week: ['This week', 'the same days last week'], month: ['This month', 'the same days last month'] },
+  rolling: { week: ['Last 7 days', 'the 7 days before'], month: ['Last 30 days', 'the 30 days before'] },
+}
+
+export function SummaryCardsRow({
+  data,
+  unit = 'pixels',
+  periods = 'calendar',
+}: {
+  data: SummaryCardsData
+  unit?: SummaryUnit
+  periods?: SummaryPeriods
+}) {
+  const { week, month } = PERIOD_TEXT[periods]
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <SummaryCard label="Today" before="the day before" summary={data.today} unit={unit} />
-      <SummaryCard label="This week" before="the same days last week" summary={data.thisWeek} unit={unit} />
-      <SummaryCard label="This month" before="the same days last month" summary={data.thisMonth} unit={unit} />
+      <SummaryCard label={week[0]} before={week[1]} summary={data.thisWeek} unit={unit} />
+      <SummaryCard label={month[0]} before={month[1]} summary={data.thisMonth} unit={unit} />
     </div>
   )
 }

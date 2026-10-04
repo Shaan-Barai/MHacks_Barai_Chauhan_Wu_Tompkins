@@ -80,7 +80,7 @@ export function DashboardPage({
 
       {summary.status === 'loading' && !summary.data && <LoadingBlock label="Loading totals" />}
       {summary.status === 'error' && <EmptyState title="Couldn't load totals.">{summary.error}</EmptyState>}
-      {summary.data && <SummaryCardsRow data={summary.data} unit={DEMO_METRICS ? 'score' : 'pixels'} />}
+      {summary.data && <SummaryCardsRow data={summary.data} unit={DEMO_METRICS ? 'score' : 'pixels'} periods={DEMO_METRICS ? 'rolling' : 'calendar'} />}
 
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">

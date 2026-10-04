@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { demoDay, getDailyWaste, getSummaryCards, PLATES_RANGE, WASTE_SCORE_RANGE } from './demoMetrics'
-import { addDays, eachDay, startOfWeek, todayIso } from '../lib/dates'
+import { addDays, eachDay, todayIso } from '../lib/dates'
 
 const today = todayIso()
 
@@ -34,8 +34,12 @@ describe('demo metrics', () => {
     const cards = await getSummaryCards(['hall-main'])
     expect(cards.today.pixelsWasted).toBe(demoDay('hall-main', today)!.wasteScore)
     expect(cards.today.platesCounted).toBe(demoDay('hall-main', today)!.plates)
-    const week = await getDailyWaste(startOfWeek(today), today, ['hall-main'])
-    expect(cards.thisWeek.pixelsWasted).toBe(week.reduce((s, p) => s + (p.pixelsWasted ?? 0), 0))
+    const total = async (days: number) =>
+      (await getDailyWaste(addDays(today, -(days - 1)), today, ['hall-main'])).reduce((s, p) => s + (p.pixelsWasted ?? 0), 0)
+    expect(cards.thisWeek.pixelsWasted).toBe(await total(7))
+    expect(cards.thisMonth.pixelsWasted).toBe(await total(30))
+    expect(cards.thisMonth.pixelsWasted).toBeGreaterThan(cards.thisWeek.pixelsWasted)
+    expect(cards.thisMonth.platesCounted).toBeGreaterThan(cards.thisWeek.platesCounted)
     expect(cards.today.previousPixelsWasted).toBe(demoDay('hall-main', addDays(today, -1))!.wasteScore)
   })
 })

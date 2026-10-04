@@ -1,7 +1,8 @@
 /**
- * The one main chart (UI.md): estimated grams (or Pixels wasted when grams are
- * not available) per day, black bars, hover (and keyboard-focus) tooltip with
- * the exact value and date. Hand-rolled SVG.
+ * The one main chart (UI.md): waste score, estimated grams, or Pixels wasted
+ * per day as a black line with a dot per day (dots hidden past 45 days), and a
+ * hover (and keyboard-focus) tooltip with the exact value and date. Days with
+ * no data break the line. Hand-rolled SVG.
  */
 import { useLayoutEffect, useRef, useState } from 'react'
 import { formatCompact, formatGrams, formatNumber } from '../lib/format'
@@ -21,7 +22,7 @@ function valueText(v: number, unit: ChartUnit): string {
 
 const CHART_SUBJECT: Record<ChartUnit, string> = { grams: 'estimated food left', pixels: 'pixels wasted', score: 'waste score' }
 
-const BAR = '#000000'
+const LINE = '#000000'
 const GRID = '#000000'
 const LABEL = '#000000'
 
@@ -47,15 +48,27 @@ export function WasteChart({ buckets, unit = 'pixels' }: { buckets: ChartBucket[
   const plotH = HEIGHT - M.top - M.bottom
   const max = niceCeil(Math.max(0, ...buckets.map((b) => b.value ?? 0)))
   const band = plotW / Math.max(1, n)
-  const barW = Math.min(24, Math.max(2, band - 2)) // ≤24px thick, 2px surface gap
   const yFor = (v: number) => M.top + plotH - (v / max) * plotH
+  const xFor = (i: number) => M.left + i * band + band / 2
+
+  // A day with no data on either side has no line, so its dot always shows.
+  const isolated = (i: number) => (buckets[i - 1]?.value ?? null) === null && (buckets[i + 1]?.value ?? null) === null
+
+  // Runs of consecutive days with data, each drawn as one line.
+  const segments: number[][] = []
+  buckets.forEach((b, i) => {
+    if (b.value === null) return
+    const last = segments[segments.length - 1]
+    if (last && last[last.length - 1] === i - 1) last.push(i)
+    else segments.push([i])
+  })
 
   // ~6 evenly spaced x labels so they never collide.
   const labelEvery = Math.max(1, Math.ceil(n / 6))
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => f * max)
 
   const hovered = hover !== null ? buckets[hover] : null
-  const hoverCenter = hover !== null ? M.left + hover * band + band / 2 : 0
+  const hoverCenter = hover !== null ? xFor(hover) : 0
   const tooltipLeft = Math.min(Math.max(hoverCenter, 70), width - 70)
 
   return (
@@ -64,7 +77,7 @@ export function WasteChart({ buckets, unit = 'pixels' }: { buckets: ChartBucket[
         width={width}
         height={HEIGHT}
         role="img"
-        aria-label={`Bar chart of ${CHART_SUBJECT[unit]} per day for the selected days`}
+        aria-label={`Line chart of ${CHART_SUBJECT[unit]} per day for the selected days`}
       >
         {/* recessive hairline gridlines + y ticks */}
         {ticks.map((t) => (
@@ -76,19 +89,28 @@ export function WasteChart({ buckets, unit = 'pixels' }: { buckets: ChartBucket[
           </g>
         ))}
 
-        {/* Black bars: square at the baseline, 4px rounded data-end */}
-        {buckets.map((b, i) => {
-          if (b.value === null) return null
-          const x = M.left + i * band + (band - barW) / 2
-          const y = yFor(b.value)
-          const h = M.top + plotH - y
-          const r = Math.min(4, barW / 2, h)
-          const d =
-            h <= 0.5
-              ? ''
-              : `M ${x} ${M.top + plotH} V ${y + r} Q ${x} ${y} ${x + r} ${y} H ${x + barW - r} Q ${x + barW} ${y} ${x + barW} ${y + r} V ${M.top + plotH} Z`
-          return <path key={b.key} d={d} fill={BAR} />
-        })}
+        {/* guide under the hovered day */}
+        {hovered && hovered.value !== null && (
+          <line x1={xFor(hover!)} x2={xFor(hover!)} y1={M.top} y2={M.top + plotH} stroke={GRID} strokeWidth={1} />
+        )}
+
+        {/* Black line through the days with data; a day with no data breaks the line */}
+        {segments.map((seg) => (
+          <polyline
+            key={seg[0]}
+            points={seg.map((i) => `${xFor(i)},${yFor(buckets[i].value!)}`).join(' ')}
+            fill="none"
+            stroke={LINE}
+            strokeWidth={2}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+        ))}
+        {buckets.map((b, i) =>
+          b.value === null ? null : (
+            <circle key={b.key} cx={xFor(i)} cy={yFor(b.value)} r={hover === i ? 5 : n > 45 && !isolated(i) ? 0 : 3} fill={LINE} />
+          ),
+        )}
 
         {/* baseline */}
         <line x1={M.left} x2={width - M.right} y1={M.top + plotH} y2={M.top + plotH} stroke={GRID} strokeWidth={1} />
@@ -98,7 +120,7 @@ export function WasteChart({ buckets, unit = 'pixels' }: { buckets: ChartBucket[
           i % labelEvery === 0 ? (
             <text
               key={b.key}
-              x={M.left + i * band + band / 2}
+              x={xFor(i)}
               y={HEIGHT - 10}
               textAnchor="middle"
               fontSize={12}

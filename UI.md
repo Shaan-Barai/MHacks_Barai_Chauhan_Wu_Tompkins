@@ -50,9 +50,9 @@ segmentation; "Pixels wasted" is the one technical label kept.
 ### DASHBOARD
 Top, kept simple:
 - With more than one dining hall, a dropdown next to the "Dashboard" title picks "All dining halls" (every hall added together) or one hall. Everything on the page follows it.
-- Three summary cards: Today, This week, This month. Each shows the **Waste score** (with a "?": a dollar value for the greenhouse gases and fresh water behind food left on plates, $0.19 per kg CO2e and $1.50 per cubic meter of water, not the food cost), plates scanned, and the change from the same days before.
+- Three summary cards: Today, This week, This month (with demo numbers: Today, Last 7 days, Last 30 days, so the month card always covers more than the week). Each shows the **Waste score** (with a "?": a dollar value for the greenhouse gases and fresh water behind food left on plates, $0.19 per kg CO2e and $1.50 per cubic meter of water, not the food cost), plates scanned, and the change from the same days before.
 - **Demo numbers (for now):** the cards and the chart use simulated data, marked "Demo numbers" next to the title. The last 30 days each get a waste score of 100 to 500 and 900 to 1,400 plates scanned per dining hall; "All dining halls" adds them up. Turn it off with `VITE_DEMO_METRICS=0` to show real scans (Pixels wasted). The sections below always use real scans.
-- One chart, one bar per day (waste score with demo numbers; with real scans, estimated food left when the server sends grams, Pixels wasted otherwise), with the lookback buttons on the chart: Today, Last 7 days, Last 30 days, Last 90 days (no custom range).
+- One line chart, one dot per day (waste score with demo numbers; with real scans, estimated food left when the server sends grams, Pixels wasted otherwise), with the lookback buttons on the chart: Today, Last 7 days, Last 30 days, Last 90 days (no custom range).
 
 Below, under "More about these days" (follows the chart's lookback), with one short line on how waste is measured (AI outlines of visible leftovers, turned into grams with the plate size and a typical weight per food; estimates, not a scale reading):
 1. Four headline cards, each marked "estimate" with a "?" explanation:

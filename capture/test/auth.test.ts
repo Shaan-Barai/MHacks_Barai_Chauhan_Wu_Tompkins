@@ -9,7 +9,7 @@ import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { test } from 'node:test';
 
-import { authHeaders, describeBackend, resolveBackend } from '../src/backendConfig.js';
+import { authHeaders, defaultTokenFiles, describeBackend, readEnvFile, resolveBackend } from '../src/backendConfig.js';
 import { BackendRequestError, HttpCalibrationClient, HttpIngestionSink, HttpUploader } from '../src/http.js';
 import type { CaptureEvent } from '../src/contract-types.js';
 
@@ -60,6 +60,25 @@ test('resolveBackend: token from SCRAP_INGEST_TOKEN or --token-env, with warning
     /unencrypted/,
   );
   assert.deepEqual(resolveBackend({ SCRAP_INGEST_TOKEN: TOKEN }).warnings, []);
+});
+
+test('token falls back to .env, then deploy/.run/local-secrets.env; the environment wins', async () => {
+  const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const path = await import('node:path');
+  const repo = await mkdtemp(path.join(tmpdir(), 'scrap-token-'));
+  await mkdir(path.join(repo, 'deploy', '.run'), { recursive: true });
+  const files = defaultTokenFiles(repo);
+  await writeFile(files[1]!, `SCRAP_INGEST_TOKEN=from_secrets\n`);
+  let config = resolveBackend({}, undefined, files);
+  assert.equal(config.token, 'from_secrets');
+  assert.match(describeBackend(config), /deploy\/\.run\/local-secrets\.env/);
+  await writeFile(files[0]!, `# comment\nOTHER=1\nexport SCRAP_INGEST_TOKEN="from_dotenv"\n`);
+  config = resolveBackend({}, undefined, files);
+  assert.equal(config.token, 'from_dotenv');
+  assert.doesNotMatch(describeBackend(config), /from_dotenv/);
+  assert.equal(resolveBackend({ SCRAP_INGEST_TOKEN: 'from_env' }, undefined, files).token, 'from_env');
+  assert.equal(readEnvFile(path.join(repo, 'missing.env'), 'X'), undefined);
 });
 
 test('describeBackend and warnings never contain the token', () => {

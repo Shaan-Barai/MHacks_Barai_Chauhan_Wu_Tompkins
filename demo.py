@@ -7,18 +7,26 @@
     python3 demo.py --simulate --yes   # no pauses between steps
     python3 demo.py --list             # show the steps
     python3 demo.py --only stats,recommendation,dashboard   # re-show results only
+    python3 demo.py --simulate --recalibrate --depth on     # new calibration, Depth Anything V2 on
 
 Each step prints what it does and proves it with real data:
-  services        SpacetimeDB, SAM 2.1 worker, backend (R2), dashboard are up (offers to start them)
+  services        SpacetimeDB, SAM 2.1 + depth workers, backend (R2), dashboard are up (offers to start them)
   menu            today's dinner menu + demo portions served (seeds them if missing)
+  calibration     camera calibration: cm² per pixel, camera height (geometric / Depth Anything V2), depth on/off
   camera          the Uno Q takes a photo and SSHes it to this laptop (or --simulate)
   upload          bridge: photo -> R2 (presigned PUT) -> SpacetimeDB image_object -> capture_event
   analysis        Gemini classifies + boxes the food, SAM 2.1 segments it, code counts pixels
+  volume          estimated area / volume / grams / kg CO2e / L water per food (calibrated captures)
   storage         R2 holds photo, overlay and masks; SpacetimeDB holds only references
   images          side-by-side "camera photo | AI segmentation" picture
-  stats           total waste, waste per portion, most wasted, relative impact (C + W)
+  stats           total waste, waste per portion, most wasted, relative impact, estimated CO2e + water
   recommendation  Gemini's suggestion grounded in those numbers
   dashboard       opens the ScrapSaver dashboard
+  deploy          checks the production URL (SCRAP_PROD_URL): /api/health, /api/ready, dashboard HTML
+
+Backend: SCRAP_API_URL (default http://localhost:8787; API_URL still works). Mutations send
+`Authorization: Bearer $SCRAP_INGEST_TOKEN` (or --token-env NAME); when it is not in the
+environment it is read from .env or deploy/.run/local-secrets.env. The token is never printed.
 
 ADDING A FEATURE? Add a step function below and an entry in STEPS (see AGENTS.md
 "Demo script"). Keep each step self-contained: read what it needs from `demo`,
@@ -95,10 +103,44 @@ def num(value, digits=0):
 
 # ------------------------------------------------------------------- state ---
 
+def read_env_file(path, key):
+    """One KEY=value from a dotenv-style file, or None. Values are never printed."""
+    try:
+        for line in Path(path).read_text().splitlines():
+            line = line.strip()
+            if line.startswith("export "):
+                line = line[7:].strip()
+            name, sep, value = line.partition("=")
+            if sep and name.strip() == key:
+                value = value.strip().strip("'\"")
+                return value or None
+    except OSError:
+        pass
+    return None
+
+
+def resolve_token(token_env):
+    """The ingest token: environment first, then .env, then deploy/.run/local-secrets.env."""
+    value = os.environ.get(token_env, "").strip()
+    if value:
+        return value, f"${token_env}"
+    for path in (REPO / ".env", REPO / "deploy" / ".run" / "local-secrets.env"):
+        value = read_env_file(path, token_env)
+        if value:
+            return value, f"{token_env} in {path.relative_to(REPO)}"
+    return None, None
+
+
+def is_local(url):
+    return urllib.parse.urlparse(url).hostname in ("localhost", "127.0.0.1", "::1")
+
+
 class Demo:
     def __init__(self, args):
         self.args = args
         self.api = args.api.rstrip("/")
+        self.token, self.token_source = resolve_token(args.token_env)
+        self.auth_warned = False
         self.run = args.out or REPO / "images" / "demo-runs" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         self.inbox = self.run / "inbox"
         self.state = self.run / "bridge-state"
@@ -108,6 +150,7 @@ class Demo:
         self.results = []            # (status, step, message)
         self.step = ""
         self.started = []            # services this run started
+        self.calibration = None      # active CameraCalibration (calibration step)
 
     def check(self, status, message):
         self.results.append((status, self.step, message))
@@ -118,18 +161,33 @@ class Demo:
     def get(self, route, timeout=60):
         return self.request("GET", route, timeout=timeout)
 
-    def request(self, method, route, body=None, timeout=60):
+    def request(self, method, route, body=None, timeout=60, base=None):
         data = None if body is None else json.dumps(body).encode()
-        req = urllib.request.Request(self.api + route, data=data, method=method,
-                                     headers={"content-type": "application/json"})
+        headers = {"content-type": "application/json"}
+        if self.token:
+            headers["authorization"] = f"Bearer {self.token}"
+        req = urllib.request.Request((base or self.api) + route, data=data, method=method, headers=headers)
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 return r.status, json.loads(r.read() or b"null")
         except urllib.error.HTTPError as e:
+            if e.code in (401, 403) and not self.auth_warned:
+                self.auth_warned = True
+                hint = ("no ingest token is set" if not self.token else
+                        f"the token from {self.token_source} was refused")
+                print(red(f"  ✗ HTTP {e.code} from {method} {route}: {hint}. Set {self.args.token_env} to the "
+                          "backend's SCRAP_INGEST_TOKEN (see docs/deploy.md)."), flush=True)
             try:
                 return e.code, json.loads(e.read() or b"null")
             except ValueError:
                 return e.code, None
+
+    def child_env(self):
+        """Environment for the capture/backend npm scripts: same backend, same token."""
+        env = {"API_URL": self.api, "SCRAP_API_URL": self.api}
+        if self.token:
+            env["SCRAP_INGEST_TOKEN"] = self.token
+        return env
 
     def window(self):
         return urllib.parse.urlencode({"hallId": HALL_ID, "start": self.date, "end": self.date})
@@ -204,18 +262,53 @@ def unwrap(value):
 # ------------------------------------------------------------------- steps ---
 
 SERVICES = [
-    # name, port, health URL, start command, cwd, wait seconds
-    ("SpacetimeDB", 3000, None, ["spacetime", "start"], REPO, 20),
-    ("SAM 2.1 worker", 8790, "http://127.0.0.1:8790/health", [".venv/bin/python", "vision/sam/worker.py"], REPO, 90),
-    ("Backend API", 8787, "http://127.0.0.1:8787/api/health", ["npm", "start"], REPO / "backend", 120),
-    ("Dashboard", 5173, None, ["npm", "run", "dev"], REPO / "frontend", 30),
+    # name, port, health URL, start command, cwd, wait seconds, required
+    ("SpacetimeDB", 3000, None, ["spacetime", "start"], REPO, 20, True),
+    ("SAM 2.1 worker", 8790, "http://127.0.0.1:8790/health", [".venv/bin/python", "vision/sam/worker.py"], REPO, 90, True),
+    # Optional: only needed with Depth Anything V2 on (volume method); off ⇒ area method.
+    ("Depth Anything V2 worker", 8791, "http://127.0.0.1:8791/health", [".venv/bin/python", "vision/depth/worker.py"],
+     REPO, 180, False),
+    ("Backend API", 8787, "http://127.0.0.1:8787/api/health", ["npm", "start"], REPO / "backend", 120, True),
+    ("Dashboard", 5173, None, ["npm", "run", "dev"], REPO / "frontend", 30, True),
 ]
+
+
+def dashboard_served_by_backend(demo):
+    """Production mode (deploy/local.sh, SERVE_FRONTEND=1): the backend serves the built dashboard at /."""
+    ok, body = http_ok(demo.api + "/")
+    return ok and b"<html" in body[:2000].lower()
+
+
+def step_services_remote(demo):
+    """A remote backend (SCRAP_API_URL): check it instead of local processes."""
+    ok, body = http_ok(demo.api + "/api/health", timeout=10)
+    if not ok:
+        demo.check("FAIL", f"Backend {demo.api} not reachable (/api/health)")
+        return False
+    demo.check("PASS", f"Backend {demo.api}  {dim(body.decode(errors='replace')[:80])}")
+    status, ready = demo.get("/api/ready", timeout=20)
+    demo.check("PASS" if status == 200 else "WARN", f"/api/ready HTTP {status}" +
+               (f": {json.dumps(ready)[:160]}" if status != 200 else ""))
+    demo.check("PASS" if demo.token else "WARN",
+               f"Ingest token {'from ' + demo.token_source if demo.token else 'not set: uploads will get 401'}")
+    return True
 
 
 def step_services(demo):
     """Everything the pipeline needs is running."""
-    for name, port, health, command, cwd, wait in SERVICES:
+    if not is_local(demo.api):
+        return step_services_remote(demo)
+    backend_port = urllib.parse.urlparse(demo.api).port or 80
+    for name, port, health, command, cwd, wait, required in SERVICES:
+        if name == "Backend API" and backend_port != port:
+            port, health = backend_port, f"{demo.api}/api/health"
+        if name == "Dashboard" and not port_open(port) and dashboard_served_by_backend(demo):
+            demo.check("PASS", f"Dashboard served by the backend at {demo.api}/ (production build)")
+            continue
         up = port_open(port) and (health is None or http_ok(health)[0])
+        if not up and not required and not demo.args.depth == "on":
+            demo.check("INFO", f"{name} not running on :{port} (optional: Depth Anything V2 off ⇒ area method)")
+            continue
         if not up and not demo.args.no_start and ask(f"{name} is not running. Start it now?"):
             log = demo.run / "logs" / f"{name.split()[0].lower()}.log"
             log.parent.mkdir(parents=True, exist_ok=True)
@@ -231,7 +324,8 @@ def step_services(demo):
                 time.sleep(1)
                 up = port_open(port) and (health is None or http_ok(health)[0])
         if not up:
-            demo.check("FAIL", f"{name} not reachable on :{port}  (start: cd {cwd.relative_to(REPO) or '.'} && {' '.join(command)})")
+            demo.check("FAIL" if required else "WARN",
+                       f"{name} not reachable on :{port}  (start: cd {cwd.relative_to(REPO) or '.'} && {' '.join(command)})")
             continue
         detail = ""
         if health:
@@ -244,6 +338,13 @@ def step_services(demo):
             except ValueError:
                 pass
         demo.check("PASS", f"{name} on :{port}" + (f"  {dim(detail)}" if detail else ""))
+    status, me = demo.get("/api/auth/me", timeout=5)
+    if status == 200 and isinstance(me, dict) and me.get("authRequired"):
+        demo.check("PASS" if demo.token else "FAIL",
+                   "Backend requires auth for writes; ingest token " +
+                   (f"from {demo.token_source}" if demo.token else f"NOT set ({demo.args.token_env})"))
+    elif status == 200:
+        demo.check("INFO", "Backend runs without write auth (dev mode)")
     if not demo.args.simulate:
         if shutil.which("ssh") is None:
             demo.check("FAIL", "ssh is not installed (needed for the camera)")
@@ -255,7 +356,7 @@ def step_menu(demo):
     if status != 200 and not demo.args.service:
         print(f"  No menu for {demo.service_id} yet. Seeding the 26-food demo dinner for {demo.date}…")
         run_live(["npm", "run", "--silent", "seed", "--", f"--live-dinner={demo.date}"], cwd=REPO / "backend",
-                 env={"API_URL": demo.api})
+                 env=demo.child_env())
         status, menu = demo.get(f"/api/menus/by-service/{demo.service_id}")
     if status != 200:
         demo.check("FAIL", f"No menu for {demo.service_id}. Pick another with --service (GET /api/services).")
@@ -268,7 +369,7 @@ def step_menu(demo):
     served = {p["itemId"]: p for p in (portions or {}).get("portions", [])}
     if not served and not demo.args.service:
         run_live(["npm", "run", "--silent", "seed", "--", f"--live-dinner={demo.date}"], cwd=REPO / "backend",
-                 env={"API_URL": demo.api})
+                 env=demo.child_env())
         _, portions = demo.get(f"/api/portions-served?{q}")
         served = {p["itemId"]: p for p in (portions or {}).get("portions", [])}
     sources = {p.get("source") for p in served.values()}
@@ -284,13 +385,114 @@ def step_menu(demo):
         f = factors.get(slug(item["displayName"]))
         p = served.get(item["itemId"])
         rows.append([item["displayName"], num(p["count"]) if p else "—",
-                     f["weight_g_per_cm2"] if f else "—", f["C_kg_co2e_per_kg"] if f else "—",
+                     f["weight_g_per_cm2"] if f else "—", (f.get("density_g_per_cm3") or "—") if f else "—",
+                     f["C_kg_co2e_per_kg"] if f else "—",
                      f["W_water_m3_per_kg"] if f else "—", f["impact_score_usd_per_kg"] if f else "—"])
     print()
-    table(rows, ["Food", "Portions", "g/cm²", "C kgCO2e/kg", "W m³/kg", "0.19C+1.50W"], "lrrrrr")
+    table(rows, ["Food", "Portions", "g/cm²", "g/cm³", "C kgCO2e/kg", "W m³/kg", "0.19C+1.50W"], "lrrrrrr")
+    print(dim("    g/cm² → grams by the area method (DAv2 off); g/cm³ (density) → grams by the volume method (DAv2 on)."))
+    print(dim("    No density (—): that food always uses the area method."))
     if len(items) > 8:
         print(dim(f"    … and {len(items) - 8} more"))
     return True
+
+
+def pick(body, key):
+    """Accept {key: record} or a bare record."""
+    if isinstance(body, dict) and isinstance(body.get(key), dict):
+        return body[key]
+    return body
+
+
+def route_missing(status, body):
+    error = (body or {}).get("error") if isinstance(body, dict) else None
+    return status == 404 and (not error or error.get("code") == "ROUTE_NOT_FOUND")
+
+
+def measurement_settings(demo):
+    """(status, MeasurementSettings or None) for the demo hall."""
+    status, body = demo.get(f"/api/settings/measurement?hallId={HALL_ID}")
+    return status, (pick(body, "settings") if status == 200 else None)
+
+
+def run_calibration_capture(demo):
+    """Take (or simulate) one calibration frame and send it through upload → POST /api/calibrations."""
+    inbox = demo.run / "calibration-inbox"
+    common = ["--inbox", str(inbox), "--state-dir", str(demo.state), "--hall", HALL_ID,
+              "--known-area-cm2", str(demo.args.known_area_cm2), "--reference-label", demo.args.reference_label]
+    if demo.args.depth:
+        common += ["--depth", demo.args.depth]
+    if demo.args.simulate:
+        print("  --simulate: a SYNTHETIC calibration photo (a drawn credit card on the tray, 45 cm design height).")
+        code, _ = run_live(["npm", "run", "--silent", "simulate-camera", "--", "--calibrate", *common],
+                           cwd=REPO / "capture", env=demo.child_env())
+        return code == 0
+    if sys.stdin.isatty():
+        input(f"\n  {bold('Lay the reference object')} ({demo.args.reference_label}, {demo.args.known_area_cm2} cm²) "
+              "flat on the tray under the camera, no plate on it, and press Enter… ")
+    command = [sys.executable, "capture/uno-q/laptop_capture.py", "--target", demo.args.target,
+               "--out", str(inbox), "--calibrate"]
+    if demo.args.password:
+        command.append("--password")
+    code, _ = run_live(command)
+    if code != 0:
+        demo.check("FAIL", f"Calibration photo failed (board {demo.args.target})")
+        return False
+    code, _ = run_live(["npm", "run", "--silent", "calibrate", "--", *common], cwd=REPO / "capture",
+                       env=demo.child_env())
+    return code == 0
+
+
+def step_calibration(demo):
+    """Camera calibration: a known-area reference gives cm² per pixel (and DAv2 depth scale)."""
+    status, settings = measurement_settings(demo)
+    if route_missing(status, settings):
+        demo.check("WARN", "This backend has no calibration endpoints yet (IT_4 workstream B): physical numbers are off")
+        return
+    if demo.args.depth and settings and settings.get("activeCalibrationId") and not demo.args.recalibrate:
+        status, settings = demo.request("PUT", "/api/settings/measurement", {
+            "hallId": HALL_ID, "activeCalibrationId": settings["activeCalibrationId"],
+            "depthEnabled": demo.args.depth == "on", "plateThicknessCm": settings.get("plateThicknessCm", 1.5)})
+        settings = pick(settings, "settings") if status == 200 else settings
+        demo.check("PASS" if status == 200 else "FAIL", f"Depth Anything V2 set {demo.args.depth} (HTTP {status})")
+    active = (settings or {}).get("activeCalibrationId")
+    if not active or demo.args.recalibrate:
+        why = "--recalibrate" if active else "No active calibration for this hall"
+        if ask(f"{why}. Calibrate now ({'synthetic fixture' if demo.args.simulate else 'camera'})?"):
+            ok = run_calibration_capture(demo)
+            demo.check("PASS" if ok else "FAIL", "Calibration capture uploaded and measured" if ok
+                       else "Calibration failed (see output above)")
+            status, settings = measurement_settings(demo)
+            active = (settings or {}).get("activeCalibrationId")
+    if not active:
+        demo.check("WARN", "No calibration: grams / CO2e / water stay null (no_calibration). Pixels are unaffected.")
+        return
+    status, cal = demo.get(f"/api/calibrations/{urllib.parse.quote(active)}")
+    cal = pick(cal, "calibration")
+    if status != 200 or not isinstance(cal, dict):
+        demo.check("FAIL", f"Active calibration {active}: HTTP {status}")
+        return
+    depth = cal.get("depth") or {}
+    intr = cal.get("intrinsics") or {}
+    rows = [
+        ["Reference", f"{cal.get('referenceLabel')}, {num(cal.get('knownAreaCm2'), 2)} cm² (entered)"],
+        ["Reference pixels N_ref", f"{num(cal.get('referencePixels'))} px in {cal.get('widthPx')}×{cal.get('heightPx')}"],
+        ["k = area / N_ref", f"{cal.get('cm2PerPx', 0):.6f} cm² per pixel" if cal.get("cm2PerPx") else "—"],
+        ["Intrinsics", f"fx {num(intr.get('fxPx'), 1)} px ({intr.get('source', '?')}, {intr.get('cameraModel', '?')})"],
+        ["Camera height, geometric", f"{num(cal.get('cameraHeightCmGeometric'), 1)} cm  (f·√k)"],
+        ["Camera height, Depth Anything V2", f"{num(depth.get('cameraHeightCmDepth'), 1)} cm  (scale {num(depth.get('scale'), 3)})"
+         if depth else "not measured (depth worker off or unavailable)"],
+        ["Flags", ", ".join(cal.get("flags") or []) or "none"],
+        ["Depth Anything V2 for captures", "ON → volume method (volume-dav2-v1)" if settings.get("depthEnabled")
+         else "OFF → area method (area-calibrated-v1)"],
+    ]
+    print()
+    table(rows, ["Calibration " + active, ""], "ll")
+    demo.calibration = cal
+    demo.check("PASS" if cal.get("status") == "succeeded" else "FAIL",
+               f"Active calibration {active}: status {cal.get('status')}, camera {cal.get('cameraId')}")
+    if "depth_scale_disagrees" in (cal.get("flags") or []):
+        demo.check("WARN", "Geometric and DAv2 camera heights disagree by more than 15%")
 
 
 def step_camera(demo):
@@ -336,7 +538,7 @@ def step_upload(demo):
     started = time.time()
     code, out = run_live(["npm", "run", "--silent", "ingest-inbox", "--", "--service", demo.service_id,
                           "--inbox", str(demo.inbox), "--state-dir", str(demo.state), "--no-dedupe"],
-                         cwd=REPO / "capture", env={"API_URL": demo.api})
+                         cwd=REPO / "capture", env=demo.child_env())
     demo.event_ids = re.findall(r"→ (cap_[0-9A-Z]+)", out)
     states = re.findall(r"→ cap_[0-9A-Z]+ \(([^)]*)\)", out)
     took = time.time() - started
@@ -390,6 +592,54 @@ def step_analysis(demo):
             demo.check("PASS", f"{num(total)} leftover-food pixels on this plate")
         else:
             demo.check("PASS", "Empty plate: 0 pixels wasted (valid zero)")
+
+
+def step_volume(demo):
+    """Estimated area / volume / grams / CO2e / water per food, from the calibration (labeled estimates)."""
+    q = urllib.parse.urlencode({"hallId": HALL_ID, "start": demo.date, "end": demo.date, "limit": 200})
+    status, listing = demo.get(f"/api/captures?{q}")
+    captures = {c["eventId"]: c for c in (listing or {}).get("captures", [])} if status == 200 else {}
+    totals = {"grams": 0.0, "kgCo2e": 0.0, "waterLitres": 0.0, "areaCm2": 0.0, "volumeCm3": 0.0}
+    counted = {k: 0 for k in totals}
+    calibrated = 0
+    for event_id in demo.event_ids:
+        _, detail = demo.get(f"/api/captures/{event_id}")
+        detail = detail or {}
+        attempts = detail.get("attempts") or []
+        last = attempts[-1] if attempts else {}
+        entry = captures.get(event_id) or {}
+        method = entry.get("physicalMethod") or last.get("physicalMethod")
+        calibration_id = entry.get("calibrationId") or last.get("calibrationId")
+        names = item_names(demo, (detail.get("event") or {}).get("serviceId", demo.service_id))
+        flags_by_item = {}
+        for m in detail.get("measurements") or []:
+            phys = m.get("physical") or {}
+            flags_by_item.setdefault(m.get("itemId"), set()).update(phys.get("flags") or [])
+        print(f"\n  {bold(event_id)}  method={method or 'none'}  calibration={calibration_id or '—'}")
+        if not method:
+            demo.check("WARN", f"{event_id}: no physical estimate (no active calibration when analysed); pixels only")
+            continue
+        calibrated += 1
+        rows = []
+        for item in entry.get("items") or []:
+            for key in totals:
+                if isinstance(item.get(key), (int, float)):
+                    totals[key] += item[key]
+                    counted[key] += 1
+            label = item.get("displayName") or food_name(names, item.get("itemId"))
+            rows.append([label, num(item.get("pixels")), num(item.get("areaCm2"), 1), num(item.get("volumeCm3"), 1),
+                         num(item.get("grams"), 0), num(item.get("kgCo2e"), 3), num(item.get("waterLitres"), 1),
+                         ", ".join(sorted(flags_by_item.get(item.get("itemId"), ()))) or "—"])
+        if rows:
+            table(rows, ["Food", "Pixels", "cm²", "cm³", "g (est.)", "kg CO2e", "L water", "Flags"], "lrrrrrrl")
+            demo.check("PASS", f"{event_id}: {len(rows)} food(s) with estimated physical numbers ({method})")
+        else:
+            demo.check("WARN", f"{event_id}: calibrated but the capture list has no per-food physical numbers yet")
+    if calibrated:
+        print(f"\n  {bold('Totals for these plates')} (estimates; null values are skipped, never counted as 0)")
+        print(f"    {num(totals['grams'], 0)} g · {num(totals['kgCo2e'], 3)} kg CO2e · {num(totals['waterLitres'], 1)} L water"
+              f"   area {num(totals['areaCm2'], 1)} cm²" + (f", volume {num(totals['volumeCm3'], 1)} cm³" if counted["volumeCm3"] else ""))
+        print(dim("    grams = volume × density (DAv2 on) or area × g/cm² (DAv2 off); kg CO2e = g/1000 × C; L = g × W"))
 
 
 def step_storage(demo):
@@ -486,7 +736,7 @@ def step_images(demo):
 
 
 def step_stats(demo):
-    """Total waste, waste per portion, most wasted, relative impact."""
+    """Total waste, waste per portion, most wasted, relative impact, estimated CO2e and water."""
     status, d = demo.get(f"/api/dashboard/impact?{demo.window()}")
     if status != 200:
         demo.check("FAIL", f"/api/dashboard/impact HTTP {status}")
@@ -499,6 +749,17 @@ def step_stats(demo):
           + dim(f"= 0.19 × {num(t['co2Points'], 1)} CO2 pts (C) + 1.50 × {num(t['waterPoints'], 1)} water pts (W)"))
     if t.get("unavailableReason"):
         print(dim("    Food without a factor row (e.g. not on the menu) keeps its pixels but adds no points."))
+    coverage = t.get("physicalCoverage") or {}
+    if t.get("kgCo2e") is not None or t.get("waterLitres") is not None:
+        print(f"    {bold(num(t.get('kgCo2e'), 2) + ' kg CO2e')} and {bold(num(t.get('waterLitres'), 0) + ' L water')} "
+              f"estimated ({num(t.get('grams'), 0)} g, method {t.get('physicalMethod') or '—'})  "
+              + dim(f"from {coverage.get('calibratedCaptures', '?')} of {coverage.get('analyzedCaptures', '?')} "
+                    f"calibrated plates, {coverage.get('volumeCaptures', 0)} by DAv2 volume"))
+        demo.check("PASS", f"Estimated totals: {num(t.get('kgCo2e'), 2)} kg CO2e, {num(t.get('waterLitres'), 0)} L water "
+                           f"({coverage.get('calibratedCaptures', '?')}/{coverage.get('analyzedCaptures', '?')} plates calibrated)")
+    elif "kgCo2e" in t:
+        print(dim(f"    Estimated CO2e / water: unavailable ({t.get('physicalUnavailableReason') or 'no calibrated plates'}); "
+                  "pixels and points above are unaffected."))
 
     print(f"\n  {bold('Formula')}  (menu_waste_factors_README.md)")
     print("    base          = pixels / 1000 × weight_g_per_cm2")
@@ -527,9 +788,12 @@ def step_stats(demo):
 
     print(f"\n  {bold('Most wasted')} — total pixels")
     rows = [[i + 1, r["displayName"], num(r["impact"]["pixels"]), num(r["impact"].get("impactPoints"), 1),
-             num(r["impact"].get("co2Points"), 1), num(r["impact"].get("waterPoints"), 1)]
+             num(r["impact"].get("co2Points"), 1), num(r["impact"].get("waterPoints"), 1),
+             num(r["impact"].get("grams"), 0), num(r["impact"].get("kgCo2e"), 3), num(r["impact"].get("waterLitres"), 1)]
             for i, r in enumerate(d["mostWasted"][:6])]
-    table(rows, ["#", "Food", "Pixels", "Impact pts", "CO2 pts", "Water pts"], "rlrrrr")
+    table(rows, ["#", "Food", "Pixels", "Impact pts", "CO2 pts", "Water pts", "g (est.)", "kg CO2e", "L water"],
+          "rlrrrrrrr")
+    print(dim("    g / kg CO2e / L are estimates from calibrated plates only; — = unavailable (never 0)."))
     print(dim(f"\n    Nutrition (separate, not in the score): {num(t.get('nutritionPoints'), 1)} relative nutrition points"))
     demo.check("PASS", f"Stats for {demo.date}: {num(t['pixels'])} px across {t['analyzedCaptures']} plate(s)")
     if t["excludedCaptures"]:
@@ -554,9 +818,13 @@ def step_recommendation(demo):
 def step_dashboard(demo):
     """Open the ScrapSaver dashboard."""
     url = demo.args.dashboard_url
-    if not port_open(urllib.parse.urlparse(url).port or 80):
-        demo.check("FAIL", f"Dashboard not running at {url} (cd frontend && npm run dev)")
-        return
+    parsed = urllib.parse.urlparse(url)
+    if not (port_open(parsed.port or 80, parsed.hostname or "localhost")):
+        if dashboard_served_by_backend(demo):
+            url = demo.api + "/"  # production build served by the backend (deploy/local.sh)
+        else:
+            demo.check("FAIL", f"Dashboard not running at {url} (cd frontend && npm run dev, or deploy/local.sh up)")
+            return
     print("  Dashboard → last 7 days: Total waste, Relative impact, AI recommendation, Foods to target")
     print("  (pixels per portion), Most wasted, Pixels by day, and Plates (toggle photo ↔ AI outline).")
     print(dim("  First visit in a browser asks for the dining hall name once."))
@@ -565,19 +833,46 @@ def step_dashboard(demo):
     demo.check("PASS", f"Opened {url}")
 
 
+def step_deploy(demo):
+    """The production URL (SCRAP_PROD_URL) answers: health, readiness, dashboard over HTTPS."""
+    url = (demo.args.prod_url or "").rstrip("/")
+    if not url:
+        demo.check("WARN", "SCRAP_PROD_URL is not set: no production URL to check (local stack: deploy/local.sh status)")
+        return
+    if not url.startswith("https://") and not is_local(url):
+        demo.check("WARN", f"{url} is not https")
+    status, health = demo.request("GET", "/api/health", base=url, timeout=15)
+    demo.check("PASS" if status == 200 else "FAIL", f"{url}/api/health HTTP {status}"
+               + (f"  {dim('storage: ' + str((health or {}).get('provider')))}" if status == 200 else ""))
+    status, ready = demo.request("GET", "/api/ready", base=url, timeout=30)
+    detail = ""
+    if isinstance(ready, dict):
+        parts = {k: v for k, v in ready.items() if k != "ready"}
+        detail = "  " + dim(json.dumps(parts)[:200])
+    demo.check("PASS" if status == 200 else "FAIL", f"{url}/api/ready HTTP {status}{detail}")
+    ok, body = http_ok(url + "/", timeout=15)
+    html = ok and b"<html" in body[:4000].lower()
+    demo.check("PASS" if html else "FAIL", f"{url}/ serves the dashboard HTML" if html else f"{url}/ did not return the dashboard")
+    if html and not demo.args.no_open and demo.args.only and "deploy" in demo.args.only:
+        webbrowser.open(url + "/")
+
+
 STEPS = [
     ("services", "Services", step_services),
     ("menu", "Menu, waste factors and portions served", step_menu),
+    ("calibration", "Camera calibration (cm² per pixel, camera height, depth on/off)", step_calibration),
     ("camera", "Camera → laptop", step_camera),
     ("upload", "Laptop → R2 + SpacetimeDB (inbox bridge)", step_upload),
     ("analysis", "AI analysis: Gemini → SAM 2.1 → pixel count", step_analysis),
+    ("volume", "Estimated area, volume, grams, CO2e and water", step_volume),
     ("storage", "Where everything is stored", step_storage),
     ("images", "Photo vs. segmentation", step_images),
     ("stats", "Waste statistics", step_stats),
     ("recommendation", "AI recommendation", step_recommendation),
     ("dashboard", "Dashboard", step_dashboard),
+    ("deploy", "Production URL", step_deploy),
 ]
-NEEDS_EVENTS = {"analysis", "storage", "images"}
+NEEDS_EVENTS = {"analysis", "volume", "storage", "images"}
 
 
 # ----------------------------------------------------------------- helpers ---
@@ -660,7 +955,17 @@ def main():
     parser.add_argument("--service", help="serviceId (default: today's dinner, seeded if missing)")
     parser.add_argument("--date", help="Hall-local date YYYY-MM-DD for stats (default: today in America/Detroit)")
     parser.add_argument("--events", help="Comma-separated capture IDs to show instead of taking new photos")
-    parser.add_argument("--api", default=os.environ.get("API_URL", "http://localhost:8787"))
+    parser.add_argument("--api", default=os.environ.get("SCRAP_API_URL") or os.environ.get("API_URL") or "http://localhost:8787",
+                        help="Backend URL (default $SCRAP_API_URL, else $API_URL, else http://localhost:8787)")
+    parser.add_argument("--token-env", default="SCRAP_INGEST_TOKEN",
+                        help="Environment variable with the ingest token (default SCRAP_INGEST_TOKEN)")
+    parser.add_argument("--prod-url", default=os.environ.get("SCRAP_PROD_URL"),
+                        help="Production URL for the deploy step (default $SCRAP_PROD_URL)")
+    parser.add_argument("--recalibrate", action="store_true", help="Take a new calibration even if one is active")
+    parser.add_argument("--depth", choices=["on", "off"], help="Set Depth Anything V2 on/off for the hall")
+    parser.add_argument("--known-area-cm2", type=float, default=46.21,
+                        help="Calibration reference area in cm² (default 46.21 = credit card)")
+    parser.add_argument("--reference-label", default="credit card", help="Calibration reference object")
     parser.add_argument("--dashboard-url", default="http://localhost:5173/")
     parser.add_argument("--db", default=os.environ.get("SPACETIMEDB_MODULE", "scrap"), help="SpacetimeDB database")
     parser.add_argument("--only", help="Comma-separated steps to run (see --list)")

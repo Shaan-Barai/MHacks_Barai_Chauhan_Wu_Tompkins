@@ -51,6 +51,7 @@ import {
   ReplayCaptureAdapter,
   activateCalibration,
   calibrateFromFrame,
+  defaultTokenFiles,
   describeBackend,
   describeCalibration,
   resolveBackend,
@@ -87,7 +88,7 @@ function fail(message) {
 
 let backend;
 try {
-  backend = resolveBackend(process.env, args['token-env']);
+  backend = resolveBackend(process.env, args['token-env'], defaultTokenFiles(path.join(root, '..')));
 } catch (error) {
   fail(error.message);
 }

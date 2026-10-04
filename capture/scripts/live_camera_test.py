@@ -254,14 +254,35 @@ def auto_smoke(args, root):
 
 # ---------------------------------------------------------------- bridge ---
 
+def ingest_token(args):
+    """SCRAP_INGEST_TOKEN (or --token-env): environment, then .env, then deploy/.run/local-secrets.env."""
+    value = os.environ.get(args.token_env, "").strip()
+    if value:
+        return value
+    for path in (REPO / ".env", REPO / "deploy" / ".run" / "local-secrets.env"):
+        try:
+            for line in path.read_text().splitlines():
+                name, sep, raw = line.strip().removeprefix("export ").partition("=")
+                if sep and name.strip() == args.token_env and raw.strip().strip("'\""):
+                    return raw.strip().strip("'\"")
+        except OSError:
+            continue
+    return None
+
+
 def api_json(args, method, route, body=None, timeout=60):
     data = None if body is None else json.dumps(body).encode()
-    request = urllib.request.Request(f"{args.api}{route}", data=data, method=method,
-                                     headers={"content-type": "application/json"})
+    headers = {"content-type": "application/json"}
+    if args.token:
+        headers["authorization"] = f"Bearer {args.token}"  # never printed
+    request = urllib.request.Request(f"{args.api}{route}", data=data, method=method, headers=headers)
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             return response.status, json.loads(response.read() or b"{}")
     except urllib.error.HTTPError as error:
+        if error.code in (401, 403):
+            record("FAIL", "backend auth", f"HTTP {error.code} on {method} {route}: set {args.token_env} to the "
+                                            "backend's ingest token")
         try:
             return error.code, json.loads(error.read() or b"{}")
         except ValueError:
@@ -371,7 +392,9 @@ def run_bridge(args, inbox, state, watch, log_path):
                "--inbox", str(inbox), "--state-dir", str(state)]
     if watch:
         command += ["--watch", "--idle", str(args.idle)]
-    env = {**os.environ, "API_URL": args.api}
+    env = {**os.environ, "API_URL": args.api, "SCRAP_API_URL": args.api}
+    if args.token:
+        env["SCRAP_INGEST_TOKEN"] = args.token
     log = open(log_path, "w")
     process = subprocess.Popen(command, cwd=CAPTURE, env=env, stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, text=True,
@@ -500,7 +523,9 @@ def main():
                         help="camera = hardware only; bridge = skip manual/5-frame checks; all = both")
     parser.add_argument("--service", help="serviceId for the bridge stage (GET /api/services)")
     parser.add_argument("--plates", type=int, default=3, help="Plates to pass under the camera (default 3)")
-    parser.add_argument("--api", default=os.environ.get("API_URL", "http://localhost:8787"))
+    parser.add_argument("--api", default=os.environ.get("SCRAP_API_URL") or os.environ.get("API_URL") or "http://localhost:8787",
+                        help="Backend (default $SCRAP_API_URL, else $API_URL, else http://localhost:8787)")
+    parser.add_argument("--token-env", default="SCRAP_INGEST_TOKEN", help="Variable holding the ingest token")
     parser.add_argument("--idle", type=int, default=10, help="Bridge --idle seconds (default 10)")
     parser.add_argument("--device", default="/dev/video0")
     parser.add_argument("--width", type=int, default=1920)
@@ -516,6 +541,7 @@ def main():
     parser.add_argument("--out", type=Path, help="Run folder (default images/camera-test/<UTC time>)")
     args = parser.parse_args()
     args.api = args.api.rstrip("/")
+    args.token = ingest_token(args)
     if args.stage != "camera" and not args.service:
         parser.error("--service is required unless --stage camera")
     if not 1 <= args.plates <= 10:

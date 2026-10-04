@@ -20,6 +20,7 @@ import {
   HttpIngestionSink,
   HttpUploader,
   ReplayCaptureAdapter,
+  defaultTokenFiles,
   describeBackend,
   resolveBackend,
 } from '../dist/src/index.js';
@@ -31,7 +32,7 @@ const { values: options, positionals } = parseArgs({
 });
 let backend;
 try {
-  backend = resolveBackend(process.env, options['token-env']);
+  backend = resolveBackend(process.env, options['token-env'], defaultTokenFiles(path.join(root, '..')));
 } catch (error) {
   console.error(error.message);
   process.exit(1);

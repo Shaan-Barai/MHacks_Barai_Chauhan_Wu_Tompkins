@@ -71,12 +71,20 @@ export interface ImageObject {
    * 'mask' = a binary segmentation mask PNG produced for one classification region.
    * 'overlay' = the segmented-image JPEG for one capture (masks tinted per food,
    * plate rim outlined); `id` is the capture eventId. (BIG-PLAN D7)
+   * 'original' = the raw, un-normalized photo exactly as the camera (or phone)
+   * produced it; `id` is the capture eventId. Analysis uses the 'capture'
+   * (normalized) image; the original is kept for audit and display.
    */
-  association: { kind: 'capture' | 'reference' | 'mask' | 'overlay' | 'calibration' | 'calibration_overlay'; id: string };
+  association: { kind: 'capture' | 'reference' | 'mask' | 'overlay' | 'calibration' | 'calibration_overlay' | 'original'; id: string };
   state: UploadState;
 }
 
-export type CaptureSource = 'camera' | 'replay' | 'manual_upload';
+/**
+ * 'camera' = the Uno Q camera; 'replay' = test2/ or fixture photos sent
+ * through the same ingest path; 'manual_upload' = an operator upload;
+ * 'demo' = generated sample history (DEMO_SEED), never a real photo.
+ */
+export type CaptureSource = 'camera' | 'replay' | 'manual_upload' | 'demo';
 export type ProcessingState = 'pending' | 'processing' | 'succeeded' | 'needs_review' | 'failed';
 
 export type QualityFlag =
@@ -110,6 +118,28 @@ export interface CaptureEvent {
   source: CaptureSource;
   qualityFlags: QualityFlag[];
   state: ProcessingState;
+}
+
+/**
+ * Per-scan capture details (one row per CaptureEvent, keyed by eventId).
+ * The scan's status is CaptureEvent.state; its meal period comes from the
+ * service. Timestamps are the computer's clock ('laptop_trigger' for the
+ * camera, 'laptop_ingest' for test2/replay photos); the board clock is never
+ * the scan time.
+ */
+export interface ScanInfo {
+  eventId: string;
+  /** e.g. 'uno-q-c920' or 'simulated:test2'. */
+  deviceId: string;
+  timestampBasis: 'laptop_trigger' | 'laptop_ingest' | 'demo';
+  /** The raw original's ImageObject (association kind 'original'); absent for demo scans. */
+  originalImageObjectId?: string;
+  /** SHA-256 of the raw original bytes, hex. */
+  originalSha256?: string;
+  /** Source file name for replayed photos (e.g. IMG_2695.jpeg). */
+  sourceName?: string;
+  /** True only for generated sample history (DEMO_SEED). */
+  demo: boolean;
 }
 
 export type AnalysisStatus = 'succeeded' | 'needs_review' | 'failed';
@@ -501,7 +531,12 @@ export interface SignedImage {
 /** GET /api/captures/:eventId/images */
 export interface CaptureImages {
   eventId: string;
+  /** The normalized 1024x1024 photo the analysis ran on. */
   original: SignedImage | null;
+  /** The raw photo exactly as captured (scan_info original); null for older scans. */
+  raw?: SignedImage | null;
+  /** Device, clock and source file of the scan, when recorded. */
+  scan?: ScanInfo;
   overlay: SignedImage | null;
   masks: Array<SignedImage & { itemId: string | null; displayName: string }>;
 }

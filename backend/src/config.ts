@@ -46,6 +46,11 @@ export interface BackendConfig {
     readUrlTtlMs: number;
     /** Uploads never finalized after this long count as orphans. */
     orphanMaxAgeMs: number;
+    /**
+     * Prepended to every object key (env R2_KEY_PREFIX), e.g. 'test/' so
+     * tests write under one prefix they can delete afterwards. '' in normal use.
+     */
+    keyPrefix?: string;
     /** Cloudflare R2 credentials (provider 'r2'); server-side only. */
     r2?: { accountId: string; accessKeyId: string; secretAccessKey: string; endpoint?: string };
   };
@@ -66,6 +71,17 @@ function int(name: string, fallback: number, env: NodeJS.ProcessEnv = process.en
     throw new Error(`Invalid integer for env var ${name}`);
   }
   return Math.floor(n);
+}
+
+/** '' or one or more `segment/` parts of letters, digits, '-' or '_' (e.g. 'test/'). */
+export function keyPrefix(raw: string | undefined): string {
+  const value = (raw ?? '').trim();
+  if (value === '') return '';
+  const withSlash = value.endsWith('/') ? value : `${value}/`;
+  if (!/^([A-Za-z0-9_-]+\/)+$/.test(withSlash)) {
+    throw new Error("R2_KEY_PREFIX must look like 'test/' (letters, digits, '-', '_', separated by '/').");
+  }
+  return withSlash;
 }
 
 /** The backend package root (…/backend/), from dist/backend/src/config.js or src/config.ts. */
@@ -109,6 +125,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BackendConfig 
       provider: env.OBJECT_STORAGE_PROVIDER ?? 'local-dev',
       container: env.OBJECT_STORAGE_CONTAINER ?? 'scrap-images',
       localDir: env.OBJECT_STORAGE_LOCAL_DIR ?? '.local-storage',
+      keyPrefix: keyPrefix(env.R2_KEY_PREFIX),
       allowedMimeTypes: (env.UPLOAD_ALLOWED_MIME_TYPES ?? 'image/jpeg,image/png,image/webp')
         .split(',')
         .map((s) => s.trim())

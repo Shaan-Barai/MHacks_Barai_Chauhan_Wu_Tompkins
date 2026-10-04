@@ -46,7 +46,7 @@ export type QualityFlag =
 
 export type ProcessingState = 'pending' | 'processing' | 'succeeded' | 'needs_review' | 'failed';
 
-export type CaptureSource = 'camera' | 'replay' | 'manual_upload';
+export type CaptureSource = 'camera' | 'replay' | 'manual_upload' | 'demo';
 
 export interface ImageGeometry {
   widthPx: number;

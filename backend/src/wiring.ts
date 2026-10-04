@@ -104,7 +104,7 @@ export function buildBackend(options: BuildOptions = {}): AppDeps & { app: Retur
     options.repo ??
     (config.spacetime ? new SpacetimeRepository(config.spacetime) : new JsonFileRepository(config.dataFile));
   const storage = options.storage ?? createStorage(config, now);
-  const images = new ImageService(repo, storage, now);
+  const images = new ImageService(repo, storage, now, config.objectStorage.keyPrefix ?? '');
   // Live: Gemini classification + boxes -> SAM 2.1 masks -> counted pixels
   // (contracts/measurement.md). If the SAM worker is down, captures fail
   // retryably; there is no fallback to Gemini-guessed areas. Without a key

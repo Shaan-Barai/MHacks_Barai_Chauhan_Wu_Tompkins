@@ -15,11 +15,11 @@
 import { badRequest, conflict, notFound } from '../errors.js';
 import { newId } from '../ids.js';
 import type { Repository } from '../repo/repository.js';
-import type { ObjectStorageAdapter, ReadAccess } from '../storage/objectStorage.js';
+import type { ObjectStorageAdapter, ReadAccess, UploadAssociationKind } from '../storage/objectStorage.js';
 import type { ImageObject } from '../types.js';
 
 export interface RequestUploadBody {
-  associationKind: 'capture' | 'reference' | 'calibration';
+  associationKind: UploadAssociationKind;
   associationId: string;
   mimeType: string;
   sizeBytes: number;
@@ -27,17 +27,21 @@ export interface RequestUploadBody {
   heightPx?: number;
 }
 
-/** Client-uploadable kinds; masks and overlays are server-produced only. */
-const UPLOAD_KINDS: RequestUploadBody['associationKind'][] = ['capture', 'reference', 'calibration'];
+export type RequestUploadResponse =
+  | {
+      objectId: string;
+      objectKey: string;
+      uploadUrl: string;
+      /** Headers the PUT must send (presigned URLs are signed over Content-Type). */
+      uploadHeaders: Record<string, string>;
+      expiresAt: string;
+      alreadyFinalized?: false;
+    }
+  /** A retry for an object that already finished uploading: nothing to send. */
+  | { objectId: string; objectKey: string; alreadyFinalized: true };
 
-export interface RequestUploadResponse {
-  objectId: string;
-  objectKey: string;
-  uploadUrl: string;
-  /** Headers the PUT must send (presigned URLs are signed over Content-Type). */
-  uploadHeaders: Record<string, string>;
-  expiresAt: string;
-}
+/** Client-uploadable kinds; masks and overlays are server-produced only. */
+const UPLOAD_KINDS: UploadAssociationKind[] = ['capture', 'original', 'reference', 'calibration'];
 
 export class ImageService {
   /**
@@ -51,22 +55,41 @@ export class ImageService {
     private readonly repo: Repository,
     private readonly storage: ObjectStorageAdapter,
     private readonly now: () => number = () => Date.now(),
+    /** Prepended to every object key (config.objectStorage.keyPrefix, e.g. 'test/'). */
+    private readonly keyPrefix = '',
   ) {}
 
+  /**
+   * Authorize one upload. Idempotent per capture: a capture event has one
+   * normalized image ('capture') and one raw original ('original'), so a
+   * retried request for the same event and kind reuses the existing record
+   * (a finalized one is returned as-is with `alreadyFinalized`) instead of
+   * registering a duplicate object.
+   */
   async requestUpload(body: RequestUploadBody): Promise<RequestUploadResponse> {
     if (!UPLOAD_KINDS.includes(body.associationKind)) {
-      throw badRequest('INVALID_ASSOCIATION', "associationKind must be 'capture', 'reference' or 'calibration'.");
+      throw badRequest('INVALID_ASSOCIATION', "associationKind must be 'capture', 'original', 'reference' or 'calibration'.");
     }
     if (!body.associationId || typeof body.associationId !== 'string') {
       throw badRequest('INVALID_ASSOCIATION', 'associationId is required.');
+    }
+    const existing =
+      body.associationKind === 'reference' || body.associationKind === 'calibration'
+        ? undefined
+        : (await this.repo.findImageObjectsByAssociation(body.associationKind, body.associationId)).find(
+            (o) => o.state !== 'orphaned',
+          );
+    if (existing?.state === 'finalized') {
+      return { objectId: existing.objectId, objectKey: existing.objectKey, alreadyFinalized: true };
     }
     const auth = await this.storage.authorizeUpload({
       associationKind: body.associationKind,
       associationId: body.associationId,
       mimeType: body.mimeType,
       declaredSizeBytes: body.sizeBytes,
+      keyPrefix: this.keyPrefix,
     });
-    const objectId = newId('img');
+    const objectId = existing?.objectId ?? newId('img');
     const record: ImageObject = {
       objectId,
       provider: this.storage.provider as ImageObject['provider'],
@@ -169,7 +192,7 @@ export class ImageService {
    */
   async storeMask(regionId: string, png: Uint8Array, widthPx: number, heightPx: number): Promise<ImageObject> {
     const date = new Date(this.now()).toISOString().slice(0, 10);
-    const objectKey = `masks/${date}/${regionId}.png`;
+    const objectKey = `${this.keyPrefix}masks/${date}/${regionId}.png`;
     const { sizeBytes } = await this.storage.putBytes(objectKey, png, 'image/png');
     const record: ImageObject = {
       objectId: newId('img'),
@@ -196,7 +219,7 @@ export class ImageService {
    */
   async storeOverlay(eventId: string, attemptId: string, jpeg: Uint8Array, widthPx: number, heightPx: number): Promise<ImageObject> {
     const date = new Date(this.now()).toISOString().slice(0, 10);
-    const objectKey = `overlays/${date}/${eventId}_${attemptId}.jpg`;
+    const objectKey = `${this.keyPrefix}overlays/${date}/${eventId}_${attemptId}.jpg`;
     const { sizeBytes } = await this.storage.putBytes(objectKey, jpeg, 'image/jpeg');
     const record: ImageObject = {
       objectId: newId('img'),

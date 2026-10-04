@@ -46,7 +46,7 @@ test('authorizeUpload presigns a PUT on the R2 endpoint, signed over type and si
     mimeType: 'image/jpeg',
     declaredSizeBytes: 1234,
   });
-  assert.match(auth.objectKey, /^captures\/2026-10-03\/cap_01_[0-9a-f]{12}\.jpg$/);
+  assert.equal(auth.objectKey, 'captures/2026-10-03/cap_01.jpg');
   const url = new URL(auth.uploadUrl);
   assert.equal(url.host, 'acct123.r2.cloudflarestorage.com');
   assert.equal(url.pathname, `/scrap-images/${auth.objectKey}`);

@@ -26,12 +26,16 @@
 import { randomBytes } from 'node:crypto';
 import { badRequest } from '../errors.js';
 
+export type UploadAssociationKind = 'capture' | 'original' | 'reference' | 'calibration';
+
 export interface UploadRequest {
-  /** The association drives the object-key prefix (IT_4 adds 'calibration' photos). */
-  associationKind: 'capture' | 'reference' | 'calibration';
+  /** The association drives the object-key folder (captures/, originals/, calibrations/, references/). */
+  associationKind: UploadAssociationKind;
   associationId: string;
   mimeType: string;
   declaredSizeBytes: number;
+  /** Prepended to the key, e.g. 'test/' (config.objectStorage.keyPrefix). */
+  keyPrefix?: string;
 }
 
 export interface UploadAuthorization {
@@ -115,13 +119,28 @@ export function validateUploadRequest(req: UploadRequest, policy: UploadPolicy):
   }
 }
 
-/** Stable, provider-independent key: <captures|references>/<date>/<associationId>_<random>.<ext>. */
+const KEY_FOLDER: Record<UploadAssociationKind, string> = {
+  capture: 'captures',
+  original: 'originals',
+  reference: 'references',
+  calibration: 'calibrations',
+};
+
+/**
+ * Stable, provider-independent key: `<keyPrefix><folder>/<date>/<associationId>.<ext>`.
+ * A capture event has exactly one normalized image and one original, so their
+ * keys are deterministic: a retried upload overwrites the same object instead
+ * of leaving a duplicate. Reference and calibration photos keep a random
+ * suffix (a baseline or calibration may be re-photographed).
+ */
 export function makeObjectKey(req: UploadRequest, nowMs: number): string {
   const ext = EXT_BY_MIME[req.mimeType] ?? 'bin';
-  const prefix =
-    req.associationKind === 'capture' ? 'captures' : req.associationKind === 'calibration' ? 'calibrations' : 'references';
   const date = new Date(nowMs).toISOString().slice(0, 10);
-  return `${prefix}/${date}/${req.associationId}_${randomBytes(6).toString('hex')}.${ext}`;
+  const name =
+    req.associationKind === 'reference' || req.associationKind === 'calibration'
+      ? `${req.associationId}_${randomBytes(6).toString('hex')}`
+      : req.associationId;
+  return `${req.keyPrefix ?? ''}${KEY_FOLDER[req.associationKind]}/${date}/${name}.${ext}`;
 }
 
 export function mimeForKey(objectKey: string): string {

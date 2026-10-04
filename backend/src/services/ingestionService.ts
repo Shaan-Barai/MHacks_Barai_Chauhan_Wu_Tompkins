@@ -117,6 +117,22 @@ export class IngestionService {
       );
     }
 
+    // The raw original (if sent) must be a finalized upload for THIS capture.
+    if (submission.scan?.originalImageObjectId !== undefined) {
+      const original = await this.repo.getImageObject(submission.scan.originalImageObjectId);
+      if (!original || original.state !== 'finalized') {
+        throw badRequest('ORIGINAL_NOT_FINALIZED', 'Upload and finalize the original photo before submitting the capture.', {
+          originalImageObjectId: submission.scan.originalImageObjectId,
+        });
+      }
+      if (original.association.kind !== 'original' || original.association.id !== submission.eventId) {
+        throw badRequest('IMAGE_ASSOCIATION_MISMATCH', 'This original photo was uploaded for a different capture event.', {
+          originalImageObjectId: submission.scan.originalImageObjectId,
+          eventId: submission.eventId,
+        });
+      }
+    }
+
     // Resolve the menu for this service; a capture without a menu is a clear
     // recoverable error, never a silent zero-waste record.
     const menu = await this.repo.getMenuByService(submission.serviceId);
@@ -144,6 +160,9 @@ export class IngestionService {
       state: 'processing',
     };
     await this.repo.upsertCaptureEvent(event);
+    // The scan record is written before analysis, so a failed analysis still
+    // leaves a complete, explained scan (never a silently dropped one).
+    if (submission.scan) await this.repo.upsertScanInfo({ eventId: event.eventId, ...submission.scan, demo: false });
 
     // Freeze the analysis context: this menu version + the latest baseline
     // per item, recorded on the attempt (5.4).

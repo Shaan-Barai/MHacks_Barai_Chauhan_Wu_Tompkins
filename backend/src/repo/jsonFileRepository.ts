@@ -23,8 +23,9 @@ import type {
   Insight,
   CameraCalibration,
   MeasurementSettings,
+  ScanInfo,
 } from '../types.js';
-import type { CaptureEventFilter, Repository } from './repository.js';
+import type { CaptureEventFilter, DemoMarker, Repository } from './repository.js';
 import { menuVersionConflict } from '../errors.js';
 import { attemptFromStored, calibrationFromStored, measurementFromStored, settingsFromStored } from './legacyPhysical.js';
 import { badRequest, conflict } from '../errors.js';
@@ -45,6 +46,8 @@ interface Snapshot {
   portionsServed: PortionsServed[];
   cameraCalibrations?: CameraCalibration[];
   measurementSettings?: MeasurementSettings[];
+  scans?: ScanInfo[];
+  demoMarkers?: DemoMarker[];
 }
 
 export class JsonFileRepository implements Repository {
@@ -62,6 +65,8 @@ export class JsonFileRepository implements Repository {
   private portionsServed = new Map<string, PortionsServed>();
   private cameraCalibrations = new Map<string, CameraCalibration>();
   private measurementSettings = new Map<string, MeasurementSettings>(); // key: hallId
+  private scans = new Map<string, ScanInfo>(); // key: eventId
+  private demoMarkers = new Map<string, DemoMarker>(); // key: `${tableName}:${rowKey}`
 
   constructor(private readonly dataFile?: string) {
     if (dataFile && existsSync(dataFile)) this.load(dataFile);
@@ -170,6 +175,57 @@ export class JsonFileRepository implements Repository {
     const existed = this.imageObjects.delete(objectId);
     if (existed) this.persist();
     return existed;
+  }
+
+  async findImageObjectsByAssociation(kind: ImageObject['association']['kind'], id: string): Promise<ImageObject[]> {
+    return [...this.imageObjects.values()]
+      .filter((o) => o.association.kind === kind && o.association.id === id)
+      .map((o) => structuredClone(o));
+  }
+
+  // --- scans ---
+  async upsertScanInfo(scan: ScanInfo): Promise<void> {
+    this.scans.set(scan.eventId, structuredClone(scan));
+    this.persist();
+  }
+  async getScanInfo(eventId: string): Promise<ScanInfo | undefined> {
+    const s = this.scans.get(eventId);
+    return s ? structuredClone(s) : undefined;
+  }
+
+  // --- sample data ---
+  async recordDemoMarkers(markers: DemoMarker[]): Promise<void> {
+    for (const m of markers) this.demoMarkers.set(`${m.tableName}:${m.rowKey}`, { ...m });
+    this.persist();
+  }
+  async clearDemoData(): Promise<number> {
+    const markers = [...this.demoMarkers.values()];
+    for (const { tableName, rowKey } of markers) {
+      if (tableName === 'meal_service') this.menus.delete(rowKey);
+      else if (tableName === 'portions_served') this.portionsServed.delete(rowKey);
+      else if (tableName === 'capture_event') {
+        this.captureEvents.delete(rowKey);
+        this.hiddenCaptureIds.delete(rowKey);
+      }
+      else if (tableName === 'scan_info') this.scans.delete(rowKey);
+      else if (tableName === 'analysis_attempt') {
+        for (const [eventId, list] of this.analysisAttempts) {
+          const kept = list.filter((a) => a.attemptId !== rowKey);
+          if (kept.length === 0) this.analysisAttempts.delete(eventId);
+          else this.analysisAttempts.set(eventId, kept);
+        }
+        this.measurementsByAttempt.delete(rowKey);
+      } else if (tableName === 'food_measurement') {
+        for (const [attemptId, list] of this.measurementsByAttempt) {
+          this.measurementsByAttempt.set(attemptId, list.filter((m) => m.measurementId !== rowKey));
+        }
+      }
+      // menu_item rows go with their meal_service (menus are stored as bundles);
+      // capture_count lives on the attempt here.
+    }
+    this.demoMarkers.clear();
+    this.persist();
+    return markers.length;
   }
 
   // --- capture events ---
@@ -320,6 +376,8 @@ export class JsonFileRepository implements Repository {
       portionsServed: [...this.portionsServed.values()],
       cameraCalibrations: [...this.cameraCalibrations.values()],
       measurementSettings: [...this.measurementSettings.values()],
+      scans: [...this.scans.values()],
+      demoMarkers: [...this.demoMarkers.values()],
     };
     mkdirSync(dirname(this.dataFile), { recursive: true });
     const tmp = `${this.dataFile}.tmp`;
@@ -350,5 +408,7 @@ export class JsonFileRepository implements Repository {
     for (const p of snapshot.portionsServed ?? []) this.portionsServed.set(p.recordId, p);
     for (const c of snapshot.cameraCalibrations ?? []) this.cameraCalibrations.set(c.calibrationId, c);
     for (const m of snapshot.measurementSettings ?? []) this.measurementSettings.set(m.hallId, m);
+    for (const sc of snapshot.scans ?? []) this.scans.set(sc.eventId, sc);
+    for (const m of snapshot.demoMarkers ?? []) this.demoMarkers.set(`${m.tableName}:${m.rowKey}`, m);
   }
 }

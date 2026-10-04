@@ -7,7 +7,7 @@
  * package with its own tsconfig/rootDir (allowed per assignment).
  */
 
-export type CaptureSource = 'camera' | 'replay' | 'manual_upload';
+export type CaptureSource = 'camera' | 'replay' | 'manual_upload' | 'demo';
 export type ProcessingState = 'pending' | 'processing' | 'succeeded' | 'needs_review' | 'failed';
 
 export interface ImageGeometry {

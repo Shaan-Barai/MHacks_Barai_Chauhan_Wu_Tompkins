@@ -197,7 +197,7 @@ export interface SummaryCards {
 // and never kg, litres or dollars. No plate-size calibration, no grams.
 // ---------------------------------------------------------------------------
 
-export type CaptureSource = 'camera' | 'replay' | 'manual_upload'
+export type CaptureSource = 'camera' | 'replay' | 'manual_upload' | 'demo'
 export type ProcessingState = 'pending' | 'processing' | 'succeeded' | 'needs_review' | 'failed'
 
 export type ImpactUnavailableReason = 'no_factor' | 'unknown_item'

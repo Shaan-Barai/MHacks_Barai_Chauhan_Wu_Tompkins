@@ -5,7 +5,6 @@
 
 export type {
   ApiError,
-  CalibrationDepth,
   CameraCalibration,
   CameraCalibrationFlag,
   CameraIntrinsics,

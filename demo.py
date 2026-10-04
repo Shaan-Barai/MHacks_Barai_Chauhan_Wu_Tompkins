@@ -7,16 +7,17 @@
     python3 demo.py --simulate --yes   # no pauses between steps
     python3 demo.py --list             # show the steps
     python3 demo.py --only stats,recommendation,dashboard   # re-show results only
-    python3 demo.py --simulate --recalibrate --depth on     # new calibration, Depth Anything V2 on
+    python3 demo.py --simulate --recalibrate                # new calibration (synthetic card)
+    python3 demo.py --simulate --yes --hall hall-test       # a test hall: hall-main's numbers stay untouched
 
 Each step prints what it does and proves it with real data:
-  services        SpacetimeDB, SAM 2.1 + depth workers, backend (R2), dashboard are up (offers to start them)
+  services        SpacetimeDB, SAM 2.1 worker, backend (R2), dashboard are up (offers to start them)
   menu            today's dinner menu + demo portions served (seeds them if missing)
-  calibration     camera calibration: cm² per pixel, camera height (geometric / Depth Anything V2), depth on/off
+  calibration     camera calibration: k (cm² per pixel) and camera height
   camera          the Uno Q takes a photo and SSHes it to this laptop (or --simulate)
   upload          bridge: photo -> R2 (presigned PUT) -> SpacetimeDB image_object -> capture_event
   analysis        Gemini classifies + boxes the food, SAM 2.1 segments it, code counts pixels
-  volume          estimated area / volume / grams / kg CO2e / L water per food (calibrated captures)
+  area            estimated area cm² / grams / kg CO2e / L water per food, totals and coverage
   storage         R2 holds photo, overlay and masks; SpacetimeDB holds only references
   images          side-by-side "camera photo | AI segmentation" picture
   stats           total waste, waste per portion, most wasted, relative impact, estimated CO2e + water
@@ -266,9 +267,6 @@ SERVICES = [
     # name, port, health URL, start command, cwd, wait seconds, required
     ("SpacetimeDB", 3000, None, ["spacetime", "start"], REPO, 20, True),
     ("SAM 2.1 worker", 8790, "http://127.0.0.1:8790/health", [".venv/bin/python", "vision/sam/worker.py"], REPO, 90, True),
-    # Optional: only needed with Depth Anything V2 on (volume method); off ⇒ area method.
-    ("Depth Anything V2 worker", 8791, "http://127.0.0.1:8791/health", [".venv/bin/python", "vision/depth/worker.py"],
-     REPO, 180, False),
     ("Backend API", 8787, "http://127.0.0.1:8787/api/health", ["npm", "start"], REPO / "backend", 120, True),
     ("Dashboard", 5173, None, ["npm", "run", "dev"], REPO / "frontend", 30, True),
 ]
@@ -307,9 +305,6 @@ def step_services(demo):
             demo.check("PASS", f"Dashboard served by the backend at {demo.api}/ (production build)")
             continue
         up = port_open(port) and (health is None or http_ok(health)[0])
-        if not up and not required and not demo.args.depth == "on":
-            demo.check("INFO", f"{name} not running on :{port} (optional: Depth Anything V2 off ⇒ area method)")
-            continue
         if not up and not demo.args.no_start and ask(f"{name} is not running. Start it now?"):
             log = demo.run / "logs" / f"{name.split()[0].lower()}.log"
             log.parent.mkdir(parents=True, exist_ok=True)
@@ -355,9 +350,8 @@ def step_menu(demo):
     """Today's dinner menu, with waste factors and demo portions served."""
     status, menu = demo.get(f"/api/menus/by-service/{demo.service_id}")
     if status != 200 and not demo.args.service:
-        print(f"  No menu for {demo.service_id} yet. Seeding the 26-food demo dinner for {demo.date}…")
-        run_live(["npm", "run", "--silent", "seed", "--", f"--live-dinner={demo.date}"], cwd=REPO / "backend",
-                 env=demo.child_env())
+        print(f"  No menu for {demo.service_id} yet. Seeding the 26-food demo dinner for {HALL_ID} on {demo.date}…")
+        seed_dinner(demo)
         status, menu = demo.get(f"/api/menus/by-service/{demo.service_id}")
     if status != 200:
         demo.check("FAIL", f"No menu for {demo.service_id}. Pick another with --service (GET /api/services).")
@@ -369,8 +363,7 @@ def step_menu(demo):
     _, portions = demo.get(f"/api/portions-served?{q}")
     served = {p["itemId"]: p for p in (portions or {}).get("portions", [])}
     if not served and not demo.args.service:
-        run_live(["npm", "run", "--silent", "seed", "--", f"--live-dinner={demo.date}"], cwd=REPO / "backend",
-                 env=demo.child_env())
+        seed_dinner(demo)
         _, portions = demo.get(f"/api/portions-served?{q}")
         served = {p["itemId"]: p for p in (portions or {}).get("portions", [])}
     sources = {p.get("source") for p in served.values()}
@@ -386,16 +379,28 @@ def step_menu(demo):
         f = factors.get(slug(item["displayName"]))
         p = served.get(item["itemId"])
         rows.append([item["displayName"], num(p["count"]) if p else "—",
-                     f["weight_g_per_cm2"] if f else "—", (f.get("density_g_per_cm3") or "—") if f else "—",
+                     f["weight_g_per_cm2"] if f else "—",
                      f["C_kg_co2e_per_kg"] if f else "—",
                      f["W_water_m3_per_kg"] if f else "—", f["impact_score_usd_per_kg"] if f else "—"])
     print()
-    table(rows, ["Food", "Portions", "g/cm²", "g/cm³", "C kgCO2e/kg", "W m³/kg", "0.19C+1.50W"], "lrrrrrr")
-    print(dim("    g/cm² → grams by the area method (DAv2 off); g/cm³ (density) → grams by the volume method (DAv2 on)."))
-    print(dim("    No density (—): that food always uses the area method."))
+    table(rows, ["Food", "Portions", "g/cm²", "C kgCO2e/kg", "W m³/kg", "0.19C+1.50W"], "lrrrrr")
+    print(dim("    g/cm² turns a calibrated area (cm²) into estimated grams; C and W turn grams into kg CO2e and L water."))
     if len(items) > 8:
         print(dim(f"    … and {len(items) - 8} more"))
     return True
+
+
+def seed_dinner(demo):
+    """Seed the 26-food demo dinner + demo portions for this hall and date (backend/scripts/seed.mjs)."""
+    env = demo.child_env()
+    if HALL_ID != "hall-main":
+        # seed.mjs seeds its file's hallId: a minimal seed file with only this hall's live dinner.
+        seed_file = demo.run / "seed-test-hall.json"
+        seed_file.parent.mkdir(parents=True, exist_ok=True)
+        seed_file.write_text(json.dumps({"hallId": HALL_ID, "hallTimezone": HALL_TZ, "menus": [],
+                                         "referencePortions": [], "portionsServed": []}) + "\n")
+        env["SEED_FILE"] = str(seed_file)
+    run_live(["npm", "run", "--silent", "seed", "--", f"--live-dinner={demo.date}"], cwd=REPO / "backend", env=env)
 
 
 def pick(body, key):
@@ -421,8 +426,6 @@ def run_calibration_capture(demo):
     inbox = demo.run / "calibration-inbox"
     common = ["--inbox", str(inbox), "--state-dir", str(demo.state), "--hall", HALL_ID,
               "--known-area-cm2", str(demo.args.known_area_cm2), "--reference-label", demo.args.reference_label]
-    if demo.args.depth:
-        common += ["--depth", demo.args.depth]
     if demo.args.simulate:
         print("  --simulate: a SYNTHETIC calibration photo (a drawn credit card on the tray, 45 cm design height).")
         code, _ = run_live(["npm", "run", "--silent", "simulate-camera", "--", "--calibrate", *common],
@@ -445,26 +448,19 @@ def run_calibration_capture(demo):
 
 
 def step_calibration(demo):
-    """Camera calibration: a known-area reference gives cm² per pixel (and DAv2 depth scale)."""
+    """Camera calibration: a known-area reference gives k (cm² per pixel) and the camera height."""
     status, settings = measurement_settings(demo)
     if route_missing(status, settings):
         demo.check("WARN", "This backend has no calibration endpoints yet (IT_4 workstream B): physical numbers are off")
         return
-    if demo.args.depth and settings and settings.get("activeCalibrationId") and not demo.args.recalibrate:
-        status, settings = demo.request("PUT", "/api/settings/measurement", {
-            "hallId": HALL_ID, "activeCalibrationId": settings["activeCalibrationId"],
-            "depthEnabled": demo.args.depth == "on", "plateThicknessCm": settings.get("plateThicknessCm", 1.5)})
-        settings = pick(settings, "settings") if status == 200 else settings
-        demo.check("PASS" if status == 200 else "FAIL", f"Depth Anything V2 set {demo.args.depth} (HTTP {status})")
     active = (settings or {}).get("activeCalibrationId")
     if not active or demo.args.recalibrate:
         why = "--recalibrate" if active else "No active calibration for this hall"
         if ask(f"{why}. Calibrate now ({'synthetic fixture' if demo.args.simulate else 'camera'})?"):
             if demo.args.simulate and settings is not None:
-                # The synthetic card's scale doesn't match real camera frames: put the hall's
-                # previous settings back when the run ends so later real plates aren't mis-scaled.
-                demo.restore_settings = {k: settings.get(k) for k in
-                                         ("hallId", "activeCalibrationId", "depthEnabled", "plateThicknessCm")}
+                # The synthetic card's scale doesn't match real camera frames: put the hall's previous
+                # active calibration back when the run ends so later real plates aren't mis-scaled.
+                demo.restore_settings = {"hallId": HALL_ID, "activeCalibrationId": settings.get("activeCalibrationId")}
             ok = run_calibration_capture(demo)
             demo.check("PASS" if ok else "FAIL", "Calibration capture uploaded and measured" if ok
                        else "Calibration failed (see output above)")
@@ -478,27 +474,21 @@ def step_calibration(demo):
     if status != 200 or not isinstance(cal, dict):
         demo.check("FAIL", f"Active calibration {active}: HTTP {status}")
         return
-    depth = cal.get("depth") or {}
     intr = cal.get("intrinsics") or {}
     rows = [
-        ["Reference", f"{cal.get('referenceLabel')}, {num(cal.get('knownAreaCm2'), 2)} cm² (entered)"],
-        ["Reference pixels N_ref", f"{num(cal.get('referencePixels'))} px in {cal.get('widthPx')}×{cal.get('heightPx')}"],
-        ["k = area / N_ref", f"{cal.get('cm2PerPx', 0):.6f} cm² per pixel" if cal.get("cm2PerPx") else "—"],
-        ["Intrinsics", f"fx {num(intr.get('fxPx'), 1)} px ({intr.get('source', '?')}, {intr.get('cameraModel', '?')})"],
-        ["Camera height, geometric", f"{num(cal.get('cameraHeightCmGeometric'), 1)} cm  (f·√k)"],
-        ["Camera height, Depth Anything V2", f"{num(depth.get('cameraHeightCmDepth'), 1)} cm  (scale {num(depth.get('scale'), 3)})"
-         if depth else "not measured (depth worker off or unavailable)"],
+        ["Reference", f"{cal.get('referenceLabel')}, {num(cal.get('knownAreaCm2'), 2)} cm² (entered) = "
+                      f"{num(cal.get('referencePixels'))} px in {cal.get('widthPx')}×{cal.get('heightPx')}"],
+        ["k = area / pixels", f"{cal.get('cm2PerPx', 0):.6f} cm² per pixel" if cal.get("cm2PerPx") else "—"],
+        ["Camera height", f"{num(cal.get('cameraHeightCmGeometric'), 1)} cm  (f·√k, fx {num(intr.get('fxPx'), 1)} px "
+                          f"{intr.get('source', '?')})"],
         ["Flags", ", ".join(cal.get("flags") or []) or "none"],
-        ["Depth Anything V2 for captures", "ON → volume method (volume-dav2-v1)" if settings.get("depthEnabled")
-         else "OFF → area method (area-calibrated-v1)"],
     ]
     print()
     table(rows, ["Calibration " + active, ""], "ll")
+    print(dim("    Area method (area-calibrated-v1): food area cm² = pixels × k. Recalibrate after moving the camera."))
     demo.calibration = cal
     demo.check("PASS" if cal.get("status") == "succeeded" else "FAIL",
                f"Active calibration {active}: status {cal.get('status')}, camera {cal.get('cameraId')}")
-    if "depth_scale_disagrees" in (cal.get("flags") or []):
-        demo.check("WARN", "Geometric and DAv2 camera heights disagree by more than 15%")
 
 
 def step_camera(demo):
@@ -600,14 +590,14 @@ def step_analysis(demo):
             demo.check("PASS", "Empty plate: 0 pixels wasted (valid zero)")
 
 
-def step_volume(demo):
-    """Estimated area / volume / grams / CO2e / water per food, from the calibration (labeled estimates)."""
+def step_area(demo):
+    """Estimated area cm², grams, kg CO2e and L water per food from the calibration (labeled estimates)."""
     q = urllib.parse.urlencode({"hallId": HALL_ID, "start": demo.date, "end": demo.date, "limit": 200})
     status, listing = demo.get(f"/api/captures?{q}")
     rows = listing if isinstance(listing, list) else (listing or {}).get("captures", [])
     captures = {c["eventId"]: c for c in rows} if status == 200 else {}
-    totals = {"grams": 0.0, "kgCo2e": 0.0, "waterLitres": 0.0, "areaCm2": 0.0, "volumeCm3": 0.0}
-    counted = {k: 0 for k in totals}
+    totals = {"areaCm2": 0.0, "grams": 0.0, "kgCo2e": 0.0, "waterLitres": 0.0}
+    foods = {"with": 0, "without": 0}
     calibrated = 0
     for event_id in demo.event_ids:
         _, detail = demo.get(f"/api/captures/{event_id}")
@@ -618,35 +608,35 @@ def step_volume(demo):
         method = entry.get("physicalMethod") or last.get("physicalMethod")
         calibration_id = entry.get("calibrationId") or last.get("calibrationId")
         names = item_names(demo, (detail.get("event") or {}).get("serviceId", demo.service_id))
-        flags_by_item = {}
-        for m in detail.get("measurements") or []:
-            phys = m.get("physical") or {}
-            flags_by_item.setdefault(m.get("itemId"), set()).update(phys.get("flags") or [])
         print(f"\n  {bold(event_id)}  method={method or 'none'}  calibration={calibration_id or '—'}")
         if not method:
             demo.check("WARN", f"{event_id}: no physical estimate (no active calibration when analysed); pixels only")
             continue
         calibrated += 1
-        rows = []
+        table_rows = []
         for item in entry.get("items") or []:
             for key in totals:
                 if isinstance(item.get(key), (int, float)):
                     totals[key] += item[key]
-                    counted[key] += 1
+            foods["with" if isinstance(item.get("grams"), (int, float)) else "without"] += 1
             label = item.get("displayName") or food_name(names, item.get("itemId"))
-            rows.append([label, num(item.get("pixels")), num(item.get("areaCm2"), 1), num(item.get("volumeCm3"), 1),
-                         num(item.get("grams"), 0), num(item.get("kgCo2e"), 3), num(item.get("waterLitres"), 1),
-                         ", ".join(sorted(flags_by_item.get(item.get("itemId"), ()))) or "—"])
-        if rows:
-            table(rows, ["Food", "Pixels", "cm²", "cm³", "g (est.)", "kg CO2e", "L water", "Flags"], "lrrrrrrl")
-            demo.check("PASS", f"{event_id}: {len(rows)} food(s) with estimated physical numbers ({method})")
+            table_rows.append([label, num(item.get("pixels")), num(item.get("areaCm2"), 1), num(item.get("grams"), 0),
+                               num(item.get("kgCo2e"), 3), num(item.get("waterLitres"), 1)])
+        if table_rows:
+            table(table_rows, ["Food", "Pixels", "Area cm²", "g (est.)", "kg CO2e (est.)", "L water (est.)"], "lrrrrr")
+            demo.check("PASS", f"{event_id}: {len(table_rows)} food(s) with estimated physical numbers ({method})")
         else:
             demo.check("WARN", f"{event_id}: calibrated but the capture list has no per-food physical numbers yet")
+    print(f"\n  {bold('Totals for these plates')} (estimates; — values are skipped, never counted as 0)")
     if calibrated:
-        print(f"\n  {bold('Totals for these plates')} (estimates; null values are skipped, never counted as 0)")
-        print(f"    {num(totals['grams'], 0)} g · {num(totals['kgCo2e'], 3)} kg CO2e · {num(totals['waterLitres'], 1)} L water"
-              f"   area {num(totals['areaCm2'], 1)} cm²" + (f", volume {num(totals['volumeCm3'], 1)} cm³" if counted["volumeCm3"] else ""))
-        print(dim("    grams = volume × density (DAv2 on) or area × g/cm² (DAv2 off); kg CO2e = g/1000 × C; L = g × W"))
+        print(f"    {num(totals['areaCm2'], 1)} cm² · {num(totals['grams'], 0)} g · {num(totals['kgCo2e'], 3)} kg CO2e · "
+              f"{num(totals['waterLitres'], 1)} L water")
+    print(f"    Coverage: {calibrated} of {len(demo.event_ids)} plate(s) calibrated; "
+          f"{foods['with']} food(s) with grams, {foods['without']} without (no factor row, or not on the menu)")
+    print(dim("    area cm² = pixels × k;  grams = area × weight_g_per_cm2;  kg CO2e = g/1000 × C;  L water = g × W"))
+    if calibrated:
+        demo.check("PASS", f"Estimated totals for {calibrated} plate(s): {num(totals['grams'], 0)} g, "
+                           f"{num(totals['kgCo2e'], 3)} kg CO2e, {num(totals['waterLitres'], 1)} L water")
 
 
 def step_storage(demo):
@@ -761,7 +751,7 @@ def step_stats(demo):
         print(f"    {bold(num(t.get('kgCo2e'), 2) + ' kg CO2e')} and {bold(num(t.get('waterLitres'), 0) + ' L water')} "
               f"estimated ({num(t.get('grams'), 0)} g, method {t.get('physicalMethod') or '—'})  "
               + dim(f"from {coverage.get('calibratedCaptures', '?')} of {coverage.get('analyzedCaptures', '?')} "
-                    f"calibrated plates, {coverage.get('volumeCaptures', 0)} by DAv2 volume"))
+                    "calibrated plates"))
         demo.check("PASS", f"Estimated totals: {num(t.get('kgCo2e'), 2)} kg CO2e, {num(t.get('waterLitres'), 0)} L water "
                            f"({coverage.get('calibratedCaptures', '?')}/{coverage.get('analyzedCaptures', '?')} plates calibrated)")
     elif "kgCo2e" in t:
@@ -867,11 +857,11 @@ def step_deploy(demo):
 STEPS = [
     ("services", "Services", step_services),
     ("menu", "Menu, waste factors and portions served", step_menu),
-    ("calibration", "Camera calibration (cm² per pixel, camera height, depth on/off)", step_calibration),
+    ("calibration", "Camera calibration (cm² per pixel, camera height)", step_calibration),
     ("camera", "Camera → laptop", step_camera),
     ("upload", "Laptop → R2 + SpacetimeDB (inbox bridge)", step_upload),
     ("analysis", "AI analysis: Gemini → SAM 2.1 → pixel count", step_analysis),
-    ("volume", "Estimated area, volume, grams, CO2e and water", step_volume),
+    ("area", "Estimated area, grams, CO2e and water", step_area),
     ("storage", "Where everything is stored", step_storage),
     ("images", "Photo vs. segmentation", step_images),
     ("stats", "Waste statistics", step_stats),
@@ -879,7 +869,7 @@ STEPS = [
     ("dashboard", "Dashboard", step_dashboard),
     ("deploy", "Production URL", step_deploy),
 ]
-NEEDS_EVENTS = {"analysis", "volume", "storage", "images"}
+NEEDS_EVENTS = {"analysis", "area", "storage", "images"}
 
 
 # ----------------------------------------------------------------- helpers ---
@@ -954,11 +944,15 @@ def open_files(paths):
 
 
 def main():
+    global HALL_ID
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--simulate", action="store_true", help="Use test2/ photos instead of the Uno Q camera")
     parser.add_argument("--plates", type=int, default=1, help="Plates to photograph (default 1)")
     parser.add_argument("--target", default=DEFAULT_BOARD, help=f"Board SSH target (default {DEFAULT_BOARD})")
     parser.add_argument("--password", action="store_true", help="Type the board password instead of using an SSH key")
+    parser.add_argument("--hall", default=HALL_ID,
+                        help=f"Dining hall (default {HALL_ID}). Another hall, e.g. hall-test, keeps {HALL_ID}'s numbers "
+                             "untouched: its dinner is seeded from the same demo menu")
     parser.add_argument("--service", help="serviceId (default: today's dinner, seeded if missing)")
     parser.add_argument("--date", help="Hall-local date YYYY-MM-DD for stats (default: today in America/Detroit)")
     parser.add_argument("--events", help="Comma-separated capture IDs to show instead of taking new photos")
@@ -969,8 +963,6 @@ def main():
     parser.add_argument("--prod-url", default=os.environ.get("SCRAP_PROD_URL"),
                         help="Production URL for the deploy step (default $SCRAP_PROD_URL)")
     parser.add_argument("--recalibrate", action="store_true", help="Take a new calibration even if one is active")
-    parser.add_argument("--depth", choices=["on", "off"], default="off",
-                        help="Depth Anything V2 for the hall (default off: area method; DAv2 volume is unvalidated on food)")
     parser.add_argument("--known-area-cm2", type=float, default=46.21,
                         help="Calibration reference area in cm² (default 46.21 = credit card)")
     parser.add_argument("--reference-label", default="credit card", help="Calibration reference object")
@@ -984,6 +976,9 @@ def main():
     parser.add_argument("--no-start", action="store_true", help="Never offer to start missing services")
     parser.add_argument("--out", type=Path, help="Run folder (default images/demo-runs/<UTC time>)")
     args = parser.parse_args()
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", args.hall):
+        parser.error("--hall must be 1-64 letters, digits, '.', '_' or '-'")
+    HALL_ID = args.hall
 
     if args.list:
         for key, title, fn in STEPS:

@@ -54,7 +54,6 @@ function succeeded(req: CalibrationRequest, id: string): CameraCalibration {
     cm2PerPx: k,
     intrinsics: { cameraModel: 'logitech-c920s', widthPx: 1024, heightPx: 1024, fxPx: 1289.7, fyPx: 1289.7, cxPx: 512, cyPx: 512, source: 'nominal-fov' },
     cameraHeightCmGeometric: 1289.7 * Math.sqrt(k),
-    depth: null,
     flags: [],
   };
 }
@@ -104,7 +103,7 @@ class FakeCalibrationApi implements CalibrationApi {
   }
 
   async putSettings(s: Partial<MeasurementSettings> & { hallId: string }): Promise<MeasurementSettings> {
-    const merged = { depthEnabled: false, activeCalibrationId: null, plateThicknessCm: 1.5, updatedAt: 'now', ...this.settings.get(s.hallId), ...s };
+    const merged = { activeCalibrationId: null, updatedAt: 'now', ...this.settings.get(s.hallId), ...s };
     this.settings.set(s.hallId, merged);
     return merged;
   }
@@ -204,31 +203,25 @@ test('input validation is plain-language', () => {
   assert.doesNotThrow(() => validateCalibrationInput(base));
 });
 
-test('activateCalibration keeps the depth toggle unless told otherwise', async () => {
+test('activateCalibration sets the hall\'s active calibration only', async () => {
   const api = new FakeCalibrationApi();
   let s = await activateCalibration(api, HALL, 'cal_a');
-  assert.deepEqual([s.activeCalibrationId, s.depthEnabled], ['cal_a', false]);
-  s = await activateCalibration(api, HALL, 'cal_a', true);
-  assert.equal(s.depthEnabled, true);
+  assert.deepEqual(s.activeCalibrationId, 'cal_a');
   s = await activateCalibration(api, HALL, 'cal_b');
-  assert.deepEqual([s.activeCalibrationId, s.depthEnabled], ['cal_b', true]);
+  assert.equal(s.activeCalibrationId, 'cal_b');
+  assert.deepEqual(Object.keys(s).sort(), ['activeCalibrationId', 'hallId', 'updatedAt']);
 });
 
-test('describeCalibration shows k, both heights and flags', () => {
+test('describeCalibration shows k, camera height and flags', () => {
   const c = succeeded({ ...base, imageObjectId: 'img' }, 'cal_9');
   let text = describeCalibration(c).join('\n');
   assert.match(text, /k = 0\.00122\d cm² per pixel/);
-  assert.match(text, /geometric \(f·√k\): 45\.0 cm/);
-  assert.match(text, /Depth Anything V2: not measured/);
+  assert.match(text, /camera height \(f·√k\): 45\.0 cm/);
+  assert.equal(describeCalibration(c).length, 5); // id, reference, k, height, flags
   assert.match(text, /flags: none/);
-  c.depth = {
-    checkpoint: 'depth-anything/Depth-Anything-V2-Metric-Indoor-Small-hf', settingsVersion: 'dav2-metric-small-v1',
-    rawReferenceMedianM: 0.4, scale: 1.125, cameraHeightCmDepth: 45, tablePlane: { a: 0, b: 0, c: 45 }, depthObjectId: 'img_d',
-  };
-  c.flags = ['depth_scale_disagrees'];
+  c.flags = ['reference_touches_edge'];
   text = describeCalibration(c).join('\n');
-  assert.match(text, /Depth Anything V2: 45\.0 cm\s+\(scale 1\.125/);
-  assert.match(text, /flags: depth_scale_disagrees/);
+  assert.match(text, /flags: reference_touches_edge/);
 });
 
 test('calibration frames are listed apart and never ingested as dishes', async () => {

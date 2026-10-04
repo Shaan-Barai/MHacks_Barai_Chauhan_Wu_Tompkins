@@ -7,7 +7,7 @@
  * matches the captures it applies to. Then the existing upload flow
  * (authorize → PUT → finalize) with association kind `calibration`, then
  * `POST /api/calibrations`. The backend finds and segments the reference
- * object and computes k = cm²/px, camera heights and depth scale; this module
+ * object and computes k = cm²/px and the geometric camera height; this module
  * never computes them itself.
  *
  * Idempotent per (frame, hall, camera, area, label): the calibration id and
@@ -206,23 +206,13 @@ function result(calibration: CameraCalibration, a: CalibrationAttempt, reused: b
   };
 }
 
-/**
- * Make a calibration the hall's active one (IT_4 I9), keeping the other
- * settings. `depthEnabled` undefined keeps the current toggle (default off).
- */
+/** Make a calibration the hall's active one (IT_4 I9). */
 export async function activateCalibration(
   api: CalibrationApi,
   hallId: string,
   calibrationId: string,
-  depthEnabled?: boolean,
 ): Promise<MeasurementSettings> {
-  const current = await api.getSettings(hallId);
-  return api.putSettings({
-    hallId,
-    activeCalibrationId: calibrationId,
-    depthEnabled: depthEnabled ?? current?.depthEnabled ?? false,
-    ...(current?.plateThicknessCm !== undefined ? { plateThicknessCm: current.plateThicknessCm } : {}),
-  });
+  return api.putSettings({ hallId, activeCalibrationId: calibrationId });
 }
 
 const fmt = (n: number | null | undefined, digits: number) =>
@@ -239,17 +229,9 @@ export function describeCalibration(c: CameraCalibration): string[] {
     lines.push(
       `reference: "${c.referenceLabel}" ${fmt(c.knownAreaCm2, 2)} cm² = ${fmt(c.referencePixels, 0)} px in a ${c.widthPx}×${c.heightPx} image`,
       `k = ${fmt(c.cm2PerPx, 6)} cm² per pixel  (one pixel ≈ ${fmt(side, 2)} mm on the tray)`,
-      `camera height, geometric (f·√k): ${fmt(c.cameraHeightCmGeometric, 1)} cm  ` +
+      `camera height (f·√k): ${fmt(c.cameraHeightCmGeometric, 1)} cm  ` +
         `[fx ${fmt(c.intrinsics?.fxPx, 1)} px, ${c.intrinsics?.source ?? '?'}]`,
     );
-    if (c.depth) {
-      lines.push(
-        `camera height, Depth Anything V2: ${fmt(c.depth.cameraHeightCmDepth, 1)} cm  ` +
-          `(scale ${fmt(c.depth.scale, 3)}, raw median ${fmt(c.depth.rawReferenceMedianM, 3)} m)`,
-      );
-    } else {
-      lines.push('camera height, Depth Anything V2: not measured (depth worker off or unavailable); area method only');
-    }
   }
   lines.push(`flags: ${c.flags?.length ? c.flags.join(', ') : 'none'}`);
   return lines;

@@ -8,21 +8,24 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
- * IT_4 live E2E: calibrate → depth off → capture → physical numbers →
- * depth on → capture → volume (or an explicit fallback) → dashboard totals.
+ * IT_4 live E2E (area method; Depth Anything V2 was removed 2026-10-04):
+ * calibrate → capture → per-food area / grams / CO2e / water → dashboard totals.
  *
+ *   menu copy                    the source service's menu (SCRAP_E2E_SERVICE) is uploaded for a
+ *                                TEST hall (SCRAP_E2E_CAL_HALL, default hall-e2e-cal), so hall-main's
+ *                                calibration and numbers are never touched
  *   simulate-camera --calibrate  synthetic card fixture → upload (kind 'calibration') →
- *                                POST /api/calibrations (real Gemini box + SAM mask on the card)
- *   PUT /api/settings/measurement  depthEnabled off, then on
- *   simulate-camera --service    one test2/ photo per mode → real analysis
- *   GET /api/captures            per-food areaCm2 = pixels × k (area method), grams / kg CO2e /
- *                                L water numbers or null; a food with grams has the overlay
- *                                legend suffix (backend physicalLabelSuffix draws exactly when
- *                                grams is finite; the JPEG text itself is not OCR'd)
+ *                                POST /api/calibrations (real Gemini box + SAM mask on the card) →
+ *                                PUT /api/settings/measurement {hallId, activeCalibrationId}
+ *   simulate-camera --service    one test2/ photo → real analysis
+ *   GET /api/captures            per-food areaCm2 = pixels × k, grams / kg CO2e / L water numbers
+ *                                or null; a food with grams has the overlay legend suffix (backend
+ *                                physicalLabelSuffix draws exactly when grams is finite; the JPEG
+ *                                text itself is not OCR'd)
  *   GET /api/dashboard/impact    estimated totals + physicalCoverage
  *
  * Skipped unless SCRAP_E2E=1. Skips itself cleanly when the backend has no
- * calibration endpoints. Restores the hall's measurement settings afterwards.
+ * calibration endpoints. Restores the test hall's measurement settings afterwards.
  * Mutations send SCRAP_INGEST_TOKEN (npm run test:e2e:calibration loads ../.env;
  * the capture scripts also read .env / deploy/.run/local-secrets.env). The
  * token and signed URLs are never printed.
@@ -32,15 +35,16 @@ import { fileURLToPath } from 'node:url';
  * physical accuracy (docs/known-limitations.md).
  *
  * Environment: SCRAP_API_URL / API_URL (default http://localhost:8787),
- * SCRAP_E2E_SERVICE (default svc_hall-main_2026-10-03_dinner),
- * SCRAP_E2E_PHOTO_DIR (default <repo>/test2), SCRAP_E2E_TIMEOUT_S (default 900),
- * SCRAP_E2E_SKIP_DEPTH=1 (skip the depth-on capture).
+ * SCRAP_E2E_SERVICE (menu source, default svc_hall-main_2026-10-03_dinner),
+ * SCRAP_E2E_CAL_HALL (default hall-e2e-cal; "source" = use the source service's own hall),
+ * SCRAP_E2E_PHOTO_DIR (default <repo>/test2), SCRAP_E2E_TIMEOUT_S (default 900).
  */
 
 const LIVE = process.env.SCRAP_E2E === '1';
 const API = (process.env.SCRAP_API_URL || process.env.API_URL || 'http://localhost:8787').replace(/\/$/, '');
 const TOKEN = process.env.SCRAP_INGEST_TOKEN || undefined;
-const SERVICE = process.env.SCRAP_E2E_SERVICE ?? 'svc_hall-main_2026-10-03_dinner';
+const SOURCE_SERVICE = process.env.SCRAP_E2E_SERVICE ?? 'svc_hall-main_2026-10-03_dinner';
+const CAL_HALL = process.env.SCRAP_E2E_CAL_HALL ?? 'hall-e2e-cal';
 const repo = fileURLToPath(new URL('../../', import.meta.url));
 const capture = path.join(repo, 'capture');
 const PHOTO_DIR = process.env.SCRAP_E2E_PHOTO_DIR ?? path.join(repo, 'test2');
@@ -88,7 +92,7 @@ async function waitTerminal(eventId) {
 
 const near = (actual, expected, rel) => Math.abs(actual - expected) <= Math.abs(expected) * rel;
 
-describe('IT_4 live: calibration → area / volume → estimated CO2e + water', { skip: !LIVE }, () => {
+describe('IT_4 live: calibration → calibrated area → estimated grams, CO2e + water', { skip: !LIVE }, () => {
   let tmp;
   let service;
   let original;
@@ -99,7 +103,7 @@ describe('IT_4 live: calibration → area / volume → estimated CO2e + water', 
 
   async function captureOne(photo, label) {
     const r = run(['scripts/simulate-camera.mjs', '--inbox', path.join(tmp, 'inbox'), '--state-dir', path.join(tmp, 'state'),
-      '--photos', photo, '--service', SERVICE]);
+      '--photos', photo, '--service', service.serviceId]);
     assert.equal(r.status, 0, r.out.slice(-1500));
     const ids = [...r.out.matchAll(/→ (cap_[0-9A-Z]+) /g)].map((m) => m[1]);
     assert.equal(ids.length, 1, `${label}: one capture:\n${r.out.slice(-800)}`);
@@ -122,10 +126,27 @@ describe('IT_4 live: calibration → area / volume → estimated CO2e + water', 
       return;
     }
     const services = await api('GET', '/api/services');
-    service = services.body.services?.find((s) => s.serviceId === SERVICE);
-    assert.ok(service, `service ${SERVICE} exists (seed it: deploy/local.sh seed --live-dinner)`);
+    const source = services.body.services?.find((s) => s.serviceId === SOURCE_SERVICE);
+    assert.ok(source, `service ${SOURCE_SERVICE} exists (seed it: deploy/local.sh seed --live-dinner)`);
+    service = source;
+    if (CAL_HALL !== 'source' && CAL_HALL !== source.hallId) {
+      // Copy the source menu to the test hall (same date and meal; idempotent: an identical
+      // re-upload is 'unchanged'). Display names are kept, so waste factors still match.
+      const menu = await api('GET', `/api/menus/by-service/${encodeURIComponent(SOURCE_SERVICE)}`);
+      assert.equal(menu.status, 200, JSON.stringify(menu.body).slice(0, 300));
+      const { service: src, items } = menu.body.menu;
+      const up = await api('POST', '/api/menus/upload', {
+        hallId: CAL_HALL,
+        hallTimezone: src.hallTimezone ?? 'America/Detroit',
+        days: [{ date: src.serviceDate, [src.mealLabel ?? 'dinner']: items.map((i) => ({
+          name: i.displayName, ...(i.category ? { category: i.category } : {}), ...(i.description ? { description: i.description } : {}) })) }],
+      });
+      assert.ok(up.status === 200 || up.status === 201, `menu copy for ${CAL_HALL}: HTTP ${up.status} ${JSON.stringify(up.body).slice(0, 300)}`);
+      service = up.body.results[0].menu.service;
+      assert.equal(service.hallId, CAL_HALL);
+    }
     original = (await api('GET', `/api/settings/measurement?hallId=${service.hallId}`)).body;
-    const date = SERVICE.match(/\d{4}-\d{2}-\d{2}/)?.[0] ?? new Date().toISOString().slice(0, 10);
+    const date = service.serviceDate ?? SOURCE_SERVICE.match(/\d{4}-\d{2}-\d{2}/)?.[0] ?? new Date().toISOString().slice(0, 10);
     const today = new Date().toISOString().slice(0, 10);
     const shift = (d, n) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
     window = { start: shift([date, today].sort()[0], -1), end: shift([date, today].sort()[1], 1) };
@@ -139,9 +160,8 @@ describe('IT_4 live: calibration → area / volume → estimated CO2e + water', 
 
   after(async () => {
     if (service && original?.hallId) {
-      const body = { hallId: original.hallId, depthEnabled: original.depthEnabled, plateThicknessCm: original.plateThicknessCm };
       // Restore the previous active calibration (null is allowed).
-      body.activeCalibrationId = original.activeCalibrationId ?? null;
+      const body = { hallId: original.hallId, activeCalibrationId: original.activeCalibrationId ?? null };
       const r = await api('PUT', '/api/settings/measurement', body);
       if (r.status !== 200) console.log(`# could not restore measurement settings: HTTP ${r.status}`);
     }
@@ -151,7 +171,7 @@ describe('IT_4 live: calibration → area / volume → estimated CO2e + water', 
   it('calibrates from the synthetic credit-card fixture', async (t) => {
     if (skipReason) return t.skip(skipReason);
     const r = run(['scripts/simulate-camera.mjs', '--calibrate', '--inbox', path.join(tmp, 'cal-inbox'), '--state-dir', path.join(tmp, 'state'),
-      '--hall', service.hallId, '--depth', 'off']);
+      '--hall', service.hallId]);
     assert.equal(r.status, 0, r.out.slice(-1500));
     const id = r.out.match(/calibrationId: (cal_[0-9A-Z]+)/)?.[1];
     assert.ok(id, r.out.slice(-800));
@@ -167,23 +187,16 @@ describe('IT_4 live: calibration → area / volume → estimated CO2e + water', 
     assert.ok(near(calibration.referencePixels, expectedN, 0.15), `N_ref ${calibration.referencePixels} within 15% of the drawn ${expectedN}`);
     assert.ok(near(calibration.intrinsics.fxPx, SIDECAR.normalized.fxPx, 0.01), `crop-aware fx ${calibration.intrinsics.fxPx}`);
     assert.ok(near(calibration.cameraHeightCmGeometric, SIDECAR.design.cameraHeightCm, 0.1), `geometric height ${calibration.cameraHeightCmGeometric} cm ≈ 45`);
-    if (calibration.depth) {
-      assert.ok(calibration.depth.scale > 0 && Number.isFinite(calibration.depth.cameraHeightCmDepth));
-      assert.ok(calibration.depth.depthObjectId);
-    }
     const settings = (await api('GET', `/api/settings/measurement?hallId=${service.hallId}`)).body;
     assert.equal(settings.activeCalibrationId, id);
-    assert.equal(settings.depthEnabled, false);
     const images = await api('GET', `/api/calibrations/${id}/images`);
     assert.equal(images.status, 200);
     assert.ok(images.body.photo?.url, 'calibration photo in object storage');
     console.log(`# calibration ${id}: N_ref ${calibration.referencePixels} (drawn ≈ ${expectedN}), k ${calibration.cm2PerPx.toExponential(4)} cm²/px, ` +
-      `height ${calibration.cameraHeightCmGeometric.toFixed(1)} cm geometric` +
-      (calibration.depth ? `, ${calibration.depth.cameraHeightCmDepth.toFixed(1)} cm DAv2 (scale ${calibration.depth.scale.toFixed(3)})` : ', no DAv2') +
-      `, flags [${calibration.flags.join(', ')}]`);
+      `camera height ${calibration.cameraHeightCmGeometric.toFixed(1)} cm (f·√k), flags [${calibration.flags.join(', ')}]`);
   });
 
-  it('depth OFF: a capture gets areaCm2 = pixels × k and estimated grams / CO2e / water', async (t) => {
+  it('a capture gets areaCm2 = pixels × k and estimated grams / CO2e / water', async (t) => {
     if (skipReason || !calibration) return t.skip(skipReason ?? 'no calibration');
     const { eventId, row } = await captureOne(photos[0], 'area');
     assert.equal(row.calibrationId, calibration.calibrationId);
@@ -201,7 +214,6 @@ describe('IT_4 live: calibration → area / volume → estimated CO2e + water', 
       for (const k of ['grams', 'kgCo2e', 'waterLitres']) {
         assert.ok(item[k] === null || (Number.isFinite(item[k]) && item[k] >= 0), `${item.displayName}: ${k}`);
       }
-      assert.equal(item.volumeCm3 ?? null, null, 'area method has no volume');
     }
     const withGrams = named.filter((i) => i.grams !== null);
     assert.ok(withGrams.length > 0, 'some food has estimated grams ⇒ the overlay legend carries the "g · kg CO2e · L water (est.)" suffix');
@@ -210,27 +222,6 @@ describe('IT_4 live: calibration → area / volume → estimated CO2e + water', 
     const overlay = await fetch(imgs.body.overlay.url);
     assert.equal(overlay.status, 200);
     console.log(`# area capture ${eventId}: ` + withGrams.map((i) => `${i.displayName} ${i.pixels} px → ${i.areaCm2?.toFixed(1)} cm² · ${i.grams?.toFixed(0)} g · ${i.kgCo2e?.toFixed(3)} kg CO2e · ${i.waterLitres?.toFixed(1)} L`).join('; '));
-  });
-
-  it('depth ON: the capture uses the DAv2 volume method, or falls back with an explicit flag', async (t) => {
-    if (skipReason || !calibration) return t.skip(skipReason ?? 'no calibration');
-    if (process.env.SCRAP_E2E_SKIP_DEPTH === '1') return t.skip('SCRAP_E2E_SKIP_DEPTH=1');
-    if (!calibration.depth) return t.skip('the calibration has no DAv2 depth scale (depth worker was not reachable)');
-    const put = await api('PUT', '/api/settings/measurement', { hallId: service.hallId, depthEnabled: true });
-    assert.equal(put.status, 200, JSON.stringify(put.body));
-    const { eventId, row, detail } = await captureOne(photos[1], 'volume');
-    assert.equal(row.calibrationId, calibration.calibrationId);
-    const flags = new Set((detail.measurements ?? []).flatMap((m) => m.physical?.flags ?? []));
-    if (row.physicalMethod === 'volume-dav2-v1') {
-      const vol = row.items.filter((i) => typeof i.volumeCm3 === 'number');
-      assert.ok(vol.length > 0 || flags.has('bowl_volume_unreliable'), 'some food has a volume (or bowls flagged)');
-      for (const i of vol) assert.ok(i.volumeCm3 >= 0 && Number.isFinite(i.volumeCm3));
-    } else {
-      assert.equal(row.physicalMethod, 'area-calibrated-v1');
-      assert.ok(flags.has('depth_unavailable') || flags.has('depth_invalid'), `area fallback is flagged: [${[...flags]}]`);
-    }
-    console.log(`# depth capture ${eventId}: method ${row.physicalMethod}, flags [${[...flags].join(', ')}]; ` +
-      row.items.filter((i) => i.volumeCm3 != null).map((i) => `${i.displayName} ${i.volumeCm3.toFixed(1)} cm³ · ${i.grams?.toFixed(0)} g`).join('; '));
   });
 
   it('dashboard impact shows estimated CO2e / water totals with calibrated-plate coverage', async (t) => {
@@ -244,6 +235,6 @@ describe('IT_4 live: calibration → area / volume → estimated CO2e + water', 
     assert.ok(Number.isFinite(totals.waterLitres) && totals.waterLitres >= 0, 'estimated water total');
     assert.ok(Number.isInteger(totals.pixels), 'pixels stay the headline measurement');
     console.log(`# impact: ${totals.pixels} px; est. ${totals.grams?.toFixed(0)} g, ${totals.kgCo2e.toFixed(3)} kg CO2e, ${totals.waterLitres.toFixed(1)} L ` +
-      `from ${cov.calibratedCaptures}/${cov.analyzedCaptures} calibrated plates (${cov.volumeCaptures} by volume)`);
+      `from ${cov.calibratedCaptures}/${cov.analyzedCaptures} calibrated plates`);
   });
 });

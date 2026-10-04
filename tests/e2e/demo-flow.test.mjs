@@ -8,13 +8,19 @@ import { fileURLToPath } from 'node:url';
  * live Gemini when GEMINI_API_KEY is set on the backend). Skipped unless
  * SCRAP_E2E=1 so CI never claims a live path from fixtures alone.
  *
- *   SCRAP_E2E=1 [API_URL=http://localhost:8787] npm run test:e2e
+ *   SCRAP_E2E=1 [SCRAP_API_URL=http://localhost:8787] npm run test:e2e
+ *
+ * Mutations send `Authorization: Bearer $SCRAP_INGEST_TOKEN` when it is set (a
+ * production-mode backend refuses them with 401 otherwise). The token goes to
+ * the backend's own origin only, never to a presigned object-storage URL.
  *
  * Uses its own hall id per run (hall-e2e-<timestamp>) so it never touches the
  * demo hall's numbers. Restart persistence is a manual check (docs/runbook.md).
  */
 const LIVE_E2E = process.env.SCRAP_E2E === '1';
-const API = (process.env.API_URL ?? 'http://localhost:8787').replace(/\/$/, '');
+const API = (process.env.SCRAP_API_URL || process.env.API_URL || 'http://localhost:8787').replace(/\/$/, '');
+const TOKEN = process.env.SCRAP_INGEST_TOKEN || undefined;
+const authFor = (method) => (TOKEN && method !== 'GET' ? { Authorization: `Bearer ${TOKEN}` } : {});
 
 const RUN = Date.now().toString(36);
 const HALL = `hall-e2e-${RUN}`;
@@ -27,7 +33,7 @@ const IMAGE = fileURLToPath(
 const GEOMETRY = { widthPx: 1024, heightPx: 1024, coordinateSpace: 'topdown-normalized-v1', plateShape: 'round' };
 
 async function api(method, path, body, headers = {}) {
-  const init = { method, headers: { ...headers } };
+  const init = { method, headers: { ...authFor(method), ...headers } };
   if (body !== undefined) {
     if (body instanceof Uint8Array) init.body = body;
     else {
@@ -97,9 +103,11 @@ describe('demo flow e2e (live stack)', { skip: !LIVE_E2E }, () => {
     const early = await api('POST', `/api/images/${auth.body.objectId}/finalize`);
     assert.equal(early.status, 409, 'finalize before upload must be refused (retryable)');
     // R2: absolute presigned URL (200); local-dev: backend route (204).
-    const put = await fetch(new URL(auth.body.uploadUrl, `${API}/`), {
+    const uploadUrl = new URL(auth.body.uploadUrl, `${API}/`);
+    const sameOrigin = uploadUrl.origin === new URL(API).origin;
+    const put = await fetch(uploadUrl, {
       method: 'PUT',
-      headers: auth.body.uploadHeaders ?? { 'Content-Type': 'image/jpeg' },
+      headers: { ...(sameOrigin ? authFor('PUT') : {}), ...(auth.body.uploadHeaders ?? { 'Content-Type': 'image/jpeg' }) },
       body: bytes,
     });
     assert.ok([200, 204].includes(put.status), `upload PUT failed: ${put.status}`);

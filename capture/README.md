@@ -181,7 +181,7 @@ names the variable. Logs show where the token came from, never its value.
 
 ```bash
 npm run calibrate -- --known-area-cm2 46.21 --reference-label "credit card"   # newest calibration frame in the inbox
-npm run simulate-camera -- --calibrate [--hall hall-main] [--depth off]        # SYNTHETIC card fixture
+npm run simulate-camera -- --calibrate [--hall hall-main]                       # SYNTHETIC card fixture
 npm run calibration-fixture                                                    # regenerate that fixture
 ```
 
@@ -189,7 +189,7 @@ npm run calibration-fixture                                                    #
 calibration frame like every dish (`topdown-normalized-v1`, 1024²). It mints a `cal_<ULID>` id, uploads
 with association `{kind: 'calibration', id}` (the backend's calibration id is the upload's association
 id), calls `POST /api/calibrations`, and polls while `processing`. `PUT /api/settings/measurement`
-then activates it. State lives in `<state-dir>/.inbox-calibrations.json`: a rerun with the same frame,
+then activates it (`{hallId, activeCalibrationId}`; area method only, no depth). State lives in `<state-dir>/.inbox-calibrations.json`: a rerun with the same frame,
 area and label shows the existing calibration, and a failed one is retried with a new id. Inbox frames
 with `capturePurpose: "calibration"` appear in `scanInbox().calibrations` and never in `frames`, so the
 bridge never ingests them as dishes.

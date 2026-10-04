@@ -1,0 +1,2 @@
+# test-all.sh suite logs (may contain test output; never commit)
+.logs/

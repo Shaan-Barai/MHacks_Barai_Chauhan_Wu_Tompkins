@@ -8,7 +8,7 @@
  *   POST /api/captures                capture metadata + finalized objectId
  *   POST /api/dish-match              same-dish verdict for the camera bridge
  *   POST /api/calibrations            run a camera calibration (IT_4 §3)
- *   GET/PUT /api/settings/measurement depth toggle + active calibration (IT_4 I9)
+ *   GET/PUT /api/settings/measurement active calibration per hall (IT_4 I9)
  *
  * Still not a storage client: no credentials, no bucket access — only the
  * backend's authorized upload URL. Upload URLs and tokens are never logged.

@@ -20,7 +20,6 @@
  *   --camera-id <id>         default uno-q-c920s-1
  *   --hall <hallId>          default: the --service's hall, else hall-main
  *   --frame <captureId>      which calibration frame (default: the newest)
- *   --depth on|off           also set the hall's Depth Anything V2 toggle
  *   --no-activate            don't make it the hall's active calibration
  *
  * Environment:
@@ -76,7 +75,6 @@ const { values: args } = parseArgs({
     'camera-id': { type: 'string' },
     hall: { type: 'string' },
     frame: { type: 'string' },
-    depth: { type: 'string' },
     'no-activate': { type: 'boolean', default: false },
   },
 });
@@ -252,8 +250,6 @@ async function runCalibration() {
   const knownAreaCm2 = args['known-area-cm2'] === undefined ? CREDIT_CARD_AREA_CM2 : Number(args['known-area-cm2']);
   const referenceLabel = args['reference-label'] ?? DEFAULT_REFERENCE_LABEL;
   const cameraId = args['camera-id'] ?? DEFAULT_CAMERA_ID;
-  if (args.depth !== undefined && !['on', 'off'].includes(args.depth)) fail('--depth must be on or off.');
-  const depthEnabled = args.depth === undefined ? undefined : args.depth === 'on';
 
   let hallId = args.hall;
   if (!hallId && args.service) {
@@ -321,10 +317,8 @@ async function runCalibration() {
 
   if (!args['no-activate']) {
     try {
-      const settings = await activateCalibration(calibrationApi, hallId, c.calibrationId, depthEnabled);
-      console.log(
-        `  ✓ active calibration for ${hallId}; Depth Anything V2 ${settings.depthEnabled ? 'ON (volume method)' : 'OFF (area method)'}`,
-      );
+      const settings = await activateCalibration(calibrationApi, hallId, c.calibrationId);
+      console.log(`  ✓ active calibration for ${hallId}: ${settings.activeCalibrationId} (area method)`);
     } catch (error) {
       fail(`  ✗ Could not activate it: ${explain(error)}`);
     }

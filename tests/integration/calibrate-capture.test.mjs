@@ -10,12 +10,12 @@ import { fileURLToPath } from 'node:url';
 
 /**
  * IT_4 K: calibrate → capture through the real capture CLIs against a FAKE
- * backend (fixture-only: no Gemini, SAM, depth worker, R2 or SpacetimeDB).
+ * backend (fixture-only: no Gemini, SAM, R2 or SpacetimeDB).
  *
  *   simulate-camera --calibrate  → synthetic card fixture into an inbox as a
  *     calibration frame → upload (association kind 'calibration', id = the
- *     client-picked cal_ id) → POST /api/calibrations → PUT settings (active,
- *     depth toggle)
+ *     client-picked cal_ id) → POST /api/calibrations → PUT settings
+ *     ({hallId, activeCalibrationId})
  *   simulate-camera --service    → one dish → upload (kind 'capture') →
  *     POST /api/captures. The calibration frame is never submitted as a dish.
  *
@@ -111,7 +111,7 @@ function fakeBackend() {
           widthPx: image.widthPx, heightPx: image.heightPx, knownAreaCm2: body.knownAreaCm2,
           referenceLabel: body.referenceLabel, referencePixels: N, cm2PerPx: k,
           intrinsics: { cameraModel: 'logitech-c920s', widthPx: 1024, heightPx: 1024, fxPx: fx, fyPx: fx, cxPx: 512, cyPx: 512, source: 'nominal-fov' },
-          cameraHeightCmGeometric: fx * Math.sqrt(k), depth: null, flags: ['depth_unavailable'],
+          cameraHeightCmGeometric: fx * Math.sqrt(k), flags: ['reference_touches_edge'],
         };
         state.calibrations.set(image.id, calibration);
         return send(201, calibration);
@@ -123,9 +123,9 @@ function fakeBackend() {
       if (url.pathname === '/api/settings/measurement') {
         if (req.method === 'GET') {
           const hallId = url.searchParams.get('hallId');
-          return send(200, state.settings.get(hallId) ?? { hallId, depthEnabled: false, activeCalibrationId: null, plateThicknessCm: 1.5, updatedAt: new Date(0).toISOString() });
+          return send(200, state.settings.get(hallId) ?? { hallId, activeCalibrationId: null, updatedAt: new Date(0).toISOString() });
         }
-        const current = state.settings.get(body.hallId) ?? { hallId: body.hallId, depthEnabled: false, activeCalibrationId: null, plateThicknessCm: 1.5 };
+        const current = state.settings.get(body.hallId) ?? { hallId: body.hallId, activeCalibrationId: null };
         const cal = body.activeCalibrationId && state.calibrations.get(body.activeCalibrationId);
         if (body.activeCalibrationId && (!cal || cal.status !== 'succeeded' || cal.hallId !== body.hallId)) {
           return error(400, 'INVALID_CALIBRATION', 'Only a successful calibration of this hall can be activated.');
@@ -187,15 +187,14 @@ describe('calibrate → capture through the capture CLIs (fake backend, fixtures
   it('calibrates from the synthetic fixture: upload as calibration, POST, activate, print k and height', async () => {
     const from = backend.state.requests.length;
     const r = await run(['scripts/simulate-camera.mjs', '--calibrate', '--inbox', path.join(dir, 'inbox'), '--state-dir', path.join(dir, 'state'),
-      '--hall', HALL, '--depth', 'off'], baseEnv());
+      '--hall', HALL], baseEnv());
     assert.equal(r.code, 0, r.out);
     assert.doesNotMatch(r.out, new RegExp(TOKEN), 'the token is never printed');
     assert.match(r.out, /SYNTHETIC fixture/);
     assert.match(r.out, /k = 0\.0012\d+ cm² per pixel/);
-    assert.match(r.out, /geometric \(f·√k\): 45\.0 cm/);
-    assert.match(r.out, /Depth Anything V2: not measured/);
-    assert.match(r.out, /flags: depth_unavailable/);
-    assert.match(r.out, /active calibration for hall-it4; Depth Anything V2 OFF/);
+    assert.match(r.out, /camera height \(f·√k\): 45\.0 cm/);
+    assert.match(r.out, /flags: reference_touches_edge/);
+    assert.match(r.out, /active calibration for hall-it4: cal_[0-9A-Z]{26} \(area method\)/);
 
     const [cal] = [...backend.state.calibrations.values()];
     assert.match(cal.calibrationId, /^cal_[0-9A-Z]{26}$/);
@@ -207,7 +206,8 @@ describe('calibrate → capture through the capture CLIs (fake backend, fixtures
     assert.equal(image.id, cal.calibrationId, 'association id = calibration id');
     assert.deepEqual(jpegSize(image.bytes), { width: 1024, height: 1024 }, 'normalized exactly like a dish');
     assert.equal(backend.state.settings.get(HALL).activeCalibrationId, cal.calibrationId);
-    assert.equal(backend.state.settings.get(HALL).depthEnabled, false);
+    assert.deepEqual(Object.keys(backend.state.settings.get(HALL)).sort(), ['activeCalibrationId', 'hallId', 'updatedAt'],
+      'the CLI sends only {hallId, activeCalibrationId}');
     const mutations = backend.state.requests.slice(from).filter((q) => q.method !== 'GET');
     assert.ok(mutations.length >= 4 && mutations.every((q) => q.auth === `Bearer ${TOKEN}`));
   });
@@ -215,12 +215,11 @@ describe('calibrate → capture through the capture CLIs (fake backend, fixtures
   it('rerunning the calibration reuses it (no new calibration)', async () => {
     const posts = backend.state.calibrationPosts;
     const r = await run(['scripts/ingest-inbox.mjs', '--calibrate', '--inbox', path.join(dir, 'inbox'), '--state-dir', path.join(dir, 'state'),
-      '--hall', HALL, '--depth', 'on'], baseEnv());
+      '--hall', HALL], baseEnv());
     assert.equal(r.code, 0, r.out);
     assert.match(r.out, /already calibrated with this photo/);
     assert.equal(backend.state.calibrationPosts, posts);
     assert.equal(backend.state.calibrations.size, 1);
-    assert.equal(backend.state.settings.get(HALL).depthEnabled, true, '--depth on flips the toggle');
   });
 
   it('a dish captured afterwards is one capture event; the calibration frame is never a dish', async () => {

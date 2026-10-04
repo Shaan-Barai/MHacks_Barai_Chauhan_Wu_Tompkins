@@ -3,11 +3,14 @@
 #
 #   SpacetimeDB  127.0.0.1:3000   `spacetime start` (database `scrap`)
 #   SAM 2.1      127.0.0.1:8790   vision/sam/worker.py   (.venv, MPS)
-#   DAv2 depth   127.0.0.1:8791   vision/depth/worker.py (.venv, MPS; skipped if absent)
 #   backend      127.0.0.1:8787   NODE_ENV=production SERVE_FRONTEND=1 (serves frontend/dist)
 #
+# A Cloudflare Tunnel maps https://<your domain> to the backend (docs/deploy.md).
+# Depth Anything V2 was removed (2026-10-04): this script no longer starts a depth
+# worker, but `down` still stops one it started earlier (deploy/.run/depth.pid).
+#
 #   deploy/local.sh up        build + start whatever is not already running, then health-check
-#   deploy/local.sh down      stop ONLY the processes this script started (pidfiles)
+#   deploy/local.sh down      stop ONLY the processes this script started (pidfiles; incl. a legacy depth worker)
 #   deploy/local.sh status    show each service: healthy?, who owns it
 #   deploy/local.sh restart   down + up
 #   deploy/local.sh smoke     deploy/smoke.mjs against this stack, with the stack's ingest token
@@ -17,19 +20,21 @@
 # (and never stopped by `down`, because there is no pidfile for it). A port that
 # is taken but unhealthy is reported, never killed. State lives in deploy/.run/
 # (gitignored): <name>.pid, logs/<name>.log, local-secrets.env.
+# Nothing is ever killed by name or port: only pids from our own pidfiles whose
+# command line still matches the service.
 #
 # Environment (all optional):
 #   SCRAP_ENV_FILE   secrets file to load (default <repo>/.env; never printed)
-#   SCRAP_VENV       Python venv with torch + sam2 + transformers (default <repo>/.venv)
+#   SCRAP_VENV       Python venv with torch + sam2 (default <repo>/.venv)
+#   SCRAP_RUN_DIR    state dir (default <repo>/deploy/.run); e.g. a git worktree reusing the main checkout's stack
 #   API_PORT / API_HOST       backend bind (default 8787 / 127.0.0.1)
-#   SAM_PORT / DEPTH_PORT / STDB_PORT   (default 8790 / 8791 / 3000)
+#   SAM_PORT / STDB_PORT      (default 8790 / 3000)
 #   SKIP_BUILD=1     do not rebuild backend/frontend before starting the backend
-#   SKIP_DEPTH=1     do not start the depth worker
-#   HEALTH_TIMEOUT_ML  seconds to wait for a model worker (default 300; first run downloads weights)
+#   HEALTH_TIMEOUT_ML  seconds to wait for the SAM worker (default 300; first run downloads weights)
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RUN="$REPO/deploy/.run"
+RUN="${SCRAP_RUN_DIR:-$REPO/deploy/.run}"
 LOGS="$RUN/logs"
 SECRETS="$RUN/local-secrets.env"
 ENV_FILE="${SCRAP_ENV_FILE:-$REPO/.env}"
@@ -37,10 +42,12 @@ VENV="${SCRAP_VENV:-$REPO/.venv}"
 API_PORT="${API_PORT:-8787}"
 API_HOST="${API_HOST:-127.0.0.1}"
 SAM_PORT="${SAM_PORT:-8790}"
-DEPTH_PORT="${DEPTH_PORT:-8791}"
 STDB_PORT="${STDB_PORT:-3000}"
 HEALTH_TIMEOUT_ML="${HEALTH_TIMEOUT_ML:-300}"
-SERVICES="spacetimedb sam depth api"
+SERVICES="spacetimedb sam api"
+# Removed services that `down` (and `status`) still handle through their pidfiles.
+LEGACY_SERVICES="depth"
+LEGACY_DEPTH_PORT=8791
 
 mkdir -p "$LOGS"
 
@@ -53,12 +60,13 @@ die()  { printf '[local] ERROR: %s\n' "$*" >&2; exit 1; }
 port_of() {
   case "$1" in
     spacetimedb) echo "$STDB_PORT" ;; sam) echo "$SAM_PORT" ;;
-    depth) echo "$DEPTH_PORT" ;; api) echo "$API_PORT" ;;
+    depth) echo "$LEGACY_DEPTH_PORT" ;; api) echo "$API_PORT" ;;
   esac
 }
 
 # Substring that must appear in a pid's command line before we signal it
-# (guards against a recycled pid belonging to something else).
+# (guards against a recycled pid belonging to something else). depth = the
+# removed Depth Anything V2 worker, kept so `down` can still stop it.
 cmd_pattern_of() {
   case "$1" in
     spacetimedb) echo "spacetime" ;; sam) echo "vision/sam/worker.py" ;;
@@ -114,7 +122,6 @@ load_env() {
   set +a
   # Stack wiring always points at the local services.
   export SAM_WORKER_URL="http://127.0.0.1:$SAM_PORT"
-  export DEPTH_WORKER_URL="http://127.0.0.1:$DEPTH_PORT"
   export SPACETIMEDB_URI="${SPACETIMEDB_URI:-http://127.0.0.1:$STDB_PORT}"
 }
 
@@ -190,19 +197,6 @@ start_sam() {
   wait_healthy sam "$HEALTH_TIMEOUT_ML" || STACK_OK=0
 }
 
-start_depth() {
-  if [ "${SKIP_DEPTH:-0}" = 1 ]; then say "depth: skipped (SKIP_DEPTH=1)"; return 0; fi
-  needs_start depth || return 0
-  if [ ! -f "$REPO/vision/depth/worker.py" ]; then
-    warn "depth: vision/depth/worker.py is not in this checkout yet; skipped (captures use the area method)"
-    return 0
-  fi
-  local py; py="$(python_bin)"
-  launch depth "$REPO" env DEPTH_HOST=127.0.0.1 WORKER_HOST=127.0.0.1 DEPTH_PORT="$DEPTH_PORT" \
-    PYTORCH_ENABLE_MPS_FALLBACK=1 "$py" vision/depth/worker.py
-  wait_healthy depth "$HEALTH_TIMEOUT_ML" || STACK_OK=0
-}
-
 build_app() {
   local log="$LOGS/build.log"
   say "building data/vision/analytics/backend and frontend (log: deploy/.run/logs/build.log)"
@@ -246,6 +240,7 @@ report_api() {
 # ---------------------------------------------------------------- commands
 
 cmd_up() {
+  local pid
   STACK_OK=1
   load_env
   start_spacetimedb
@@ -256,7 +251,9 @@ cmd_up() {
     fi
   fi
   start_sam
-  start_depth
+  if pid="$(our_pid depth)"; then
+    warn "a Depth Anything V2 worker started earlier by this script is still running (pid $pid, :$LEGACY_DEPTH_PORT). Depth was removed; stop it with: deploy/local.sh down (then up)"
+  fi
   start_api
   healthy api && report_api
   cmd_status
@@ -269,7 +266,7 @@ cmd_up() {
 
 cmd_down() {
   local name pid stopped=0
-  for name in api depth sam spacetimedb; do
+  for name in api $LEGACY_SERVICES sam spacetimedb; do
     if pid="$(our_pid "$name")"; then
       say "stopping $name (pid $pid)"
       kill -TERM "$pid" 2>/dev/null || true
@@ -293,6 +290,11 @@ cmd_status() {
       if [ -n "$pid" ]; then owner="external (pid $pid)"; else owner="-"; fi
     fi
     printf '%-12s %-6s %-9s %s\n' "$name" "$port" "$health" "$owner"
+  done
+  for name in $LEGACY_SERVICES; do
+    if pid="$(our_pid "$name")"; then
+      printf '%-12s %-6s %-9s %s\n' "$name" "$(port_of "$name")" removed "local.sh (pid $pid): no longer used; 'deploy/local.sh down' stops it"
+    fi
   done
 }
 

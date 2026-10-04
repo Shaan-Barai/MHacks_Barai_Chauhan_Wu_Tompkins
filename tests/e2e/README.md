@@ -79,22 +79,31 @@ assert the analysis, storage, and dashboard results.
 
 Skipped unless `SCRAP_E2E=1`; skips itself when the backend has no `/api/settings/measurement`.
 `npm run test:e2e:calibration` (loads `../.env`; mutations need `SCRAP_INGEST_TOKEN` in production mode).
+Area method only: Depth Anything V2 was tried and removed on 2026-10-04 (docs/calibration.md).
 
-1. `simulate-camera --calibrate` with the **synthetic** card fixture → `POST /api/calibrations`:
+1. The menu of `SCRAP_E2E_SERVICE` (default the seeded hall-main dinner) is copied to a **test hall**
+   (`SCRAP_E2E_CAL_HALL`, default `hall-e2e-cal`), so hall-main's calibration and numbers are untouched.
+   `SCRAP_E2E_CAL_HALL=source` uses the source service's own hall instead.
+2. `simulate-camera --calibrate` with the **synthetic** card fixture → `POST /api/calibrations`:
    `succeeded`, 1024² geometry, `k = knownAreaCm2 / referencePixels`, N_ref within 15% of the drawn
-   card, crop-aware fx ≈ 1289.7 px, geometric height ≈ 45 cm; activated with DAv2 off.
-2. Depth OFF capture (one `test2/` photo): `physicalMethod = area-calibrated-v1`, `areaCm2 = pixels × k`
-   (±1%), grams / kg CO2e / L water numbers or null, unknown food null; some food has grams, so the
-   overlay legend carries the `g · kg CO2e · L water (est.)` suffix (the JPEG text is not OCR'd); overlay
+   card, crop-aware fx ≈ 1289.7 px, camera height `f·√k` ≈ 45 cm; activated for the test hall.
+3. One `test2/` capture: `physicalMethod = area-calibrated-v1`, `areaCm2 = pixels × k` (±1%),
+   grams / kg CO2e / L water numbers or null, unknown food null; some food has grams, so the overlay
+   legend carries the `g · kg CO2e · L water (est.)` suffix (the JPEG text is not OCR'd); overlay
    downloads.
-3. Depth ON capture (skipped when the calibration has no DAv2 scale): `volume-dav2-v1` with volumes, or
-   the area method with `depth_unavailable`/`depth_invalid`.
 4. `GET /api/dashboard/impact`: `kgCo2e`/`waterLitres` totals and `physicalCoverage`.
 
-The hall's previous measurement settings are restored afterwards. Last live run: 2026-10-04, 4/4
-(docs/verification-report.md, IT_4 section).
+The test hall's previous measurement settings (`{hallId, activeCalibrationId}`) are restored
+afterwards. Last live run with depth: 2026-10-04, 4/4 (docs/verification-report.md, IT_4 section).
+
+`demo-flow.test.mjs` sends `SCRAP_INGEST_TOKEN` on mutations when it is set, so it also runs against
+the production-mode local stack.
 
 The fake-backend counterpart (no services needed) is `tests/integration/calibrate-capture.test.mjs`.
+
+**One command for everything:** `./test-all.sh --live` at the repo root starts/reuses the local
+stack, seeds the test hall `hall-test`, and runs these suites with the stack's token
+(docs/runbook.md).
 
 ## Run
 
@@ -102,5 +111,5 @@ The fake-backend counterpart (no services needed) is `tests/integration/calibrat
 cd tests
 npm test                          # fixture + placeholder
 SCRAP_E2E=1 npm run test:e2e      # needs the running stack (README setup)
-SCRAP_E2E=1 npm run test:e2e:calibration   # IT_4 calibration → area/volume → totals
+SCRAP_E2E=1 npm run test:e2e:calibration   # IT_4 calibration → calibrated area → totals
 ```

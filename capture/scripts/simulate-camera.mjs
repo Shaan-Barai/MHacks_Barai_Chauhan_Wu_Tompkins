@@ -25,8 +25,7 @@
  * "calibration", default photo capture/fixtures/calibration/credit-card-synthetic.jpg,
  * a SYNTHETIC fixture) and runs `ingest-inbox --calibrate` for it: upload →
  * POST /api/calibrations → activate. Passed through: --known-area-cm2 (default:
- * the fixture's 46.21), --reference-label, --camera-id, --hall, --depth on|off,
- * --no-activate. --write-only stops after writing the frame.
+ * the fixture's 46.21), --reference-label, --camera-id, --hall, --no-activate. --write-only stops after writing the frame.
  *
  * The metadata says captureSource "simulated_camera"; the bridge therefore
  * labels these dishes source "replay", never "camera".
@@ -58,7 +57,6 @@ const { values: args } = parseArgs({
     'reference-label': { type: 'string' },
     'camera-id': { type: 'string' },
     hall: { type: 'string' },
-    depth: { type: 'string' },
     'no-activate': { type: 'boolean', default: false },
   },
 });
@@ -69,7 +67,7 @@ function fail(message) {
 }
 
 const calibrate = args.calibrate;
-const calibrationOnly = ['known-area-cm2', 'reference-label', 'camera-id', 'hall', 'depth', 'no-activate', 'write-only'];
+const calibrationOnly = ['known-area-cm2', 'reference-label', 'camera-id', 'hall', 'no-activate', 'write-only'];
 if (!calibrate && calibrationOnly.some((k) => args[k] !== undefined && args[k] !== false)) {
   fail(`--${calibrationOnly.find((k) => args[k] !== undefined && args[k] !== false)} needs --calibrate.`);
 }
@@ -126,7 +124,7 @@ if (calibrate) {
     process.exit(0);
   }
   const extra = ['--calibrate', '--frame', saved[0].captureId];
-  for (const key of ['known-area-cm2', 'reference-label', 'camera-id', 'hall', 'depth']) {
+  for (const key of ['known-area-cm2', 'reference-label', 'camera-id', 'hall']) {
     if (args[key] !== undefined) extra.push(`--${key}`, args[key]);
   }
   if (args.service) extra.push('--service', args.service);

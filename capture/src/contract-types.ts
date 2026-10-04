@@ -81,6 +81,7 @@ export type DishMatchResult = (
 };
 
 // IT_4 (2026-10-04): camera calibration + measurement settings (verbatim).
+// Depth Anything V2 was removed the same day (user decision): area method only.
 
 export interface CameraIntrinsics {
   cameraModel: 'logitech-c920s' | 'other';
@@ -98,25 +99,7 @@ export interface CameraIntrinsics {
 export type CameraCalibrationFlag =
   | 'reference_not_found'
   | 'reference_low_confidence'
-  | 'reference_touches_edge'
-  | 'depth_unavailable'
-  | 'depth_scale_disagrees';
-
-export interface CalibrationDepth {
-  /** 'depth-anything/Depth-Anything-V2-Metric-Indoor-Small-hf' (Apache-2.0; Small only). */
-  checkpoint: string;
-  /** 'dav2-metric-small-v1' */
-  settingsVersion: string;
-  /** Median raw DAv2 metric depth over the reference mask, metres, before correction. */
-  rawReferenceMedianM: number;
-  /** cameraHeightCmGeometric / (100 × rawReferenceMedianM). Multiplies raw DAv2 depth. */
-  scale: number;
-  cameraHeightCmDepth: number;
-  /** Base (table) plane in corrected depth: Z(x, y) = a·x + b·y + c, cm, pixel coords. */
-  tablePlane: { a: number; b: number; c: number };
-  /** 16-bit PNG, 0.1 mm units, in object storage. */
-  depthObjectId: string;
-}
+  | 'reference_touches_edge';
 
 /** POST /api/calibrations → this. One camera, one resolution (IT_4 I2). */
 export interface CameraCalibration {
@@ -140,9 +123,8 @@ export interface CameraCalibration {
   /** k = knownAreaCm2 / referencePixels (cm² per pixel at the base plane). */
   cm2PerPx: number;
   intrinsics: CameraIntrinsics;
-  /** f · √k */
+  /** Camera height above the base plane, f · √k (cm). */
   cameraHeightCmGeometric: number;
-  depth: CalibrationDepth | null;
   flags: CameraCalibrationFlag[];
   error?: ApiError;
 }
@@ -150,10 +132,6 @@ export interface CameraCalibration {
 /** GET/PUT /api/settings/measurement — per hall (IT_4 I9). */
 export interface MeasurementSettings {
   hallId: string;
-  /** Depth Anything V2 on/off. Off ⇒ area method. */
-  depthEnabled: boolean;
   activeCalibrationId: string | null;
-  /** Fallback plate-surface offset above the table plane (default 1.5). */
-  plateThicknessCm: number;
   updatedAt: string;
 }

@@ -13,6 +13,11 @@
     "test:e2e:scrap": "node --env-file-if-exists=../.env --test e2e/scrap-live.test.mjs",
     "build": "node scripts/build.mjs",
     "test:unit": "node scripts/unit.mjs",
-    "test:images": "node scripts/build.mjs && RUN_LIVE=1 node --env-file-if-exists=../.env --test --test-timeout=3600000 live/images.test.mjs"
+    "test:images": "node scripts/build.mjs && RUN_LIVE=1 node --env-file-if-exists=../.env --test --test-timeout=3600000 live/images.test.mjs",
+    "test:camera": "node scripts/build.mjs && RUN_CAMERA=1 node --env-file-if-exists=../.env camera/run.mjs",
+    "test:smoke": "node scripts/build.mjs && node --env-file-if-exists=../.env --test --test-timeout=300000 smoke/dashboard.smoke.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.63.0"
   }
 }

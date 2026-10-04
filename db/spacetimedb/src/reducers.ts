@@ -238,39 +238,32 @@ function attemptRow(a: Json) {
     createdAt: str(a, 'createdAt', 'attempt'),
     calibrationId: optStr(a, 'calibrationId'),
     physicalMethod: physicalMethod(a.physicalMethod, 'attempt.physicalMethod'),
-    depthObjectId: optStr(a, 'depthObjectId'),
+    // Unused legacy column (Depth Anything V2 removed 2026-10-04): always none.
+    depthObjectId: undefined,
   };
 }
 
 // --- IT_4: physical estimates -------------------------------------------------
 
-const PHYSICAL_METHODS = new Set(['area-calibrated-v1', 'volume-dav2-v1']);
-const VOLUME_FLAGS = new Set([
-  'plate_plane_from_calibration',
-  'negative_heights_clipped',
-  'height_outliers_clipped',
-  'bowl_volume_unreliable',
-  'depth_invalid',
-  'depth_unavailable',
-]);
-const PLATE_REFERENCES = new Set(['dish-ring-fit', 'calibration-plane']);
+// Depth Anything V2 was removed (2026-10-04): the only physical method is the
+// calibrated area. A client that still sends the legacy 'volume-dav2-v1'
+// (e.g. a backend built before the removal) is accepted and stored as the area
+// method; readers recompute areaCm2 = pixels × the calibration's k anyway.
+const AREA_METHOD = 'area-calibrated-v1';
+const LEGACY_PHYSICAL_METHODS = new Set([AREA_METHOD, 'volume-dav2-v1']);
 
 function physicalMethod(v: unknown, what: string): string | undefined {
   if (v === undefined || v === null) return undefined;
-  if (typeof v !== 'string' || !PHYSICAL_METHODS.has(v)) throw new SenderError(`${what} '${String(v)}' is not allowed`);
-  return v;
-}
-
-function optNonNeg(o: Json, key: string, what: string): number | undefined {
-  const v = o[key];
-  if (v === undefined || v === null) return undefined;
-  return num(o, key, what);
+  if (typeof v !== 'string' || !LEGACY_PHYSICAL_METHODS.has(v)) throw new SenderError(`${what} '${String(v)}' is not allowed`);
+  return AREA_METHOD;
 }
 
 /**
- * contracts PhysicalEstimate. Estimates are finite and non-negative; the area
- * method carries no volume/heights; a volume carries its heights. Unavailable
- * is the absence of the field, never a placeholder zero.
+ * contracts PhysicalEstimate {calibrationId, method, areaCm2}: a finite,
+ * non-negative calibrated area. Unavailable is the absence of the field,
+ * never a placeholder zero. The legacy depth columns of the stored
+ * PhysicalEstimate (volume, heights, depth settings, plate reference, flags)
+ * are unused and always written empty; incoming values are ignored.
  */
 function physicalRow(raw: unknown, what: string) {
   if (raw === undefined || raw === null) return undefined;
@@ -278,29 +271,16 @@ function physicalRow(raw: unknown, what: string) {
   const p = raw as Json;
   const method = physicalMethod(p.method, `${what}.method`);
   if (method === undefined) throw new SenderError(`${what}.method is required`);
-  const volumeCm3 = optNonNeg(p, 'volumeCm3', what);
-  const meanHeightMm = optNonNeg(p, 'meanHeightMm', what);
-  const maxHeightMm = optNonNeg(p, 'maxHeightMm', what);
-  if (method === 'area-calibrated-v1' && (volumeCm3 !== undefined || meanHeightMm !== undefined || maxHeightMm !== undefined)) {
-    throw new SenderError(`${what}: the area method has no volume or heights`);
-  }
-  if (method === 'volume-dav2-v1' && volumeCm3 === undefined) throw new SenderError(`${what}: the volume method needs volumeCm3`);
-  const flags = strArray(p, 'flags');
-  for (const f of flags) if (!VOLUME_FLAGS.has(f)) throw new SenderError(`${what} flag '${f}' is not allowed`);
-  const plateReference = optStr(p, 'plateReference');
-  if (plateReference !== undefined && !PLATE_REFERENCES.has(plateReference)) {
-    throw new SenderError(`${what}.plateReference '${plateReference}' is not allowed`);
-  }
   return {
     calibrationId: str(p, 'calibrationId', what),
     method,
     areaCm2: num(p, 'areaCm2', what),
-    volumeCm3,
-    meanHeightMm,
-    maxHeightMm,
-    depthSettingsVersion: optStr(p, 'depthSettingsVersion'),
-    plateReference,
-    flags,
+    volumeCm3: undefined,
+    meanHeightMm: undefined,
+    maxHeightMm: undefined,
+    depthSettingsVersion: undefined,
+    plateReference: undefined,
+    flags: [] as string[],
   };
 }
 
@@ -525,12 +505,11 @@ export const record_analysis = spacetimedb.reducer(
 
 /**
  * IT_4 I9: the attempt's snapshot must reference a succeeded calibration
- * (every measurement's physical numbers use THAT calibration), and a depth map
- * must be this capture's registered 'depth' object.
+ * (every measurement's physical numbers use THAT calibration).
  */
 function checkPhysicalSnapshot(
   ctx: any,
-  attempt: { attemptId: string; eventId: string; calibrationId?: string; physicalMethod?: string; depthObjectId?: string },
+  attempt: { attemptId: string; eventId: string; calibrationId?: string; physicalMethod?: string },
   measurements: Json[],
 ) {
   if (attempt.calibrationId !== undefined) {
@@ -549,24 +528,14 @@ function checkPhysicalSnapshot(
       throw new SenderError(`measurement ${m.measurementId}: physical.calibrationId differs from the attempt's calibration`);
     }
   }
-  if (attempt.depthObjectId !== undefined) {
-    const depth = ctx.db.imageObject.objectId.find(attempt.depthObjectId);
-    if (!depth || depth.associationKind !== 'depth' || depth.associationId !== attempt.eventId) {
-      throw new SenderError(`depth ${attempt.depthObjectId} is not a registered depth map of capture ${attempt.eventId}`);
-    }
-  }
 }
 
 // --- IT_4: camera calibration + measurement settings -----------------------
 
 const CALIBRATION_STATUSES = new Set(['processing', 'succeeded', 'failed']);
-const CAMERA_CALIBRATION_FLAGS = new Set([
-  'reference_not_found',
-  'reference_low_confidence',
-  'reference_touches_edge',
-  'depth_unavailable',
-  'depth_scale_disagrees',
-]);
+const CAMERA_CALIBRATION_FLAGS = new Set(['reference_not_found', 'reference_low_confidence', 'reference_touches_edge']);
+/** Flags a pre-removal client may still send; dropped, never stored. */
+const LEGACY_DEPTH_CALIBRATION_FLAGS = new Set(['depth_unavailable', 'depth_scale_disagrees']);
 const INTRINSICS_SOURCES = new Set(['nominal-fov', 'checkerboard', 'configured']);
 
 function imageOf(ctx: any, objectId: string | undefined, kinds: string[], associationId: string, what: string) {
@@ -575,11 +544,6 @@ function imageOf(ctx: any, objectId: string | undefined, kinds: string[], associ
   if (!obj || !kinds.includes(obj.associationKind) || obj.associationId !== associationId) {
     throw new SenderError(`${what} ${objectId} is not a registered ${kinds.join('/')} image of ${associationId}`);
   }
-}
-
-function finite(o: Json, k: string, what: string): number {
-  if (typeof o[k] !== 'number' || !Number.isFinite(o[k])) throw new SenderError(`${what}.${k} must be finite`);
-  return o[k] as number;
 }
 
 /**
@@ -610,28 +574,8 @@ export const upsert_camera_calibration = spacetimedb.reducer({ calibrationJson: 
   if (typeof i !== 'object' || i === null) throw new SenderError('calibration.intrinsics is required');
   const intrinsicsSource = str(i, 'source', 'intrinsics');
   if (!INTRINSICS_SOURCES.has(intrinsicsSource)) throw new SenderError(`intrinsics.source '${intrinsicsSource}' is not allowed`);
-  const flags = strArray(c, 'flags');
+  const flags = strArray(c, 'flags').filter((f) => !LEGACY_DEPTH_CALIBRATION_FLAGS.has(f));
   for (const f of flags) if (!CAMERA_CALIBRATION_FLAGS.has(f)) throw new SenderError(`calibration flag '${f}' is not allowed`);
-  let depth;
-  if (c.depth !== undefined && c.depth !== null) {
-    const d = c.depth as Json;
-    const plane = d.tablePlane;
-    if (typeof plane !== 'object' || plane === null) throw new SenderError('calibration.depth.tablePlane is required');
-    depth = {
-      checkpoint: str(d, 'checkpoint', 'calibration.depth'),
-      settingsVersion: str(d, 'settingsVersion', 'calibration.depth'),
-      rawReferenceMedianM: num(d, 'rawReferenceMedianM', 'calibration.depth', { exclusive: true }),
-      scale: num(d, 'scale', 'calibration.depth', { exclusive: true }),
-      cameraHeightCmDepth: num(d, 'cameraHeightCmDepth', 'calibration.depth', { exclusive: true }),
-      tablePlane: {
-        a: finite(plane, 'a', 'calibration.depth.tablePlane'),
-        b: finite(plane, 'b', 'calibration.depth.tablePlane'),
-        c: finite(plane, 'c', 'calibration.depth.tablePlane'),
-      },
-      depthObjectId: str(d, 'depthObjectId', 'calibration.depth'),
-    };
-    imageOf(ctx, depth.depthObjectId, ['depth'], calibrationId, 'calibration.depth.depthObjectId');
-  }
   const row = {
     calibrationId,
     hallId: str(c, 'hallId', 'calibration'),
@@ -659,7 +603,8 @@ export const upsert_camera_calibration = spacetimedb.reducer({ calibrationJson: 
       source: intrinsicsSource,
     },
     cameraHeightCmGeometric: num(c, 'cameraHeightCmGeometric', 'calibration'),
-    depth,
+    // Unused legacy column (Depth Anything V2 removed): always none; any incoming `depth` is ignored.
+    depth: undefined,
     flags,
     error: storedError(c.error),
   };
@@ -679,7 +624,6 @@ export const upsert_camera_calibration = spacetimedb.reducer({ calibrationJson: 
 export const upsert_measurement_settings = spacetimedb.reducer({ settingsJson: t.string() }, (ctx, { settingsJson }) => {
   const m = parse(settingsJson, 'settings');
   const hallId = str(m, 'hallId', 'settings');
-  if (typeof m.depthEnabled !== 'boolean') throw new SenderError('settings.depthEnabled must be a boolean');
   const activeCalibrationId = optStr(m, 'activeCalibrationId');
   if (activeCalibrationId !== undefined) {
     const cal = ctx.db.cameraCalibration.calibrationId.find(activeCalibrationId);
@@ -687,13 +631,12 @@ export const upsert_measurement_settings = spacetimedb.reducer({ settingsJson: t
       throw new SenderError(`calibration ${activeCalibrationId} is not a succeeded calibration of hall ${hallId}`);
     }
   }
-  const plateThicknessCm = num(m, 'plateThicknessCm', 'settings');
-  if (plateThicknessCm > 10) throw new SenderError('settings.plateThicknessCm must be at most 10');
   const row = {
     hallId,
-    depthEnabled: m.depthEnabled as boolean,
+    // Unused legacy columns (Depth Anything V2 removed): fixed defaults; incoming values are ignored.
+    depthEnabled: false,
     activeCalibrationId,
-    plateThicknessCm,
+    plateThicknessCm: 0,
     updatedAt: str(m, 'updatedAt', 'settings'),
   };
   if (ctx.db.measurementSettings.hallId.find(hallId)) ctx.db.measurementSettings.hallId.update(row);

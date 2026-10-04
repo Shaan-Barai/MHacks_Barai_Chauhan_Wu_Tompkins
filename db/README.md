@@ -111,23 +111,43 @@ first and delete only that one.
 So the physical fields are columns, not side tables:
 
 - `food_measurement.physical: Option<PhysicalEstimate>` (default none): calibrationId,
-  method, areaCm2, volumeCm3?, meanHeightMm?, maxHeightMm?, depthSettingsVersion?,
-  plateReference?, flags. Absent = no compatible calibration (never a zero).
-- `analysis_attempt.calibrationId / physicalMethod / depthObjectId` (Options, default
-  none): the hall's settings snapshotted per attempt (I9), so activating another
-  calibration never rewrites history.
-- `camera_calibration` (immutable once `succeeded`/`failed`) and `measurement_settings`.
-- `image_object.associationKind` gains `calibration`, `calibration_overlay` (id =
-  calibrationId) and `depth` (id = capture eventId or calibrationId); it is a string
-  column, so no schema change.
+  method `area-calibrated-v1`, areaCm2 (= pixels × the calibration's k). Absent = no
+  compatible calibration (never a zero).
+- `analysis_attempt.calibrationId / physicalMethod` (Options, default none): the hall's
+  active calibration snapshotted per attempt (I9), so activating another calibration
+  never rewrites history.
+- `camera_calibration` (immutable once `succeeded`/`failed`) and `measurement_settings`
+  (`hallId`, `activeCalibrationId`, `updatedAt`).
+- `image_object.associationKind` gains `calibration` and `calibration_overlay` (id =
+  calibrationId); it is a string column, so no schema change.
+
+**Depth Anything V2 removed (2026-10-04, user decision).** The columns added for the
+brief depth trial **stay** because dropping them would wipe `scrap` (never publish
+`scrap` with `--delete-data`). They are unused, and new rows get fixed defaults:
+
+| Unused legacy column | Written as |
+| --- | --- |
+| `food_measurement.physical.{volumeCm3, meanHeightMm, maxHeightMm, depthSettingsVersion, plateReference}` | none |
+| `food_measurement.physical.flags` | `[]` |
+| `analysis_attempt.depthObjectId` | none |
+| `camera_calibration.depth` (`CalibrationDepth`, `DepthPlane` types) | none |
+| `measurement_settings.depthEnabled` / `plateThicknessCm` | `false` / `0` |
+
+Legacy trial rows may still hold method `volume-dav2-v1`, volume fields, `depth` flags,
+a `depthObjectId`, a calibration `depth`, `image_object` rows of kind `depth`, or
+`depthEnabled: true`. The backend reads them as area estimates: areaCm2 is recomputed
+as pixels × the snapshotted calibration's k, and the depth fields are never returned
+(`backend/src/repo/legacyPhysical.ts`).
 
 Reducers: `upsert_camera_calibration` (k = knownAreaCm2 / N_ref re-checked; image ids
-must be this calibration's registered objects), `upsert_measurement_settings` (the
-active calibration must be a succeeded calibration of the same hall), and
-`record_analysis` now validates `physical` (known method/flags, the area method has no
-volume, a volume method has one) and that the attempt's calibration is succeeded,
-every measurement's `physical.calibrationId` equals it, and `depthObjectId` is this
-capture's `depth` object. The publish disconnects WebSocket clients (column
+must be this calibration's registered objects; legacy `depth` and the flags
+`depth_unavailable` / `depth_scale_disagrees` are ignored), `upsert_measurement_settings`
+(the active calibration must be a succeeded calibration of the same hall; legacy
+`depthEnabled` / `plateThicknessCm` are accepted and ignored), and `record_analysis`
+validates `physical` (method `area-calibrated-v1`, finite non-negative areaCm2; a
+legacy `volume-dav2-v1` from an old client is stored as the area method, volume fields
+ignored) and that the attempt's calibration is succeeded and every measurement's
+`physical.calibrationId` equals it. Incoming `depthObjectId` is ignored. The publish disconnects WebSocket clients (column
 additions count as breaking for clients); the backend uses HTTP and the dashboard
 does not subscribe, so nothing is affected.
 
@@ -251,8 +271,8 @@ the backend's validated API, so it lands in `scrap` when the backend uses it):
 - `--live-dinner[=YYYY-MM-DD]` also seeds the 26-food dinner plus demo portions
   for that hall-local date (default: today in America/Detroit) so live camera
   captures resolve to `svc_hall-main_<date>_dinner`.
-- IT_4: creates default `measurement_settings` (depth off, no calibration,
-  plate 1.5 cm) for each seeded hall that has none; an existing row is kept.
+- IT_4: creates default `measurement_settings` (no active calibration) for each
+  seeded hall that has none; an existing row is kept.
 - Idempotent: a second run creates and revises nothing.
 
 `scrap` after `npm run seed -- --live-dinner=2026-10-04` (2026-10-04): 10

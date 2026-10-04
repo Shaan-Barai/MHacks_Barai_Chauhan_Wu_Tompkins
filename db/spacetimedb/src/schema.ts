@@ -152,7 +152,8 @@ const imageObject = table(
     heightPx: t.option(t.u32()),
     uploadedAt: t.option(t.string()), // UTC ISO 8601
     // 'capture' | 'reference' | 'mask' | 'overlay' (id = capture eventId) |
-    // IT_4: 'calibration' / 'calibration_overlay' (id = calibrationId) | 'depth' (id = eventId or calibrationId)
+    // IT_4: 'calibration' / 'calibration_overlay' (id = calibrationId).
+    // 'depth' only on legacy rows from the removed Depth Anything V2 trial.
     associationKind: t.string(),
     associationId: t.string().index('btree'),
     // 'pending_upload' | 'uploaded' | 'finalized' | 'failed' | 'orphaned'
@@ -200,16 +201,18 @@ const analysisAttempt = table(
     // in place; legacy rows read as none. The hall's measurement settings are
     // snapshotted here so activating another calibration never rewrites history.
     calibrationId: t.option(t.string()).default(undefined), // camera_calibration used, if any
-    physicalMethod: t.option(t.string()).default(undefined), // 'area-calibrated-v1' | 'volume-dav2-v1'
-    depthObjectId: t.option(t.string()).default(undefined), // image_object kind 'depth' (16-bit PNG, 0.1 mm)
+    physicalMethod: t.option(t.string()).default(undefined), // 'area-calibrated-v1' (legacy rows: 'volume-dav2-v1')
+    depthObjectId: t.option(t.string()).default(undefined), // UNUSED legacy column (Depth Anything V2 removed); always none
   },
 );
 
 /**
- * contracts PhysicalEstimate (IT_4 I5/I6), stored on food_measurement.physical.
- * method: 'area-calibrated-v1' | 'volume-dav2-v1'; volume/heights are none for
- * the area method. plateReference: 'dish-ring-fit' | 'calibration-plane'.
- * flags: contracts VolumeFlag[].
+ * contracts PhysicalEstimate (IT_4 I6), stored on food_measurement.physical:
+ * calibrationId, method 'area-calibrated-v1', areaCm2. The other fields are
+ * UNUSED legacy columns from the removed Depth Anything V2 trial (they cannot
+ * be dropped without wiping `scrap`): new rows write none / []. Legacy rows
+ * may carry method 'volume-dav2-v1' and volume fields; readers ignore them
+ * and recompute areaCm2 = pixels × the calibration's k.
  */
 const PhysicalEstimate = t.object('PhysicalEstimate', {
   calibrationId: t.string(),
@@ -245,7 +248,7 @@ const foodMeasurement = table(
     method: t.string(), // 'gemini_area_estimate' — always an AI estimate in prototype
     maskCountJson: t.option(t.string()), // small validated count/provenance; no mask bytes
     qualityFlags: t.array(t.string()),
-    // IT_4 (additive, default none): ESTIMATED calibrated area / DAv2 volume.
+    // IT_4 (additive, default none): ESTIMATED calibrated area (pixels × k).
     // remainingAreaPx stays the raw measurement; none = no compatible calibration.
     physical: t.option(PhysicalEstimate).default(undefined),
   },
@@ -404,10 +407,10 @@ const CameraIntrinsics = t.object('CameraIntrinsics', {
   source: t.string(),
 });
 
-/** Z(x, y) = a·x + b·y + c in cm, pixel coordinates. */
+/** UNUSED legacy type (Depth Anything V2 removed); kept so the schema publishes in place. */
 const DepthPlane = t.object('DepthPlane', { a: t.f64(), b: t.f64(), c: t.f64() });
 
-/** contracts CalibrationDepth (IT_4 I3/I4). The depth PNG is in object storage. */
+/** UNUSED legacy type (Depth Anything V2 removed); camera_calibration.depth is always none for new rows. */
 const CalibrationDepth = t.object('CalibrationDepth', {
   checkpoint: t.string(),
   settingsVersion: t.string(),
@@ -421,10 +424,11 @@ const CalibrationDepth = t.object('CalibrationDepth', {
 /**
  * contracts CameraCalibration (IT_4 I2, `reference-area-v1`): a reference
  * object of user-entered area at the base plane → cm² per pixel for ONE camera
- * and ONE resolution. Photos, the reference outline/mask and the depth map are
- * image_object rows (kinds 'calibration', 'calibration_overlay', 'depth');
- * only their ids are here. Rows are never rewritten after they succeed, so
- * attempts that snapshotted a calibrationId stay reproducible.
+ * and ONE resolution. Photos and the reference outline/mask are image_object
+ * rows (kinds 'calibration', 'calibration_overlay'); only their ids are here.
+ * `depth` is an UNUSED legacy column (always none for new rows). Rows are
+ * never rewritten after they succeed, so attempts that snapshotted a
+ * calibrationId stay reproducible.
  */
 const cameraCalibration = table(
   { name: 'camera_calibration', public: true },
@@ -446,7 +450,7 @@ const cameraCalibration = table(
     cm2PerPx: t.f64(), // k (0 only on a failed calibration)
     intrinsics: CameraIntrinsics,
     cameraHeightCmGeometric: t.f64(),
-    depth: t.option(CalibrationDepth),
+    depth: t.option(CalibrationDepth), // UNUSED legacy column (Depth Anything V2 removed)
     flags: t.array(t.string()), // contracts CameraCalibrationFlag[]
     error: t.option(StoredApiError),
   },
@@ -457,9 +461,9 @@ const measurementSettings = table(
   { name: 'measurement_settings', public: true },
   {
     hallId: t.string().primaryKey(),
-    depthEnabled: t.bool(),
+    depthEnabled: t.bool(), // UNUSED legacy column (Depth Anything V2 removed); written false
     activeCalibrationId: t.option(t.string()), // a succeeded camera_calibration of this hall
-    plateThicknessCm: t.f64(),
+    plateThicknessCm: t.f64(), // UNUSED legacy column; written 0
     updatedAt: t.string(), // UTC ISO 8601
   },
 );

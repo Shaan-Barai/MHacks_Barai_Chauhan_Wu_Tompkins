@@ -12,6 +12,7 @@
     "test:e2e": "node --test e2e/*.test.mjs",
     "test:e2e:scrap": "node --env-file-if-exists=../.env --test e2e/scrap-live.test.mjs",
     "test:e2e:calibration": "node --env-file-if-exists=../.env --test e2e/calibration-live.test.mjs",
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs",
+    "test:unit": "node scripts/unit.mjs"
   }
 }

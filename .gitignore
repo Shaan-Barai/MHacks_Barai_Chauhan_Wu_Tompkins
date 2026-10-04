@@ -29,3 +29,6 @@ test2_segmentation/
 .venv/
 __pycache__/
 *.pyc
+
+# Private camera guide for teammates (contains the board password)
+CAMERA-GUIDE.md

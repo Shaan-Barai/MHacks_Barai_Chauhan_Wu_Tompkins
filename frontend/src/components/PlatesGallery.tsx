@@ -121,6 +121,7 @@ function tileSummary(c: CaptureListItem): string {
   if (c.state === 'failed') return 'Check failed. Not in the totals.'
   if (c.state === 'pending' || c.state === 'processing') return 'Being checked'
   if (c.state === 'needs_review') return 'Needs a person to look'
+  if (c.notCountedReason) return 'Not counted. Its pixel counts could not be verified.'
   if (c.pixelsWasted === 0) return 'Clean plate'
   if (c.pixelsWasted !== null) return `${formatNumber(c.pixelsWasted)} pixels wasted`
   return 'Only partly checked. Not in the totals.'

@@ -244,7 +244,23 @@ export class ImpactService {
         const attempt = r.countedAttempts.get(event.eventId);
         const rows = attempt ? r.measurements.filter((m) => m.attemptId === attempt.attemptId) : [];
         const seg = attempt?.segmentation;
-        const counted = seg?.countStatus === 'complete' || seg?.countStatus === 'empty';
+        const segCounted = seg?.countStatus === 'complete' || seg?.countStatus === 'empty';
+        // D2: apply the SAME eligibility rule as the totals (analytics selectImpactMeasurements ->
+        // validMaskCount), so the gallery never shows pixels the totals drop.
+        const sel = segCounted
+          ? selectImpactMeasurements({
+              services: [r.menu.service],
+              captures: [event],
+              measurements: rows,
+              menuItems: r.items,
+              attemptMenuVersions: new Map([[event.eventId, attempt!.menuVersion]]),
+            })
+          : null;
+        const counted = sel !== null && sel.captures.analyzed === 1;
+        const shownPixels = counted ? sel!.measurements.reduce((n, m) => n + m.pixels, 0) : null;
+        const notCountedReason = sel !== null && !counted
+          ? 'Not counted in the totals: its pixel counts lack validated mask provenance.'
+          : undefined;
         const latest = r.latestAttempts.get(event.eventId);
         const ctx = r.physical.get(event.eventId);
         items.push({
@@ -255,7 +271,8 @@ export class ImpactService {
           state: event.state,
           // null (never 0) unless the counted attempt has a complete or empty count;
           // a counted clean plate is a measured 0.
-          pixelsWasted: counted ? seg!.capturePixelsWasted ?? null : null,
+          pixelsWasted: shownPixels,
+          ...(notCountedReason ? { notCountedReason } : {}),
           items: rows.map((m) => {
             const displayName = m.itemId === null ? UNKNOWN_FOOD_LABEL : names.get(m.itemId) ?? readableItemName(m.itemId);
             // IT_4 I8: estimated grams / CO2e / water next to the label (formulas in analytics).

@@ -20,6 +20,7 @@ async function seedMaskPlates(s: Awaited<ReturnType<typeof startTestServer>>) {
     await s.repo.upsertCaptureEvent({ eventId, hallId: HALL, serviceId: SERVICE, capturedAt: `2026-10-03T16:00:0${n}Z`, imageObjectId: `img-${eventId}`, geometry: GEOMETRY, source: 'camera', qualityFlags: [], state: 'succeeded' });
     const measurements: FoodMeasurement[] = [{
       measurementId: `${eventId}-0`, eventId, attemptId: `att-${eventId}`, itemId: 'item_toast', remainingAreaPx: px, method: 'mask_pixel_count', qualityFlags: [],
+      maskCount: { validated: true, assignment: 'exclusive', pixelsWasted: px, geometry: GEOMETRY, menuId: MENU.service.menuId, menuVersion: 1, maskObjectId: `mask-${eventId}`, classificationVersion: 'fixture', segmentationVersion: 'fixture', processingVersion: 'fixture' },
     }];
     await s.repo.recordAnalysis({ eventId, attemptId: `att-${eventId}`, menuId: MENU.service.menuId, menuVersion: 1, baselineVersions: {}, model: 'fixture', promptVersion: 'fixture', status: 'succeeded', qualityFlags: [], createdAt: '2026-10-03T16:01:00Z',
       segmentation: { model: 'fixture', checkpoint: 'fixture', codeRevision: 'fixture', promptSource: 'gemini_box', settingsVersion: 'fixture', countingRuleVersion: 'union-v1', status: 'succeeded', countStatus: 'complete', capturePixelsWasted: px, widthPx: GEOMETRY.widthPx, heightPx: GEOMETRY.heightPx, regions: [] } }, measurements);

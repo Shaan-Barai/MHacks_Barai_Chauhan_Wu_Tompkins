@@ -511,6 +511,8 @@ export interface CaptureListItem {
   source: CaptureSource;
   state: ProcessingState;
   pixelsWasted: number | null;
+  /** D2: set when the segmentation finished but the totals do not count this plate (same rule as the totals). */
+  notCountedReason?: string;
   items: Array<{
     itemId: string | null;
     displayName: string;

@@ -283,6 +283,8 @@ export interface CaptureListItem {
   source: CaptureSource
   state: ProcessingState
   pixelsWasted: number | null
+  /** D2: finished segmentation the totals do not count (invalid provenance). */
+  notCountedReason?: string
   items: Array<
     { itemId: string | null; displayName: string; pixels: number } & PhysicalAmounts & {
       areaCm2?: number | null

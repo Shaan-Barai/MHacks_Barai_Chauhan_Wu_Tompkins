@@ -4,6 +4,11 @@
  *   cd vision && npm run build
  *   node --env-file=../.env scripts/waste-impact.mjs <imagesDir> <menu_waste_factors.csv> [outDir]
  *
+ * Nutrition comes from menu_nutrition_factors.csv next to the factor CSV
+ * (or env NUTRITION_CSV) and is reported separately; it is NOT in the score
+ * (BIG-PLAN D1). Research script only: the product path computes impact in
+ * analytics (computeWasteImpact, D3), never in the vision library.
+ *
  * Needs the SAM worker (vision/sam/worker.py) and a Gemini key.
  *
  * Per photo:
@@ -19,7 +24,8 @@
  *     Only food pixels INSIDE that dish are counted (neighbouring dishes in the
  *     frame are excluded); overlaps between foods are counted once (union-v1).
  *  4. Impact (README steps 2-4): cm^2 = px * cm^2/px; g = cm^2 * weight_g_per_cm2;
- *     kg * C, W, O and kg * impact_score_usd_per_kg (= 0.19C + 1.50W + 9.39O).
+ *     kg * C, kg * W, and kg * impact_score_usd_per_kg (= 0.19C + 1.50W, no
+ *     nutrition). Nutrition lost (kg * O nutrient-days) is a separate number.
  * Unknown food keeps its pixels and area but has no factors, so no impact.
  *
  * Experiment settings (env):
@@ -32,14 +38,12 @@
  *   GEMINI_PASSES=1|2           localization passes per plate (default 2; read by the pipeline)
  */
 
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import sharp from 'sharp'; // a vision dependency since the overlay port
 import { Type } from '@google/genai';
 import { analyzeCaptureWithMasks, countPixels, createGeminiGateway, createSamWorkerClient, decodeBinaryMask } from '../dist/src/index.js';
 
-const sharp = createRequire(fileURLToPath(new URL('../../capture/package.json', import.meta.url)))('sharp');
 const [imagesDir, csvPath, outArg] = process.argv.slice(2);
 if (!imagesDir || !csvPath) throw new Error('usage: waste-impact.mjs <imagesDir> <menu_waste_factors.csv> [outDir]');
 const outDir = outArg ?? path.join(process.env.TMPDIR ?? '/tmp', 'scrap-waste-impact');
@@ -71,6 +75,22 @@ function parseCsv(text) {
   return body.map((r) => Object.fromEntries(header.map((h, i) => [h, r[i] ?? ''])));
 }
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+// Nutrition (O, nutrient-days/kg) lives in its own file and never enters the score (D1).
+const nutritionPath = process.env.NUTRITION_CSV ?? path.join(path.dirname(csvPath), 'menu_nutrition_factors.csv');
+const nutritionBySlug = new Map(
+  existsSync(nutritionPath)
+    ? parseCsv(readFileSync(nutritionPath, 'utf8')).map((r) => [slug(r.food), Number(r.O_nutrient_days_per_kg)]).filter(([, o]) => Number.isFinite(o))
+    : [],
+);
+if (nutritionBySlug.size === 0) console.warn(`no nutrition factors at ${nutritionPath}; nutrition lost is reported as n/a`);
+/** impact_score_usd_per_kg = 0.19C + 1.50W (D1); recomputed if the column is missing. */
+function scoreOf(r) {
+  const fromCsv = Number(r.impact_score_usd_per_kg);
+  const computed = 0.19 * Number(r.C_kg_co2e_per_kg) + 1.5 * Number(r.W_water_m3_per_kg);
+  if (!Number.isFinite(fromCsv)) return computed;
+  if (Math.abs(fromCsv - computed) > 0.011) console.warn(`${r.food}: CSV score ${fromCsv} != 0.19C + 1.50W = ${computed.toFixed(3)}`);
+  return fromCsv;
+}
 const factors = parseCsv(readFileSync(csvPath, 'utf8')).map((r) => ({
   itemId: `item_${slug(r.food)}`,
   food: r.food,
@@ -78,11 +98,10 @@ const factors = parseCsv(readFileSync(csvPath, 'utf8')).map((r) => ({
   gPerCm2: Number(r.weight_g_per_cm2),
   C: Number(r.C_kg_co2e_per_kg),
   W: Number(r.W_water_m3_per_kg),
-  O: Number(r.O_nutrient_days_per_kg),
+  O: nutritionBySlug.get(slug(r.food)) ?? null,
   carbonUsd: Number(r.carbon_usd_per_kg),
   waterUsd: Number(r.water_usd_per_kg),
-  nutritionUsd: Number(r.nutrition_usd_per_kg),
-  scoreUsd: Number(r.impact_score_usd_per_kg),
+  scoreUsd: scoreOf(r),
   notes: r.notes,
   visible: { claude: (r.claude_visible_components ?? '').trim(), gemini: (r.gemini_visible_components ?? '').trim() },
 }));
@@ -117,8 +136,9 @@ export function impactFor(pixels, cm2PerPx, f) {
   const cm2 = pixels * cm2PerPx;
   const grams = cm2 * f.gPerCm2;
   const kg = grams / 1000;
-  return { cm2, grams, kgCo2e: kg * f.C, waterM3: kg * f.W, nutrientDays: kg * f.O, usd: kg * f.scoreUsd,
-    usdCarbon: kg * f.carbonUsd, usdWater: kg * f.waterUsd, usdNutrition: kg * f.nutritionUsd };
+  return { cm2, grams, kgCo2e: kg * f.C, waterM3: kg * f.W, usd: kg * f.scoreUsd,
+    usdCarbon: kg * f.carbonUsd, usdWater: kg * f.waterUsd,
+    nutrientDays: f.O === null ? null : kg * f.O }; // separate; not in usd
 }
 // Sanity: README worked example's unit conversion (10,000 px of pepperoni pizza at
 // 0.002 cm^2/px -> 20 g). Impact factors come from the CSV as-is (they get revised).
@@ -261,6 +281,10 @@ for (const [step, { source, run, file }] of plan.entries()) {
     image: { bytes: new Uint8Array(jpeg), mimeType: 'image/jpeg' },
     geometry: { widthPx: W, heightPx: H, coordinateSpace: 'topdown-normalized-v1' },
     menu,
+    // This script runs its own plate fit (it clips counts to the dish), so the
+    // library's calibration and overlay are switched off to avoid duplicate calls.
+    calibration: { enabled: false },
+    renderOverlay: false,
   });
   const seg = analysis.attempt.segmentation;
   let plate;
@@ -333,7 +357,7 @@ for (const [step, { source, run, file }] of plan.entries()) {
     (outsideDish > 0 ? `  (${outsideDish.toLocaleString()} food px outside this dish ignored)` : ''));
   for (const i of items) {
     console.log(`  ${i.food.padEnd(34)} ${String(i.pixels.toLocaleString()).padStart(9)} px` +
-      (i.impact ? `  ${i.impact.cm2.toFixed(1)} cm²  ${i.impact.grams.toFixed(1)} g  ${i.impact.kgCo2e.toFixed(3)} kg CO2e  ${(i.impact.waterM3 * 1000).toFixed(1)} L  ${i.impact.nutrientDays.toFixed(3)} nutr-days  ${fmtUsd(i.impact.usd)}` :
+      (i.impact ? `  ${i.impact.cm2.toFixed(1)} cm²  ${i.impact.grams.toFixed(1)} g  ${i.impact.kgCo2e.toFixed(3)} kg CO2e  ${(i.impact.waterM3 * 1000).toFixed(1)} L  ${fmtUsd(i.impact.usd)}  (nutrition lost, separate: ${i.impact.nutrientDays === null ? 'n/a' : `${i.impact.nutrientDays.toFixed(3)} nutr-days`})` :
         i.cm2 !== undefined ? `  ${i.cm2.toFixed(1)} cm²  (no factors: not on menu)` : ''));
   }
   if (items.length) console.log(`  TOTAL: ${row.totalGrams.toFixed(1)} g, ${row.totalKgCo2e.toFixed(3)} kg CO2e, Waste Impact ${fmtUsd(total)}`);

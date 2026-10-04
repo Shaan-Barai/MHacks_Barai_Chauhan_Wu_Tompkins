@@ -295,7 +295,7 @@ remaining work.
 | WS | State | Last update | Notes |
 | --- | --- | --- | --- |
 | C | **done** (phase 1) | 2026-10-04 | `d40c771`: IT_4.md, contracts IT_4 section, decisions, AGENTS.md §2 |
-| A | running | 2026-10-04 | launched |
+| A | **done** | 2026-10-04 | `b031707` `b7cd23f` `ca764d5`: density column (26 foods, FAO/INFOODS + USDA, analogues labeled; pizzas + cheese bread null → area method), waste-factors-v3, grams/kgCo2e/waterLitres, coverage, `formatPhysicalLabel`; analytics 74/74, data 39/39 (fixtures). Backend impact test assertion needs B |
 | V | running | 2026-10-04 | launched |
 | B | running | 2026-10-04 | launched (hardening + schema first) |
 | U | running | 2026-10-04 | launched (mocks first) |

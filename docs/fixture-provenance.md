@@ -40,10 +40,12 @@ Every scenario sets `"mode": "fixture"` today. Live-provider fixtures will be ad
 - Sidecar `credit-card-synthetic.json` gives the drawn geometry and the expected values after
   normalization to 1024²: N_ref ≈ 37,875 px, k ≈ 0.001220 cm²/px, fx ≈ 1289.7 px, geometric height
   ≈ 45.0 cm.
-- Live result (2026-10-04, real Gemini + SAM 2.1): N_ref 38,102 px (+0.6%), geometric height 44.9 cm.
-  DAv2 read 82 cm (`depth_scale_disagrees`); the image is flat, so the depth number means nothing.
+- Live result (2026-10-04, real Gemini + SAM 2.1): N_ref 38,102 px (+0.6%), camera height 44.9 cm.
+  (During the brief Depth Anything V2 trial, since removed, DAv2 read 82 cm on this flat drawing; that
+  number meant nothing.)
 - Used by `simulate-camera --calibrate`, `demo.py --simulate` (calibration step),
-  `tests/integration/calibrate-capture.test.mjs` (fake backend) and `tests/e2e/calibration-live.test.mjs`.
+  `tests/integration/calibrate-capture.test.mjs` (fake backend) and `tests/e2e/calibration-live.test.mjs`
+  (on the test hall `hall-e2e-cal`).
 
 ## Image bytes
 

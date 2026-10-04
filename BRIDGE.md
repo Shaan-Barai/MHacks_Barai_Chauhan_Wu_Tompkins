@@ -63,12 +63,12 @@ inbox with `capturePurpose: "calibration"`. The bridge lists it as `◇ … is a
 ingests it as a dish. Upload it with:
 
 ```bash
-cd capture && npm run calibrate -- --known-area-cm2 46.21 --reference-label "credit card" [--camera-id uno-q-c920s-1] [--hall hall-main] [--depth on|off] [--frame <captureId>] [--no-activate]
+cd capture && npm run calibrate -- --known-area-cm2 46.21 --reference-label "credit card" [--camera-id uno-q-c920s-1] [--hall hall-main] [--frame <captureId>] [--no-activate]
 ```
 
 `npm run calibrate` is `ingest-inbox --calibrate`. It normalizes the frame exactly like a dish (1024²),
 uploads it through presign → PUT → finalize with association kind `calibration`, calls
-`POST /api/calibrations`, prints k, both camera heights and the flags, and makes it the hall's active
+`POST /api/calibrations`, prints k, the camera height and the flags, and makes it the hall's active
 calibration. See [docs/calibration.md](docs/calibration.md).
 
 ### Run it without the board: `simulate-camera`

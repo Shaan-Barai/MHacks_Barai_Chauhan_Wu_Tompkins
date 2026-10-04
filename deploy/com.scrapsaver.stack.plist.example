@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Start the ScrapSaver stack when you log in (docs/deploy.md, step 12).
+  Copy to ~/Library/LaunchAgents/com.scrapsaver.stack.plist, replace every /Users/YOU/mhacks and
+  /Users/YOU/.local/bin with your paths, then:
+    launchctl load -w ~/Library/LaunchAgents/com.scrapsaver.stack.plist
+  deploy/local.sh starts each service detached and exits; AbandonProcessGroup keeps launchd from
+  stopping them. SKIP_BUILD=1 starts from the last build (deploy/local.sh restart rebuilds).
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.scrapsaver.stack</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>-lc</string>
+    <string>cd /Users/YOU/mhacks &amp;&amp; SKIP_BUILD=1 deploy/local.sh up</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Users/YOU/.local/bin</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>AbandonProcessGroup</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/YOU/mhacks/deploy/.run/logs/launchd.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/YOU/mhacks/deploy/.run/logs/launchd.log</string>
+</dict>
+</plist>

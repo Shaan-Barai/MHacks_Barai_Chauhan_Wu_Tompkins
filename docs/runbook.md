@@ -5,9 +5,53 @@ as unitless **relative impact points**; each capture counts only the **target di
 scanned). With an active camera calibration (IT_4, [calibration.md](calibration.md)), captures also get
 **estimated** grams, kg CO2e and litres of water. `scrap-bigplan` is retired: don't point new runs at it.
 
+## Run every test: `./test-all.sh`
+
+One command from the repo root runs every suite and ends with a PASS/FAIL table (suite, result,
+passed/failed/skipped counts, duration). The exit code is non-zero when anything failed.
+
+```bash
+./test-all.sh                  # offline (no network): ~2 min
+./test-all.sh --live           # + the local stack, smoke test, live E2E and the demo (Gemini/SAM/R2 calls)
+./test-all.sh --only backend,tests          # just some suites (./test-all.sh --list)
+./test-all.sh --skip frontend-build --install   # npm ci everywhere first, skip one suite
+./test-all.sh -v               # stream each suite's output
+```
+
+| Suite | What it runs |
+| --- | --- |
+| `install` | `npm ci` in data, vision, analytics, capture, backend, frontend, db/spacetimedb where `node_modules` is missing (every package with `--install`) |
+| `data` `vision` `analytics` `capture` `backend` | each package's `npm test` (tsc + `node --test`), in dependency order |
+| `frontend` / `frontend-build` | `vitest run` / `tsc -b && vite build` |
+| `db` | `db/spacetimedb` typecheck |
+| `tests` | `tests/` contract fixtures + cross-system integration (live E2E skipped) |
+| `python` | `python3 -m unittest discover -s capture/uno-q` (simulated board, no hardware) |
+| `scripts` | `bash -n` + `shellcheck` (if installed) on deploy scripts, `node --check`, Python syntax, `demo.py --list`, JSON configs |
+| `stack` (live) | `deploy/local.sh up`: starts or reuses SpacetimeDB, SAM 2.1 and the backend |
+| `seed` (live) | today's 26-food demo dinner + demo portions for the test hall `hall-test` |
+| `smoke` (live) | `deploy/smoke.mjs`: health, ready, dashboard HTML, 401 on unauthenticated writes, one upload → analysis round trip on `hall-smoke` |
+| `e2e-flow` (live) | `tests/e2e/demo-flow.test.mjs` on its own `hall-e2e-<time>` |
+| `e2e-scrap` (live) | `tests/e2e/scrap-live.test.mjs` on `svc_hall-test_<today>_dinner` (2 photos) |
+| `e2e-calibration` (live) | `tests/e2e/calibration-live.test.mjs`: synthetic-card calibration → capture → area/grams/CO2e/water on `hall-e2e-cal` |
+| `demo` (live) | `python3 demo.py --simulate --yes --no-open --no-start --hall hall-test` |
+
+- **Live suites never touch hall-main.** They write only to test halls (`hall-test`, `hall-smoke`,
+  `hall-e2e-*`), and every measurement setting they change is put back. A live suite named in `--only`
+  runs without `--live` (e.g. `--only stack,smoke`).
+- **Secrets:** the live suites load the stack's secrets the same way `deploy/local.sh` does
+  (`deploy/.run/local-secrets.env`, then `.env`), never print them, and redact their values from the
+  logs.
+- **Processes:** `test-all.sh` never stops or kills anything. The stack it starts (or reuses) stays up;
+  stop it with `deploy/local.sh down`.
+- **Logs:** `tests/.logs/<UTC time>/<suite>.log` (gitignored); `tests/.logs/latest` is the last run. A
+  failed suite also prints its last 15 log lines.
+- A git worktree can reuse the main checkout's running stack and token:
+  `SCRAP_RUN_DIR=/path/to/main/deploy/.run ./test-all.sh --live`.
+
 ## Start (fixture-only machine)
 
 ```bash
+./test-all.sh                  # everything offline; or only the cross-system checks:
 cd tests && npm test
 ```
 
@@ -92,17 +136,17 @@ token is missing or different from the backend's. Point them at another backend 
 python3 capture/uno-q/laptop_capture.py --target arduino@35.1.88.76 --identity ~/.ssh/scrap_unoq --calibrate
 cd capture && npm run calibrate -- --known-area-cm2 46.21 --reference-label "credit card"
 #   no card / no board:  npm run simulate-camera -- --calibrate        (SYNTHETIC fixture)
-python3 demo.py --only calibration          # k, heights, flags, DAv2 on/off
+python3 demo.py --only calibration          # k, camera height, flags
 python3 demo.py --only deploy               # SCRAP_PROD_URL: /api/health, /api/ready, dashboard HTML
 
-# Live E2E for calibration → area / volume → totals (~3 Gemini calls + 1 calibration)
+# Live E2E for calibration → calibrated area → totals (~3 Gemini calls + 1 calibration)
 cd tests && SCRAP_E2E=1 npm run test:e2e:calibration
 ```
 
-The calibration E2E switches the service's hall (default hall-main) to its new calibration and back.
-It restores the previous `activeCalibrationId` and depth toggle when it finishes. If it is interrupted,
-reset with `PUT /api/settings/measurement {"hallId":"hall-main","activeCalibrationId":null,"depthEnabled":false}`
-using the token.
+The calibration E2E copies the source service's menu to the test hall `hall-e2e-cal`, calibrates that
+hall, and restores its previous `activeCalibrationId` when it finishes, so hall-main is never touched.
+If a run on hall-main (`SCRAP_E2E_CAL_HALL=source`) or `demo.py --simulate` is interrupted, reset with
+`PUT /api/settings/measurement {"hallId":"hall-main","activeCalibrationId":null}` using the token.
 
 The board script must be the current one for the focus lock:
 `scp capture/uno-q/uno_q_camera.py arduino@BOARD:scrap-camera/` (ARDUINO.md). An older board script still

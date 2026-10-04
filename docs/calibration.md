@@ -1,7 +1,8 @@
 # Camera calibration
 
-IT_4 (2026-10-04), decisions I1–I3 and I9 in [IT_4.md](../IT_4.md). This page covers what a calibration
-is, how to take one with a credit card, and when to redo it.
+IT_4 (2026-10-04), decisions I1–I3 and I9 in [IT_4.md](../IT_4.md) (amended in §10). This page covers
+what a calibration is, how to take one with a credit card, and when to redo it. The app uses the **area
+method** only; Depth Anything V2 was tried and removed (see the end of this page).
 
 ## What it is
 
@@ -10,23 +11,20 @@ top of it:
 
 ```text
 k (cm² per pixel)       = known reference area (cm², typed by you) / reference pixels N_ref
-food area (cm²)         = food pixels × k                      area method, Depth Anything V2 off
-camera height (cm)      = f · √k                               geometric; f = C920s focal length in px
-grams                   = area × weight_g_per_cm2              area method
-                        = volume × density_g_per_cm3           volume method (DAv2 on, experimental)
-kg CO2e = grams/1000 × C        L water = grams × W            factors: menu_waste_factors.csv
+food area (cm²)         = food pixels × k                      area method (area-calibrated-v1)
+camera height (cm)      = f · √k                               f = C920s focal length in px
+grams                   = area × weight_g_per_cm2              factors: menu_waste_factors.csv
+kg CO2e = grams/1000 × C        L water = grams × W
 ```
 
 You lay a flat object of known area (default: a credit card, 85.60 × 53.98 mm = **46.21 cm²**) on the
 tray where plates sit and take one **calibration frame**. The backend asks Gemini to box the object,
-SAM 2.1 segments it, and code counts its pixels `N_ref`. With the Depth Anything V2 worker running, the
-same photo also yields a depth scale and a table plane, so the depth toggle can be switched on later
-without recalibrating.
+SAM 2.1 segments it, and code counts its pixels `N_ref`.
 
 Rules that keep the numbers honest:
 
 - Grams, kg CO2e and litres are **estimates** and are labeled that way everywhere. Without an active,
-  compatible calibration, or without a factor or density, they are `null` with a reason, **never 0**.
+  compatible calibration, or without a factor, they are `null` with a reason, **never 0**.
 - A calibration holds for **one camera at one height, one focus setting and one image resolution**.
   Captures of a different size are `incompatible_geometry` (their pixels still count).
 - The calibration frame goes through the **same normalization as every dish** (centre square crop to
@@ -57,21 +55,20 @@ Rules that keep the numbers honest:
    ```text
    reference: "credit card" 46.21 cm² = 38,102 px in a 1024×1024 image
    k = 0.001213 cm² per pixel  (one pixel ≈ 0.35 mm on the tray)
-   camera height, geometric (f·√k): 44.9 cm  [fx 1,289.7 px, nominal-fov]
-   camera height, Depth Anything V2: 82.0 cm  (scale 0.548, raw median 0.820 m)
-   flags: depth_scale_disagrees
-   ✓ active calibration for hall-main; Depth Anything V2 OFF (area method)
+   camera height (f·√k): 44.9 cm  [fx 1,289.7 px, nominal-fov]
+   flags: none
+   ✓ active calibration for hall-main: cal_01K… (area method)
    ```
-   (That example is the synthetic fixture; see "Without a card" below.) Check the geometric height
+   (That example is the synthetic fixture; see "Without a card" below.) Check the camera height
    against a tape measure from the lens to the tray. If it is off by more than a few cm, the card was
    not fully segmented: retake the frame.
 6. **Check the outline** in the dashboard (Settings → Camera calibration). It shows the reference
-   outline, k, both heights and the flags.
+   outline, k, the camera height and the flags.
 
 Any other flat object works if you know its area: `--known-area-cm2 <cm²> --reference-label "<what it is>"`.
 
-Options: `--frame <captureId>` picks a specific calibration frame (default: the newest), `--depth on|off`
-sets the toggle at the same time, `--no-activate` measures without activating, `--inbox`/`--state-dir`
+Options: `--frame <captureId>` picks a specific calibration frame (default: the newest),
+`--no-activate` measures without activating, `--inbox`/`--state-dir`
 as for `ingest-inbox`. A rerun with the same frame, area and label shows the existing calibration. A
 different area or label, or a failed one, makes a new calibration.
 
@@ -82,13 +79,15 @@ you to set it.
 ### Without a card (demo, tests)
 
 ```bash
-cd capture && npm run simulate-camera -- --calibrate [--hall hall-main] [--depth off]
+cd capture && npm run simulate-camera -- --calibrate [--hall hall-main]
 ```
 
 This uses `capture/fixtures/calibration/credit-card-synthetic.jpg`, a **synthetic** frame (a drawn card
 on an empty table patch; see [fixture-provenance.md](fixture-provenance.md)) drawn for a 45 cm camera
 height. It tests the pipeline only and says nothing about real accuracy. `python3 demo.py --simulate`
-uses it in its `calibration` step when the hall has no active calibration (`--recalibrate` forces one).
+uses it in its `calibration` step when the hall has no active calibration (`--recalibrate` forces one),
+and puts the hall's previous `activeCalibrationId` back when it finishes. `python3 demo.py --simulate
+--hall hall-test` does all of this on a test hall, so hall-main is never touched.
 
 ## Focus lock (Logitech C920s)
 
@@ -124,25 +123,27 @@ delivers another size.
 Old captures keep the calibration they were analysed with (`calibrationId` is snapshotted on each
 analysis attempt), so recalibrating never rewrites history.
 
-## Depth Anything V2 on/off
+## Why there is no depth/volume method (history)
 
-- **Off (default):** the area method (`area-calibrated-v1`): `area = pixels × k`, grams from
-  `weight_g_per_cm2`. It treats food as lying flat on the tray.
-- **On (experimental):** each capture also goes through Depth Anything V2 Metric Indoor Small (the
-  `:8791` worker). Heights above a plate plane fitted around the food give `volume`, and grams come from
-  `density_g_per_cm3`. Foods without a density (pizzas, cheese bread), bowls/liquids
-  (`bowl_volume_unreliable`) and invalid depth (`depth_invalid`, `negative_heights_clipped`,
-  `depth_unavailable`) fall back to the area method for grams.
-- Switch it in the dashboard, with `npm run calibrate -- --depth on`, or with `python3 demo.py --depth on`.
-- **Volume is unvalidated.** On close top-down phone photos, DAv2 Small read distances 3–5× too far and
-  put food at or below the plate, so foods fell back to area. Keep it off until the live check with the
-  mounted C920s and an object of measured volume is recorded in
-  [verification-report.md](verification-report.md). See [known-limitations.md](known-limitations.md).
+On 2026-10-04 the app briefly had an optional **Depth Anything V2** path (Metric Indoor Small, a
+`:8791` worker): heights above a plate plane fitted around the food gave a volume, and grams came from
+a per-food density. The user removed it the same day. The record of why:
+
+- On close top-down photos (test2/, camera 22–30 cm above the plate), DAv2 Small read distances 3–5×
+  too far (`depth_scale_disagrees`) and put food **at or below the plate surface**, so heights were 0
+  and every food fell back to the area method anyway.
+- Thin foods (rice spread flat, sauces) are millimetres high, below the depth noise, and bowls hide
+  their floor, so volume was unreliable even when depth worked.
+
+What remains is the area method above. Old rows written during the trial are read as area estimates.
+The worker, the per-hall depth toggle, plate thickness and the density column are gone;
+`deploy/local.sh down` still stops a depth worker that it started earlier.
 
 ## Check it
 
 ```bash
-python3 demo.py --only calibration                 # active calibration: k, N_ref, heights, flags, depth on/off
-python3 demo.py --events cap_… --only volume       # per-food cm² / cm³ / g / kg CO2e / L for those captures
-cd tests && SCRAP_E2E=1 npm run test:e2e:calibration   # live: calibrate → capture (depth off/on) → totals
+python3 demo.py --only calibration                 # active calibration: k, camera height, flags
+python3 demo.py --events cap_… --only area         # per-food cm² / g / kg CO2e / L + totals and coverage
+cd tests && SCRAP_E2E=1 npm run test:e2e:calibration   # live: calibrate a test hall → capture → totals
+./test-all.sh --only stack,e2e-calibration         # the same, with the local stack's token
 ```

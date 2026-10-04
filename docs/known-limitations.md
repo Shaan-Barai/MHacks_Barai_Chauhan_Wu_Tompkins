@@ -14,25 +14,20 @@ Honest boundaries for the hackathon prototype (BIG-PLAN v2 + IT_4, database `scr
 
 - Grams, kg CO2e and litres of water are **estimates** from a camera calibration (a reference object of
   user-entered area gives cm² per pixel) times per-food factors. Nobody has weighed any food. They are
-  null without an active compatible calibration, factor or density, never 0.
-- **Area method (default):** `area = pixels × k` treats food as a flat layer on the tray. Plate rims,
+  null without an active compatible calibration or factor, never 0.
+- **Area method only:** `area = pixels × k` treats food as a flat layer on the tray. Plate rims,
   food height and perspective near the frame edge are ignored. `weight_g_per_cm2` is a typical spread,
-  not a measured one.
-- **Depth Anything V2 metric depth on food is unvalidated.** On close top-down phone photos (test2/,
-  22–30 cm), DAv2 Metric Indoor Small read distances 3–5× too far (`depth_scale_disagrees`) and put food
-  at or below the plate surface. Every food fell back to area (`negative_heights_clipped` +
-  `depth_invalid`). The calibration scale fixes only the global factor, not local error. The volume
-  method stays **off by default** until a live check under the mounted C920s, with an object of measured
-  volume, is recorded.
-- **Thin foods** (rice spread flat, sauces, crumbs) are millimetres high, at or below depth noise. Their
-  volumes are noise even when depth works.
-- **Bowls and liquids:** the bowl floor is hidden, so soup volume is unknown (`bowl_volume_unreliable`,
-  grams by area). Top-down area is a weak proxy for liquid weight in any case.
+  not a measured one. A tall pile and a thin smear of the same footprint get the same grams.
+- **No volume.** Depth Anything V2 (Metric Indoor Small) was tried on 2026-10-04 and removed the same
+  day. On close top-down phone photos (test2/, 22–30 cm), it read distances 3–5× too far
+  (`depth_scale_disagrees`) and put food at or below the plate surface, so every food fell back to area
+  anyway. Thin foods (rice spread flat, sauces) are below depth noise, and bowls hide their floor.
+- **Bowls and liquids:** top-down area is a weak proxy for liquid weight.
 - **Autofocus:** the C920s autofocus changes the focal length. `uno_q_camera.py` locks focus with
   `v4l2-ctl` (best effort). If `v4l2-ctl` is missing or the control fails, the capture proceeds with a
   warning and `focus.lock != "locked"` in its metadata, and its estimates may be off.
 - **Nominal C920s intrinsics:** f ≈ 1360 px at 1920 wide comes from the 78° diagonal FOV spec, not a
-  checkerboard calibration. It affects the camera heights and the DAv2 footprint. It does not affect the
+  checkerboard calibration. It affects only the reported camera height. It does not affect the
   area method's cm² (k comes from the reference directly). Override with `CAMERA_FX_PX`/`CAMERA_FY_PX` if
   measured.
 - A calibration holds for one camera, height, focus and resolution. Moving any of them needs a new one.

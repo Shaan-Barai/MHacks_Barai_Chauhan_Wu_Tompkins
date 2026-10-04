@@ -10,8 +10,8 @@ step below in order and pauses between them, so you can narrate. The script belo
 ## Before you start
 
 1. Start the stack: `deploy/local.sh up` ([deploy.md](deploy.md)) starts SpacetimeDB, the SAM worker on
-   :8790, the Depth Anything V2 worker on :8791, and the backend serving the dashboard on :8787 in
-   production mode. Writes then need `SCRAP_INGEST_TOKEN`, which demo.py reads from `.env` or
+   :8790, and the backend serving the dashboard on :8787 in production mode (also at
+   https://<your domain> once the Cloudflare Tunnel runs). Writes then need `SCRAP_INGEST_TOKEN`, which demo.py reads from `.env` or
    `deploy/.run/local-secrets.env`. The dev setup in [runbook.md](runbook.md#start-full-stack-r2--scrap--gemini--sam)
    (frontend on :5173) works too. Run `cd backend && npm run seed -- --live-dinner` once: it seeds the 26-food dinner menus
    (2026-10-01..03 and today), demo portions, and leaves old analyses on the menu version they used.
@@ -25,9 +25,8 @@ step below in order and pauses between them, so you can narrate. The script belo
      scanned plate.
    - **Grams, kg CO2e and litres of water are estimates.** They exist only for captures analysed with
      an active **camera calibration** (a credit card of known area on the tray; [calibration.md](calibration.md)).
-     They come from `area = pixels × cm²/px` and per-food weight factors. Otherwise they show "—", never
-     0. Depth Anything V2 volume is experimental and off by default: on close phone photos it put food
-     below the plate. Never show dollars.
+     They come from `area = pixels × cm²/px` and per-food weight factors (area method only; there is
+     no volume). Otherwise they show "—", never 0. Never show dollars.
    - **Relative impact points** weigh pixels by each food's density and environmental factors
      (`points = pixels / 1000 × weight_g_per_cm2 × factor`; CO2 points, water points, and impact points
      from 0.19·C + 1.50·W). They are unitless and only compare foods with each other: a pixel of beef
@@ -54,8 +53,8 @@ take one: the credit card under the board, or the **synthetic** card fixture wit
 > 45 cm above the tray, which we can check with a tape measure. Focus is locked, because autofocus would
 > change the scale. If the camera moves, we recalibrate.
 
-Point out the two camera heights (geometric vs Depth Anything V2) and the `depth_scale_disagrees` flag
-when they differ. That disagreement is why volume stays off.
+Point out k and the camera height, and check the height against a tape measure. A wrong height means
+the card was not fully segmented: retake the frame.
 
 ### 2. Capture (1.5 min)
 
@@ -107,7 +106,7 @@ Open http://localhost:5173 and choose the dinner dates.
    **Estimated CO2e** (kg) and **Estimated water** (L) with coverage ("from 1 of 7 calibrated plates").
    Plates analysed before the calibration have no estimate. Food labels show
    `38 g · 1.1 kg CO2e · 18 L water (est.)`, and the overlay legend carries the same suffix.
-   `python3 demo.py --only volume,stats --events cap_…` prints the same numbers in the terminal.
+   `python3 demo.py --only area,stats --events cap_…` prints the same numbers in the terminal.
 2. **Foods to target:** ranked by **pixels wasted per portion served** (sum of pixels ÷ sum of portions;
    the portions are demo counts).
 3. **Most wasted:** ranked by total pixels. Items without an impact factor show "no impact factor",

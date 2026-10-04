@@ -1,0 +1,19 @@
+# Cloudflare Tunnel config for ScrapSaver (docs/deploy.md, step 9).
+# Copy to ~/.cloudflared/config.yml and replace:
+#   <TUNNEL_ID>   the id `cloudflared tunnel create scrapsaver` printed (also the .json file name)
+#   <YOU>         your macOS user name
+#   scrap.example.com / www.scrap.example.com   your domain
+#
+# Only the backend (which also serves the dashboard) is published. SpacetimeDB (:3000) and the
+# SAM worker (:8790) stay on 127.0.0.1: never add ingress rules for them.
+# Do not set originRequest.httpHostHeader: the backend compares the browser's Origin with Host.
+tunnel: <TUNNEL_ID>
+credentials-file: /Users/<YOU>/.cloudflared/<TUNNEL_ID>.json
+
+ingress:
+  - hostname: scrap.example.com
+    service: http://127.0.0.1:8787
+  - hostname: www.scrap.example.com
+    service: http://127.0.0.1:8787
+  # Anything else that reaches this tunnel gets a 404 instead of the app.
+  - service: http_status:404

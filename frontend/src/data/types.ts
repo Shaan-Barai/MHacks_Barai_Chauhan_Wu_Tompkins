@@ -234,6 +234,8 @@ export interface ItemImpactRow {
   itemId: string | null
   displayName: string
   factorKey: string | null
+  /** Which factor table supplied CO2/water: the hall's own ('east-quad') or the 500 common foods fallback. */
+  factorTable?: 'east-quad' | 'common-500' | null
   impact: WasteImpact
   /** Summed portions served across the window; null when missing. */
   portionsServed: number | null

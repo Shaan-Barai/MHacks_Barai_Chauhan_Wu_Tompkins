@@ -7,6 +7,7 @@ export * from './types.js';
 export { parsePortionsServed, parsePortionsCsv, MAX_PORTIONS_SERVED } from './portionsServed.js';
 export { DataValidationError } from './errors.js';
 export {
+  COMMON_WASTE_FACTORS,
   WASTE_FACTORS,
   NUTRITION_FACTORS,
   WASTE_FACTOR_MENU_TEXT,

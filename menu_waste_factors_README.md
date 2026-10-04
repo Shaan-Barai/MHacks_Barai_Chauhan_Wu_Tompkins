@@ -217,3 +217,11 @@ Nutrition (in `menu_nutrition_factors.csv`, separate from the score) uses the sa
 - USDA Food and Nutrition Service (2026). Official USDA Thrifty Food Plan: U.S. Average, May 2026.
 - True Price & Wageningen Economic Research (2021). True price of water estimate, as reported by *Resource*.
 - Dining hall nutrition labels and allergen lists for the test menu (October 2026).
+
+## Common-foods fallback (`menu_waste_factors_500.csv`)
+
+`menu_waste_factors_500.csv` lists 500 common dining-hall foods with the same columns. The hall's own
+table (`menu_waste_factors_EastQuad.csv`) always wins. A menu item that table doesn't cover gets its
+weight, C and W from the 500-food table when its name matches exactly (`factorKey = slug(name)`, e.g.
+`Scrambled Eggs` → `scrambled-eggs`). The dashboard marks those foods "factors: common foods table".
+The fallback has no nutrition rows. A food in neither table has no impact factor (shown as such, never 0).

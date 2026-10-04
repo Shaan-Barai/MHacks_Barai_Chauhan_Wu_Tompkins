@@ -11,13 +11,19 @@
  */
 
 import type { NutritionFactor, WasteFactor } from '../../contracts/types.js';
-import { NUTRITION_FACTORS, WASTE_FACTORS, WASTE_FACTOR_MENU_TEXT, type WasteFactorMenuText } from './factors.generated.js';
+import {
+  COMMON_WASTE_FACTORS,
+  NUTRITION_FACTORS,
+  WASTE_FACTORS,
+  WASTE_FACTOR_MENU_TEXT,
+  type WasteFactorMenuText,
+} from './factors.generated.js';
 import { slugifyName } from './ids.js';
 
-export { NUTRITION_FACTORS, WASTE_FACTORS, WASTE_FACTOR_MENU_TEXT, type WasteFactorMenuText };
+export { COMMON_WASTE_FACTORS, NUTRITION_FACTORS, WASTE_FACTORS, WASTE_FACTOR_MENU_TEXT, type WasteFactorMenuText };
 
 /** Stamp on every derived impact so a factor edit is traceable (D3). */
-export const WASTE_FACTORS_VERSION = 'waste-factors-v4';
+export const WASTE_FACTORS_VERSION = 'waste-factors-v5';
 
 /** Score weights (D1): dollars per kg CO2e and per m³ freshwater. No nutrition term. */
 export const CARBON_USD_PER_KG_CO2E = 0.19;
@@ -29,11 +35,17 @@ export function factorKeyFor(displayName: string): string {
 }
 
 const wasteByKey = new Map(WASTE_FACTORS.map((f) => [f.factorKey, f] as const));
+const commonByKey = new Map(COMMON_WASTE_FACTORS.map((f) => [f.factorKey, f] as const));
 const nutritionByKey = new Map(NUTRITION_FACTORS.map((f) => [f.factorKey, f] as const));
 const textByKey = new Map(WASTE_FACTOR_MENU_TEXT.map((f) => [f.factorKey, f] as const));
 
+/**
+ * The hall's own table (East Quad) wins; a menu item it doesn't cover falls back to the
+ * 500-common-foods table by exact factorKey. `factor.table` says which one supplied it.
+ */
 export function findWasteFactor(displayName: string): WasteFactor | null {
-  return wasteByKey.get(factorKeyFor(displayName)) ?? null;
+  const key = factorKeyFor(displayName);
+  return wasteByKey.get(key) ?? commonByKey.get(key) ?? null;
 }
 
 export function findNutritionFactor(displayName: string): NutritionFactor | null {

@@ -294,7 +294,15 @@ export interface WasteFactor {
   /** 0.19·C + 1.50·W, dollars per kg. No nutrition term. */
   impactUsdPerKg: number;
   largestFactor: 'carbon' | 'water';
+  /**
+   * Which table supplied the row: the hall's own table (menu_waste_factors_EastQuad.csv) wins;
+   * menu items it doesn't cover fall back to the 500 common foods (menu_waste_factors_500.csv)
+   * by exact factorKey. Absent on legacy rows = 'east-quad'.
+   */
+  table?: WasteFactorTable;
 }
+
+export type WasteFactorTable = 'east-quad' | 'common-500';
 
 /** One row of menu_nutrition_factors.csv. Reported separately; never in the score. */
 export interface NutritionFactor {
@@ -349,6 +357,8 @@ export interface ItemImpactRow {
   itemId: string | null;
   displayName: string;
   factorKey: string | null;
+  /** Which factor table the row's factors came from; null when it has none. */
+  factorTable?: WasteFactorTable | null;
   impact: WasteImpact;
   /** Summed portions served across the window; null when missing. */
   portionsServed: number | null;

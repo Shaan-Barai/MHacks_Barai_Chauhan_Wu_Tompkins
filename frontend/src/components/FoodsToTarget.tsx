@@ -8,6 +8,7 @@ import type { ItemImpactRow } from '../data/types'
 import { formatMass, formatNumber, formatPoints } from '../lib/format'
 import { PER_PORTION_EXPLANATION, impactUnavailableReason, perPortionUnavailableReason } from './impactCopy'
 import { ESTIMATE_EXPLANATION, PhysicalChips, hasPhysical } from './PhysicalChips'
+import { FactorSource } from './FactorSource'
 import { Badge, Card, GhostButton, InfoTip } from './ui'
 
 const SHOW_FIRST = 8
@@ -66,6 +67,7 @@ export function FoodsToTarget({ rows, demoPortions }: { rows: ItemImpactRow[]; d
                   <th scope="row" className="py-1.5 pr-2 font-semibold">
                     {r.displayName}
                     {anyEstimate && <PhysicalChips amounts={r.impact} className="mt-1 flex font-normal" />}
+                    <span className="block"><FactorSource row={r} /></span>
                   </th>
                   <td className="py-1.5 pr-2 font-semibold">
                     {formatNumber(r.perPortion!.pixels)} pixels

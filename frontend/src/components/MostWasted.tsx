@@ -8,6 +8,7 @@ import type { ItemImpactRow } from '../data/types'
 import { formatNumber, formatPoints } from '../lib/format'
 import { impactUnavailableReason } from './impactCopy'
 import { ESTIMATE_EXPLANATION, PhysicalChips, hasPhysical } from './PhysicalChips'
+import { FactorSource } from './FactorSource'
 import { Badge, Card, GhostButton, InfoTip } from './ui'
 
 const SHOW_FIRST = 8
@@ -58,6 +59,7 @@ export function MostWasted({ rows }: { rows: ItemImpactRow[] }) {
                   <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <span className="font-semibold">{r.displayName}</span>
                     {anyEstimate && <PhysicalChips amounts={r.impact} />}
+                    <FactorSource row={r} />
                   </span>
                   <span className="font-semibold">{formatNumber(r.impact.pixels)} pixels</span>
                 </div>

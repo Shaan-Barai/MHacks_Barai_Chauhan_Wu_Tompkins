@@ -122,6 +122,19 @@ describe('MostWasted', () => {
   })
 })
 
+describe('factor source note', () => {
+  it('labels foods whose factors come from the 500 common foods table, and only those', () => {
+    const rows = [
+      row({ displayName: 'Scrambled Eggs', factorTable: 'common-500' }),
+      row({ displayName: 'Ancho Flank Steak', factorTable: 'east-quad' }),
+    ]
+    render(<MostWasted rows={rows} />)
+    const items = within(screen.getByRole('list', { name: 'Foods ranked by Pixels wasted' })).getAllByRole('listitem')
+    expect(items[0]).toHaveTextContent('factors: common foods table')
+    expect(items[1]).not.toHaveTextContent('common foods table')
+  })
+})
+
 describe('NutritionLost', () => {
   it('shows relative nutrition points, separate from the impact score, with the top foods', () => {
     render(<NutritionLost data={dashboard()} />)

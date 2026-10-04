@@ -353,7 +353,7 @@ test('recommendation facts and fallback cite labeled estimates when plates are c
   ]) {
     assert.ok(facts.allowedMetrics.includes(m), m);
   }
-  assert.match(recommendationInputVersion(facts), /^impact-rec-v3-physical\|waste-factors-v4\|[0-9a-f]{8}$/);
+  assert.match(recommendationInputVersion(facts), /^impact-rec-v3-physical\|waste-factors-v5\|[0-9a-f]{8}$/);
 
   const rec = fallbackRecommendation(d, NOW);
   assert.match(rec.text, /Calibrated plates \(2 of 3\): an estimated 3\.2 kg CO2e and 82 L water\./);

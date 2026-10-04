@@ -479,3 +479,13 @@ stays `reference-area-v1`: known area → cm²/px plus the geometric C920s camer
 `areaCm2 × weight_g_per_cm2`; CO2e and water follow from grams. SpacetimeDB columns added for depth
 stay in the `scrap` schema (they can't be dropped without a wipe) but are unused and written with
 defaults. Legacy rows from the brief depth trial are read as area estimates.
+
+## 2026-10-04: 500-common-foods fallback factor table (user decision)
+
+`menu_waste_factors_500.csv` (500 common dining-hall foods, same columns as the hall table) is a
+**fallback**. The hall's own table (`menu_waste_factors_EastQuad.csv`) wins; a menu item it doesn't
+cover gets its factors from the 500-food table by exact `factorKey = slug(displayName)`, no fuzzy
+matching. Each factor row carries `table: 'east-quad' | 'common-500'`. `ItemImpactRow.factorTable`
+tells the dashboard, which labels fallback rows "factors: common foods table". The fallback has no
+nutrition rows, so those foods have null nutrition points. Unmatched foods stay "no impact factor",
+never 0. Factor version `waste-factors-v5`.

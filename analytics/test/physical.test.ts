@@ -86,7 +86,7 @@ test('area method: grams = areaCm2 × weight_g_per_cm2; kg CO2e = g/1000 × C; L
   // Points are unchanged by calibration; nutrition never enters CO2/water.
   const withPhys = computeWasteImpact(5000, STEAK, { factorKey: 'ancho-flank-steak', nutrientDaysPerKg: 1.05, kcalPerKg: 1600 }, { physical: area(20) });
   const without = computeWasteImpact(5000, STEAK, null, { physical: area(20) });
-  close(withPhys.impactPoints, 6 * 27.91);
+  close(withPhys.impactPoints, 6 * (0.19 * 131.69 + 1.5 * 1.925)); // 0.19 x CO2 points + 1.50 x water points (unrounded factors)
   assert.equal(withPhys.kgCo2e, without.kgCo2e);
   assert.equal(withPhys.waterLitres, without.waterLitres);
   close(withPhys.grams, 24);

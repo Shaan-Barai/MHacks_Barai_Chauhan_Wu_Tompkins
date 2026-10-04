@@ -44,6 +44,9 @@ const STEAK: WasteFactor = {
 const PIZZA_N: NutritionFactor = { factorKey: 'pepperoni-pizza', nutrientDaysPerKg: 0.69, kcalPerKg: 2700 };
 const STEAK_N: NutritionFactor = { factorKey: 'ancho-flank-steak', nutrientDaysPerKg: 1.05, kcalPerKg: 1600 };
 
+/** Waste Impact per kg from the unrounded factors: 0.19·C + 1.50·W (no nutrition). */
+const score = (f: WasteFactor) => 0.19 * f.kgCo2ePerKg + 1.5 * f.waterM3PerKg;
+
 const close = (actual: number | null | undefined, expected: number, eps = 1e-9) =>
   assert.ok(actual != null && Math.abs(actual - expected) <= eps, `${actual} !== ${expected}`);
 
@@ -53,7 +56,8 @@ test('README pepperoni pizza example: 10,000 px → relative impact points', () 
   assert.equal(i.pixels, 10_000);
   close(i.co2Points, 160.6); // 10 × 16.06
   close(i.waterPoints, 19.4); // 10 × 1.94
-  close(i.impactPoints, 59.6); // 10 × 5.96 (= 0.19·C + 1.50·W within the CSV's cent rounding)
+  close(i.impactPoints, 59.614); // 0.19 × 160.6 + 1.50 × 19.4 (the CSV's 5.96 is this rounded to cents)
+  close(i.impactPoints, 0.19 * i.co2Points! + 1.5 * i.waterPoints!);
   close(i.nutritionPoints, 6.9); // 10 × 0.69, separate
   assert.equal(i.wasteFactorsVersion, WASTE_FACTORS_VERSION);
   assert.equal(i.unavailableReason, undefined);
@@ -68,7 +72,7 @@ test('README pepperoni pizza example: 10,000 px → relative impact points', () 
 test('beef outweighs pizza for the same pixels; nutrition never changes impactPoints', () => {
   // steak base = 5,000 / 1000 × 1.2 = 6
   const steak = computeWasteImpact(5000, STEAK, STEAK_N);
-  close(steak.impactPoints, 167.46); // 6 × 27.91
+  close(steak.impactPoints, 6 * score(STEAK)); // 167.45: 6 × (0.19 × 131.69 + 1.50 × 1.925)
   close(steak.co2Points, 790.14); // 6 × 131.69
   close(steak.waterPoints, 11.55); // 6 × 1.925
   close(steak.nutritionPoints, 6.3); // 6 × 1.05
@@ -78,7 +82,7 @@ test('beef outweighs pizza for the same pixels; nutrition never changes impactPo
   const without = computeWasteImpact(10_000, PIZZA, null);
   assert.equal(without.impactPoints, computeWasteImpact(10_000, PIZZA, PIZZA_N).impactPoints);
   assert.equal(without.nutritionPoints, null);
-  close(without.impactPoints, 10 * (0.19 * 16.06 + 1.5 * 1.94), 10 * 0.005);
+  close(without.impactPoints, 10 * (0.19 * 16.06 + 1.5 * 1.94));
 });
 
 test('no factor, unknown item, zero pixels: points null with a reason, never zero for missing', () => {
@@ -98,13 +102,13 @@ test('no factor, unknown item, zero pixels: points null with a reason, never zer
 });
 
 test('sumImpacts: pixels sum all; points sum available inputs, null when none', () => {
-  const a = computeWasteImpact(5000, STEAK, STEAK_N); // 167.46 points
+  const a = computeWasteImpact(5000, STEAK, STEAK_N); // 6 × score(STEAK) points
   const b = computeWasteImpact(2000, null, null); // no factor
-  const c = computeWasteImpact(1000, PIZZA, null); // base 1 → 5.96 points, no nutrition
+  const c = computeWasteImpact(1000, PIZZA, null); // base 1 → score(PIZZA) points, no nutrition
   const u = computeWasteImpact(3000, null, null, { unknownItem: true });
   const s = sumImpacts([a, b, c, u]);
   assert.equal(s.pixels, 11_000);
-  close(s.impactPoints, 167.46 + 5.96);
+  close(s.impactPoints, 6 * score(STEAK) + score(PIZZA));
   close(s.co2Points, 790.14 + 16.06);
   close(s.waterPoints, 11.55 + 1.94);
   close(s.nutritionPoints, 6.3); // only the steak has a nutrition row
@@ -171,14 +175,14 @@ function dashInput(over: Partial<ImpactDashboardInput> = {}): ImpactDashboardInp
 }
 
 // Hand-calculated: steak base 6 + 3.6 + 3 = 12.6; pizza base 10.
-const STEAK_POINTS = 12.6 * 27.91; // 351.666
-const PIZZA_POINTS = 10 * 5.96; // 59.6
+const STEAK_POINTS = 12.6 * score(STEAK); // 351.65
+const PIZZA_POINTS = 10 * score(PIZZA); // 59.614
 
 test('dashboard: totals, sum-then-divide per portion, pixel ranking, coverage, labels', () => {
   const d = buildImpactDashboard(dashInput());
   // totals: every pixel counted; points only for foods with a factor
   assert.equal(d.totals.pixels, 23_500);
-  close(d.totals.impactPoints, STEAK_POINTS + PIZZA_POINTS); // 411.266
+  close(d.totals.impactPoints, STEAK_POINTS + PIZZA_POINTS); // 411.26
   close(d.totals.co2Points, 12.6 * 131.69 + 10 * 16.06); // 1819.894
   close(d.totals.waterPoints, 12.6 * 1.925 + 10 * 1.94); // 43.655
   close(d.totals.nutritionPoints, 12.6 * 1.05 + 10 * 0.69); // 20.13
@@ -202,7 +206,7 @@ test('dashboard: totals, sum-then-divide per portion, pixel ranking, coverage, l
 
   assert.deepEqual(d.targets.map((r) => r.displayName), ['Ancho Flank Steak', 'Pepperoni Pizza', 'Mystery Tofu']);
   assert.equal(d.targets[1]!.perPortion!.pixels, 1000); // 10,000 px ÷ 10
-  close(d.targets[1]!.perPortion!.impactPoints, 5.96);
+  close(d.targets[1]!.perPortion!.impactPoints, score(PIZZA));
   assert.equal(d.targets[1]!.portionsSource, 'manual');
   const tofu = d.targets[2]!;
   assert.equal(tofu.factorKey, null);
@@ -229,7 +233,7 @@ test('dashboard: targets rank by pixels per portion even when points per portion
   const fewPizza = PORTIONS.map((p) => (p.itemId === id(A, 'pepperoni-pizza') ? { ...p, count: 4 } : p));
   const d = buildImpactDashboard(dashInput({ portions: fewPizza }));
   assert.deepEqual(d.targets.map((r) => r.perPortion?.pixels), [2500, 1750, 200]);
-  close(d.targets[0]!.perPortion!.impactPoints, 14.9);
+  close(d.targets[0]!.perPortion!.impactPoints, 2.5 * score(PIZZA)); // 14.9
   assert.ok(d.targets[1]!.perPortion!.impactPoints! > d.targets[0]!.perPortion!.impactPoints!);
   // most wasted: by total pixels, unchanged by portions
   assert.deepEqual(d.mostWasted.map((r) => r.impact.pixels), [10_500, 10_000, 2000, 1000]);
@@ -361,7 +365,7 @@ test('recommendation facts cite pixel and relative-impact metric strings shown o
   assert.deepEqual(facts.targets[0], {
     food: 'Ancho Flank Steak', pixelsPerPortion: 1750, impactPointsPerPortion: 58.61, portionsServed: 6, portionsAreDemo: true, metric: STEAK_RATE,
   });
-  assert.deepEqual(facts.highestImpact.map((h) => [h.food, h.impactPoints]), [['Ancho Flank Steak', 351.67], ['Pepperoni Pizza', 59.6]]);
+  assert.deepEqual(facts.highestImpact.map((h) => [h.food, h.impactPoints]), [['Ancho Flank Steak', 351.65], ['Pepperoni Pizza', 59.61]]);
   assert.equal(facts.unknownFoodPixels, 2000);
   assert.equal(facts.plates.withNeighborFoodExcluded, 1);
   assert.deepEqual(facts.labels, { relativeImpact: true, demoPortions: true });

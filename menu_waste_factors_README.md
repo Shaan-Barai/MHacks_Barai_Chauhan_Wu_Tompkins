@@ -41,7 +41,7 @@ The app does these steps for every analyzed plate photo. Pixels wasted is the me
 3. **Points:**
    - `co2Points = base × C`
    - `waterPoints = base × W`
-   - `impactPoints = base × impact_score_usd_per_kg` (= base × (0.19·C + 1.50·W))
+   - `impactPoints = 0.19 × co2Points + 1.50 × waterPoints` (= base × (0.19·C + 1.50·W), from the unrounded C and W; `impact_score_usd_per_kg` is the same value per kg rounded to cents, for reading the table)
    - `nutritionPoints = base × O` (separate; never added to `impactPoints`)
 
 The points are **unitless and relative**. They compare foods with each other (the same leftover area of steak counts for far more than potatoes), but they are not kilograms, litres or dollars, and a points total is not a physical amount. Points use raw pixels, not the camera calibration, so a pixel is not a fixed area: points are best compared within the same camera setup. Physical estimates come only from the calibrated path below.

@@ -9,7 +9,9 @@
  *   base            = pixels / 1000 × factor.weightGPerCm2
  *   co2Points       = base × factor.kgCo2ePerKg        (C)
  *   waterPoints     = base × factor.waterM3PerKg       (W)
- *   impactPoints    = base × factor.impactUsdPerKg     (0.19·C + 1.50·W)
+ *   impactPoints    = 0.19 × co2Points + 1.50 × waterPoints = base × (0.19·C + 1.50·W),
+ *                     from the unrounded C and W (the CSV's impact_score_usd_per_kg is the
+ *                     same formula rounded to cents for display), so the identity holds exactly
  *   nutritionPoints = base × nutrition.nutrientDaysPerKg  (separate; never in impactPoints)
  *
  * Points are UNITLESS: they only compare foods with each other (beef weighs
@@ -104,6 +106,10 @@ function usableNutrition(n: NutritionFactor | null): n is NutritionFactor {
  * Missing values are null, never 0. Throws RangeError when `pixels` is not a
  * finite nonnegative number: counts must be validated before analytics.
  */
+/** Waste Impact Score weights (menu_waste_factors_README.md): s per kg CO2e, t per m³ water. */
+export const CARBON_WEIGHT = 0.19;
+export const WATER_WEIGHT = 1.5;
+
 export function computeWasteImpact(
   pixels: number,
   factor: WasteFactor | null,
@@ -134,11 +140,14 @@ export function computeWasteImpact(
   if (!usableFactor(factor)) return unavailable('no_factor');
 
   const base = (pixels / PIXELS_PER_POINT_UNIT) * factor.weightGPerCm2;
+  const co2Points = base * factor.kgCo2ePerKg;
+  const waterPoints = base * factor.waterM3PerKg;
   return {
     pixels,
-    co2Points: base * factor.kgCo2ePerKg,
-    waterPoints: base * factor.waterM3PerKg,
-    impactPoints: base * factor.impactUsdPerKg,
+    co2Points,
+    waterPoints,
+    // Waste Impact = s·C + t·W, never nutrition.
+    impactPoints: CARBON_WEIGHT * co2Points + WATER_WEIGHT * waterPoints,
     nutritionPoints: usableNutrition(nutrition) ? base * nutrition.nutrientDaysPerKg : null,
     wasteFactorsVersion: version,
     ...physical,

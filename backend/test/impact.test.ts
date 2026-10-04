@@ -16,7 +16,7 @@
  * cap_b: ham 4,000 px -> base 3.6 -> 18.252 points; unknown food 1,000 px (no points)
  * cap_c: analysis failed (excluded, never zero)
  * Portions (manual): ham 30, potatoes 100.
- *   ham 14,000 px / 30 = 466.67 px/portion (63.882 / 30 = 2.1294 points/portion)
+ *   ham 14,000 px / 30 = 466.67 px/portion (63.83 / 30 = 2.128 points/portion)
  *   potatoes 5,000 px / 100 = 50 px/portion (0.0232 points/portion)
  */
 
@@ -119,7 +119,8 @@ test('GET /api/dashboard/impact: pixel totals, relative points, px-per-portion t
   assert.deepEqual(d.totals.physicalCoverage, { calibratedCaptures: 0, analyzedCaptures: 2 });
   assert.deepEqual(d.window, { start: DATE, end: DATE, hallId: HALL });
   assert.equal(d.totals.pixels, 20000);
-  close(d.totals.impactPoints, 45.63 + 18.252 + 2.32, 'total impact points'); // 66.202
+  // Waste Impact = 0.19 × CO2 points + 1.50 × water points, exactly (no nutrition).
+  close(d.totals.impactPoints, 0.19 * (12.6 * 12.39 + 8 * 0.62) + 1.5 * (12.6 * 1.808 + 8 * 0.117), 'total impact points'); // 66.18
   close(d.totals.co2Points, 12.6 * 12.39 + 8 * 0.62, 'total co2 points');
   close(d.totals.waterPoints, 12.6 * 1.808 + 8 * 0.117, 'total water points');
   close(d.totals.nutritionPoints, 12.6 * 0.38 + 8 * 0.56, 'total nutrition points (separate)');
@@ -135,15 +136,17 @@ test('GET /api/dashboard/impact: pixel totals, relative points, px-per-portion t
   const ham = d.mostWasted.find((r: any) => r.itemId === HAM);
   const potatoes = d.mostWasted.find((r: any) => r.itemId === POTATOES);
   assert.equal(ham.impact.pixels, 14000);
-  close(ham.impact.impactPoints, 63.882, 'ham points');
-  close(potatoes.impact.impactPoints, 2.32, 'potato points');
+  const HAM_PTS = 12.6 * (0.19 * 12.39 + 1.5 * 1.808); // 63.83 (0.19 × CO2 points + 1.50 × water points)
+  const POTATO_PTS = 8 * (0.19 * 0.62 + 1.5 * 0.117); // 2.35
+  close(ham.impact.impactPoints, HAM_PTS, 'ham points');
+  close(potatoes.impact.impactPoints, POTATO_PTS, 'potato points');
   assert.equal(ham.factorKey, 'baked-boneless-ham');
   assert.equal(ham.portionsServed, 30);
   assert.equal(ham.portionsSource, 'manual');
   close(ham.perPortion.pixels, 14000 / 30, 'ham px/portion');
-  close(ham.perPortion.impactPoints, 63.882 / 30, 'ham points/portion');
+  close(ham.perPortion.impactPoints, HAM_PTS / 30, 'ham points/portion');
   assert.equal(potatoes.perPortion.pixels, 50);
-  close(potatoes.perPortion.impactPoints, 0.0232, 'potato points/portion');
+  close(potatoes.perPortion.impactPoints, POTATO_PTS / 100, 'potato points/portion');
   assert.deepEqual(d.mostWasted.map((r: any) => r.itemId), [HAM, POTATOES, null], 'most wasted by pixels');
   assert.deepEqual(d.targets.map((r: any) => r.itemId), [HAM, POTATOES], 'targets by pixels per portion');
 

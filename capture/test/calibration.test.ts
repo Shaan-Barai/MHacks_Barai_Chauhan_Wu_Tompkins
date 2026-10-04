@@ -22,7 +22,7 @@ import {
 } from '../src/calibration.js';
 import type { CameraCalibration, MeasurementSettings } from '../src/contract-types.js';
 import { DishGrouper } from '../src/dishGrouper.js';
-import type { CalibrationApi, CalibrationRequest } from '../src/http.js';
+import { BackendRequestError, type CalibrationApi, type CalibrationRequest } from '../src/http.js';
 import { scanInbox } from '../src/inbox.js';
 import { type BridgeEvent, InboxBridge } from '../src/inboxBridge.js';
 import { InMemoryIngestionSink } from '../src/ingestion.js';
@@ -59,8 +59,14 @@ function succeeded(req: CalibrationRequest, id: string): CameraCalibration {
   };
 }
 
+/**
+ * Mirrors backend/src/services/calibrationService.ts: the calibration id is
+ * the upload's association id, POST is idempotent per upload, unknown ids 404.
+ */
 class FakeCalibrationApi implements CalibrationApi {
+  constructor(private readonly associationOf: () => string = () => `cal_${Math.random().toString(36).slice(2)}`) {}
   created: CalibrationRequest[] = [];
+  private readonly byObject = new Map<string, string>();
   gets = 0;
   /** Status sequence returned by createCalibration/getCalibration for the next calibration. */
   script: Array<CameraCalibration['status']> = ['succeeded'];
@@ -69,8 +75,11 @@ class FakeCalibrationApi implements CalibrationApi {
   settings = new Map<string, MeasurementSettings>();
 
   async createCalibration(req: CalibrationRequest): Promise<CameraCalibration> {
+    const known = this.byObject.get(req.imageObjectId);
+    if (known) return this.store.get(known)!;
     this.created.push(req);
-    const id = `cal_${this.created.length}`;
+    const id = this.associationOf();
+    this.byObject.set(req.imageObjectId, id);
     const [first, ...rest] = this.script;
     this.pending.set(id, rest);
     const c = { ...succeeded(req, id), status: first! };
@@ -81,7 +90,10 @@ class FakeCalibrationApi implements CalibrationApi {
 
   async getCalibration(id: string): Promise<CameraCalibration> {
     this.gets++;
-    const c = this.store.get(id)!;
+    const c = this.store.get(id);
+    if (!c) {
+      throw new BackendRequestError(404, { code: 'CALIBRATION_NOT_FOUND', message: 'No calibration has this id.', retryable: false }, 'Calibration lookup');
+    }
     const next = this.pending.get(id)?.shift();
     if (next) this.store.set(id, { ...c, status: next });
     return this.store.get(id)!;
@@ -122,11 +134,14 @@ const base = { hallId: HALL, cameraId: 'uno-q-c920s-1', knownAreaCm2: CREDIT_CAR
 test('calibrateFromFrame normalizes like a dish, uploads as calibration, then POSTs', async () => {
   const { dir, photo } = await frame();
   const uploader = new RecordingUploader();
-  const api = new FakeCalibrationApi();
+  const api = new FakeCalibrationApi(() => uploader.requests.at(-1)!.association.id);
   const result = await calibrateFromFrame({ ...base, imagePath: photo, frameId: 'frame-1', uploader, api, stateFile: path.join(dir, 's.json') });
 
   assert.equal(uploader.requests.length, 1);
-  assert.deepEqual(uploader.requests[0]!.association, { kind: 'calibration', id: 'frame-1' });
+  // Backend contract: the client-picked calibration id is the upload's association id.
+  assert.equal(uploader.requests[0]!.association.kind, 'calibration');
+  assert.match(uploader.requests[0]!.association.id, /^cal_[0-9A-Z]{26}$/);
+  assert.equal(result.calibration.calibrationId, uploader.requests[0]!.association.id);
   assert.equal(uploader.requests[0]!.widthPx, 1024);
   assert.equal(uploader.requests[0]!.heightPx, 1024);
   const meta = await sharp(Buffer.from(uploader.bytes[0]!)).metadata();
@@ -138,10 +153,10 @@ test('calibrateFromFrame normalizes like a dish, uploads as calibration, then PO
   assert.equal(result.reused, false);
 });
 
-test('rerun reuses the calibration; a new known area makes a new one without re-uploading', async () => {
+test('rerun reuses the calibration; a new known area makes a new calibration (new id + upload)', async () => {
   const { dir, photo } = await frame();
   const uploader = new RecordingUploader();
-  const api = new FakeCalibrationApi();
+  const api = new FakeCalibrationApi(() => uploader.requests.at(-1)!.association.id);
   const stateFile = path.join(dir, 's.json');
   const first = await calibrateFromFrame({ ...base, imagePath: photo, frameId: 'f', uploader, api, stateFile });
   const again = await calibrateFromFrame({ ...base, imagePath: photo, frameId: 'f', uploader, api, stateFile });
@@ -152,17 +167,19 @@ test('rerun reuses the calibration; a new known area makes a new one without re-
   const fixed = await calibrateFromFrame({ ...base, knownAreaCm2: 50, imagePath: photo, frameId: 'f', uploader, api, stateFile });
   assert.equal(api.created.length, 2);
   assert.notEqual(fixed.calibration.calibrationId, first.calibration.calibrationId);
-  assert.equal(uploader.requests.length, 1, 'the same photo is uploaded once');
+  assert.equal(uploader.requests.length, 2, 'one upload per calibration (the backend keys calibrations by upload)');
+  assert.notEqual(uploader.requests[0]!.association.id, uploader.requests[1]!.association.id);
   assert.ok(existsSync(stateFile));
 });
 
 test('processing is polled until terminal; a failed calibration is retried on rerun', async () => {
   const { dir, photo } = await frame();
-  const api = new FakeCalibrationApi();
+  const uploader = new RecordingUploader();
+  const api = new FakeCalibrationApi(() => uploader.requests.at(-1)!.association.id);
   api.script = ['processing', 'processing', 'succeeded'];
   const sleeps: number[] = [];
   const result = await calibrateFromFrame({
-    ...base, imagePath: photo, frameId: 'p', uploader: new InMemoryUploader(), api,
+    ...base, imagePath: photo, frameId: 'p', uploader, api,
     pollIntervalMs: 5, sleep: async (ms) => void sleeps.push(ms),
   });
   assert.equal(result.calibration.status, 'succeeded');
@@ -170,11 +187,11 @@ test('processing is polled until terminal; a failed calibration is retried on re
 
   const stateFile = path.join(dir, 'f.json');
   api.script = ['failed'];
-  const failed = await calibrateFromFrame({ ...base, imagePath: photo, frameId: 'x', uploader: new InMemoryUploader(), api, stateFile });
+  const failed = await calibrateFromFrame({ ...base, imagePath: photo, frameId: 'x', uploader, api, stateFile });
   assert.equal(failed.calibration.status, 'failed');
   assert.match(describeCalibration(failed.calibration).join('\n'), /REFERENCE_NOT_FOUND/);
   api.script = ['succeeded'];
-  const retried = await calibrateFromFrame({ ...base, imagePath: photo, frameId: 'x', uploader: new InMemoryUploader(), api, stateFile });
+  const retried = await calibrateFromFrame({ ...base, imagePath: photo, frameId: 'x', uploader, api, stateFile });
   assert.equal(retried.calibration.status, 'succeeded');
   assert.equal(retried.reused, false);
 });

@@ -10,10 +10,11 @@
  * object and computes k = cm²/px, camera heights and depth scale; this module
  * never computes them itself.
  *
- * Idempotent per frame: the finalized objectId and the calibrationId for a
- * (frame, camera, area, label) are kept in a state file, so a rerun shows the
- * existing calibration instead of creating another. A different known area or
- * label for the same photo makes a new calibration (fixing a typo).
+ * Idempotent per (frame, hall, camera, area, label): the calibration id and
+ * finalized upload are kept in a state file, so a rerun shows the existing
+ * calibration instead of creating another. A different known area or label
+ * for the same photo makes a new calibration (fixing a typo); a failed one is
+ * retried with a new id and upload.
  */
 
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
@@ -21,7 +22,8 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { CameraCalibration, MeasurementSettings } from './contract-types.js';
-import type { CalibrationApi } from './http.js';
+import { BackendRequestError, type CalibrationApi } from './http.js';
+import { type IdFactory, newId } from './ids.js';
 import { normalizeImage } from './normalize.js';
 import type { Uploader } from './uploader.js';
 
@@ -47,6 +49,8 @@ export interface CalibrateOptions {
   pollIntervalMs?: number;
   timeoutMs?: number;
   sleep?: (ms: number) => Promise<void>;
+  /** Mints the calibration id (default `cal_<ULID>`). */
+  idFactory?: IdFactory;
 }
 
 export interface CalibrateResult {
@@ -61,9 +65,19 @@ export interface CalibrateResult {
   sourceHeightPx: number | null;
 }
 
+interface CalibrationAttempt {
+  /** The id the client picked; also the upload's association id (backend contract). */
+  calibrationId: string;
+  objectId?: string;
+  widthPx?: number;
+  heightPx?: number;
+  sourceWidthPx?: number;
+  sourceHeightPx?: number;
+}
+
 interface CalibrationState {
-  uploads: Record<string, { objectId: string; widthPx: number; heightPx: number; sourceWidthPx: number; sourceHeightPx: number }>;
-  calibrations: Record<string, string>;
+  /** calibrationKey → the current attempt for that frame/area/label. */
+  attempts: Record<string, CalibrationAttempt>;
 }
 
 /** Throws a plain-language Error for bad user input. */
@@ -89,9 +103,9 @@ export function validateCalibrationInput(input: {
 function loadState(file: string | undefined): CalibrationState {
   if (file && existsSync(file)) {
     const parsed = JSON.parse(readFileSync(file, 'utf8')) as Partial<CalibrationState>;
-    return { uploads: parsed.uploads ?? {}, calibrations: parsed.calibrations ?? {} };
+    return { attempts: parsed.attempts ?? {} };
   }
-  return { uploads: {}, calibrations: {} };
+  return { attempts: {} };
 }
 
 function saveState(file: string | undefined, state: CalibrationState): void {
@@ -105,54 +119,70 @@ export function calibrationKey(o: Pick<CalibrateOptions, 'frameId' | 'hallId' | 
   return [o.frameId, o.hallId, o.cameraId, o.knownAreaCm2, o.referenceLabel.trim()].join('|');
 }
 
+async function existing(api: CalibrationApi, calibrationId: string): Promise<CameraCalibration | null> {
+  try {
+    return await api.getCalibration(calibrationId);
+  } catch (err) {
+    if (err instanceof BackendRequestError && err.status === 404 && err.apiError?.code !== 'ROUTE_NOT_FOUND') return null;
+    throw err;
+  }
+}
+
+/**
+ * Backend contract (backend/src/services/calibrationService.ts): the client
+ * picks the calibration id, uploads the photo with association
+ * { kind: 'calibration', id: calibrationId }, and POST /api/calibrations is
+ * idempotent per upload. So each attempt is one id + one upload; a failed
+ * attempt is retried with a fresh id and upload, and a different known area
+ * or label is a different attempt.
+ */
 export async function calibrateFromFrame(options: CalibrateOptions): Promise<CalibrateResult> {
   validateCalibrationInput(options);
   const sleep = options.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const idFactory = options.idFactory ?? newId;
   const state = loadState(options.stateFile);
   const key = calibrationKey(options);
 
-  let upload = state.uploads[options.frameId];
-  const known = state.calibrations[key];
-  if (known && upload) {
-    const calibration = await options.api.getCalibration(known);
-    // A failed calibration is retried with the same uploaded photo.
-    if (calibration.status !== 'failed') {
-      return { calibration, imageObjectId: upload.objectId, reused: true, ...upload };
-    }
+  let attempt = state.attempts[key];
+  if (attempt?.objectId) {
+    const known = await existing(options.api, attempt.calibrationId);
+    if (known && known.status !== 'failed') return result(known, attempt, true);
+    if (known?.status === 'failed') attempt = undefined; // new id + upload
+  }
+  if (!attempt) {
+    attempt = { calibrationId: idFactory('cal') };
+    state.attempts[key] = attempt;
+    saveState(options.stateFile, state);
   }
 
-  if (!upload) {
+  if (!attempt.objectId) {
     const normalized = await normalizeImage(await readFile(options.imagePath), {}, { frameId: options.frameId });
     const auth = await options.uploader.authorizeUpload({
       mimeType: normalized.mimeType,
       sizeBytes: normalized.bytes.byteLength,
       widthPx: normalized.geometry.widthPx,
       heightPx: normalized.geometry.heightPx,
-      association: { kind: 'calibration', id: options.frameId },
+      association: { kind: 'calibration', id: attempt.calibrationId },
     });
     await options.uploader.uploadBytes(auth, normalized.bytes);
     const { objectId } = await options.uploader.finalizeUpload(auth);
-    upload = {
+    Object.assign(attempt, {
       objectId,
       widthPx: normalized.geometry.widthPx,
       heightPx: normalized.geometry.heightPx,
       sourceWidthPx: normalized.sourceWidthPx,
       sourceHeightPx: normalized.sourceHeightPx,
-    };
-    state.uploads[options.frameId] = upload;
+    });
     saveState(options.stateFile, state);
   }
 
   let calibration = await options.api.createCalibration({
     hallId: options.hallId,
     cameraId: options.cameraId,
-    imageObjectId: upload.objectId,
+    imageObjectId: attempt.objectId!,
     knownAreaCm2: options.knownAreaCm2,
     referenceLabel: options.referenceLabel.trim(),
   });
-  state.calibrations[key] = calibration.calibrationId;
-  saveState(options.stateFile, state);
-
   const deadline = Date.now() + (options.timeoutMs ?? 300_000);
   while (calibration.status === 'processing') {
     if (Date.now() > deadline) {
@@ -161,7 +191,19 @@ export async function calibrateFromFrame(options: CalibrateOptions): Promise<Cal
     await sleep(options.pollIntervalMs ?? 2000);
     calibration = await options.api.getCalibration(calibration.calibrationId);
   }
-  return { calibration, imageObjectId: upload.objectId, reused: false, ...upload };
+  return result(calibration, attempt, false);
+}
+
+function result(calibration: CameraCalibration, a: CalibrationAttempt, reused: boolean): CalibrateResult {
+  return {
+    calibration,
+    imageObjectId: a.objectId!,
+    reused,
+    widthPx: a.widthPx ?? calibration.widthPx,
+    heightPx: a.heightPx ?? calibration.heightPx,
+    sourceWidthPx: a.sourceWidthPx ?? null,
+    sourceHeightPx: a.sourceHeightPx ?? null,
+  };
 }
 
 /**

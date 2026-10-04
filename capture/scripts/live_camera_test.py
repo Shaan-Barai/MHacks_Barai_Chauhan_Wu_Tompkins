@@ -46,6 +46,7 @@ import subprocess
 import sys
 import threading
 import time
+import ssl
 import urllib.error
 import urllib.request
 
@@ -270,6 +271,15 @@ def ingest_token(args):
     return None
 
 
+def ssl_context():
+    """certifi's CA bundle when importable (python.org macOS builds ship none), else the default."""
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        return None
+
+
 def api_json(args, method, route, body=None, timeout=60):
     data = None if body is None else json.dumps(body).encode()
     headers = {"content-type": "application/json"}
@@ -277,7 +287,7 @@ def api_json(args, method, route, body=None, timeout=60):
         headers["authorization"] = f"Bearer {args.token}"  # never printed
     request = urllib.request.Request(f"{args.api}{route}", data=data, method=method, headers=headers)
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urllib.request.urlopen(request, timeout=timeout, context=ssl_context()) as response:
             return response.status, json.loads(response.read() or b"{}")
     except urllib.error.HTTPError as error:
         if error.code in (401, 403):

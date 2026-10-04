@@ -354,6 +354,9 @@ Schema publishes are additive and are not rolled back: older code ignores the ne
 
 ## Troubleshooting
 
+- **Python `CERTIFICATE_VERIFY_FAILED` (`demo.py`, `capture/scripts/live_camera_test.py`) on macOS:** python.org
+  builds ship no CA bundle. Run `/Applications/Python 3.x/Install Certificates.command` or `pip install certifi`
+  (both scripts use certifi automatically when importable).
 - **502 Bad Gateway from the tunnel:** cloudflared runs but the backend does not answer. Check
   `deploy/local.sh status` and `curl -s http://127.0.0.1:8787/api/health`. The ingress service must be
   `http://127.0.0.1:8787` (http, not https; `127.0.0.1`, not `localhost`, which can resolve to IPv6).

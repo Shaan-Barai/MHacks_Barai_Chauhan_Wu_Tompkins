@@ -47,6 +47,7 @@ from pathlib import Path
 import re
 import shutil
 import socket
+import ssl
 import subprocess
 import sys
 import time
@@ -161,20 +162,21 @@ class Demo:
         print(f"  {mark} {message}", flush=True)
 
     # -- HTTP --
-    def get(self, route, timeout=60):
-        return self.request("GET", route, timeout=timeout)
+    def get(self, route, timeout=60, anonymous=False):
+        return self.request("GET", route, timeout=timeout, anonymous=anonymous)
 
-    def request(self, method, route, body=None, timeout=60, base=None):
+    def request(self, method, route, body=None, timeout=60, base=None, anonymous=False):
+        """anonymous=True sends no ingest token; a 401/403 is then an expected answer, never a token hint."""
         data = None if body is None else json.dumps(body).encode()
         headers = {"content-type": "application/json"}
-        if self.token:
+        if self.token and not anonymous:
             headers["authorization"] = f"Bearer {self.token}"
         req = urllib.request.Request((base or self.api) + route, data=data, method=method, headers=headers)
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as r:
+            with urllib.request.urlopen(req, timeout=timeout, context=ssl_context()) as r:
                 return r.status, json.loads(r.read() or b"null")
         except urllib.error.HTTPError as e:
-            if e.code in (401, 403) and not self.auth_warned:
+            if e.code in (401, 403) and not anonymous and not self.auth_warned:
                 self.auth_warned = True
                 hint = ("no ingest token is set" if not self.token else
                         f"the token from {self.token_source} was refused")
@@ -194,6 +196,16 @@ class Demo:
 
     def window(self):
         return urllib.parse.urlencode({"hallId": HALL_ID, "start": self.date, "end": self.date})
+
+
+def ssl_context():
+    """HTTPS context using certifi's CA bundle when importable (python.org macOS builds ship none:
+    CERTIFICATE_VERIFY_FAILED); otherwise the platform default."""
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        return None
 
 
 def hall_today():
@@ -840,11 +852,7 @@ def step_admin(demo):
     else:
         demo.check("PASS", f"{len(rows) - len(hidden)} plate(s) shown on the dashboard, {len(hidden)} hidden by an admin "
                            "(hidden plates stay in SpacetimeDB and R2)")
-    try:  # anonymous on purpose (demo.get would send the ingest token)
-        with urllib.request.urlopen(f"{demo.api}/api/admin/captures?{demo.window()}", timeout=10) as r:
-            status = r.status
-    except urllib.error.HTTPError as e:
-        status = e.code
+    status, _ = demo.get(f"/api/admin/captures?{demo.window()}", timeout=10, anonymous=True)  # no token on purpose
     if status == 401:
         demo.check("PASS", "Admin list needs a staff sign-in (401 without one)")
     elif status == 200:

@@ -33,6 +33,9 @@ import type {
 } from '../types.js';
 
 export interface Repository {
+  /** Readiness probe (GET /api/ready): throws when the store is unreachable. */
+  ping?(): Promise<void>;
+
   // --- menus (MealService + MenuItem[], joined as MenuBundle) ---
   upsertMenu(menu: MenuBundle): Promise<void>;
   getMenuByService(serviceId: string): Promise<MenuBundle | undefined>;

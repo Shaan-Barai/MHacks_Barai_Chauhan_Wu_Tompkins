@@ -28,8 +28,14 @@
  * Needs the data package built (npm run build:deps, or npm start/test).
  */
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+
+// Mutations need the ingest token when the backend enforces auth (IT_4 I11);
+// read it from the environment or the repo-root .env.
+const envFile = fileURLToPath(new URL('../../.env', import.meta.url));
+if (!process.env.SCRAP_INGEST_TOKEN && existsSync(envFile)) process.loadEnvFile(envFile);
+const auth = process.env.SCRAP_INGEST_TOKEN ? { Authorization: `Bearer ${process.env.SCRAP_INGEST_TOKEN}` } : {};
 
 const api = (process.env.API_URL ?? `http://localhost:${process.env.PORT ?? 8787}`).replace(/\/$/, '');
 const seedPath = process.env.SEED_FILE ?? fileURLToPath(new URL('../../data/seed/demo-seed.json', import.meta.url));
@@ -50,7 +56,7 @@ try {
 async function send(method, path, body) {
   const res = await fetch(`${api}${path}`, {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...auth },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`${method} ${path} failed (${res.status}): ${await res.text()}`);

@@ -6,6 +6,8 @@
  * never in logs.
  */
 
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { parseMenuCsv, parseMenuUpload, planMenuRevision, parsePortionsServed, parsePortionsCsv } from 'scrap-data';
 import { HttpError, notFound, badRequest, toHttpError, apiError } from '../errors.js';
@@ -20,6 +22,22 @@ import type { DishMatchService } from '../services/dishMatchService.js';
 import type { CaptureService } from '../services/captureService.js';
 import { parseWindow, CAPTURE_LIST_DEFAULT_LIMIT, CAPTURE_LIST_MAX_LIMIT, type ImpactService } from '../services/impactService.js';
 import type { MealLabel, MenuBundle } from '../types.js';
+import type { ReadinessService } from '../services/readinessService.js';
+import { log } from '../log.js';
+import {
+  authGate,
+  issueSession,
+  RateLimiter,
+  rateLimit,
+  readCookie,
+  safeEqual,
+  securityHeaders,
+  sessionCookie,
+  sessionNonce,
+  SESSION_COOKIE,
+  clientIp,
+  type ResolvedSecurity,
+} from './security.js';
 import {
   validateAttendance,
   validateCaptureSubmission,
@@ -39,12 +57,47 @@ export interface AppDeps {
   dishMatch: DishMatchService;
   captures: CaptureService;
   impact: ImpactService;
+  /** IT_4 I11: resolved auth settings (buildBackend → assertSecurity). */
+  security: ResolvedSecurity;
+  readiness: ReadinessService;
+  now?: () => number;
+  /** Origins the browser talks to directly (presigned object storage), for the CSP. */
+  storageOrigins?: string[];
 }
 
 export function createApp(deps: AppDeps): express.Express {
-  const { config, repo, storage, images, ingestion, summary, dashboard, dishMatch, captures, impact } = deps;
+  const { config, repo, storage, images, ingestion, summary, dashboard, dishMatch, captures, impact, security, readiness } = deps;
+  const now = deps.now ?? (() => Date.now());
   const app = express();
-  app.use(express.json({ limit: '1mb' }));
+  app.disable('x-powered-by');
+  app.set('trust proxy', security.trustProxy);
+  app.use(securityHeaders({ production: security.production, storageOrigins: deps.storageOrigins ?? [] }));
+
+  // Structured access log for API calls: path only (never the query string,
+  // which can carry local-dev storage tokens), status, duration.
+  app.use((req, res, next) => {
+    if (!req.path.startsWith('/api/')) return next();
+    const start = Date.now();
+    res.on('finish', () => {
+      log.info('request', { method: req.method, path: req.path, status: res.statusCode, ms: Date.now() - start });
+    });
+    next();
+  });
+
+  // Every /api mutation needs the ingest token or an admin session (I11).
+  const revoked = new Set<string>();
+  app.use(authGate(security, now, revoked));
+  app.use(express.json({ limit: security.jsonBodyLimit }));
+
+  const limiter = new RateLimiter(now);
+  // Gemini-cost endpoints: a modest per-IP cap; the trusted ingest token gets 10×.
+  const geminiCap = rateLimit(
+    limiter,
+    'gemini',
+    (_req, res) => (res.locals.principal === 'ingest' ? security.geminiRateLimit * 10 : security.geminiRateLimit),
+    60_000,
+  );
+  const loginCap = rateLimit(limiter, 'login', () => security.loginRateLimit, 15 * 60_000);
 
   const wrap =
     (fn: (req: Request, res: Response) => Promise<void>) =>
@@ -68,8 +121,52 @@ export function createApp(deps: AppDeps): express.Express {
     return v;
   }
 
+  // ---- liveness / readiness ----
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true, provider: storage.provider });
+  });
+
+  app.get(
+    '/api/ready',
+    wrap(async (_req, res) => {
+      const report = await readiness.check();
+      res.status(report.ready ? 200 : 503).json(report);
+    }),
+  );
+
+  // ---- admin session (I11) ----
+  app.post(
+    '/api/auth/login',
+    loginCap,
+    wrap(async (req, res) => {
+      if (!security.adminPasscode) {
+        if (security.open) {
+          res.json({ admin: true, authRequired: false });
+          return;
+        }
+        throw new HttpError(503, apiError('AUTH_NOT_CONFIGURED', 'Admin sign-in is not set up on this server.', false));
+      }
+      const passcode = req.body?.passcode;
+      if (typeof passcode !== 'string' || !safeEqual(passcode, security.adminPasscode)) {
+        log.warn('admin login failed', { ip: clientIp(req) });
+        throw new HttpError(401, apiError('INVALID_PASSCODE', 'That passcode is not correct.', false));
+      }
+      const session = issueSession(security, now());
+      res.setHeader('Set-Cookie', sessionCookie(security, session.value, security.sessionTtlMs));
+      res.json({ admin: true, authRequired: true, expiresAt: new Date(session.expiresAt).toISOString() });
+    }),
+  );
+
+  app.post('/api/auth/logout', (req, res) => {
+    const nonce = sessionNonce(readCookie(req, SESSION_COOKIE));
+    if (nonce) revoked.add(nonce);
+    res.setHeader('Set-Cookie', sessionCookie(security, '', 0));
+    res.json({ admin: security.open, authRequired: !security.open });
+  });
+
+  app.get('/api/auth/me', (_req, res) => {
+    const principal = res.locals.principal;
+    res.json({ admin: principal === 'admin' || principal === 'open', authRequired: !security.open });
   });
 
   // ---- menus ----
@@ -343,6 +440,7 @@ export function createApp(deps: AppDeps): express.Express {
   // ---- capture ingestion (idempotent by eventId) ----
   app.post(
     '/api/captures',
+    geminiCap,
     wrap(async (req, res) => {
       const submission = validateCaptureSubmission(req.body);
       const result = await ingestion.submitCapture(submission);
@@ -354,6 +452,7 @@ export function createApp(deps: AppDeps): express.Express {
   // Thumbnails are transient — never stored or logged.
   app.post(
     '/api/dish-match',
+    geminiCap,
     wrap(async (req, res) => {
       res.json(await dishMatch.match(req.body));
     }),
@@ -509,6 +608,7 @@ export function createApp(deps: AppDeps): express.Express {
 
   app.get(
     '/api/recommendation',
+    geminiCap,
     wrap(async (req, res) => {
       res.json(await impact.recommendation(parseWindow(req.query)));
     }),
@@ -548,6 +648,28 @@ export function createApp(deps: AppDeps): express.Express {
     }),
   );
 
+  // ---- built dashboard (SERVE_FRONTEND=1) with SPA fallback ----
+  if (config.frontendDist) {
+    const dist = config.frontendDist;
+    const index = join(dist, 'index.html');
+    if (!existsSync(index)) log.warn('SERVE_FRONTEND=1 but the dashboard build is missing; run the frontend build.', { frontendDist: dist });
+    app.use(
+      express.static(dist, {
+        index: false,
+        setHeaders(res, path) {
+          // Vite content-hashes everything under assets/: cache forever. Everything else revalidates.
+          res.setHeader('Cache-Control', /[\\/]assets[\\/]/.test(path) ? 'public, max-age=31536000, immutable' : 'no-cache');
+        },
+      }),
+    );
+    app.use((req, res, next) => {
+      if ((req.method !== 'GET' && req.method !== 'HEAD') || req.path === '/api' || req.path.startsWith('/api/')) return next();
+      if (!existsSync(index)) return next();
+      res.setHeader('Cache-Control', 'no-cache');
+      res.sendFile(index);
+    });
+  }
+
   // ---- shared error envelope ----
   app.use((req, res) => {
     res.status(404).json({
@@ -572,7 +694,7 @@ export function createApp(deps: AppDeps): express.Express {
     const httpErr = toHttpError(err);
     if (httpErr.status >= 500) {
       // Log code/message only — never URLs, tokens, or payloads.
-      console.error(`[backend] ${httpErr.apiError.code}: ${httpErr.apiError.message}`);
+      log.error('request failed', { code: httpErr.apiError.code, message: httpErr.apiError.message });
     }
     res.status(httpErr.status).json({ error: httpErr.apiError });
   });

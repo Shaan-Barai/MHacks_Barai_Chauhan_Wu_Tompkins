@@ -36,6 +36,8 @@ export interface SpacetimeConfig {
   module: string;
   /** Bearer token of the module owner identity. */
   token?: string;
+  /** Per-request timeout (default 20 s). */
+  timeoutMs?: number;
 }
 
 type AlgebraicType = Record<string, any>;
@@ -86,8 +88,10 @@ function quote(value: string): string {
 
 export class SpacetimeRepository implements Repository {
   private readonly base: string;
+  private readonly timeoutMs: number;
 
   constructor(private readonly config: SpacetimeConfig) {
+    this.timeoutMs = config.timeoutMs ?? 20_000;
     this.base = `${config.uri.replace(/\/$/, '')}/v1/database/${encodeURIComponent(config.module)}`;
   }
 
@@ -102,6 +106,7 @@ export class SpacetimeRepository implements Repository {
       method: 'POST',
       headers: { ...this.headers(), 'Content-Type': 'application/json' },
       body: JSON.stringify(args),
+      signal: AbortSignal.timeout(this.timeoutMs),
     });
     if (!res.ok) {
       throw new Error(`SpacetimeDB reducer ${reducer} failed (${res.status}): ${await res.text()}`);
@@ -109,13 +114,23 @@ export class SpacetimeRepository implements Repository {
   }
 
   private async sql(query: string): Promise<Row[]> {
-    const res = await fetch(`${this.base}/sql`, { method: 'POST', headers: this.headers(), body: query });
+    const res = await fetch(`${this.base}/sql`, {
+      method: 'POST',
+      headers: this.headers(),
+      body: query,
+      signal: AbortSignal.timeout(this.timeoutMs),
+    });
     if (!res.ok) throw new Error(`SpacetimeDB query failed (${res.status}): ${await res.text()}`);
     const results = (await res.json()) as SqlResult[];
     const result = results[0];
     if (!result) return [];
     const rowType = { Product: { elements: result.schema.elements } };
     return result.rows.map((r) => decode(r, rowType) as Row);
+  }
+
+  /** Readiness: one tiny query proves the server, database and token work. */
+  async ping(): Promise<void> {
+    await this.sql('SELECT * FROM meal_service LIMIT 1');
   }
 
   // --- menus ---

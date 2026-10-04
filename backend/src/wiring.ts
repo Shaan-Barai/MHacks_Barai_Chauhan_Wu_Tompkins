@@ -20,6 +20,8 @@ import { ImpactService } from './services/impactService.js';
 import { MockAnalyzer } from './analysis/mockAnalyzer.js';
 import { MaskAnalyzer } from './analysis/maskAnalyzer.js';
 import { createApp, type AppDeps } from './http/app.js';
+import { assertSecurity } from './http/security.js';
+import { ReadinessService } from './services/readinessService.js';
 import type { Analyzer } from './analysis/analyzer.js';
 import type { Repository } from './repo/repository.js';
 
@@ -50,8 +52,23 @@ function createStorage(config: BackendConfig, now: () => number): ObjectStorageA
   return new LocalDevStorage({ ...os, now });
 }
 
+/** Origins the browser reaches directly for presigned R2 reads/uploads (CSP). */
+function storageOrigins(config: BackendConfig): string[] {
+  const r2 = config.objectStorage.provider === 'r2' ? config.objectStorage.r2 : undefined;
+  if (!r2) return [];
+  try {
+    const endpoint = new URL(r2.endpoint ?? `https://${r2.accountId}.r2.cloudflarestorage.com`);
+    // Presigned URLs may be virtual-hosted (<bucket>.<endpoint host>) or path-style.
+    return [endpoint.origin, `${endpoint.protocol}//*.${endpoint.host}`];
+  } catch {
+    return [];
+  }
+}
+
 export function buildBackend(options: BuildOptions = {}): AppDeps & { app: ReturnType<typeof createApp> } {
   const config = options.config ?? loadConfig();
+  // IT_4 I11: production refuses to start without its auth secrets.
+  const security = assertSecurity(config.security);
   const now = options.now ?? (() => Date.now());
   // SpacetimeDB when configured (SPACETIMEDB_URI); otherwise the offline
   // in-memory/JSON repository used by tests and fixture-only machines.
@@ -78,6 +95,29 @@ export function buildBackend(options: BuildOptions = {}): AppDeps & { app: Retur
   const captures = new CaptureService(repo, images, ingestion);
   // Recommendations use live Gemini only; mock text is never shown (labeled fallback instead).
   const impact = new ImpactService(repo, ingestion, gateway.mode === 'live' ? gateway : undefined, now);
-  const deps: AppDeps = { config, repo, storage, images, ingestion, summary, dashboard, dishMatch, captures, impact };
+  const readiness = new ReadinessService({
+    repo,
+    storage,
+    samWorkerUrl: config.samWorkerUrl,
+    depthWorkerUrl: config.depthWorkerUrl,
+    workerToken: config.workerToken,
+    samRequired: analyzer instanceof MaskAnalyzer,
+  });
+  const deps: AppDeps = {
+    config,
+    repo,
+    storage,
+    images,
+    ingestion,
+    summary,
+    dashboard,
+    dishMatch,
+    captures,
+    impact,
+    security,
+    readiness,
+    now,
+    storageOrigins: storageOrigins(config),
+  };
   return { ...deps, app: createApp(deps) };
 }

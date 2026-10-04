@@ -70,7 +70,10 @@ export interface TestServer {
   submitCapture(eventId: string, imageObjectId: string): Promise<{ status: number; json: any }>;
 }
 
-export async function startTestServer(analyzer?: Analyzer, opts: { gateway?: GeminiGateway; now?: () => number } = {}): Promise<TestServer> {
+export async function startTestServer(
+  analyzer?: Analyzer,
+  opts: { gateway?: GeminiGateway; now?: () => number; config?: Partial<BackendConfig>; headers?: Record<string, string> } = {},
+): Promise<TestServer> {
   const fixtures: Record<string, MockFixture> = {};
   const config: BackendConfig = {
     port: 0,
@@ -86,8 +89,11 @@ export async function startTestServer(analyzer?: Analyzer, opts: { gateway?: Gem
     },
     attendance: { min: 300, max: 1200 },
     samWorkerUrl: 'http://127.0.0.1:1',
+    depthWorkerUrl: 'http://127.0.0.1:1',
+    ...opts.config,
   };
-  const backend = buildBackend({ config, analyzer: analyzer ?? new MockAnalyzer(fixtures), ...opts });
+  const { config: _c, headers: defaultHeaders, ...rest } = opts;
+  const backend = buildBackend({ config, analyzer: analyzer ?? new MockAnalyzer(fixtures), ...rest });
   const server = backend.app.listen(0, '127.0.0.1');
   await new Promise<void>((resolve) => server.once('listening', () => resolve()));
   const baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -95,7 +101,7 @@ export async function startTestServer(analyzer?: Analyzer, opts: { gateway?: Gem
   const api = async (method: string, path: string, body?: unknown) => {
     const res = await fetch(`${baseUrl}${path}`, {
       method,
-      headers: body !== undefined ? { 'content-type': 'application/json' } : {},
+      headers: { ...defaultHeaders, ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
     const text = await res.text();
@@ -124,7 +130,7 @@ export async function startTestServer(analyzer?: Analyzer, opts: { gateway?: Gem
       if (req.status !== 201) throw new Error(`upload request failed: ${JSON.stringify(req.json)}`);
       const put = await fetch(`${baseUrl}${req.json.uploadUrl}`, {
         method: 'PUT',
-        headers: { 'content-type': 'image/png' },
+        headers: { ...defaultHeaders, 'content-type': 'image/png' },
         body: Buffer.from('fake-png-bytes-for-testing-only-0123456789abcdef'),
       });
       if (put.status !== 204) throw new Error(`upload PUT failed: ${put.status}`);

@@ -9,6 +9,8 @@
  */
 
 import { parseArgs } from 'node:util';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 const { values: args } = parseArgs({
   options: {
@@ -23,6 +25,10 @@ if (!args.start || !args.end) {
   process.exit(2);
 }
 const api = (process.env.API_URL ?? 'http://localhost:8787').replace(/\/$/, '');
+// Mutations need the ingest token when the backend enforces auth (IT_4 I11).
+const envFile = fileURLToPath(new URL('../../.env', import.meta.url));
+if (!process.env.SCRAP_INGEST_TOKEN && existsSync(envFile)) process.loadEnvFile(envFile);
+const auth = process.env.SCRAP_INGEST_TOKEN ? { Authorization: `Bearer ${process.env.SCRAP_INGEST_TOKEN}` } : {};
 
 async function getJson(path, init) {
   const res = await fetch(`${api}${path}`, init);
@@ -57,7 +63,7 @@ for (const c of failed) {
   try {
     const result = await getJson('/api/captures', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...auth },
       body: JSON.stringify(submission),
     });
     const err = result.attempt?.error?.code;

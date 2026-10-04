@@ -112,8 +112,7 @@ export interface EstimatedFacts {
   note: string;
   calibratedPlates: number;
   analyzedPlates: number;
-  volumePlates: number;
-  method: PhysicalMethod | 'mixed' | null;
+  method: PhysicalMethod | null;
   grams: number;
   kgCo2e: number;
   waterLitres: number;
@@ -225,10 +224,9 @@ export function recommendationFacts(d: ImpactDashboard): RecommendationFacts {
         metric: add(estimatedItemMetric(r))!,
       }));
     estimated = {
-      note: 'ESTIMATES from a camera calibration (known reference area, and depth when enabled) and per-food density and impact factors. Not weighed. They cover only the calibrated plates.',
+      note: 'ESTIMATES from a camera calibration (known reference area) and per-food weight-per-area and impact factors. Not weighed. They cover only the calibrated plates.',
       calibratedPlates: cov.calibratedCaptures,
       analyzedPlates: cov.analyzedCaptures,
-      volumePlates: d.totals.physicalCoverage.volumeCaptures,
       method: d.totals.physicalMethod ?? null,
       grams: Math.round(d.totals.grams ?? 0),
       kgCo2e: sig(d.totals.kgCo2e!),

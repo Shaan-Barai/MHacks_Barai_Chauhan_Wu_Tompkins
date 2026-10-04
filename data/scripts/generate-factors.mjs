@@ -58,28 +58,7 @@ function num(row, col, file) {
 }
 
 const optNum = (v) => (v === '' ? null : Number(v));
-
-/** Optional positive number (blank -> null), e.g. density_g_per_cm3. */
-function optPositive(row, col, file) {
-  const v = row[col];
-  if (v === undefined) throw new Error(`${file}: missing column ${col}`);
-  if (v === '') return null;
-  const n = Number(v);
-  if (!Number.isFinite(n) || n <= 0) {
-    throw new Error(`${file}: "${row.food}" has an invalid ${col} (${JSON.stringify(v)})`);
-  }
-  return n;
-}
 const optStr = (v) => (v === '' ? null : v);
-
-/** IT_4 I7: bulk density as served; every row must cite a source (or say why it has none). */
-function density(r) {
-  const d = optPositive(r, 'density_g_per_cm3', 'menu_waste_factors.csv');
-  if (!r.density_source) {
-    throw new Error(`menu_waste_factors.csv: "${r.food}" needs a density_source (cite it, or say why density is blank)`);
-  }
-  return d;
-}
 
 export function buildTables(wasteCsv, nutritionCsv) {
   const waste = parseCsv(wasteCsv).map((r) => {
@@ -97,7 +76,6 @@ export function buildTables(wasteCsv, nutritionCsv) {
         waterM3PerKg: num(r, 'W_water_m3_per_kg', 'menu_waste_factors.csv'),
         impactUsdPerKg: num(r, 'impact_score_usd_per_kg', 'menu_waste_factors.csv'),
         largestFactor: largest,
-        densityGPerCm3: density(r),
       },
       text: {
         factorKey: slug(r.food),
@@ -108,7 +86,6 @@ export function buildTables(wasteCsv, nutritionCsv) {
         allergens: optStr(r.allergens_listed),
         labelServingG: optNum(r.label_serving_g),
         menuCo2Label: optStr(r.menu_co2_label),
-        densitySource: optStr(r.density_source),
       },
     };
   });
@@ -151,14 +128,9 @@ export interface WasteFactorMenuText {
   allergens: string | null;
   labelServingG: number | null;
   menuCo2Label: string | null;
-  /** Citation for densityGPerCm3 (FAO/INFOODS Density DB v2.0 or USDA entry, analogue, or why it is blank). */
-  densitySource: string | null;
 }
 
-/**
- * menu_waste_factors.csv rows. Score = 0.19*C + 1.50*W (no nutrition).
- * densityGPerCm3 (IT_4 I7): bulk density as served, for the DAv2 volume method; null when unsourced.
- */
+/** menu_waste_factors.csv rows. Score = 0.19*C + 1.50*W (no nutrition). */
 export const WASTE_FACTORS: WasteFactor[] = ${j(tables.wasteFactors)};
 
 /** menu_nutrition_factors.csv rows. Reported separately; never part of the score. */

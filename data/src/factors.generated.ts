@@ -15,14 +15,9 @@ export interface WasteFactorMenuText {
   allergens: string | null;
   labelServingG: number | null;
   menuCo2Label: string | null;
-  /** Citation for densityGPerCm3 (FAO/INFOODS Density DB v2.0 or USDA entry, analogue, or why it is blank). */
-  densitySource: string | null;
 }
 
-/**
- * menu_waste_factors.csv rows. Score = 0.19*C + 1.50*W (no nutrition).
- * densityGPerCm3 (IT_4 I7): bulk density as served, for the DAv2 volume method; null when unsourced.
- */
+/** menu_waste_factors.csv rows. Score = 0.19*C + 1.50*W (no nutrition). */
 export const WASTE_FACTORS: WasteFactor[] = [
   {
     "factorKey": "broccoli-cheddar-soup",
@@ -32,8 +27,7 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "kgCo2ePerKg": 4.9,
     "waterM3PerKg": 1.07,
     "impactUsdPerKg": 2.54,
-    "largestFactor": "water",
-    "densityGPerCm3": 1.05
+    "largestFactor": "water"
   },
   {
     "factorKey": "baked-boneless-ham",
@@ -43,8 +37,7 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "kgCo2ePerKg": 12.39,
     "waterM3PerKg": 1.808,
     "impactUsdPerKg": 5.07,
-    "largestFactor": "water",
-    "densityGPerCm3": 0.7
+    "largestFactor": "water"
   },
   {
     "factorKey": "oven-roasted-garlic-potatoes",
@@ -54,8 +47,7 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "kgCo2ePerKg": 0.62,
     "waterM3PerKg": 0.117,
     "impactUsdPerKg": 0.29,
-    "largestFactor": "water",
-    "densityGPerCm3": 0.59
+    "largestFactor": "water"
   },
   {
     "factorKey": "baked-sweet-potatoes",
@@ -65,8 +57,7 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "kgCo2ePerKg": 0.43,
     "waterM3PerKg": 0.028,
     "impactUsdPerKg": 0.12,
-    "largestFactor": "carbon",
-    "densityGPerCm3": 0.65
+    "largestFactor": "carbon"
   },
   {
     "factorKey": "roasted-cauliflower",
@@ -76,8 +67,7 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "kgCo2ePerKg": 0.54,
     "waterM3PerKg": 0.13,
     "impactUsdPerKg": 0.3,
-    "largestFactor": "water",
-    "densityGPerCm3": 0.45
+    "largestFactor": "water"
   },
   {
     "factorKey": "michigan-farmers-4-bean-stew",
@@ -87,8 +77,7 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "kgCo2ePerKg": 0.95,
     "waterM3PerKg": 0.198,
     "impactUsdPerKg": 0.48,
-    "largestFactor": "water",
-    "densityGPerCm3": 1.07
+    "largestFactor": "water"
   },
   {
     "factorKey": "farro",
@@ -98,8 +87,7 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "kgCo2ePerKg": 0.75,
     "waterM3PerKg": 0.311,
     "impactUsdPerKg": 0.61,
-    "largestFactor": "water",
-    "densityGPerCm3": 0.73
+    "largestFactor": "water"
   },
   {
     "factorKey": "shaved-brussel-sprouts",
@@ -109,8 +97,7 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "kgCo2ePerKg": 0.97,
     "waterM3PerKg": 0.29,
     "impactUsdPerKg": 0.62,
-    "largestFactor": "water",
-    "densityGPerCm3": 0.37
+    "largestFactor": "water"
   },
   {
     "factorKey": "vegetable-cannelloni",
@@ -120,8 +107,7 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "kgCo2ePerKg": 3.69,
     "waterM3PerKg": 0.883,
     "impactUsdPerKg": 2.03,
-    "largestFactor": "water",
-    "densityGPerCm3": 1.04
+    "largestFactor": "water"
   },
   {
     "factorKey": "panzanella-salad",
@@ -131,8 +117,7 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "kgCo2ePerKg": 2.16,
     "waterM3PerKg": 0.587,
     "impactUsdPerKg": 1.29,
-    "largestFactor": "water",
-    "densityGPerCm3": 0.56
+    "largestFactor": "water"
   },
   {
     "factorKey": "ancho-flank-steak",
@@ -142,8 +127,7 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "kgCo2ePerKg": 131.69,
     "waterM3PerKg": 1.925,
     "impactUsdPerKg": 27.91,
-    "largestFactor": "carbon",
-    "densityGPerCm3": 0.7
+    "largestFactor": "carbon"
   },
   {
     "factorKey": "sticky-rice",
@@ -153,8 +137,7 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "kgCo2ePerKg": 1.78,
     "waterM3PerKg": 0.899,
     "impactUsdPerKg": 1.69,
-    "largestFactor": "water",
-    "densityGPerCm3": 0.73
+    "largestFactor": "water"
   },
   {
     "factorKey": "vegetable-stir-fry-blend",
@@ -164,8 +147,7 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "kgCo2ePerKg": 0.48,
     "waterM3PerKg": 0.08,
     "impactUsdPerKg": 0.21,
-    "largestFactor": "water",
-    "densityGPerCm3": 0.68
+    "largestFactor": "water"
   },
   {
     "factorKey": "halal-rice",
@@ -175,8 +157,7 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "kgCo2ePerKg": 1.9,
     "waterM3PerKg": 0.866,
     "impactUsdPerKg": 1.66,
-    "largestFactor": "water",
-    "densityGPerCm3": 0.7
+    "largestFactor": "water"
   },
   {
     "factorKey": "tomatoes",
@@ -186,8 +167,7 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "kgCo2ePerKg": 2.09,
     "waterM3PerKg": 0.37,
     "impactUsdPerKg": 0.95,
-    "largestFactor": "water",
-    "densityGPerCm3": 0.76
+    "largestFactor": "water"
   },
   {
     "factorKey": "lettuce",
@@ -197,8 +177,7 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "kgCo2ePerKg": 0.53,
     "waterM3PerKg": 0.103,
     "impactUsdPerKg": 0.26,
-    "largestFactor": "water",
-    "densityGPerCm3": 0.3
+    "largestFactor": "water"
   },
   {
     "factorKey": "cheese-bread",
@@ -208,8 +187,7 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "kgCo2ePerKg": 12.64,
     "waterM3PerKg": 3.032,
     "impactUsdPerKg": 6.95,
-    "largestFactor": "water",
-    "densityGPerCm3": null
+    "largestFactor": "water"
   },
   {
     "factorKey": "pepperoni-pizza",
@@ -219,8 +197,7 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "kgCo2ePerKg": 16.06,
     "waterM3PerKg": 1.94,
     "impactUsdPerKg": 5.96,
-    "largestFactor": "carbon",
-    "densityGPerCm3": null
+    "largestFactor": "carbon"
   },
   {
     "factorKey": "cheese-pizza",
@@ -230,8 +207,7 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "kgCo2ePerKg": 7.65,
     "waterM3PerKg": 1.94,
     "impactUsdPerKg": 4.36,
-    "largestFactor": "water",
-    "densityGPerCm3": null
+    "largestFactor": "water"
   },
   {
     "factorKey": "chicken-broccoli-alfredo-pizza",
@@ -241,8 +217,7 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "kgCo2ePerKg": 8.75,
     "waterM3PerKg": 1.922,
     "impactUsdPerKg": 4.55,
-    "largestFactor": "water",
-    "densityGPerCm3": null
+    "largestFactor": "water"
   },
   {
     "factorKey": "chocolate-coconut-cream-pie",
@@ -252,8 +227,7 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "kgCo2ePerKg": 5.55,
     "waterM3PerKg": 0.303,
     "impactUsdPerKg": 1.51,
-    "largestFactor": "carbon",
-    "densityGPerCm3": 0.78
+    "largestFactor": "carbon"
   },
   {
     "factorKey": "pumpkin-pie",
@@ -263,8 +237,7 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "kgCo2ePerKg": 4.52,
     "waterM3PerKg": 0.894,
     "impactUsdPerKg": 2.2,
-    "largestFactor": "water",
-    "densityGPerCm3": 0.85
+    "largestFactor": "water"
   },
   {
     "factorKey": "snickers-brownies-with-peanuts",
@@ -274,8 +247,7 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "kgCo2ePerKg": 12.93,
     "waterM3PerKg": 1.365,
     "impactUsdPerKg": 4.5,
-    "largestFactor": "carbon",
-    "densityGPerCm3": 0.52
+    "largestFactor": "carbon"
   },
   {
     "factorKey": "peppermint-white-chocolate-blondie",
@@ -285,8 +257,7 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "kgCo2ePerKg": 7.27,
     "waterM3PerKg": 1.16,
     "impactUsdPerKg": 3.12,
-    "largestFactor": "water",
-    "densityGPerCm3": 0.52
+    "largestFactor": "water"
   },
   {
     "factorKey": "golden-cake-with-chocolate-frosting",
@@ -296,8 +267,7 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "kgCo2ePerKg": 3.53,
     "waterM3PerKg": 0.335,
     "impactUsdPerKg": 1.17,
-    "largestFactor": "carbon",
-    "densityGPerCm3": 0.42
+    "largestFactor": "carbon"
   },
   {
     "factorKey": "strawberry-shortcake-bar",
@@ -307,8 +277,7 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "kgCo2ePerKg": 2.49,
     "waterM3PerKg": 0.442,
     "impactUsdPerKg": 1.14,
-    "largestFactor": "water",
-    "densityGPerCm3": 0.42
+    "largestFactor": "water"
   }
 ];
 
@@ -455,8 +424,7 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "ingredients": "water, cheddar cheese (pasteurized milk, cheese cultures, salt, enzymes), heavy cream, broccoli, enriched wheat flour (wheat flour, malted barley flour, niacin, reduced iron, thiamine mononitrate, riboflavin, folic acid), butter (cream, salt), onions, chicken base (chicken meat, salt, yeast extract, sugar), modified food starch, salt, spices",
     "allergens": "milk; wheat",
     "labelServingG": 227,
-    "menuCo2Label": "high",
-    "densitySource": "FAO/INFOODS Density DB v2.0 (2012) 'Cheddar cheese soup' 1.046 g/mL [S&W 2011]"
+    "menuCo2Label": "high"
   },
   {
     "factorKey": "baked-boneless-ham",
@@ -466,8 +434,7 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "ingredients": "cured pork ham (cured with water, dextrose, salt, potassium lactate, sodium phosphates, sodium erythorbate, sodium nitrite), brown sugar glaze (brown sugar, water, spices)",
     "allergens": "pork",
     "labelServingG": 85,
-    "menuCo2Label": "medium",
-    "densitySource": "FAO/INFOODS Density DB v2.0 (2012) 'Pork, medium, with bone, boiled' 0.70 g/mL [KEN]; cooked pork pieces, analogue"
+    "menuCo2Label": "medium"
   },
   {
     "factorKey": "oven-roasted-garlic-potatoes",
@@ -477,8 +444,7 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "ingredients": "red potatoes, canola oil, minced garlic, salt, black pepper, dried parsley",
     "allergens": null,
     "labelServingG": 85,
-    "menuCo2Label": "low",
-    "densitySource": "FAO/INFOODS Density DB v2.0 (2012) 'Potato, english, boiled' 0.59 g/mL [KEN]; roasted chunks, analogue"
+    "menuCo2Label": "low"
   },
   {
     "factorKey": "baked-sweet-potatoes",
@@ -488,8 +454,7 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "ingredients": null,
     "allergens": null,
     "labelServingG": null,
-    "menuCo2Label": "low",
-    "densitySource": "FAO/INFOODS Density DB v2.0 (2012) 'Sweet potato, boiled' 0.65 g/mL [KEN]; analogue"
+    "menuCo2Label": "low"
   },
   {
     "factorKey": "roasted-cauliflower",
@@ -499,8 +464,7 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "ingredients": "cauliflower florets, vegetable cooking spray (canola oil), salt, black pepper",
     "allergens": null,
     "labelServingG": 57,
-    "menuCo2Label": "low",
-    "densitySource": "FAO/INFOODS Density DB v2.0 (2012) 'Cauliflower, boiled' 0.45 g/mL [RC]; roasted, analogue"
+    "menuCo2Label": "low"
   },
   {
     "factorKey": "michigan-farmers-4-bean-stew",
@@ -510,8 +474,7 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "ingredients": "vegetable broth (water, carrots, celery, onions, salt), bean blend (kidney beans, black beans, pinto beans, cannellini beans), diced tomatoes in juice, onions, carrots, celery, olive oil, tomato paste, garlic, salt, oregano, thyme, black pepper",
     "allergens": null,
     "labelServingG": 180,
-    "menuCo2Label": "low",
-    "densitySource": "FAO/INFOODS Density DB v2.0 (2012) 'Stew, beans/ peas + vegetables' 1.07 g/mL [KEN]"
+    "menuCo2Label": "low"
   },
   {
     "factorKey": "farro",
@@ -521,8 +484,7 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "ingredients": "water, farro (wheat), vegetable base (salt, sugar, yeast extract, onion powder, garlic powder), salt",
     "allergens": "wheat",
     "labelServingG": 57,
-    "menuCo2Label": "low",
-    "densitySource": "FAO/INFOODS Density DB v2.0 (2012) 'Rice, white, boiled' 0.73 g/mL [RC]; cooked whole grain, analogue (no farro entry)"
+    "menuCo2Label": "low"
   },
   {
     "factorKey": "shaved-brussel-sprouts",
@@ -532,8 +494,7 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "ingredients": "shaved Brussels sprouts, olive oil, shallots, apple cider vinegar, maple syrup, salt, black pepper",
     "allergens": null,
     "labelServingG": 85,
-    "menuCo2Label": "low",
-    "densitySource": "USDA SR Legacy 11098 'Brussels sprouts, raw': 1 cup = 88 g ÷ 236.6 mL"
+    "menuCo2Label": "low"
   },
   {
     "factorKey": "vegetable-cannelloni",
@@ -543,8 +504,7 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "ingredients": "filling (ricotta cheese [whey, milk, vinegar, salt], spinach, zucchini, carrots, mozzarella cheese, parmesan cheese, breadcrumbs [wheat flour, yeast, salt], eggs, salt, garlic, spices), pasta (durum wheat flour, water, eggs), tomato sauce (diced tomatoes, tomato puree, olive oil, onions, garlic, salt, basil), mozzarella cheese",
     "allergens": "eggs; milk; wheat",
     "labelServingG": 160,
-    "menuCo2Label": "medium",
-    "densitySource": "FAO/INFOODS Density DB v2.0 (2012) 'Lasagna' 1.042 g/mL [S&W 2011]; baked filled pasta, analogue"
+    "menuCo2Label": "medium"
   },
   {
     "factorKey": "panzanella-salad",
@@ -554,8 +514,7 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "ingredients": "tomatoes, rustic bread croutons (wheat flour, water, salt, yeast), olive oil, cucumbers, red onions, red wine vinegar, fresh basil, shredded parmesan cheese (pasteurized milk, cheese cultures, salt, enzymes), salt, black pepper",
     "allergens": "milk; wheat",
     "labelServingG": 233,
-    "menuCo2Label": "low",
-    "densitySource": "composite (mass-weighted harmonic mean over recipe_kg_per_kg): tomato 0.76 (USDA SR 11529 1 cup chopped = 180 g); cucumber and bell pepper 0.51 (FAO/INFOODS Density DB v2.0 (2012) 'Sweet pepper, raw, cubes' [RC]); bread 0.29 (FAO/INFOODS Density DB v2.0 (2012) 'Bread' [FNDDS 4.1]); olive oil 0.918 (FAO/INFOODS Density DB v2.0 (2012) 'Oil, vegetable, olive' [TB]); onion 0.55 (FAO/INFOODS Density DB v2.0 (2012) 'Onions, raw, cubed' [RC]); estimate"
+    "menuCo2Label": "low"
   },
   {
     "factorKey": "ancho-flank-steak",
@@ -565,8 +524,7 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "ingredients": "beef flank steak, ancho marinade (ancho chili powder, water, lime juice, olive oil, garlic, cumin, salt, black pepper)",
     "allergens": "beef",
     "labelServingG": 94,
-    "menuCo2Label": "high",
-    "densitySource": "FAO/INFOODS Density DB v2.0 (2012) 'Pork, medium, with bone, boiled' 0.70 g/mL [KEN]; cooked meat pieces, analogue (only raw beef is listed: 'Cow, lean, no bone, raw' 0.96)"
+    "menuCo2Label": "high"
   },
   {
     "factorKey": "sticky-rice",
@@ -576,8 +534,7 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "ingredients": "glutinous sweet rice, water",
     "allergens": null,
     "labelServingG": 85,
-    "menuCo2Label": "low",
-    "densitySource": "FAO/INFOODS Density DB v2.0 (2012) 'Rice, white, boiled' 0.73 g/mL [RC]"
+    "menuCo2Label": "low"
   },
   {
     "factorKey": "vegetable-stir-fry-blend",
@@ -587,8 +544,7 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "ingredients": "broccoli florets, carrots, snap peas, red bell peppers, water chestnuts, onions, stir-fry seasoning (water, vegetable broth, sesame oil, garlic, ginger, cornstarch, salt)",
     "allergens": null,
     "labelServingG": 227,
-    "menuCo2Label": "low",
-    "densitySource": "FAO/INFOODS Density DB v2.0 (2012) 'Stew, vegetable' 0.68 g/mL [KEN]; cooked mixed vegetables, analogue"
+    "menuCo2Label": "low"
   },
   {
     "factorKey": "halal-rice",
@@ -598,8 +554,7 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "ingredients": null,
     "allergens": null,
     "labelServingG": null,
-    "menuCo2Label": null,
-    "densitySource": "FAO/INFOODS Density DB v2.0 (2012) 'Rice, boiled with fat' 0.70 g/mL [KEN]"
+    "menuCo2Label": null
   },
   {
     "factorKey": "tomatoes",
@@ -609,8 +564,7 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "ingredients": null,
     "allergens": null,
     "labelServingG": null,
-    "menuCo2Label": null,
-    "densitySource": "USDA SR Legacy 11529 'Tomatoes, red, ripe, raw, year round average': 1 cup chopped or sliced = 180 g ÷ 236.6 mL"
+    "menuCo2Label": null
   },
   {
     "factorKey": "lettuce",
@@ -620,8 +574,7 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "ingredients": null,
     "allergens": null,
     "labelServingG": null,
-    "menuCo2Label": null,
-    "densitySource": "USDA SR Legacy 11252 'Lettuce, iceberg, raw': 1 cup shredded = 72 g ÷ 236.6 mL"
+    "menuCo2Label": null
   },
   {
     "factorKey": "cheese-bread",
@@ -631,8 +584,7 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "ingredients": "dough (enriched wheat flour [wheat flour, malted barley flour, niacin, iron, thiamine mononitrate, riboflavin, folic acid], water, soybean oil, sugar, yeast, salt, egg), mozzarella cheese (pasteurized milk, cultures, salt, enzymes), garlic herb spread (butter, soybean oil, garlic, salt, dried oregano, parsley), parmesan cheese",
     "allergens": "eggs; milk; soy; wheat",
     "labelServingG": 51,
-    "menuCo2Label": "low",
-    "densitySource": "none: no FAO/INFOODS or USDA volume entry for bread with a melted-cheese layer (bread 0.29-0.42 and solid cheese differ ~3x); volume path falls back to the area method"
+    "menuCo2Label": "low"
   },
   {
     "factorKey": "pepperoni-pizza",
@@ -642,8 +594,7 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "ingredients": "crust (enriched wheat flour [wheat flour, malted barley flour, niacin, iron, thiamine mononitrate, riboflavin, folic acid], water, soybean oil, yeast, salt, sugar, egg), low-moisture mozzarella cheese (pasteurized milk, cultures, salt, enzymes), pizza sauce (crushed tomatoes, water, salt, basil, oregano, garlic powder), beef pepperoni (beef, salt, spices, dextrose, lactic acid starter culture, paprika oleoresin, garlic powder, sodium nitrite)",
     "allergens": "beef; eggs; milk; soy; wheat",
     "labelServingG": 113,
-    "menuCo2Label": "low",
-    "densitySource": "none: no FAO/INFOODS or USDA volume entry for pizza; flat food, so the area method (weight_g_per_cm2 from slice weight/area) is used"
+    "menuCo2Label": "low"
   },
   {
     "factorKey": "cheese-pizza",
@@ -653,8 +604,7 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "ingredients": "crust (enriched wheat flour [wheat flour, malted barley flour, niacin, iron, thiamine mononitrate, riboflavin, folic acid], water, soybean oil, yeast, salt, sugar, egg), low-moisture mozzarella cheese (pasteurized milk, cultures, salt, enzymes), pizza sauce (crushed tomatoes, water, salt, basil, oregano, garlic powder), parmesan cheese",
     "allergens": "eggs; milk; soy; wheat",
     "labelServingG": 105,
-    "menuCo2Label": "low",
-    "densitySource": "none: no FAO/INFOODS or USDA volume entry for pizza; flat food, so the area method (weight_g_per_cm2 from slice weight/area) is used"
+    "menuCo2Label": "low"
   },
   {
     "factorKey": "chicken-broccoli-alfredo-pizza",
@@ -664,8 +614,7 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "ingredients": "crust (enriched wheat flour [wheat flour, malted barley flour, niacin, iron, thiamine mononitrate, riboflavin, folic acid], water, soybean oil, yeast, salt, sugar, egg), alfredo sauce (heavy cream, milk, butter, parmesan cheese, modified cornstarch, garlic, salt), mozzarella cheese (pasteurized milk, cultures, salt, enzymes), grilled chicken breast (chicken breast, water, salt), broccoli florets",
     "allergens": "eggs; milk; soy; wheat",
     "labelServingG": 132,
-    "menuCo2Label": "low",
-    "densitySource": "none: no FAO/INFOODS or USDA volume entry for pizza; flat food, so the area method (weight_g_per_cm2 from slice weight/area) is used"
+    "menuCo2Label": "low"
   },
   {
     "factorKey": "chocolate-coconut-cream-pie",
@@ -675,8 +624,7 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "ingredients": "coconut cream (coconut extract, water), sugar, chocolate filling (water, sugar, cocoa powder processed with alkali, modified cornstarch, coconut oil, soy lecithin, vanilla extract [ethyl alcohol, water, vanilla bean extractives], salt), crust (enriched wheat flour, oat flour, palm oil, soybean oil, sugar, water, salt), non-dairy whipped topping (coconut oil, sugar, water), toasted coconut flakes",
     "allergens": "alcohol; coconut; oats; soy; wheat",
     "labelServingG": 142,
-    "menuCo2Label": "low",
-    "densitySource": "composite: filling 70% at 1.06 (FAO/INFOODS Density DB v2.0 (2012) 'Yoghurt, plain, unsweetened' [FNDDS 4.1], set-gel analogue); crust 20% at 0.47 (FAO/INFOODS Density DB v2.0 (2012) 'Biscuits' 0.41-0.53 [FNDDS 4.1], midpoint); topping 10% at 0.496 (FAO/INFOODS Density DB v2.0 (2012) 'Cream, whipped' [S&W 2011]); estimate"
+    "menuCo2Label": "low"
   },
   {
     "factorKey": "pumpkin-pie",
@@ -686,8 +634,7 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "ingredients": "pumpkin puree, evaporated milk (milk, dipotassium phosphate, carrageenan, vitamin D3), crust (enriched wheat flour, palm oil, water, sugar, salt), sugar, whole eggs, brown sugar, cinnamon, ginger, nutmeg, cloves, salt",
     "allergens": "eggs; milk; wheat",
     "labelServingG": 135,
-    "menuCo2Label": "medium",
-    "densitySource": "composite: custard filling 80% at 1.07 (FAO/INFOODS Density DB v2.0 (2012) 'Milk, evaporated' SG 1.07 [UK 6th], analogue); crust 20% at 0.47 (FAO/INFOODS Density DB v2.0 (2012) 'Biscuits' 0.41-0.53 [FNDDS 4.1], midpoint); estimate"
+    "menuCo2Label": "medium"
   },
   {
     "factorKey": "snickers-brownies-with-peanuts",
@@ -697,8 +644,7 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "ingredients": "sugar, butter (cream, salt), enriched wheat flour, whole eggs, cocoa powder processed with alkali, Snickers candy pieces (milk chocolate [sugar, cocoa butter, chocolate, skim milk, lactose, milkfat, soy lecithin], peanuts, corn syrup, sugar, palm oil, skim milk), roasted peanuts, caramel (corn syrup, sweetened condensed milk, butter), soy lecithin, vanilla extract, salt",
     "allergens": "eggs; milk; peanuts; soy; tree nuts; wheat",
     "labelServingG": 91,
-    "menuCo2Label": "medium",
-    "densitySource": "USDA SR Legacy 18151 'Cookies, brownies, commercially prepared': 1 square (2.75 in square x 0.875 in) = 56 g ÷ 108.4 cm³"
+    "menuCo2Label": "medium"
   },
   {
     "factorKey": "peppermint-white-chocolate-blondie",
@@ -708,8 +654,7 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "ingredients": "brown sugar, enriched wheat flour, butter (cream, salt), whole eggs, white chocolate chips (sugar, cocoa butter, whole milk powder, soy lecithin, vanilla extract), crushed peppermint candy (sugar, corn syrup, peppermint oil, red 40), vanilla extract (alcohol, water, vanilla bean extractives), peppermint extract (alcohol, peppermint oil), baking powder, salt",
     "allergens": "alcohol; eggs; milk; soy; wheat",
     "labelServingG": 81,
-    "menuCo2Label": "low",
-    "densitySource": "USDA SR Legacy 18151 'Cookies, brownies, commercially prepared': 1 square (2.75 in square x 0.875 in) = 56 g ÷ 108.4 cm³; blondie, analogue"
+    "menuCo2Label": "low"
   },
   {
     "factorKey": "golden-cake-with-chocolate-frosting",
@@ -719,8 +664,7 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "ingredients": "cake (sugar, enriched wheat flour, water, soybean oil, oat flour, baking powder [sodium acid pyrophosphate, sodium bicarbonate, cornstarch, monocalcium phosphate], vanilla extract [alcohol, water, vanilla bean extractives], salt, soy lecithin), chocolate frosting (powdered sugar, palm oil shortening, soybean oil, water, cocoa processed with alkali, corn syrup, soy lecithin, vanilla extract, salt)",
     "allergens": "alcohol; oats; soy; wheat",
     "labelServingG": 130,
-    "menuCo2Label": "low",
-    "densitySource": "FAO/INFOODS Density DB v2.0 (2012) 'Cake' 0.415 g/mL [S&W 2011]"
+    "menuCo2Label": "low"
   },
   {
     "factorKey": "strawberry-shortcake-bar",
@@ -730,7 +674,6 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "ingredients": "cake and crumble base (enriched wheat flour, sugar, oat flour, palm oil, soybean oil, dried egg whites, nonfat dry milk, soy lecithin, salt), strawberry layer (sugar, corn syrup, strawberry puree, gelatin [pork], citric acid, red 40, natural flavor), vanilla coating and crumb topping (sugar, enriched wheat flour, palm oil, dried strawberry crumbs)",
     "allergens": "eggs; milk; oats; pork; soy; wheat",
     "labelServingG": 41,
-    "menuCo2Label": "low",
-    "densitySource": "FAO/INFOODS Density DB v2.0 (2012) 'Cake' 0.415 g/mL [S&W 2011]; crumb-topped cake bar, analogue"
+    "menuCo2Label": "low"
   }
 ];

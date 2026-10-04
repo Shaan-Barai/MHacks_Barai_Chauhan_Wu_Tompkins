@@ -46,7 +46,6 @@ test('factors: generated waste table matches menu_waste_factors.csv', () => {
       waterM3PerKg: Number(r.W_water_m3_per_kg),
       impactUsdPerKg: Number(r.impact_score_usd_per_kg),
       largestFactor: r.largest_factor,
-      densityGPerCm3: r.density_g_per_cm3 === '' ? null : Number(r.density_g_per_cm3),
     });
   });
   assert.equal(new Set(WASTE_FACTORS.map((f) => f.factorKey)).size, 26);
@@ -63,7 +62,7 @@ test('factors: score is 0.19*C + 1.50*W with no nutrition term', () => {
   for (const col of Object.keys(rows[0]!)) {
     assert.doesNotMatch(col, /nutri|^O_|kcal|quality/i, `nutrition column ${col} in the waste file`);
   }
-  assert.equal(WASTE_FACTORS_VERSION, 'waste-factors-v3');
+  assert.equal(WASTE_FACTORS_VERSION, 'waste-factors-v4');
 });
 
 test('factors: generated nutrition table matches menu_nutrition_factors.csv', () => {
@@ -94,22 +93,6 @@ test('factors: committed factors.generated.ts is up to date with the CSVs', asyn
   );
   const actual = readFileSync(join(repoRoot, 'data', 'src', 'factors.generated.ts'), 'utf8');
   assert.equal(actual, expected, 'run `npm run factors` in data/ to regenerate');
-});
-
-test('factors: density (IT_4 I7) is positive or null, and every row cites a source', () => {
-  const rows = csvObjects('menu_waste_factors.csv');
-  for (const r of rows) {
-    assert.ok(r.density_source && r.density_source.length > 10, `${r.food}: density_source missing`);
-    if (r.density_g_per_cm3 === '') assert.match(r.density_source, /^none: /, `${r.food}: blank density must say why`);
-    else assert.match(r.density_source, /FAO\/INFOODS|USDA/, `${r.food}: density must cite FAO/INFOODS or USDA`);
-  }
-  for (const f of WASTE_FACTORS) {
-    if (f.densityGPerCm3 !== null) assert.ok(f.densityGPerCm3 > 0.05 && f.densityGPerCm3 < 1.5, `${f.food}: ${f.densityGPerCm3}`);
-  }
-  assert.equal(findWasteFactor('Sticky Rice')?.densityGPerCm3, 0.73);
-  assert.equal(findWasteFactor('Pepperoni Pizza')?.densityGPerCm3, null);
-  assert.equal(WASTE_FACTORS.filter((f) => f.densityGPerCm3 === null).length, 4);
-  assert.match(findFactorMenuText('Lettuce')?.densitySource ?? '', /USDA SR Legacy 11252/);
 });
 
 test('factors: lookups by display name', () => {

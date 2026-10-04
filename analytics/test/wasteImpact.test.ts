@@ -31,14 +31,14 @@ import type {
   WasteFactor,
 } from '../src/contracts.js';
 
-// Rows copied from menu_waste_factors.csv / menu_nutrition_factors.csv (waste-factors-v3).
+// Rows copied from menu_waste_factors.csv / menu_nutrition_factors.csv (waste-factors-v4).
 const PIZZA: WasteFactor = {
   factorKey: 'pepperoni-pizza', food: 'Pepperoni Pizza', station: 'Pizziti',
-  weightGPerCm2: 1.0, kgCo2ePerKg: 16.06, waterM3PerKg: 1.94, impactUsdPerKg: 5.96, largestFactor: 'carbon', densityGPerCm3: null,
+  weightGPerCm2: 1.0, kgCo2ePerKg: 16.06, waterM3PerKg: 1.94, impactUsdPerKg: 5.96, largestFactor: 'carbon',
 };
 const STEAK: WasteFactor = {
   factorKey: 'ancho-flank-steak', food: 'Ancho Flank Steak', station: 'Halal',
-  weightGPerCm2: 1.2, kgCo2ePerKg: 131.69, waterM3PerKg: 1.925, impactUsdPerKg: 27.91, largestFactor: 'carbon', densityGPerCm3: 0.7,
+  weightGPerCm2: 1.2, kgCo2ePerKg: 131.69, waterM3PerKg: 1.925, impactUsdPerKg: 27.91, largestFactor: 'carbon',
 };
 const PIZZA_N: NutritionFactor = { factorKey: 'pepperoni-pizza', nutrientDaysPerKg: 0.69, kcalPerKg: 2700 };
 const STEAK_N: NutritionFactor = { factorKey: 'ancho-flank-steak', nutrientDaysPerKg: 1.05, kcalPerKg: 1600 };
@@ -385,7 +385,7 @@ test('fallback recommendation is labeled, grounded in pixels, and causal-claim f
   assert.equal(parseRecommendationOutput(JSON.stringify({ text: rec.text, bullets: rec.bullets }), facts) !== null, true, 'fallback passes the Gemini validator too');
   assert.deepEqual(rec.bullets.map((b) => b.metric), [STEAK_RATE, 'Pepperoni Pizza: 1,000 pixels wasted per portion', PLATES]);
   for (const b of rec.bullets) assert.ok(facts.allowedMetrics.includes(b.metric), b.metric);
-  assert.match(rec.inputVersion, /^impact-rec-v2\|waste-factors-v3\|[0-9a-f]{8}$/);
+  assert.match(rec.inputVersion, /^impact-rec-v2\|waste-factors-v4\|[0-9a-f]{8}$/);
   assert.equal(fallbackRecommendation(d, NOW).inputVersion, rec.inputVersion);
 
   // Only pizza has a portion rate: the steak shows up through its relative impact points.

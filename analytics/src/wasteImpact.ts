@@ -47,13 +47,13 @@ import type {
   WasteImpact,
 } from './contracts.js';
 import { validMaskCount } from './portions.js';
-import { computePhysicalAmounts, usablePhysical, VOLUME_METHOD, type CapturePhysicalReason } from './physical.js';
+import { AREA_METHOD, computePhysicalAmounts, usablePhysical, type CapturePhysicalReason } from './physical.js';
 
 /**
  * Must equal scrap-data's WASTE_FACTORS_VERSION (the factor tables it stamps).
  * Callers may override it per call when they pass a different table version.
  */
-export const WASTE_FACTORS_VERSION = 'waste-factors-v3';
+export const WASTE_FACTORS_VERSION = 'waste-factors-v4';
 
 /** Display name for the unclassified / not-on-the-menu food bucket. */
 export const UNKNOWN_FOOD_LABEL = 'Food not on the menu';
@@ -150,7 +150,7 @@ const POINT_KEYS: PointKey[] = ['co2Points', 'waterPoints', 'impactPoints', 'nut
 type PhysicalKey = 'grams' | 'kgCo2e' | 'waterLitres';
 const PHYSICAL_KEYS: PhysicalKey[] = ['grams', 'kgCo2e', 'waterLitres'];
 /** Tie order for a sum's physicalUnavailableReason (capture-level reasons first). */
-const PHYSICAL_REASONS: PhysicalUnavailableReason[] = ['no_calibration', 'incompatible_geometry', 'unknown_item', 'no_factor', 'no_density'];
+const PHYSICAL_REASONS: PhysicalUnavailableReason[] = ['no_calibration', 'incompatible_geometry', 'unknown_item', 'no_factor'];
 
 /**
  * Sum several impacts.
@@ -165,11 +165,10 @@ const PHYSICAL_REASONS: PhysicalUnavailableReason[] = ['no_calibration', 'incomp
  * An empty list has pixels 0 and null points (nothing to score).
  *
  * Physical (IT_4): grams / kgCo2e / waterLitres sum only the calibrated
- * inputs (same rule as points). `physicalMethod` is the one method behind the
- * summed grams, 'mixed' when they combine area and volume, null when no input
- * has grams. `physicalUnavailableReason` is the most common reason among
- * inputs without grams (ties: no_calibration, incompatible_geometry,
- * unknown_item, no_factor, no_density); see `physicalImpactCoverage`.
+ * inputs (same rule as points). `physicalMethod` is 'area-calibrated-v1' when
+ * any input has grams, null otherwise. `physicalUnavailableReason` is the most
+ * common reason among inputs without grams (ties: no_calibration,
+ * incompatible_geometry, unknown_item, no_factor); see `physicalImpactCoverage`.
  */
 export function sumImpacts(list: readonly WasteImpact[], wasteFactorsVersion?: string): WasteImpact {
   const version = wasteFactorsVersion ?? list[0]?.wasteFactorsVersion ?? WASTE_FACTORS_VERSION;
@@ -189,7 +188,7 @@ export function sumImpacts(list: readonly WasteImpact[], wasteFactorsVersion?: s
   // (missing is never zero). A caller that KNOWS zero was measured (e.g.
   // analyzed clean plates) sets the zeros itself.
   if (list.length === 0) return out;
-  const methods = new Set<PhysicalMethod | 'mixed'>();
+  let anyGrams = false;
   for (const impact of list) {
     out.pixels += impact.pixels;
     for (const k of POINT_KEYS) {
@@ -201,7 +200,7 @@ export function sumImpacts(list: readonly WasteImpact[], wasteFactorsVersion?: s
         const v = impact[k];
         if (v != null) out[k] = (out[k] ?? 0) + v;
       }
-      if (impact.physicalMethod != null) methods.add(impact.physicalMethod);
+      anyGrams = true;
     }
   }
   const missing = impactCoverage(list).unavailable;
@@ -209,7 +208,7 @@ export function sumImpacts(list: readonly WasteImpact[], wasteFactorsVersion?: s
   const top = reasons.sort((a, b) => missing[b] - missing[a])[0];
   if (top !== undefined) out.unavailableReason = top;
 
-  out.physicalMethod = methods.size === 0 ? null : methods.size > 1 || methods.has('mixed') ? 'mixed' : [...methods][0]!;
+  out.physicalMethod = anyGrams ? AREA_METHOD : null;
   const physMissing = physicalImpactCoverage(list).unavailable;
   const physTop = PHYSICAL_REASONS.filter((r) => physMissing[r] > 0).sort((a, b) => physMissing[b] - physMissing[a])[0];
   if (physTop !== undefined) out.physicalUnavailableReason = physTop;
@@ -226,12 +225,14 @@ export function physicalImpactCoverage(list: readonly WasteImpact[]): {
     incompatible_geometry: 0,
     unknown_item: 0,
     no_factor: 0,
-    no_density: 0,
   };
   let withGrams = 0;
   for (const i of list) {
     if (i.grams != null) withGrams++;
-    else unavailable[i.physicalUnavailableReason ?? 'no_calibration']++;
+    else {
+      const r = i.physicalUnavailableReason;
+      unavailable[r !== undefined && r in unavailable ? r : 'no_calibration']++;
+    }
   }
   return { withGrams, unavailable };
 }
@@ -272,10 +273,8 @@ export interface ImpactMeasurementInput {
 
 /** IT_4: ImpactDashboard.totals.physicalCoverage. */
 export interface PhysicalCoverage {
-  /** Analyzed captures measured with a compatible calibration (area or volume). */
+  /** Analyzed captures measured with a compatible calibration. */
   calibratedCaptures: number;
-  /** Calibrated captures measured with Depth Anything V2 volume. */
-  volumeCaptures: number;
   analyzedCaptures: number;
 }
 
@@ -302,13 +301,13 @@ export interface ImpactDashboardInput {
   attemptQualityFlags?: AttemptFlagMap;
   wasteFactorsVersion?: string;
   /**
-   * IT_4: calibrated / volume capture counts, normally
+   * IT_4: calibrated capture count, normally
    * `selectImpactMeasurements(...).physicalCoverage` (which also sees
    * calibrated clean plates). Omitted ⇒ derived from the measurements:
-   * distinct eventIds with a usable `physical` (volume when any is volume).
+   * distinct eventIds with a usable `physical`.
    * `analyzedCaptures` always comes from `captures.analyzed`.
    */
-  physicalCoverage?: Pick<PhysicalCoverage, 'calibratedCaptures' | 'volumeCaptures'>;
+  physicalCoverage?: Pick<PhysicalCoverage, 'calibratedCaptures'>;
 }
 
 /** Captures whose counted attempt carries NEIGHBOR_FOOD_EXCLUDED_FLAG. */
@@ -463,7 +462,7 @@ export function buildImpactDashboard(input: ImpactDashboardInput): ImpactDashboa
     for (const k of POINT_KEYS) totalsImpact[k] = 0;
   }
   const physicalCoverage: PhysicalCoverage = {
-    ...(input.physicalCoverage ?? derivePhysicalCoverage(input.measurements)),
+    calibratedCaptures: (input.physicalCoverage ?? derivePhysicalCoverage(input.measurements)).calibratedCaptures,
     analyzedCaptures: input.captures.analyzed,
   };
   // Calibrated captures without any calibrated measurement are clean plates: a measured 0.
@@ -473,12 +472,7 @@ export function buildImpactDashboard(input: ImpactDashboardInput): ImpactDashboa
     !input.measurements.some((m) => usablePhysical(m.physical))
   ) {
     for (const k of PHYSICAL_KEYS) totalsImpact[k] = 0;
-    totalsImpact.physicalMethod =
-      physicalCoverage.volumeCaptures === 0
-        ? 'area-calibrated-v1'
-        : physicalCoverage.volumeCaptures === physicalCoverage.calibratedCaptures
-          ? VOLUME_METHOD
-          : 'mixed';
+    totalsImpact.physicalMethod = AREA_METHOD;
     delete totalsImpact.physicalUnavailableReason;
   }
   return {
@@ -505,15 +499,10 @@ export function buildImpactDashboard(input: ImpactDashboardInput): ImpactDashboa
 /** Capture counts from the measurements alone (cannot see calibrated clean plates). */
 function derivePhysicalCoverage(
   measurements: readonly ImpactMeasurementInput[],
-): Pick<PhysicalCoverage, 'calibratedCaptures' | 'volumeCaptures'> {
+): Pick<PhysicalCoverage, 'calibratedCaptures'> {
   const calibrated = new Set<string>();
-  const volume = new Set<string>();
-  for (const m of measurements) {
-    if (!usablePhysical(m.physical)) continue;
-    calibrated.add(m.eventId);
-    if (m.physical.method === VOLUME_METHOD) volume.add(m.eventId);
-  }
-  return { calibratedCaptures: calibrated.size, volumeCaptures: volume.size };
+  for (const m of measurements) if (usablePhysical(m.physical)) calibrated.add(m.eventId);
+  return { calibratedCaptures: calibrated.size };
 }
 
 // ---------------------------------------------------------------------------
@@ -546,7 +535,11 @@ export interface SelectImpactInput {
 
 /** IT_4: a counted attempt's physical snapshot (I9). */
 export interface CapturePhysicalContext {
-  /** null = no compatible calibration at analysis time: its measurements get no grams. */
+  /**
+   * null = no compatible calibration at analysis time: its measurements get no
+   * grams. Any non-null value (including a legacy 'volume-dav2-v1' snapshot)
+   * means calibrated; grams always use the area method.
+   */
   physicalMethod: PhysicalMethod | null;
   /** Why physicalMethod is null (default 'no_calibration'); e.g. 'incompatible_geometry' for a resolution mismatch. */
   unavailableReason?: CapturePhysicalReason;
@@ -587,7 +580,6 @@ export function selectImpactMeasurements(input: SelectImpactInput): SelectedImpa
   let analyzed = 0;
   let excludedMeasurements = 0;
   let calibratedCaptures = 0;
-  let volumeCaptures = 0;
   for (const capture of input.captures) {
     const current = services.get(capture.serviceId);
     if (!current || current.hallId !== capture.hallId) continue;
@@ -613,15 +605,8 @@ export function selectImpactMeasurements(input: SelectImpactInput): SelectedImpa
     excludedMeasurements += rows.length - valid.length;
     const ctx = input.capturePhysical?.get(capture.eventId);
     const uncalibrated = ctx !== undefined && ctx.physicalMethod === null;
-    let method: PhysicalMethod | null = null;
-    if (!uncalibrated) {
-      const usable = valid.filter((m) => usablePhysical(m.physical));
-      method =
-        ctx?.physicalMethod ??
-        (usable.some((m) => m.physical!.method === VOLUME_METHOD) ? VOLUME_METHOD : usable.length > 0 ? 'area-calibrated-v1' : null);
-    }
-    if (method !== null) calibratedCaptures++;
-    if (method === VOLUME_METHOD) volumeCaptures++;
+    const calibrated = !uncalibrated && (ctx?.physicalMethod != null || valid.some((m) => usablePhysical(m.physical)));
+    if (calibrated) calibratedCaptures++;
     for (const m of valid) {
       const row: ImpactMeasurementInput = {
         eventId: m.eventId,
@@ -640,6 +625,6 @@ export function selectImpactMeasurements(input: SelectImpactInput): SelectedImpa
     measurements: out,
     captures: { captures, analyzed, excluded: captures - analyzed },
     excludedMeasurements,
-    physicalCoverage: { calibratedCaptures, volumeCaptures, analyzedCaptures: analyzed },
+    physicalCoverage: { calibratedCaptures, analyzedCaptures: analyzed },
   };
 }

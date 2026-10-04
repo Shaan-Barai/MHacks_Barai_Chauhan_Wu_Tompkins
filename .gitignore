@@ -21,3 +21,6 @@ coverage/
 
 # Local evaluation photos (stock images; not for the public repo)
 images/
+
+# Local segmentation experiments
+test2_segmentation/

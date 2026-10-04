@@ -1,7 +1,7 @@
 # DEBUG-PLAN: a debugging session for ScrapSaver
 
 **Started:** 2026-10-04 · **Branch:** work on `debug/<topic>` branches or worktrees, merge to `main` when verified ·
-**Status:** planned. Update the tracker (§6) as items move.
+**Status:** phases 0–3 done 2026-10-04 (fixes merged to `main`, offline suites green); live checks (phase 4) pending. Update the tracker (§6) as items move.
 
 This is a working plan for one focused debugging session across the codebase. It lists what is
 known to be wrong or suspicious (with the evidence seen so far), how to reproduce each item, who owns
@@ -117,22 +117,26 @@ Priority: **P1** wrong numbers or a broken path a user sees; **P2** reliability 
 
 | ID | State | Reproduction | Fix (commit) | Verified how | Notes |
 | --- | --- | --- | --- | --- | --- |
-| D1 | open | | | | |
-| D2 | open | | | | |
-| D3 | open | | | | |
-| D4 | open | | | | |
-| D5 | open | | | | |
-| D6 | open | | | | |
-| D7 | open | | | | |
-| D8 | open | | | | |
-| D9 | open | | | | |
-| D10 | open | | | | |
-| D11 | open | | | | |
-| D12 | open | | | | |
-| D13 | open | | | | |
-| D14 | open | | | | |
-| D15 | open | | | | |
+| D1 | fixed (offline) | `vision/test/targetDish.test.ts` "dish mask misses part of the dish…" (failed: on-target food `skipped`) | `c938669`, `27cd4d3` | vision 91/91 offline | `dish-region-v3`: region ∪ ellipse inscribed in Gemini's dish box. Root cause inferred from the overlay (SAM dish mask covered ~half the bowl, passed the 50% check); cap_01M42PEM… not re-analyzed (needs Gemini) |
+| D2 | fixed | `backend/test/galleryTotals.test.ts` (gallery 800 vs totals 0) | `332651a` | backend + frontend offline | Gallery reuses `selectImpactMeasurements`; rejected plates get `pixelsWasted: null` + `notCountedReason`. No live plate affected: ingestion already rejects mask counts without `maskCount` |
+| D3 | fixed (bridge) | `capture/test/bridge.test.ts` "D3: one inbox frame is ingested once…" | `1ab3f5d` | capture 54/54 offline | The two live captures are **different photos** (different bytes/keys), likely a second shot of the same tray: the user decides whether to hide the lunch one on Admin. Bridge now writes `<inbox>/.ingest-claims.json`; concurrent runs can still race |
+| D4 | fixed (refs) | `git grep` 64 → 3 deliberate fallbacks | `315f7b3` | guard `tests/integration/no-stale-data-filenames.test.mjs` | One real bug: `vision/scripts/waste-impact.mjs` defaulted to the old nutrition CSV. `menu_waste_factors_500.csv` is already wired as the common-foods fallback (generate-factors, demo.py). Open: meaning of `_EastQuad` |
+| D5 | partly fixed | `vision/test/maskPipeline.test.ts` tie-break tests (merge and mask claims flipped with list order) | `4dfae36` | vision offline | Order-independent merge/mask tie-breaks; `GEMINI_SEED` (default 42), optional `GEMINI_TOP_K/P`. Provider-side variance not measured: live 5× run on the upload site still to do (10 Gemini calls) |
+| D6 | fixed (visibility) | `backend/test/providerOutage.test.ts` | `5b6b3ee` | backend offline | `/api/ready` → `providers.gemini {ok, code, since, failures, hint}`, one loud log line per outage. Captures still go to `failed` (retry with `retry-failed.mjs`); keeping them `pending` needs a drain job, so it is deferred |
+| D7 | fixed | `backend/test/security.test.ts` health test | `e093a1d` | backend offline; live after restart | `/api/health` and upload site `/api/health`: `commit`, `startedAt`, `factorsVersion`; `deploy/local.sh status` prints "restart needed" when the backend commit ≠ HEAD |
+| D8 | decided | read-only `ps`/`lsof` | `e093a1d` | `bash -n`; caffeinate kill test | The running SAM uses `.venv` (the framework binary is the venv symlink target). SAM down already fails with retryable `SEGMENTATION_UNAVAILABLE`. `local.sh` starts SAM under `caffeinate -i` (`SCRAP_CAFFEINATE=0` to disable); no supervisor |
+| D9 | fixed | `capture/uno-q/test_demo_http.py` | `93a4b76` | python 68/68 | `demo.get(..., anonymous=True)` for expected refusals |
+| D10 | fixed | — | `93a4b76` | python offline | Only `demo.py` and `capture/scripts/live_camera_test.py` make HTTPS calls; both use certifi when importable. Fix-it in `docs/deploy.md` Troubleshooting |
+| D11 | fixed | spare-port Vite: 127.0.0.1 → 000 | `4aa8c7d` | after: 127.0.0.1 and localhost → 200 | `server.host: '127.0.0.1'` in `frontend/vite.config.ts` |
+| D12 | deferred | | | | Needs the camera mount and focus lock (hardware); a blur/no-plate check before upload is new functionality, so it belongs in its own plan |
+| D13 | mitigated | | | | Each fix ran in its own worktree, and the coordinator cherry-picked onto `main`. Note: the agent worktrees were based on `port-to-main` (2 commits ahead of `main`, another session mid-merge); only each agent's own commits were picked |
+| D14 | fixed | `backend/test/providerOutage.test.ts` (hidden failed plate missing) | `5b6b3ee` | backend offline | New `GET /api/captures/retryable` (ingest/admin), used by `retry-failed.mjs`; admin list returns `total`/`truncated` (Admin page doesn't display it yet; no paging) |
+| D15 | fixed (copy) | — | `4aa8c7d` | review of server timeouts | Upload page now says one at a time, last 20 kept, lost on restart. No local timeout on queued waits; a Cloudflare tunnel (~100 s) could still cut long waits (unchecked) |
 
 ### Log
+- 2026-10-04: phases 0–3. Baseline 12/12 suites green (72 s). Nine Sonnet 5.5 subagents in worktrees, one per
+  item group; coordinator reviewed each diff and cherry-picked to `main` (`93a4b76`…`e093a1d`); `./test-all.sh`
+  12/12 green after the merges. No Gemini calls made. Pending: phase 4 live checks (backend restart for D7,
+  D1 re-analysis, D5 5× measurement, `--live` suites), which spend Gemini calls.
 - 2026-10-04: plan created from issues seen while building `demo.py`, the catalogue change, the upload
   site and the admin panel.

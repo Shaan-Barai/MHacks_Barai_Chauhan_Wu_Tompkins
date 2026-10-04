@@ -1,7 +1,7 @@
 {
-  "label": "DEMO DATA — fictional dining-hall menus with hand-assigned manual_area reference portions for the Scrap prototype. Not real hall data; not measured portions.",
+  "label": "DEMO DATA — fictional breakfast/lunch menus, the test hall's 23-food dinner menu, hand-assigned manual_area reference portions, and dummy demo portions-served counts for the Scrap prototype. Not real hall data; not measured portions or real serving counts.",
   "demo": true,
-  "provenance": "Generated deterministically by data/src/seed/generate.ts (scrap-data). Regenerate with `npm run seed` in data/.",
+  "provenance": "Generated deterministically by data/src/seed/generate.ts (scrap-data). Regenerate with `npm run seed` in data/. Dinner items come from menu_waste_factors.csv (descriptions = gemini_visible_components; Baked Sweet Potatoes uses a hand-written fallback). portionsServed are DEMO counts from a seeded hash (seed \"demo-portions-v1\", 40-260 per item by role), source \"demo\".",
   "hallId": "hall-main",
   "hallTimezone": "America/Detroit",
   "coordinateSpace": "topdown-normalized-v1",
@@ -114,39 +114,165 @@
       },
       "items": [
         {
-          "itemId": "item_hall-main_2026-10-01_dinner_baked-ziti",
+          "itemId": "item_hall-main_2026-10-01_dinner_broccoli-cheddar-soup",
           "menuId": "menu_hall-main_2026-10-01_dinner",
-          "displayName": "Baked Ziti",
-          "category": "entree",
-          "description": "Ziti with marinara and mozzarella"
+          "displayName": "Broccoli Cheddar Soup",
+          "category": "Soup",
+          "description": "creamy yellow-orange thick soup base, small dark-green to olive-green broccoli florets and stem pieces, melted cheese streaks, slightly glossy surface"
         },
         {
-          "itemId": "item_hall-main_2026-10-01_dinner_garlic-breadstick",
+          "itemId": "item_hall-main_2026-10-01_dinner_baked-boneless-ham",
           "menuId": "menu_hall-main_2026-10-01_dinner",
-          "displayName": "Garlic Breadstick",
-          "category": "bread",
-          "description": "One herbed garlic breadstick"
+          "displayName": "Baked Boneless Ham",
+          "category": "Signature Maize",
+          "description": "pink to reddish-brown sliced ham cuts with caramelized glazed edges, smooth meaty grain texture, glossy surface sheen"
         },
         {
-          "itemId": "item_hall-main_2026-10-01_dinner_steamed-broccoli",
+          "itemId": "item_hall-main_2026-10-01_dinner_oven-roasted-garlic-potatoes",
           "menuId": "menu_hall-main_2026-10-01_dinner",
-          "displayName": "Steamed Broccoli",
-          "category": "side",
-          "description": "Steamed broccoli florets"
+          "displayName": "Oven Roasted Garlic Potatoes",
+          "category": "Signature Maize",
+          "description": "roasted potato chunks and wedges with crisp golden-brown edges, blistered thin red-brown skins, flecks of minced garlic and dried green herbs"
         },
         {
-          "itemId": "item_hall-main_2026-10-01_dinner_caesar-salad",
+          "itemId": "item_hall-main_2026-10-01_dinner_baked-sweet-potatoes",
           "menuId": "menu_hall-main_2026-10-01_dinner",
-          "displayName": "Caesar Salad",
-          "category": "salad",
-          "description": "Romaine, croutons, caesar dressing"
+          "displayName": "Baked Sweet Potatoes",
+          "category": "Signature Maize",
+          "description": "orange baked sweet potato flesh and skins"
         },
         {
-          "itemId": "item_hall-main_2026-10-01_dinner_vanilla-pudding",
+          "itemId": "item_hall-main_2026-10-01_dinner_roasted-cauliflower",
           "menuId": "menu_hall-main_2026-10-01_dinner",
-          "displayName": "Vanilla Pudding",
-          "category": "dessert",
-          "description": "Single pudding cup serving"
+          "displayName": "Roasted Cauliflower",
+          "category": "Signature Maize",
+          "description": "ivory to off-white cauliflower florets with browned roasted tips, blistered surfaces, and char marks"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_dinner_michigan-farmers-4-bean-stew",
+          "menuId": "menu_hall-main_2026-10-01_dinner",
+          "displayName": "Michigan Farmers 4 Bean Stew",
+          "category": "24 Carrots",
+          "description": "chunky stew broth with a mix of whole kidney beans, black beans, pinto beans, and white cannellini beans, mixed with diced orange carrots, diced onions, crushed red tomatoes, and herb specks"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_dinner_farro",
+          "menuId": "menu_hall-main_2026-10-01_dinner",
+          "displayName": "Farro",
+          "category": "24 Carrots",
+          "description": "pile of plump, oval, brownish-tan cooked grain kernels with cracked ridges, semi-glossy and firm texture"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_dinner_shaved-brussel-sprouts",
+          "menuId": "menu_hall-main_2026-10-01_dinner",
+          "displayName": "Shaved Brussel Sprouts",
+          "category": "24 Carrots",
+          "description": "shredded ribbon-like green and pale yellow Brussels sprout leaves, limp sauteed texture, pan-browned charred edges, glossy oil sheen"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_dinner_vegetable-cannelloni",
+          "menuId": "menu_hall-main_2026-10-01_dinner",
+          "displayName": "Vegetable Cannelloni",
+          "category": "24 Carrots",
+          "description": "rolled cylindrical pasta tube baked under red tomato sauce and browned melted mozzarella cheese, with visible green spinach and white ricotta curd filling at the ends"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_dinner_panzanella-salad",
+          "menuId": "menu_hall-main_2026-10-01_dinner",
+          "displayName": "Panzanella Salad",
+          "category": "24 Carrots",
+          "description": "toasted golden-brown bread cubes soaked with vinaigrette, mixed with red tomato wedges, diced green cucumbers, thin purple red onion slivers, torn dark-green basil leaves, and finely shredded parmesan"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_dinner_ancho-flank-steak",
+          "menuId": "menu_hall-main_2026-10-01_dinner",
+          "displayName": "Ancho Flank Steak",
+          "category": "Halal",
+          "description": "diagonal slices of grilled beef steak, charred dark reddish-brown exterior crusted with chili spices, pinkish-tan fibrous interior"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_dinner_sticky-rice",
+          "menuId": "menu_hall-main_2026-10-01_dinner",
+          "displayName": "Sticky Rice",
+          "category": "Halal",
+          "description": "cluster of glossy, translucent to opaque white short-grain rice clumped together into a sticky mound"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_dinner_vegetable-stir-fry-blend",
+          "menuId": "menu_hall-main_2026-10-01_dinner",
+          "displayName": "Vegetable Stir Fry Blend",
+          "category": "Halal",
+          "description": "colorful assortment of tender-crisp cut vegetables including dark green broccoli florets, diagonal sliced orange carrots, red bell pepper strips, green snap peas, and ivory water chestnut slices coated in a clear sheen"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_dinner_cheese-bread",
+          "menuId": "menu_hall-main_2026-10-01_dinner",
+          "displayName": "Cheese Bread",
+          "category": "Pizziti",
+          "description": "thick rectangular bread strips with melted, bubbly golden-brown cheese top, pale inner dough, crusty bottom and edges, sprinkled dried green oregano"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_dinner_pepperoni-pizza",
+          "menuId": "menu_hall-main_2026-10-01_dinner",
+          "displayName": "Pepperoni Pizza",
+          "category": "Pizziti",
+          "description": "triangular pizza slice with a puffy golden crust edge, melted white-and-gold cheese, sliced circular reddish-brown beef pepperoni cups with glistening orange oils, red tomato sauce underneath"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_dinner_cheese-pizza",
+          "menuId": "menu_hall-main_2026-10-01_dinner",
+          "displayName": "Cheese Pizza",
+          "category": "Pizziti",
+          "description": "triangular pizza slice featuring a golden-brown outer crust rim, even layer of melted cream-colored mozzarella with toasted brown spots, and red sauce beneath"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_dinner_chicken-broccoli-alfredo-pizza",
+          "menuId": "menu_hall-main_2026-10-01_dinner",
+          "displayName": "Chicken Broccoli Alfredo Pizza",
+          "category": "Pizziti",
+          "description": "triangular pizza slice covered in creamy ivory alfredo sauce, melted mozzarella, chopped dark-green broccoli florets, and pale diced grilled chicken cubes over a browned crust"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_dinner_chocolate-coconut-cream-pie",
+          "menuId": "menu_hall-main_2026-10-01_dinner",
+          "displayName": "Chocolate Coconut Cream Pie",
+          "category": "MBakery",
+          "description": "wedge of pie showing a dark chocolate pudding layer set in a tan oat-flour pastry crust, topped with white fluffy whipped topping and toasted golden-brown coconut flakes"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_dinner_pumpkin-pie",
+          "menuId": "menu_hall-main_2026-10-01_dinner",
+          "displayName": "Pumpkin Pie",
+          "category": "MBakery",
+          "description": "pie slice with smooth, dense orange-brown pumpkin custard filling bordered by a fluted, golden-baked pastry crust edge"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_dinner_snickers-brownies-with-peanuts",
+          "menuId": "menu_hall-main_2026-10-01_dinner",
+          "displayName": "Snickers Brownies with Peanuts",
+          "category": "MBakery",
+          "description": "dense square dark-brown fudge brownie, topped with a shiny caramel swirl, studded with halves of roasted tan peanuts and chopped chocolate candy bar pieces"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_dinner_peppermint-white-chocolate-blondie",
+          "menuId": "menu_hall-main_2026-10-01_dinner",
+          "displayName": "Peppermint White Chocolate Blondie",
+          "category": "MBakery",
+          "description": "square golden-tan blondie bar with visible melted creamy-white chocolate morsels, scattered with pink and red crunchy crushed candy cane specks"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_dinner_golden-cake-with-chocolate-frosting",
+          "menuId": "menu_hall-main_2026-10-01_dinner",
+          "displayName": "Golden Cake with Chocolate Frosting",
+          "category": "MBakery",
+          "description": "slice of pale golden-yellow sponge cake topped with a thick, swooped layer of glossy dark-brown chocolate frosting along the top and back"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_dinner_strawberry-shortcake-bar",
+          "menuId": "menu_hall-main_2026-10-01_dinner",
+          "displayName": "Strawberry Shortcake Bar",
+          "category": "MBakery",
+          "description": "rectangular dessert bar coated in textured pink, red, and off-white shortcake crumbs, showing a pale crumb cake base and an interior red fruit gel layer"
         }
       ]
     },
@@ -258,39 +384,165 @@
       },
       "items": [
         {
-          "itemId": "item_hall-main_2026-10-02_dinner_herb-roasted-chicken",
+          "itemId": "item_hall-main_2026-10-02_dinner_broccoli-cheddar-soup",
           "menuId": "menu_hall-main_2026-10-02_dinner",
-          "displayName": "Herb Roasted Chicken",
-          "category": "entree",
-          "description": "Quarter chicken with herb rub"
+          "displayName": "Broccoli Cheddar Soup",
+          "category": "Soup",
+          "description": "creamy yellow-orange thick soup base, small dark-green to olive-green broccoli florets and stem pieces, melted cheese streaks, slightly glossy surface"
         },
         {
-          "itemId": "item_hall-main_2026-10-02_dinner_mashed-potatoes",
+          "itemId": "item_hall-main_2026-10-02_dinner_baked-boneless-ham",
           "menuId": "menu_hall-main_2026-10-02_dinner",
-          "displayName": "Mashed Potatoes",
-          "category": "side",
-          "description": "Mashed potatoes with gravy, standard scoop"
+          "displayName": "Baked Boneless Ham",
+          "category": "Signature Maize",
+          "description": "pink to reddish-brown sliced ham cuts with caramelized glazed edges, smooth meaty grain texture, glossy surface sheen"
         },
         {
-          "itemId": "item_hall-main_2026-10-02_dinner_green-beans",
+          "itemId": "item_hall-main_2026-10-02_dinner_oven-roasted-garlic-potatoes",
           "menuId": "menu_hall-main_2026-10-02_dinner",
-          "displayName": "Green Beans",
-          "category": "side",
-          "description": "Sauteed green beans"
+          "displayName": "Oven Roasted Garlic Potatoes",
+          "category": "Signature Maize",
+          "description": "roasted potato chunks and wedges with crisp golden-brown edges, blistered thin red-brown skins, flecks of minced garlic and dried green herbs"
         },
         {
-          "itemId": "item_hall-main_2026-10-02_dinner_dinner-roll",
+          "itemId": "item_hall-main_2026-10-02_dinner_baked-sweet-potatoes",
           "menuId": "menu_hall-main_2026-10-02_dinner",
-          "displayName": "Dinner Roll",
-          "category": "bread",
-          "description": "One buttered dinner roll"
+          "displayName": "Baked Sweet Potatoes",
+          "category": "Signature Maize",
+          "description": "orange baked sweet potato flesh and skins"
         },
         {
-          "itemId": "item_hall-main_2026-10-02_dinner_apple-crisp",
+          "itemId": "item_hall-main_2026-10-02_dinner_roasted-cauliflower",
           "menuId": "menu_hall-main_2026-10-02_dinner",
-          "displayName": "Apple Crisp",
-          "category": "dessert",
-          "description": "Baked apple crisp, single serving"
+          "displayName": "Roasted Cauliflower",
+          "category": "Signature Maize",
+          "description": "ivory to off-white cauliflower florets with browned roasted tips, blistered surfaces, and char marks"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_dinner_michigan-farmers-4-bean-stew",
+          "menuId": "menu_hall-main_2026-10-02_dinner",
+          "displayName": "Michigan Farmers 4 Bean Stew",
+          "category": "24 Carrots",
+          "description": "chunky stew broth with a mix of whole kidney beans, black beans, pinto beans, and white cannellini beans, mixed with diced orange carrots, diced onions, crushed red tomatoes, and herb specks"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_dinner_farro",
+          "menuId": "menu_hall-main_2026-10-02_dinner",
+          "displayName": "Farro",
+          "category": "24 Carrots",
+          "description": "pile of plump, oval, brownish-tan cooked grain kernels with cracked ridges, semi-glossy and firm texture"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_dinner_shaved-brussel-sprouts",
+          "menuId": "menu_hall-main_2026-10-02_dinner",
+          "displayName": "Shaved Brussel Sprouts",
+          "category": "24 Carrots",
+          "description": "shredded ribbon-like green and pale yellow Brussels sprout leaves, limp sauteed texture, pan-browned charred edges, glossy oil sheen"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_dinner_vegetable-cannelloni",
+          "menuId": "menu_hall-main_2026-10-02_dinner",
+          "displayName": "Vegetable Cannelloni",
+          "category": "24 Carrots",
+          "description": "rolled cylindrical pasta tube baked under red tomato sauce and browned melted mozzarella cheese, with visible green spinach and white ricotta curd filling at the ends"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_dinner_panzanella-salad",
+          "menuId": "menu_hall-main_2026-10-02_dinner",
+          "displayName": "Panzanella Salad",
+          "category": "24 Carrots",
+          "description": "toasted golden-brown bread cubes soaked with vinaigrette, mixed with red tomato wedges, diced green cucumbers, thin purple red onion slivers, torn dark-green basil leaves, and finely shredded parmesan"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_dinner_ancho-flank-steak",
+          "menuId": "menu_hall-main_2026-10-02_dinner",
+          "displayName": "Ancho Flank Steak",
+          "category": "Halal",
+          "description": "diagonal slices of grilled beef steak, charred dark reddish-brown exterior crusted with chili spices, pinkish-tan fibrous interior"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_dinner_sticky-rice",
+          "menuId": "menu_hall-main_2026-10-02_dinner",
+          "displayName": "Sticky Rice",
+          "category": "Halal",
+          "description": "cluster of glossy, translucent to opaque white short-grain rice clumped together into a sticky mound"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_dinner_vegetable-stir-fry-blend",
+          "menuId": "menu_hall-main_2026-10-02_dinner",
+          "displayName": "Vegetable Stir Fry Blend",
+          "category": "Halal",
+          "description": "colorful assortment of tender-crisp cut vegetables including dark green broccoli florets, diagonal sliced orange carrots, red bell pepper strips, green snap peas, and ivory water chestnut slices coated in a clear sheen"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_dinner_cheese-bread",
+          "menuId": "menu_hall-main_2026-10-02_dinner",
+          "displayName": "Cheese Bread",
+          "category": "Pizziti",
+          "description": "thick rectangular bread strips with melted, bubbly golden-brown cheese top, pale inner dough, crusty bottom and edges, sprinkled dried green oregano"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_dinner_pepperoni-pizza",
+          "menuId": "menu_hall-main_2026-10-02_dinner",
+          "displayName": "Pepperoni Pizza",
+          "category": "Pizziti",
+          "description": "triangular pizza slice with a puffy golden crust edge, melted white-and-gold cheese, sliced circular reddish-brown beef pepperoni cups with glistening orange oils, red tomato sauce underneath"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_dinner_cheese-pizza",
+          "menuId": "menu_hall-main_2026-10-02_dinner",
+          "displayName": "Cheese Pizza",
+          "category": "Pizziti",
+          "description": "triangular pizza slice featuring a golden-brown outer crust rim, even layer of melted cream-colored mozzarella with toasted brown spots, and red sauce beneath"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_dinner_chicken-broccoli-alfredo-pizza",
+          "menuId": "menu_hall-main_2026-10-02_dinner",
+          "displayName": "Chicken Broccoli Alfredo Pizza",
+          "category": "Pizziti",
+          "description": "triangular pizza slice covered in creamy ivory alfredo sauce, melted mozzarella, chopped dark-green broccoli florets, and pale diced grilled chicken cubes over a browned crust"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_dinner_chocolate-coconut-cream-pie",
+          "menuId": "menu_hall-main_2026-10-02_dinner",
+          "displayName": "Chocolate Coconut Cream Pie",
+          "category": "MBakery",
+          "description": "wedge of pie showing a dark chocolate pudding layer set in a tan oat-flour pastry crust, topped with white fluffy whipped topping and toasted golden-brown coconut flakes"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_dinner_pumpkin-pie",
+          "menuId": "menu_hall-main_2026-10-02_dinner",
+          "displayName": "Pumpkin Pie",
+          "category": "MBakery",
+          "description": "pie slice with smooth, dense orange-brown pumpkin custard filling bordered by a fluted, golden-baked pastry crust edge"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_dinner_snickers-brownies-with-peanuts",
+          "menuId": "menu_hall-main_2026-10-02_dinner",
+          "displayName": "Snickers Brownies with Peanuts",
+          "category": "MBakery",
+          "description": "dense square dark-brown fudge brownie, topped with a shiny caramel swirl, studded with halves of roasted tan peanuts and chopped chocolate candy bar pieces"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_dinner_peppermint-white-chocolate-blondie",
+          "menuId": "menu_hall-main_2026-10-02_dinner",
+          "displayName": "Peppermint White Chocolate Blondie",
+          "category": "MBakery",
+          "description": "square golden-tan blondie bar with visible melted creamy-white chocolate morsels, scattered with pink and red crunchy crushed candy cane specks"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_dinner_golden-cake-with-chocolate-frosting",
+          "menuId": "menu_hall-main_2026-10-02_dinner",
+          "displayName": "Golden Cake with Chocolate Frosting",
+          "category": "MBakery",
+          "description": "slice of pale golden-yellow sponge cake topped with a thick, swooped layer of glossy dark-brown chocolate frosting along the top and back"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_dinner_strawberry-shortcake-bar",
+          "menuId": "menu_hall-main_2026-10-02_dinner",
+          "displayName": "Strawberry Shortcake Bar",
+          "category": "MBakery",
+          "description": "rectangular dessert bar coated in textured pink, red, and off-white shortcake crumbs, showing a pale crumb cake base and an interior red fruit gel layer"
         }
       ]
     },
@@ -402,39 +654,165 @@
       },
       "items": [
         {
-          "itemId": "item_hall-main_2026-10-03_dinner_teriyaki-salmon",
+          "itemId": "item_hall-main_2026-10-03_dinner_broccoli-cheddar-soup",
           "menuId": "menu_hall-main_2026-10-03_dinner",
-          "displayName": "Teriyaki Salmon",
-          "category": "entree",
-          "description": "Glazed salmon fillet"
+          "displayName": "Broccoli Cheddar Soup",
+          "category": "Soup",
+          "description": "creamy yellow-orange thick soup base, small dark-green to olive-green broccoli florets and stem pieces, melted cheese streaks, slightly glossy surface"
         },
         {
-          "itemId": "item_hall-main_2026-10-03_dinner_jasmine-rice",
+          "itemId": "item_hall-main_2026-10-03_dinner_baked-boneless-ham",
           "menuId": "menu_hall-main_2026-10-03_dinner",
-          "displayName": "Jasmine Rice",
-          "category": "side",
-          "description": "Steamed jasmine rice, standard scoop"
+          "displayName": "Baked Boneless Ham",
+          "category": "Signature Maize",
+          "description": "pink to reddish-brown sliced ham cuts with caramelized glazed edges, smooth meaty grain texture, glossy surface sheen"
         },
         {
-          "itemId": "item_hall-main_2026-10-03_dinner_roasted-zucchini",
+          "itemId": "item_hall-main_2026-10-03_dinner_oven-roasted-garlic-potatoes",
           "menuId": "menu_hall-main_2026-10-03_dinner",
-          "displayName": "Roasted Zucchini",
-          "category": "side",
-          "description": "Roasted zucchini and squash"
+          "displayName": "Oven Roasted Garlic Potatoes",
+          "category": "Signature Maize",
+          "description": "roasted potato chunks and wedges with crisp golden-brown edges, blistered thin red-brown skins, flecks of minced garlic and dried green herbs"
         },
         {
-          "itemId": "item_hall-main_2026-10-03_dinner_miso-soup",
+          "itemId": "item_hall-main_2026-10-03_dinner_baked-sweet-potatoes",
           "menuId": "menu_hall-main_2026-10-03_dinner",
-          "displayName": "Miso Soup",
-          "category": "soup",
-          "description": "Miso broth with tofu and scallion"
+          "displayName": "Baked Sweet Potatoes",
+          "category": "Signature Maize",
+          "description": "orange baked sweet potato flesh and skins"
         },
         {
-          "itemId": "item_hall-main_2026-10-03_dinner_mango-sorbet",
+          "itemId": "item_hall-main_2026-10-03_dinner_roasted-cauliflower",
           "menuId": "menu_hall-main_2026-10-03_dinner",
-          "displayName": "Mango Sorbet",
-          "category": "dessert",
-          "description": "Single scoop of sorbet"
+          "displayName": "Roasted Cauliflower",
+          "category": "Signature Maize",
+          "description": "ivory to off-white cauliflower florets with browned roasted tips, blistered surfaces, and char marks"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_dinner_michigan-farmers-4-bean-stew",
+          "menuId": "menu_hall-main_2026-10-03_dinner",
+          "displayName": "Michigan Farmers 4 Bean Stew",
+          "category": "24 Carrots",
+          "description": "chunky stew broth with a mix of whole kidney beans, black beans, pinto beans, and white cannellini beans, mixed with diced orange carrots, diced onions, crushed red tomatoes, and herb specks"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_dinner_farro",
+          "menuId": "menu_hall-main_2026-10-03_dinner",
+          "displayName": "Farro",
+          "category": "24 Carrots",
+          "description": "pile of plump, oval, brownish-tan cooked grain kernels with cracked ridges, semi-glossy and firm texture"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_dinner_shaved-brussel-sprouts",
+          "menuId": "menu_hall-main_2026-10-03_dinner",
+          "displayName": "Shaved Brussel Sprouts",
+          "category": "24 Carrots",
+          "description": "shredded ribbon-like green and pale yellow Brussels sprout leaves, limp sauteed texture, pan-browned charred edges, glossy oil sheen"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_dinner_vegetable-cannelloni",
+          "menuId": "menu_hall-main_2026-10-03_dinner",
+          "displayName": "Vegetable Cannelloni",
+          "category": "24 Carrots",
+          "description": "rolled cylindrical pasta tube baked under red tomato sauce and browned melted mozzarella cheese, with visible green spinach and white ricotta curd filling at the ends"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_dinner_panzanella-salad",
+          "menuId": "menu_hall-main_2026-10-03_dinner",
+          "displayName": "Panzanella Salad",
+          "category": "24 Carrots",
+          "description": "toasted golden-brown bread cubes soaked with vinaigrette, mixed with red tomato wedges, diced green cucumbers, thin purple red onion slivers, torn dark-green basil leaves, and finely shredded parmesan"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_dinner_ancho-flank-steak",
+          "menuId": "menu_hall-main_2026-10-03_dinner",
+          "displayName": "Ancho Flank Steak",
+          "category": "Halal",
+          "description": "diagonal slices of grilled beef steak, charred dark reddish-brown exterior crusted with chili spices, pinkish-tan fibrous interior"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_dinner_sticky-rice",
+          "menuId": "menu_hall-main_2026-10-03_dinner",
+          "displayName": "Sticky Rice",
+          "category": "Halal",
+          "description": "cluster of glossy, translucent to opaque white short-grain rice clumped together into a sticky mound"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_dinner_vegetable-stir-fry-blend",
+          "menuId": "menu_hall-main_2026-10-03_dinner",
+          "displayName": "Vegetable Stir Fry Blend",
+          "category": "Halal",
+          "description": "colorful assortment of tender-crisp cut vegetables including dark green broccoli florets, diagonal sliced orange carrots, red bell pepper strips, green snap peas, and ivory water chestnut slices coated in a clear sheen"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_dinner_cheese-bread",
+          "menuId": "menu_hall-main_2026-10-03_dinner",
+          "displayName": "Cheese Bread",
+          "category": "Pizziti",
+          "description": "thick rectangular bread strips with melted, bubbly golden-brown cheese top, pale inner dough, crusty bottom and edges, sprinkled dried green oregano"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_dinner_pepperoni-pizza",
+          "menuId": "menu_hall-main_2026-10-03_dinner",
+          "displayName": "Pepperoni Pizza",
+          "category": "Pizziti",
+          "description": "triangular pizza slice with a puffy golden crust edge, melted white-and-gold cheese, sliced circular reddish-brown beef pepperoni cups with glistening orange oils, red tomato sauce underneath"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_dinner_cheese-pizza",
+          "menuId": "menu_hall-main_2026-10-03_dinner",
+          "displayName": "Cheese Pizza",
+          "category": "Pizziti",
+          "description": "triangular pizza slice featuring a golden-brown outer crust rim, even layer of melted cream-colored mozzarella with toasted brown spots, and red sauce beneath"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_dinner_chicken-broccoli-alfredo-pizza",
+          "menuId": "menu_hall-main_2026-10-03_dinner",
+          "displayName": "Chicken Broccoli Alfredo Pizza",
+          "category": "Pizziti",
+          "description": "triangular pizza slice covered in creamy ivory alfredo sauce, melted mozzarella, chopped dark-green broccoli florets, and pale diced grilled chicken cubes over a browned crust"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_dinner_chocolate-coconut-cream-pie",
+          "menuId": "menu_hall-main_2026-10-03_dinner",
+          "displayName": "Chocolate Coconut Cream Pie",
+          "category": "MBakery",
+          "description": "wedge of pie showing a dark chocolate pudding layer set in a tan oat-flour pastry crust, topped with white fluffy whipped topping and toasted golden-brown coconut flakes"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_dinner_pumpkin-pie",
+          "menuId": "menu_hall-main_2026-10-03_dinner",
+          "displayName": "Pumpkin Pie",
+          "category": "MBakery",
+          "description": "pie slice with smooth, dense orange-brown pumpkin custard filling bordered by a fluted, golden-baked pastry crust edge"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_dinner_snickers-brownies-with-peanuts",
+          "menuId": "menu_hall-main_2026-10-03_dinner",
+          "displayName": "Snickers Brownies with Peanuts",
+          "category": "MBakery",
+          "description": "dense square dark-brown fudge brownie, topped with a shiny caramel swirl, studded with halves of roasted tan peanuts and chopped chocolate candy bar pieces"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_dinner_peppermint-white-chocolate-blondie",
+          "menuId": "menu_hall-main_2026-10-03_dinner",
+          "displayName": "Peppermint White Chocolate Blondie",
+          "category": "MBakery",
+          "description": "square golden-tan blondie bar with visible melted creamy-white chocolate morsels, scattered with pink and red crunchy crushed candy cane specks"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_dinner_golden-cake-with-chocolate-frosting",
+          "menuId": "menu_hall-main_2026-10-03_dinner",
+          "displayName": "Golden Cake with Chocolate Frosting",
+          "category": "MBakery",
+          "description": "slice of pale golden-yellow sponge cake topped with a thick, swooped layer of glossy dark-brown chocolate frosting along the top and back"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_dinner_strawberry-shortcake-bar",
+          "menuId": "menu_hall-main_2026-10-03_dinner",
+          "displayName": "Strawberry Shortcake Bar",
+          "category": "MBakery",
+          "description": "rectangular dessert bar coated in textured pink, red, and off-white shortcake crumbs, showing a pale crumb cake base and an interior red fruit gel layer"
         }
       ]
     }
@@ -581,10 +959,10 @@
       "source": "manual_area"
     },
     {
-      "baselineId": "base_hall-main_2026-10-01_dinner_baked-ziti_v1",
+      "baselineId": "base_hall-main_2026-10-01_dinner_broccoli-cheddar-soup_v1",
       "baselineVersion": 1,
-      "itemId": "item_hall-main_2026-10-01_dinner_baked-ziti",
-      "expectedAreaPx": 49272,
+      "itemId": "item_hall-main_2026-10-01_dinner_broccoli-cheddar-soup",
+      "expectedAreaPx": 48215,
       "geometry": {
         "widthPx": 1024,
         "heightPx": 1024,
@@ -595,10 +973,10 @@
       "source": "manual_area"
     },
     {
-      "baselineId": "base_hall-main_2026-10-01_dinner_garlic-breadstick_v1",
+      "baselineId": "base_hall-main_2026-10-01_dinner_baked-boneless-ham_v1",
       "baselineVersion": 1,
-      "itemId": "item_hall-main_2026-10-01_dinner_garlic-breadstick",
-      "expectedAreaPx": 14308,
+      "itemId": "item_hall-main_2026-10-01_dinner_baked-boneless-ham",
+      "expectedAreaPx": 56240,
       "geometry": {
         "widthPx": 1024,
         "heightPx": 1024,
@@ -609,10 +987,10 @@
       "source": "manual_area"
     },
     {
-      "baselineId": "base_hall-main_2026-10-01_dinner_steamed-broccoli_v1",
+      "baselineId": "base_hall-main_2026-10-01_dinner_oven-roasted-garlic-potatoes_v1",
       "baselineVersion": 1,
-      "itemId": "item_hall-main_2026-10-01_dinner_steamed-broccoli",
-      "expectedAreaPx": 28517,
+      "itemId": "item_hall-main_2026-10-01_dinner_oven-roasted-garlic-potatoes",
+      "expectedAreaPx": 23671,
       "geometry": {
         "widthPx": 1024,
         "heightPx": 1024,
@@ -623,10 +1001,10 @@
       "source": "manual_area"
     },
     {
-      "baselineId": "base_hall-main_2026-10-01_dinner_caesar-salad_v1",
+      "baselineId": "base_hall-main_2026-10-01_dinner_baked-sweet-potatoes_v1",
       "baselineVersion": 1,
-      "itemId": "item_hall-main_2026-10-01_dinner_caesar-salad",
-      "expectedAreaPx": 39429,
+      "itemId": "item_hall-main_2026-10-01_dinner_baked-sweet-potatoes",
+      "expectedAreaPx": 26566,
       "geometry": {
         "widthPx": 1024,
         "heightPx": 1024,
@@ -637,10 +1015,262 @@
       "source": "manual_area"
     },
     {
-      "baselineId": "base_hall-main_2026-10-01_dinner_vanilla-pudding_v1",
+      "baselineId": "base_hall-main_2026-10-01_dinner_roasted-cauliflower_v1",
       "baselineVersion": 1,
-      "itemId": "item_hall-main_2026-10-01_dinner_vanilla-pudding",
-      "expectedAreaPx": 15029,
+      "itemId": "item_hall-main_2026-10-01_dinner_roasted-cauliflower",
+      "expectedAreaPx": 25528,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_dinner_michigan-farmers-4-bean-stew_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_michigan-farmers-4-bean-stew",
+      "expectedAreaPx": 48855,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_dinner_farro_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_farro",
+      "expectedAreaPx": 28365,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_dinner_shaved-brussel-sprouts_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_shaved-brussel-sprouts",
+      "expectedAreaPx": 25267,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_dinner_vegetable-cannelloni_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_vegetable-cannelloni",
+      "expectedAreaPx": 49460,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_dinner_panzanella-salad_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_panzanella-salad",
+      "expectedAreaPx": 26712,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_dinner_ancho-flank-steak_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_ancho-flank-steak",
+      "expectedAreaPx": 47895,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_dinner_sticky-rice_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_sticky-rice",
+      "expectedAreaPx": 26034,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_dinner_vegetable-stir-fry-blend_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_vegetable-stir-fry-blend",
+      "expectedAreaPx": 26357,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_dinner_cheese-bread_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_cheese-bread",
+      "expectedAreaPx": 26305,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_dinner_pepperoni-pizza_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_pepperoni-pizza",
+      "expectedAreaPx": 48386,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_dinner_cheese-pizza_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_cheese-pizza",
+      "expectedAreaPx": 55614,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_dinner_chicken-broccoli-alfredo-pizza_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_chicken-broccoli-alfredo-pizza",
+      "expectedAreaPx": 50712,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_dinner_chocolate-coconut-cream-pie_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_chocolate-coconut-cream-pie",
+      "expectedAreaPx": 14426,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_dinner_pumpkin-pie_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_pumpkin-pie",
+      "expectedAreaPx": 14631,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_dinner_snickers-brownies-with-peanuts_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_snickers-brownies-with-peanuts",
+      "expectedAreaPx": 16223,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_dinner_peppermint-white-chocolate-blondie_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_peppermint-white-chocolate-blondie",
+      "expectedAreaPx": 15777,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_dinner_golden-cake-with-chocolate-frosting_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_golden-cake-with-chocolate-frosting",
+      "expectedAreaPx": 17199,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_dinner_strawberry-shortcake-bar_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_strawberry-shortcake-bar",
+      "expectedAreaPx": 17324,
       "geometry": {
         "widthPx": 1024,
         "heightPx": 1024,
@@ -791,10 +1421,10 @@
       "source": "manual_area"
     },
     {
-      "baselineId": "base_hall-main_2026-10-02_dinner_herb-roasted-chicken_v1",
+      "baselineId": "base_hall-main_2026-10-02_dinner_broccoli-cheddar-soup_v1",
       "baselineVersion": 1,
-      "itemId": "item_hall-main_2026-10-02_dinner_herb-roasted-chicken",
-      "expectedAreaPx": 53434,
+      "itemId": "item_hall-main_2026-10-02_dinner_broccoli-cheddar-soup",
+      "expectedAreaPx": 48215,
       "geometry": {
         "widthPx": 1024,
         "heightPx": 1024,
@@ -805,10 +1435,10 @@
       "source": "manual_area"
     },
     {
-      "baselineId": "base_hall-main_2026-10-02_dinner_mashed-potatoes_v1",
+      "baselineId": "base_hall-main_2026-10-02_dinner_baked-boneless-ham_v1",
       "baselineVersion": 1,
-      "itemId": "item_hall-main_2026-10-02_dinner_mashed-potatoes",
-      "expectedAreaPx": 25001,
+      "itemId": "item_hall-main_2026-10-02_dinner_baked-boneless-ham",
+      "expectedAreaPx": 56240,
       "geometry": {
         "widthPx": 1024,
         "heightPx": 1024,
@@ -819,10 +1449,10 @@
       "source": "manual_area"
     },
     {
-      "baselineId": "base_hall-main_2026-10-02_dinner_green-beans_v1",
+      "baselineId": "base_hall-main_2026-10-02_dinner_oven-roasted-garlic-potatoes_v1",
       "baselineVersion": 1,
-      "itemId": "item_hall-main_2026-10-02_dinner_green-beans",
-      "expectedAreaPx": 24000,
+      "itemId": "item_hall-main_2026-10-02_dinner_oven-roasted-garlic-potatoes",
+      "expectedAreaPx": 23671,
       "geometry": {
         "widthPx": 1024,
         "heightPx": 1024,
@@ -833,10 +1463,10 @@
       "source": "manual_area"
     },
     {
-      "baselineId": "base_hall-main_2026-10-02_dinner_dinner-roll_v1",
+      "baselineId": "base_hall-main_2026-10-02_dinner_baked-sweet-potatoes_v1",
       "baselineVersion": 1,
-      "itemId": "item_hall-main_2026-10-02_dinner_dinner-roll",
-      "expectedAreaPx": 13692,
+      "itemId": "item_hall-main_2026-10-02_dinner_baked-sweet-potatoes",
+      "expectedAreaPx": 26566,
       "geometry": {
         "widthPx": 1024,
         "heightPx": 1024,
@@ -847,10 +1477,262 @@
       "source": "manual_area"
     },
     {
-      "baselineId": "base_hall-main_2026-10-02_dinner_apple-crisp_v1",
+      "baselineId": "base_hall-main_2026-10-02_dinner_roasted-cauliflower_v1",
       "baselineVersion": 1,
-      "itemId": "item_hall-main_2026-10-02_dinner_apple-crisp",
-      "expectedAreaPx": 16416,
+      "itemId": "item_hall-main_2026-10-02_dinner_roasted-cauliflower",
+      "expectedAreaPx": 25528,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_dinner_michigan-farmers-4-bean-stew_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_michigan-farmers-4-bean-stew",
+      "expectedAreaPx": 48855,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_dinner_farro_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_farro",
+      "expectedAreaPx": 28365,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_dinner_shaved-brussel-sprouts_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_shaved-brussel-sprouts",
+      "expectedAreaPx": 25267,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_dinner_vegetable-cannelloni_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_vegetable-cannelloni",
+      "expectedAreaPx": 49460,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_dinner_panzanella-salad_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_panzanella-salad",
+      "expectedAreaPx": 26712,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_dinner_ancho-flank-steak_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_ancho-flank-steak",
+      "expectedAreaPx": 47895,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_dinner_sticky-rice_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_sticky-rice",
+      "expectedAreaPx": 26034,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_dinner_vegetable-stir-fry-blend_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_vegetable-stir-fry-blend",
+      "expectedAreaPx": 26357,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_dinner_cheese-bread_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_cheese-bread",
+      "expectedAreaPx": 26305,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_dinner_pepperoni-pizza_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_pepperoni-pizza",
+      "expectedAreaPx": 48386,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_dinner_cheese-pizza_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_cheese-pizza",
+      "expectedAreaPx": 55614,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_dinner_chicken-broccoli-alfredo-pizza_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_chicken-broccoli-alfredo-pizza",
+      "expectedAreaPx": 50712,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_dinner_chocolate-coconut-cream-pie_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_chocolate-coconut-cream-pie",
+      "expectedAreaPx": 14426,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_dinner_pumpkin-pie_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_pumpkin-pie",
+      "expectedAreaPx": 14631,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_dinner_snickers-brownies-with-peanuts_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_snickers-brownies-with-peanuts",
+      "expectedAreaPx": 16223,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_dinner_peppermint-white-chocolate-blondie_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_peppermint-white-chocolate-blondie",
+      "expectedAreaPx": 15777,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_dinner_golden-cake-with-chocolate-frosting_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_golden-cake-with-chocolate-frosting",
+      "expectedAreaPx": 17199,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_dinner_strawberry-shortcake-bar_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_strawberry-shortcake-bar",
+      "expectedAreaPx": 17324,
       "geometry": {
         "widthPx": 1024,
         "heightPx": 1024,
@@ -1001,10 +1883,10 @@
       "source": "manual_area"
     },
     {
-      "baselineId": "base_hall-main_2026-10-03_dinner_teriyaki-salmon_v1",
+      "baselineId": "base_hall-main_2026-10-03_dinner_broccoli-cheddar-soup_v1",
       "baselineVersion": 1,
-      "itemId": "item_hall-main_2026-10-03_dinner_teriyaki-salmon",
-      "expectedAreaPx": 50973,
+      "itemId": "item_hall-main_2026-10-03_dinner_broccoli-cheddar-soup",
+      "expectedAreaPx": 48215,
       "geometry": {
         "widthPx": 1024,
         "heightPx": 1024,
@@ -1015,10 +1897,10 @@
       "source": "manual_area"
     },
     {
-      "baselineId": "base_hall-main_2026-10-03_dinner_jasmine-rice_v1",
+      "baselineId": "base_hall-main_2026-10-03_dinner_baked-boneless-ham_v1",
       "baselineVersion": 1,
-      "itemId": "item_hall-main_2026-10-03_dinner_jasmine-rice",
-      "expectedAreaPx": 24271,
+      "itemId": "item_hall-main_2026-10-03_dinner_baked-boneless-ham",
+      "expectedAreaPx": 56240,
       "geometry": {
         "widthPx": 1024,
         "heightPx": 1024,
@@ -1029,10 +1911,10 @@
       "source": "manual_area"
     },
     {
-      "baselineId": "base_hall-main_2026-10-03_dinner_roasted-zucchini_v1",
+      "baselineId": "base_hall-main_2026-10-03_dinner_oven-roasted-garlic-potatoes_v1",
       "baselineVersion": 1,
-      "itemId": "item_hall-main_2026-10-03_dinner_roasted-zucchini",
-      "expectedAreaPx": 25225,
+      "itemId": "item_hall-main_2026-10-03_dinner_oven-roasted-garlic-potatoes",
+      "expectedAreaPx": 23671,
       "geometry": {
         "widthPx": 1024,
         "heightPx": 1024,
@@ -1043,10 +1925,10 @@
       "source": "manual_area"
     },
     {
-      "baselineId": "base_hall-main_2026-10-03_dinner_miso-soup_v1",
+      "baselineId": "base_hall-main_2026-10-03_dinner_baked-sweet-potatoes_v1",
       "baselineVersion": 1,
-      "itemId": "item_hall-main_2026-10-03_dinner_miso-soup",
-      "expectedAreaPx": 40889,
+      "itemId": "item_hall-main_2026-10-03_dinner_baked-sweet-potatoes",
+      "expectedAreaPx": 26566,
       "geometry": {
         "widthPx": 1024,
         "heightPx": 1024,
@@ -1057,10 +1939,262 @@
       "source": "manual_area"
     },
     {
-      "baselineId": "base_hall-main_2026-10-03_dinner_mango-sorbet_v1",
+      "baselineId": "base_hall-main_2026-10-03_dinner_roasted-cauliflower_v1",
       "baselineVersion": 1,
-      "itemId": "item_hall-main_2026-10-03_dinner_mango-sorbet",
-      "expectedAreaPx": 17443,
+      "itemId": "item_hall-main_2026-10-03_dinner_roasted-cauliflower",
+      "expectedAreaPx": 25528,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_dinner_michigan-farmers-4-bean-stew_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_michigan-farmers-4-bean-stew",
+      "expectedAreaPx": 48855,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_dinner_farro_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_farro",
+      "expectedAreaPx": 28365,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_dinner_shaved-brussel-sprouts_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_shaved-brussel-sprouts",
+      "expectedAreaPx": 25267,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_dinner_vegetable-cannelloni_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_vegetable-cannelloni",
+      "expectedAreaPx": 49460,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_dinner_panzanella-salad_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_panzanella-salad",
+      "expectedAreaPx": 26712,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_dinner_ancho-flank-steak_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_ancho-flank-steak",
+      "expectedAreaPx": 47895,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_dinner_sticky-rice_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_sticky-rice",
+      "expectedAreaPx": 26034,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_dinner_vegetable-stir-fry-blend_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_vegetable-stir-fry-blend",
+      "expectedAreaPx": 26357,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_dinner_cheese-bread_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_cheese-bread",
+      "expectedAreaPx": 26305,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_dinner_pepperoni-pizza_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_pepperoni-pizza",
+      "expectedAreaPx": 48386,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_dinner_cheese-pizza_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_cheese-pizza",
+      "expectedAreaPx": 55614,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_dinner_chicken-broccoli-alfredo-pizza_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_chicken-broccoli-alfredo-pizza",
+      "expectedAreaPx": 50712,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_dinner_chocolate-coconut-cream-pie_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_chocolate-coconut-cream-pie",
+      "expectedAreaPx": 14426,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_dinner_pumpkin-pie_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_pumpkin-pie",
+      "expectedAreaPx": 14631,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_dinner_snickers-brownies-with-peanuts_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_snickers-brownies-with-peanuts",
+      "expectedAreaPx": 16223,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_dinner_peppermint-white-chocolate-blondie_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_peppermint-white-chocolate-blondie",
+      "expectedAreaPx": 15777,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_dinner_golden-cake-with-chocolate-frosting_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_golden-cake-with-chocolate-frosting",
+      "expectedAreaPx": 17199,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_dinner_strawberry-shortcake-bar_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_strawberry-shortcake-bar",
+      "expectedAreaPx": 17324,
       "geometry": {
         "widthPx": 1024,
         "heightPx": 1024,
@@ -1070,5 +2204,836 @@
       },
       "source": "manual_area"
     }
-  ]
+  ],
+  "portionsServed": [
+    {
+      "recordId": "[\"svc_hall-main_2026-10-01_dinner\",1,\"item_hall-main_2026-10-01_dinner_broccoli-cheddar-soup\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-01_dinner",
+      "serviceDate": "2026-10-01",
+      "menuId": "menu_hall-main_2026-10-01_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_broccoli-cheddar-soup",
+      "count": 72,
+      "source": "demo",
+      "updatedAt": "2026-10-01T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-01_dinner\",1,\"item_hall-main_2026-10-01_dinner_baked-boneless-ham\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-01_dinner",
+      "serviceDate": "2026-10-01",
+      "menuId": "menu_hall-main_2026-10-01_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_baked-boneless-ham",
+      "count": 202,
+      "source": "demo",
+      "updatedAt": "2026-10-01T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-01_dinner\",1,\"item_hall-main_2026-10-01_dinner_oven-roasted-garlic-potatoes\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-01_dinner",
+      "serviceDate": "2026-10-01",
+      "menuId": "menu_hall-main_2026-10-01_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_oven-roasted-garlic-potatoes",
+      "count": 164,
+      "source": "demo",
+      "updatedAt": "2026-10-01T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-01_dinner\",1,\"item_hall-main_2026-10-01_dinner_baked-sweet-potatoes\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-01_dinner",
+      "serviceDate": "2026-10-01",
+      "menuId": "menu_hall-main_2026-10-01_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_baked-sweet-potatoes",
+      "count": 102,
+      "source": "demo",
+      "updatedAt": "2026-10-01T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-01_dinner\",1,\"item_hall-main_2026-10-01_dinner_roasted-cauliflower\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-01_dinner",
+      "serviceDate": "2026-10-01",
+      "menuId": "menu_hall-main_2026-10-01_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_roasted-cauliflower",
+      "count": 140,
+      "source": "demo",
+      "updatedAt": "2026-10-01T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-01_dinner\",1,\"item_hall-main_2026-10-01_dinner_michigan-farmers-4-bean-stew\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-01_dinner",
+      "serviceDate": "2026-10-01",
+      "menuId": "menu_hall-main_2026-10-01_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_michigan-farmers-4-bean-stew",
+      "count": 150,
+      "source": "demo",
+      "updatedAt": "2026-10-01T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-01_dinner\",1,\"item_hall-main_2026-10-01_dinner_farro\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-01_dinner",
+      "serviceDate": "2026-10-01",
+      "menuId": "menu_hall-main_2026-10-01_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_farro",
+      "count": 167,
+      "source": "demo",
+      "updatedAt": "2026-10-01T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-01_dinner\",1,\"item_hall-main_2026-10-01_dinner_shaved-brussel-sprouts\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-01_dinner",
+      "serviceDate": "2026-10-01",
+      "menuId": "menu_hall-main_2026-10-01_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_shaved-brussel-sprouts",
+      "count": 101,
+      "source": "demo",
+      "updatedAt": "2026-10-01T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-01_dinner\",1,\"item_hall-main_2026-10-01_dinner_vegetable-cannelloni\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-01_dinner",
+      "serviceDate": "2026-10-01",
+      "menuId": "menu_hall-main_2026-10-01_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_vegetable-cannelloni",
+      "count": 248,
+      "source": "demo",
+      "updatedAt": "2026-10-01T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-01_dinner\",1,\"item_hall-main_2026-10-01_dinner_panzanella-salad\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-01_dinner",
+      "serviceDate": "2026-10-01",
+      "menuId": "menu_hall-main_2026-10-01_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_panzanella-salad",
+      "count": 155,
+      "source": "demo",
+      "updatedAt": "2026-10-01T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-01_dinner\",1,\"item_hall-main_2026-10-01_dinner_ancho-flank-steak\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-01_dinner",
+      "serviceDate": "2026-10-01",
+      "menuId": "menu_hall-main_2026-10-01_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_ancho-flank-steak",
+      "count": 168,
+      "source": "demo",
+      "updatedAt": "2026-10-01T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-01_dinner\",1,\"item_hall-main_2026-10-01_dinner_sticky-rice\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-01_dinner",
+      "serviceDate": "2026-10-01",
+      "menuId": "menu_hall-main_2026-10-01_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_sticky-rice",
+      "count": 122,
+      "source": "demo",
+      "updatedAt": "2026-10-01T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-01_dinner\",1,\"item_hall-main_2026-10-01_dinner_vegetable-stir-fry-blend\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-01_dinner",
+      "serviceDate": "2026-10-01",
+      "menuId": "menu_hall-main_2026-10-01_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_vegetable-stir-fry-blend",
+      "count": 131,
+      "source": "demo",
+      "updatedAt": "2026-10-01T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-01_dinner\",1,\"item_hall-main_2026-10-01_dinner_cheese-bread\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-01_dinner",
+      "serviceDate": "2026-10-01",
+      "menuId": "menu_hall-main_2026-10-01_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_cheese-bread",
+      "count": 152,
+      "source": "demo",
+      "updatedAt": "2026-10-01T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-01_dinner\",1,\"item_hall-main_2026-10-01_dinner_pepperoni-pizza\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-01_dinner",
+      "serviceDate": "2026-10-01",
+      "menuId": "menu_hall-main_2026-10-01_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_pepperoni-pizza",
+      "count": 198,
+      "source": "demo",
+      "updatedAt": "2026-10-01T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-01_dinner\",1,\"item_hall-main_2026-10-01_dinner_cheese-pizza\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-01_dinner",
+      "serviceDate": "2026-10-01",
+      "menuId": "menu_hall-main_2026-10-01_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_cheese-pizza",
+      "count": 208,
+      "source": "demo",
+      "updatedAt": "2026-10-01T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-01_dinner\",1,\"item_hall-main_2026-10-01_dinner_chicken-broccoli-alfredo-pizza\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-01_dinner",
+      "serviceDate": "2026-10-01",
+      "menuId": "menu_hall-main_2026-10-01_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_chicken-broccoli-alfredo-pizza",
+      "count": 244,
+      "source": "demo",
+      "updatedAt": "2026-10-01T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-01_dinner\",1,\"item_hall-main_2026-10-01_dinner_chocolate-coconut-cream-pie\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-01_dinner",
+      "serviceDate": "2026-10-01",
+      "menuId": "menu_hall-main_2026-10-01_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_chocolate-coconut-cream-pie",
+      "count": 86,
+      "source": "demo",
+      "updatedAt": "2026-10-01T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-01_dinner\",1,\"item_hall-main_2026-10-01_dinner_pumpkin-pie\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-01_dinner",
+      "serviceDate": "2026-10-01",
+      "menuId": "menu_hall-main_2026-10-01_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_pumpkin-pie",
+      "count": 49,
+      "source": "demo",
+      "updatedAt": "2026-10-01T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-01_dinner\",1,\"item_hall-main_2026-10-01_dinner_snickers-brownies-with-peanuts\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-01_dinner",
+      "serviceDate": "2026-10-01",
+      "menuId": "menu_hall-main_2026-10-01_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_snickers-brownies-with-peanuts",
+      "count": 86,
+      "source": "demo",
+      "updatedAt": "2026-10-01T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-01_dinner\",1,\"item_hall-main_2026-10-01_dinner_peppermint-white-chocolate-blondie\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-01_dinner",
+      "serviceDate": "2026-10-01",
+      "menuId": "menu_hall-main_2026-10-01_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_peppermint-white-chocolate-blondie",
+      "count": 50,
+      "source": "demo",
+      "updatedAt": "2026-10-01T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-01_dinner\",1,\"item_hall-main_2026-10-01_dinner_golden-cake-with-chocolate-frosting\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-01_dinner",
+      "serviceDate": "2026-10-01",
+      "menuId": "menu_hall-main_2026-10-01_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_golden-cake-with-chocolate-frosting",
+      "count": 82,
+      "source": "demo",
+      "updatedAt": "2026-10-01T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-01_dinner\",1,\"item_hall-main_2026-10-01_dinner_strawberry-shortcake-bar\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-01_dinner",
+      "serviceDate": "2026-10-01",
+      "menuId": "menu_hall-main_2026-10-01_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_strawberry-shortcake-bar",
+      "count": 97,
+      "source": "demo",
+      "updatedAt": "2026-10-01T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-02_dinner\",1,\"item_hall-main_2026-10-02_dinner_broccoli-cheddar-soup\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-02_dinner",
+      "serviceDate": "2026-10-02",
+      "menuId": "menu_hall-main_2026-10-02_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_broccoli-cheddar-soup",
+      "count": 95,
+      "source": "demo",
+      "updatedAt": "2026-10-02T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-02_dinner\",1,\"item_hall-main_2026-10-02_dinner_baked-boneless-ham\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-02_dinner",
+      "serviceDate": "2026-10-02",
+      "menuId": "menu_hall-main_2026-10-02_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_baked-boneless-ham",
+      "count": 164,
+      "source": "demo",
+      "updatedAt": "2026-10-02T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-02_dinner\",1,\"item_hall-main_2026-10-02_dinner_oven-roasted-garlic-potatoes\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-02_dinner",
+      "serviceDate": "2026-10-02",
+      "menuId": "menu_hall-main_2026-10-02_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_oven-roasted-garlic-potatoes",
+      "count": 141,
+      "source": "demo",
+      "updatedAt": "2026-10-02T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-02_dinner\",1,\"item_hall-main_2026-10-02_dinner_baked-sweet-potatoes\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-02_dinner",
+      "serviceDate": "2026-10-02",
+      "menuId": "menu_hall-main_2026-10-02_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_baked-sweet-potatoes",
+      "count": 165,
+      "source": "demo",
+      "updatedAt": "2026-10-02T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-02_dinner\",1,\"item_hall-main_2026-10-02_dinner_roasted-cauliflower\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-02_dinner",
+      "serviceDate": "2026-10-02",
+      "menuId": "menu_hall-main_2026-10-02_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_roasted-cauliflower",
+      "count": 155,
+      "source": "demo",
+      "updatedAt": "2026-10-02T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-02_dinner\",1,\"item_hall-main_2026-10-02_dinner_michigan-farmers-4-bean-stew\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-02_dinner",
+      "serviceDate": "2026-10-02",
+      "menuId": "menu_hall-main_2026-10-02_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_michigan-farmers-4-bean-stew",
+      "count": 147,
+      "source": "demo",
+      "updatedAt": "2026-10-02T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-02_dinner\",1,\"item_hall-main_2026-10-02_dinner_farro\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-02_dinner",
+      "serviceDate": "2026-10-02",
+      "menuId": "menu_hall-main_2026-10-02_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_farro",
+      "count": 140,
+      "source": "demo",
+      "updatedAt": "2026-10-02T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-02_dinner\",1,\"item_hall-main_2026-10-02_dinner_shaved-brussel-sprouts\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-02_dinner",
+      "serviceDate": "2026-10-02",
+      "menuId": "menu_hall-main_2026-10-02_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_shaved-brussel-sprouts",
+      "count": 104,
+      "source": "demo",
+      "updatedAt": "2026-10-02T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-02_dinner\",1,\"item_hall-main_2026-10-02_dinner_vegetable-cannelloni\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-02_dinner",
+      "serviceDate": "2026-10-02",
+      "menuId": "menu_hall-main_2026-10-02_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_vegetable-cannelloni",
+      "count": 211,
+      "source": "demo",
+      "updatedAt": "2026-10-02T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-02_dinner\",1,\"item_hall-main_2026-10-02_dinner_panzanella-salad\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-02_dinner",
+      "serviceDate": "2026-10-02",
+      "menuId": "menu_hall-main_2026-10-02_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_panzanella-salad",
+      "count": 126,
+      "source": "demo",
+      "updatedAt": "2026-10-02T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-02_dinner\",1,\"item_hall-main_2026-10-02_dinner_ancho-flank-steak\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-02_dinner",
+      "serviceDate": "2026-10-02",
+      "menuId": "menu_hall-main_2026-10-02_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_ancho-flank-steak",
+      "count": 155,
+      "source": "demo",
+      "updatedAt": "2026-10-02T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-02_dinner\",1,\"item_hall-main_2026-10-02_dinner_sticky-rice\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-02_dinner",
+      "serviceDate": "2026-10-02",
+      "menuId": "menu_hall-main_2026-10-02_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_sticky-rice",
+      "count": 145,
+      "source": "demo",
+      "updatedAt": "2026-10-02T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-02_dinner\",1,\"item_hall-main_2026-10-02_dinner_vegetable-stir-fry-blend\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-02_dinner",
+      "serviceDate": "2026-10-02",
+      "menuId": "menu_hall-main_2026-10-02_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_vegetable-stir-fry-blend",
+      "count": 135,
+      "source": "demo",
+      "updatedAt": "2026-10-02T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-02_dinner\",1,\"item_hall-main_2026-10-02_dinner_cheese-bread\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-02_dinner",
+      "serviceDate": "2026-10-02",
+      "menuId": "menu_hall-main_2026-10-02_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_cheese-bread",
+      "count": 166,
+      "source": "demo",
+      "updatedAt": "2026-10-02T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-02_dinner\",1,\"item_hall-main_2026-10-02_dinner_pepperoni-pizza\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-02_dinner",
+      "serviceDate": "2026-10-02",
+      "menuId": "menu_hall-main_2026-10-02_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_pepperoni-pizza",
+      "count": 145,
+      "source": "demo",
+      "updatedAt": "2026-10-02T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-02_dinner\",1,\"item_hall-main_2026-10-02_dinner_cheese-pizza\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-02_dinner",
+      "serviceDate": "2026-10-02",
+      "menuId": "menu_hall-main_2026-10-02_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_cheese-pizza",
+      "count": 250,
+      "source": "demo",
+      "updatedAt": "2026-10-02T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-02_dinner\",1,\"item_hall-main_2026-10-02_dinner_chicken-broccoli-alfredo-pizza\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-02_dinner",
+      "serviceDate": "2026-10-02",
+      "menuId": "menu_hall-main_2026-10-02_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_chicken-broccoli-alfredo-pizza",
+      "count": 189,
+      "source": "demo",
+      "updatedAt": "2026-10-02T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-02_dinner\",1,\"item_hall-main_2026-10-02_dinner_chocolate-coconut-cream-pie\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-02_dinner",
+      "serviceDate": "2026-10-02",
+      "menuId": "menu_hall-main_2026-10-02_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_chocolate-coconut-cream-pie",
+      "count": 99,
+      "source": "demo",
+      "updatedAt": "2026-10-02T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-02_dinner\",1,\"item_hall-main_2026-10-02_dinner_pumpkin-pie\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-02_dinner",
+      "serviceDate": "2026-10-02",
+      "menuId": "menu_hall-main_2026-10-02_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_pumpkin-pie",
+      "count": 75,
+      "source": "demo",
+      "updatedAt": "2026-10-02T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-02_dinner\",1,\"item_hall-main_2026-10-02_dinner_snickers-brownies-with-peanuts\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-02_dinner",
+      "serviceDate": "2026-10-02",
+      "menuId": "menu_hall-main_2026-10-02_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_snickers-brownies-with-peanuts",
+      "count": 66,
+      "source": "demo",
+      "updatedAt": "2026-10-02T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-02_dinner\",1,\"item_hall-main_2026-10-02_dinner_peppermint-white-chocolate-blondie\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-02_dinner",
+      "serviceDate": "2026-10-02",
+      "menuId": "menu_hall-main_2026-10-02_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_peppermint-white-chocolate-blondie",
+      "count": 47,
+      "source": "demo",
+      "updatedAt": "2026-10-02T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-02_dinner\",1,\"item_hall-main_2026-10-02_dinner_golden-cake-with-chocolate-frosting\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-02_dinner",
+      "serviceDate": "2026-10-02",
+      "menuId": "menu_hall-main_2026-10-02_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_golden-cake-with-chocolate-frosting",
+      "count": 42,
+      "source": "demo",
+      "updatedAt": "2026-10-02T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-02_dinner\",1,\"item_hall-main_2026-10-02_dinner_strawberry-shortcake-bar\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-02_dinner",
+      "serviceDate": "2026-10-02",
+      "menuId": "menu_hall-main_2026-10-02_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_strawberry-shortcake-bar",
+      "count": 49,
+      "source": "demo",
+      "updatedAt": "2026-10-02T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-03_dinner\",1,\"item_hall-main_2026-10-03_dinner_broccoli-cheddar-soup\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_dinner",
+      "serviceDate": "2026-10-03",
+      "menuId": "menu_hall-main_2026-10-03_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_broccoli-cheddar-soup",
+      "count": 139,
+      "source": "demo",
+      "updatedAt": "2026-10-03T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-03_dinner\",1,\"item_hall-main_2026-10-03_dinner_baked-boneless-ham\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_dinner",
+      "serviceDate": "2026-10-03",
+      "menuId": "menu_hall-main_2026-10-03_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_baked-boneless-ham",
+      "count": 236,
+      "source": "demo",
+      "updatedAt": "2026-10-03T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-03_dinner\",1,\"item_hall-main_2026-10-03_dinner_oven-roasted-garlic-potatoes\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_dinner",
+      "serviceDate": "2026-10-03",
+      "menuId": "menu_hall-main_2026-10-03_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_oven-roasted-garlic-potatoes",
+      "count": 75,
+      "source": "demo",
+      "updatedAt": "2026-10-03T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-03_dinner\",1,\"item_hall-main_2026-10-03_dinner_baked-sweet-potatoes\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_dinner",
+      "serviceDate": "2026-10-03",
+      "menuId": "menu_hall-main_2026-10-03_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_baked-sweet-potatoes",
+      "count": 90,
+      "source": "demo",
+      "updatedAt": "2026-10-03T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-03_dinner\",1,\"item_hall-main_2026-10-03_dinner_roasted-cauliflower\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_dinner",
+      "serviceDate": "2026-10-03",
+      "menuId": "menu_hall-main_2026-10-03_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_roasted-cauliflower",
+      "count": 138,
+      "source": "demo",
+      "updatedAt": "2026-10-03T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-03_dinner\",1,\"item_hall-main_2026-10-03_dinner_michigan-farmers-4-bean-stew\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_dinner",
+      "serviceDate": "2026-10-03",
+      "menuId": "menu_hall-main_2026-10-03_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_michigan-farmers-4-bean-stew",
+      "count": 156,
+      "source": "demo",
+      "updatedAt": "2026-10-03T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-03_dinner\",1,\"item_hall-main_2026-10-03_dinner_farro\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_dinner",
+      "serviceDate": "2026-10-03",
+      "menuId": "menu_hall-main_2026-10-03_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_farro",
+      "count": 105,
+      "source": "demo",
+      "updatedAt": "2026-10-03T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-03_dinner\",1,\"item_hall-main_2026-10-03_dinner_shaved-brussel-sprouts\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_dinner",
+      "serviceDate": "2026-10-03",
+      "menuId": "menu_hall-main_2026-10-03_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_shaved-brussel-sprouts",
+      "count": 102,
+      "source": "demo",
+      "updatedAt": "2026-10-03T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-03_dinner\",1,\"item_hall-main_2026-10-03_dinner_vegetable-cannelloni\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_dinner",
+      "serviceDate": "2026-10-03",
+      "menuId": "menu_hall-main_2026-10-03_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_vegetable-cannelloni",
+      "count": 259,
+      "source": "demo",
+      "updatedAt": "2026-10-03T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-03_dinner\",1,\"item_hall-main_2026-10-03_dinner_panzanella-salad\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_dinner",
+      "serviceDate": "2026-10-03",
+      "menuId": "menu_hall-main_2026-10-03_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_panzanella-salad",
+      "count": 128,
+      "source": "demo",
+      "updatedAt": "2026-10-03T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-03_dinner\",1,\"item_hall-main_2026-10-03_dinner_ancho-flank-steak\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_dinner",
+      "serviceDate": "2026-10-03",
+      "menuId": "menu_hall-main_2026-10-03_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_ancho-flank-steak",
+      "count": 250,
+      "source": "demo",
+      "updatedAt": "2026-10-03T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-03_dinner\",1,\"item_hall-main_2026-10-03_dinner_sticky-rice\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_dinner",
+      "serviceDate": "2026-10-03",
+      "menuId": "menu_hall-main_2026-10-03_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_sticky-rice",
+      "count": 101,
+      "source": "demo",
+      "updatedAt": "2026-10-03T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-03_dinner\",1,\"item_hall-main_2026-10-03_dinner_vegetable-stir-fry-blend\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_dinner",
+      "serviceDate": "2026-10-03",
+      "menuId": "menu_hall-main_2026-10-03_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_vegetable-stir-fry-blend",
+      "count": 80,
+      "source": "demo",
+      "updatedAt": "2026-10-03T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-03_dinner\",1,\"item_hall-main_2026-10-03_dinner_cheese-bread\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_dinner",
+      "serviceDate": "2026-10-03",
+      "menuId": "menu_hall-main_2026-10-03_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_cheese-bread",
+      "count": 99,
+      "source": "demo",
+      "updatedAt": "2026-10-03T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-03_dinner\",1,\"item_hall-main_2026-10-03_dinner_pepperoni-pizza\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_dinner",
+      "serviceDate": "2026-10-03",
+      "menuId": "menu_hall-main_2026-10-03_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_pepperoni-pizza",
+      "count": 193,
+      "source": "demo",
+      "updatedAt": "2026-10-03T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-03_dinner\",1,\"item_hall-main_2026-10-03_dinner_cheese-pizza\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_dinner",
+      "serviceDate": "2026-10-03",
+      "menuId": "menu_hall-main_2026-10-03_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_cheese-pizza",
+      "count": 155,
+      "source": "demo",
+      "updatedAt": "2026-10-03T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-03_dinner\",1,\"item_hall-main_2026-10-03_dinner_chicken-broccoli-alfredo-pizza\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_dinner",
+      "serviceDate": "2026-10-03",
+      "menuId": "menu_hall-main_2026-10-03_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_chicken-broccoli-alfredo-pizza",
+      "count": 164,
+      "source": "demo",
+      "updatedAt": "2026-10-03T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-03_dinner\",1,\"item_hall-main_2026-10-03_dinner_chocolate-coconut-cream-pie\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_dinner",
+      "serviceDate": "2026-10-03",
+      "menuId": "menu_hall-main_2026-10-03_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_chocolate-coconut-cream-pie",
+      "count": 86,
+      "source": "demo",
+      "updatedAt": "2026-10-03T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-03_dinner\",1,\"item_hall-main_2026-10-03_dinner_pumpkin-pie\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_dinner",
+      "serviceDate": "2026-10-03",
+      "menuId": "menu_hall-main_2026-10-03_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_pumpkin-pie",
+      "count": 93,
+      "source": "demo",
+      "updatedAt": "2026-10-03T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-03_dinner\",1,\"item_hall-main_2026-10-03_dinner_snickers-brownies-with-peanuts\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_dinner",
+      "serviceDate": "2026-10-03",
+      "menuId": "menu_hall-main_2026-10-03_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_snickers-brownies-with-peanuts",
+      "count": 98,
+      "source": "demo",
+      "updatedAt": "2026-10-03T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-03_dinner\",1,\"item_hall-main_2026-10-03_dinner_peppermint-white-chocolate-blondie\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_dinner",
+      "serviceDate": "2026-10-03",
+      "menuId": "menu_hall-main_2026-10-03_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_peppermint-white-chocolate-blondie",
+      "count": 44,
+      "source": "demo",
+      "updatedAt": "2026-10-03T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-03_dinner\",1,\"item_hall-main_2026-10-03_dinner_golden-cake-with-chocolate-frosting\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_dinner",
+      "serviceDate": "2026-10-03",
+      "menuId": "menu_hall-main_2026-10-03_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_golden-cake-with-chocolate-frosting",
+      "count": 97,
+      "source": "demo",
+      "updatedAt": "2026-10-03T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-03_dinner\",1,\"item_hall-main_2026-10-03_dinner_strawberry-shortcake-bar\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_dinner",
+      "serviceDate": "2026-10-03",
+      "menuId": "menu_hall-main_2026-10-03_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_strawberry-shortcake-bar",
+      "count": 63,
+      "source": "demo",
+      "updatedAt": "2026-10-03T23:30:00.000Z"
+    }
+  ],
+  "portionsLabel": "DEMO portions served: dummy counts for the prototype, not real serving data."
 }

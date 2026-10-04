@@ -164,11 +164,23 @@ from the CSVs, and checks `impactUsdPerKg = 0.19*C + 1.50*W` (no nutrition).
 
 ## Demo seed — `seed/demo-seed.json`
 
-**DEMO DATA.** Fictional but plausible dining-hall menus: 3 days
-(2026-10-01…03) × 3 meals for `hall-main` (America/Detroit), 45 items, each
-with one `manual_area` reference portion in the shared 1024×1024
-`topdown-normalized-v1` geometry (round plate, 900 px diameter — matching
-`contracts/samples.json`).
+**DEMO DATA.** 3 days (2026-10-01…03) × 3 meals for `hall-main`
+(America/Detroit), 99 items, each with one `manual_area` reference portion in
+the shared 1024×1024 `topdown-normalized-v1` geometry (round plate, 900 px
+diameter — matching `contracts/samples.json`).
+
+- Breakfast and lunch are fictional menus (5 items each).
+- **Every dinner is the test hall's 23-food menu** from `menu_waste_factors.csv`
+  (BIG-PLAN D6): `displayName` = CSV `food`, `category` = station,
+  `description` = `gemini_visible_components` (Baked Sweet Potatoes has no
+  Gemini text, so it uses the earlier hand-written description). Item IDs are
+  `item_hall-main_<date>_dinner_<factorKey>`, so `factorKeyFor(displayName)`
+  matches the factor table.
+- **`portionsServed`**: one `PortionsServed` snapshot row per dinner item
+  (69 rows), `source: 'demo'`. Counts are dummy values from a seeded hash
+  (`demo-portions-v1`): entrées 120–260, sides 70–170, soup 60–140, desserts
+  40–110. `portionsLabel` marks them as DEMO. They pass `parsePortionsServed`
+  (which now accepts the `demo` source).
 
 Provenance: menus invented by Agent 2; expected areas hand-assigned per
 category (entree ≈ 52 k px, side ≈ 26 k px, soup ≈ 44 k px, …, ±10 %
@@ -178,7 +190,7 @@ generated deterministically by `src/seed/generate.ts` (`npm run seed`
 reproduces it byte-identically); tests assert the checked-in file matches the
 generator and validates against this package's own validators.
 
-Shape: `{ label, demo: true, provenance, hallId, hallTimezone, coordinateSpace, menus: MenuBundle[], referencePortions: ReferencePortion[] }` —
+Shape: `{ label, demo: true, provenance, hallId, hallTimezone, coordinateSpace, menus: MenuBundle[], referencePortions: ReferencePortion[], portionsServed: PortionsServed[], portionsLabel }` —
 directly loadable by backend fixtures (`POST /api/menus` /
 `/api/reference-portions` bodies), analytics, and integration tests.
 

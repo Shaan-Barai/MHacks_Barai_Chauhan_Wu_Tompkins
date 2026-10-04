@@ -6,7 +6,7 @@ import { readCsvRecords } from './menuCsv.js';
 export const MAX_PORTIONS_SERVED = 4_294_967_295;
 
 /** Snapshot semantics: blank/null counts are absent; a retry replaces rather than increments. */
-export function parsePortionsServed(input: unknown, menu: MenuBundle, source: 'manual' | 'csv', updatedAt: string): PortionsServed[] {
+export function parsePortionsServed(input: unknown, menu: MenuBundle, source: PortionsServed['source'], updatedAt: string): PortionsServed[] {
   if (!input || typeof input !== 'object') invalid('INVALID_PORTIONS', 'Send a meal service, menu version, and item counts.');
   const body = input as Record<string, unknown>;
   if (body.serviceId !== menu.service.serviceId || body.menuVersion !== menu.service.menuVersion) {

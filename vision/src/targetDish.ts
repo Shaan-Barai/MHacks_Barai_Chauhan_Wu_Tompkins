@@ -7,26 +7,32 @@
  * maskPipeline.ts. As a second line of defence, the remaining food masks are
  * clipped to the dish's region, built here from SAM's mask of the dish box:
  *
- *   1. Keep the largest 4-connected component of the SAM dish mask (SAM can
- *      add specks elsewhere).
- *   2. Fill it: take its convex hull. Food on the dish shows up as holes in
- *      the dish mask, and food lying across the rim turns those holes into
- *      notches that a plain hole fill would miss. Plates, bowls and trays are
- *      convex, so the hull fills both.
- *   3. Intersect with the Gemini dish box expanded by a margin
- *      (max(dilatePx, 5% of the box's longer side)) so a SAM mask that bled
- *      onto a neighbouring plate cannot grow the region.
+ *   1. Cut the SAM dish mask to the Gemini dish box expanded by a margin
+ *      (max(dilatePx, 5% of the box's longer side)), so a mask that bled onto
+ *      a neighbouring plate cannot grow the region.
+ *   2. Drop specks: keep every 4-connected component of at least
+ *      max(0.05% of the frame, 2% of the largest component). NOT only the
+ *      largest: a fork or a band of food lying across the dish splits the
+ *      dish surface into several large pieces (seen live on test2/IMG_2697).
+ *   3. Fill: take the convex hull of what is left. Food on the dish shows up
+ *      as holes in the dish mask, and food lying across the rim turns those
+ *      holes into notches that a plain hole fill would miss. Plates, bowls
+ *      and trays are convex, so the hull fills both.
  *   4. Dilate by `dilatePx` = max(2, round(1% of the image's longer side))
  *      pixels (10 px on the 1024x1024 normalized capture), square structuring
  *      element, so food resting on the rim is not shaved off.
- *   5. Plausibility: the region must cover at least 2% and at most 95% of the
- *      frame. Otherwise it is unusable and the caller does NOT clip (it flags
- *      `target_dish_unavailable` and keeps the counts).
+ *   5. Plausibility: the region must cover 2-95% of the frame AND at least
+ *      50% of the frame-clamped Gemini dish box (a round dish fills ~78% of
+ *      its box). Otherwise it is unusable and the caller does NOT clip (it
+ *      flags `target_dish_unavailable` and keeps the counts): an incomplete
+ *      dish mask must never shave off real food.
  *
  * Everything here is deterministic integer image code (no model calls).
  */
 
-export const DISH_REGION_VERSION = 'dish-region-v1';
+export const DISH_REGION_VERSION = 'dish-region-v2';
+/** Region smaller than this fraction of the frame-clamped dish box is incomplete (step 5). */
+export const MIN_BOX_COVERAGE = 0.5;
 /** Region smaller than this fraction of the frame is implausible (tiny). */
 export const MIN_REGION_FRACTION = 0.02;
 /** Region larger than this fraction of the frame is implausible (covers nearly the whole frame). */
@@ -41,15 +47,19 @@ export function dishDilatePx(width: number, height: number): number {
 
 export type DishRegionResult =
   | { ok: true; region: Uint8Array; regionPx: number; dilatePx: number }
-  | { ok: false; reason: 'dish_mask_empty' | 'region_too_small' | 'region_too_large'; regionPx: number; dilatePx: number };
+  | {
+      ok: false;
+      reason: 'dish_mask_empty' | 'region_too_small' | 'region_too_large' | 'region_incomplete';
+      regionPx: number;
+      dilatePx: number;
+    };
 
-/** Largest 4-connected component of a 0/1 bitmap (ties: first found in raster order). */
-export function largestComponent(bitmap: Uint8Array, width: number, height: number): { bitmap: Uint8Array; pixels: number } {
+/** 4-connected component labels (1..n, 0 = background) and each component's size (index = label). */
+export function labelComponents(bitmap: Uint8Array, width: number, height: number): { label: Int32Array; sizes: number[] } {
   const size = width * height;
   const label = new Int32Array(size);
   const queue = new Int32Array(size);
-  let best = 0;
-  let bestPx = 0;
+  const sizes = [0];
   let next = 0;
   for (let start = 0; start < size; start++) {
     if (!bitmap[start] || label[start]) continue;
@@ -66,14 +76,44 @@ export function largestComponent(bitmap: Uint8Array, width: number, height: numb
       if (i >= width && bitmap[i - width] && !label[i - width]) (label[i - width] = next), (queue[tail++] = i - width);
       if (i + width < size && bitmap[i + width] && !label[i + width]) (label[i + width] = next), (queue[tail++] = i + width);
     }
-    if (tail > bestPx) {
-      bestPx = tail;
-      best = next;
-    }
+    sizes.push(tail);
   }
-  const out = new Uint8Array(size);
-  if (best) for (let i = 0; i < size; i++) if (label[i] === best) out[i] = 1;
-  return { bitmap: out, pixels: bestPx };
+  return { label, sizes };
+}
+
+/** Largest 4-connected component of a 0/1 bitmap (ties: first found in raster order). */
+export function largestComponent(bitmap: Uint8Array, width: number, height: number): { bitmap: Uint8Array; pixels: number } {
+  const { label, sizes } = labelComponents(bitmap, width, height);
+  let best = 0;
+  for (let k = 1; k < sizes.length; k++) if (sizes[k]! > sizes[best]!) best = k;
+  const out = new Uint8Array(width * height);
+  if (best) for (let i = 0; i < out.length; i++) if (label[i] === best) out[i] = 1;
+  return { bitmap: out, pixels: sizes[best]! };
+}
+
+/**
+ * Drop specks: keep every component of at least max(minFrameFraction of the
+ * frame, minLargestFraction of the largest component).
+ */
+export function dropSpecks(
+  bitmap: Uint8Array,
+  width: number,
+  height: number,
+  minFrameFraction = 0.0005,
+  minLargestFraction = 0.02,
+): { bitmap: Uint8Array; pixels: number } {
+  const { label, sizes } = labelComponents(bitmap, width, height);
+  const largest = Math.max(0, ...sizes);
+  const min = Math.max(minFrameFraction * width * height, minLargestFraction * largest, 1);
+  const keep = sizes.map((n, k) => k > 0 && n >= min);
+  const out = new Uint8Array(width * height);
+  let pixels = 0;
+  for (let i = 0; i < out.length; i++)
+    if (keep[label[i]!]) {
+      out[i] = 1;
+      pixels++;
+    }
+  return { bitmap: out, pixels };
 }
 
 /**
@@ -186,22 +226,27 @@ export function buildDishRegion(
   boxXyxy: [number, number, number, number],
 ): DishRegionResult {
   const dilatePx = dishDilatePx(width, height);
-  const component = largestComponent(dishMask, width, height);
-  if (component.pixels === 0) return { ok: false, reason: 'dish_mask_empty', regionPx: 0, dilatePx };
-  const hull = convexHullFill(component.bitmap, width, height);
+  // 1. Cut to the dish box + margin.
   const margin = Math.max(dilatePx, BOX_MARGIN_FRACTION * Math.max(boxXyxy[2] - boxXyxy[0], boxXyxy[3] - boxXyxy[1]));
   const bx0 = Math.max(0, Math.floor(boxXyxy[0] - margin));
   const by0 = Math.max(0, Math.floor(boxXyxy[1] - margin));
   const bx1 = Math.min(width, Math.ceil(boxXyxy[2] + margin));
   const by1 = Math.min(height, Math.ceil(boxXyxy[3] + margin));
-  for (let y = 0; y < height; y++)
-    for (let x = 0; x < width; x++) if (x < bx0 || x >= bx1 || y < by0 || y >= by1) hull[y * width + x] = 0;
-  const region = dilateSquare(hull, width, height, dilatePx);
+  const cut = new Uint8Array(width * height);
+  for (let y = by0; y < by1; y++) for (let x = bx0; x < bx1; x++) if (dishMask[y * width + x]) cut[y * width + x] = 1;
+  // 2. Drop specks (keep every significant piece), 3. hull, 4. dilate.
+  const kept = dropSpecks(cut, width, height);
+  if (kept.pixels === 0) return { ok: false, reason: 'dish_mask_empty', regionPx: 0, dilatePx };
+  const region = dilateSquare(convexHullFill(kept.bitmap, width, height), width, height, dilatePx);
+  // 5. Plausibility.
   let regionPx = 0;
   for (let i = 0; i < region.length; i++) regionPx += region[i]!;
   const frame = width * height;
   if (regionPx < MIN_REGION_FRACTION * frame) return { ok: false, reason: 'region_too_small', regionPx, dilatePx };
   if (regionPx > MAX_REGION_FRACTION * frame) return { ok: false, reason: 'region_too_large', regionPx, dilatePx };
+  const boxArea =
+    Math.max(0, Math.min(width, boxXyxy[2]) - Math.max(0, boxXyxy[0])) * Math.max(0, Math.min(height, boxXyxy[3]) - Math.max(0, boxXyxy[1]));
+  if (regionPx < MIN_BOX_COVERAGE * boxArea) return { ok: false, reason: 'region_incomplete', regionPx, dilatePx };
   return { ok: true, region, regionPx, dilatePx };
 }
 

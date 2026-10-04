@@ -216,6 +216,18 @@ test('mask spilling outside the dish is clipped to the filled, dilated dish regi
   assert.equal(r.attempt.qualityFlags.includes(NEIGHBOR_FOOD_EXCLUDED), td.clippedPx >= 40);
 });
 
+test('fork across the dish splits the dish mask in two: both halves form the region, no food is clipped (live IMG_2697 regression)', async () => {
+  // A vertical fork band at x 95..104 cuts the dish surface into left and right pieces of similar size;
+  // the rice clump sits on the right piece. Keeping only the largest component would clip it.
+  const forkSplit: Fill = (x, y) => dishDisk()(x, y) && !(x >= 95 && x < 105);
+  const rightFood = [450, 650, 550, 750]; // px [130,90,150,110], inside the rim
+  const r = await analyzeCaptureWithMasks(gemini(answer([piece('burger', 1, BURGER_G), piece('rice', 3, rightFood)])), fakeSam(forkSplit), await input());
+  assert.equal(r.targetDish.clipApplied, true);
+  assert.equal(r.targetDish.clippedPx, 0);
+  assert.equal(r.attempt.segmentation!.capturePixelsWasted, BURGER_PX + 400);
+  assert.deepEqual(r.measurements.map((m) => [m.itemId, m.remainingAreaPx]).sort(), [['burger', BURGER_PX], ['rice', 400]]);
+});
+
 test('dish not found: no clip, target_dish_unavailable, counts kept (spill not clipped)', async () => {
   for (const [name, target, reason] of [
     ['null target', null, 'not_found'],
@@ -240,6 +252,8 @@ test('implausible or invalid dish region: no clip + flag, counts kept', async ()
     ['tiny dish mask', dishDisk(10, 60, 100), 'region_too_small', undefined, DISH_PX],
     ['dish covers nearly the whole frame', (() => true) as Fill, 'region_too_large', whole, [0, 0, 200, 200]],
     ['empty dish mask', (() => false) as Fill, 'dish_mask_empty', undefined, DISH_PX],
+    // Only the left third of the plate segmented: far less than the dish box (< 50%), never clip with it.
+    ['incomplete dish mask', ((x: number, y: number) => dishDisk()(x, y) && x < 75) as Fill, 'region_incomplete', undefined, DISH_PX],
     ['soft dish mask', 'soft', 'dish_mask_invalid', undefined, DISH_PX],
   ] as const) {
     const r = await analyzeCaptureWithMasks(gemini(answer([piece('rice spill', 3, SPILL_G)], target)), fakeSam(dish, [...dishPx]), await input());

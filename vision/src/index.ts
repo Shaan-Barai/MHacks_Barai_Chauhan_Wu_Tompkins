@@ -40,12 +40,15 @@ export type { TargetDishInfo } from './maskPipeline.js';
 export {
   DISH_REGION_VERSION,
   MAX_REGION_FRACTION,
+  MIN_BOX_COVERAGE,
   MIN_REGION_FRACTION,
   buildDishRegion,
   clipToRegion,
   convexHullFill,
   dilateSquare,
   dishDilatePx,
+  dropSpecks,
+  labelComponents,
   largestComponent,
 } from './targetDish.js';
 export type { DishRegionResult } from './targetDish.js';

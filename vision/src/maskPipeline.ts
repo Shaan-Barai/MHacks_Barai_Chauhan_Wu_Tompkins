@@ -112,7 +112,7 @@ export interface TargetDishInfo {
    * Why no clip: 'no_food' (nothing to count), 'not_found' | 'bad_target_dish' |
    * 'bad_dish_type' | 'legacy_array' | 'dish_box_invalid' (no usable dish),
    * 'segmentation_failed' | 'dish_mask_invalid' | 'dish_mask_empty' |
-   * 'region_too_small' | 'region_too_large' (no plausible region).
+   * 'region_too_small' | 'region_too_large' | 'region_incomplete' (no plausible region).
    */
   clipUnavailableReason?: string;
   /** Pixels in the filled, dilated dish region (also reported for implausible regions). */

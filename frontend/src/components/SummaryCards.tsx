@@ -16,16 +16,23 @@ const UNIT_TIP: Record<SummaryUnit, string> = { score: WASTE_SCORE_EXPLANATION, 
 const PLATE_PERCENT_EXPLANATION =
   'For each scanned plate, how much of a full serving came back. Clean plates count as 0%. A food with more than a full serving left counts as 100%.'
 
-function Change({ summary, before }: { summary: PeriodSummary; before: string }) {
+/** Rounded percent change from the period before, or null with nothing to compare. */
+function changePercent(summary: PeriodSummary): number | null {
   const prev = summary.previousPixelsWasted
-  if (prev === null || prev <= 0) {
-    return <p className="mt-1 text-sm">Nothing to compare with {before} yet</p>
-  }
-  const pct = Math.round(((summary.pixelsWasted - prev) / prev) * 100)
+  return prev === null || prev <= 0 ? null : Math.round(((summary.pixelsWasted - prev) / prev) * 100)
+}
+
+/** Less waste than before is green, more is red; no change or nothing to compare stays black. */
+function trendColor(pct: number | null): string {
+  return pct === null || pct === 0 ? 'text-ink' : pct < 0 ? 'text-good' : 'text-bad'
+}
+
+function Change({ pct, before }: { pct: number | null; before: string }) {
+  if (pct === null) return <p className="mt-1 text-sm">Nothing to compare with {before} yet</p>
   if (pct === 0) return <p className="mt-1 text-sm">Same as {before}</p>
   return (
     <p className="mt-1 text-sm">
-      <span className="font-semibold">
+      <span className={`font-semibold ${trendColor(pct)}`}>
         {pct > 0 ? 'Up' : 'Down'} {Math.abs(pct)}%
       </span>{' '}
       from {before}
@@ -36,10 +43,11 @@ function Change({ summary, before }: { summary: PeriodSummary; before: string })
 function SummaryCard({ label, before, summary, unit }: { label: string; before: string; summary: PeriodSummary; unit: SummaryUnit }) {
   const unitsTip = useId()
   const plateTip = useId()
+  const pct = changePercent(summary)
   return (
     <Card>
       <h3 className="text-base font-semibold text-ink">{label}</h3>
-      <p className="mt-2 font-display text-[44px] font-semibold leading-none text-ink" title={`${UNIT_NAME[unit]}: ${formatNumber(summary.pixelsWasted)}`}>
+      <p className={`mt-2 font-display text-[44px] font-semibold leading-none ${trendColor(pct)}`} title={`${UNIT_NAME[unit]}: ${formatNumber(summary.pixelsWasted)}`}>
         {formatCompact(summary.pixelsWasted)}
       </p>
       <p className="mt-1 text-sm">
@@ -63,7 +71,7 @@ function SummaryCard({ label, before, summary, unit }: { label: string; before: 
             : 'No plates scanned'}
         </p>
       )}
-      <Change summary={summary} before={before} />
+      <Change pct={pct} before={before} />
     </Card>
   )
 }

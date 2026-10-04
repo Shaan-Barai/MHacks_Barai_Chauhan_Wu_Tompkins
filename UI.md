@@ -83,7 +83,7 @@ Below, under "More about these days" (follows the chart's lookback), with one sh
 - Download the last 30 days as a spreadsheet.
 
 ## COLOR AND TYPE (2026-10-03)
-- Black and white only, including form controls. Styling comes later.
+- Black and white only, including form controls. Styling comes later. One exception: on the summary cards, the waste number and its change are green (#15803D) when waste is down from the period before and red (#B91C1C) when it is up; no change or nothing to compare stays black. The words "Up"/"Down" always say the same thing, so color is never the only signal.
 - Font: "Times New Roman" (Times, serif fallback) everywhere.
 - Body text at least 16px; headline card numbers large (40px+).
 - Flat: small 4px corners, black borders, no shadows, no fades.

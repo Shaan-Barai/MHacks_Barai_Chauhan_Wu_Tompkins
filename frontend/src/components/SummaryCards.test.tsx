@@ -34,4 +34,13 @@ describe('SummaryCardsRow', () => {
     expect(screen.getAllByRole('tooltip')[0]).toHaveTextContent(/hidden cost of food left on plates/)
     expect(screen.queryByText('Pixels wasted')).toBeNull()
   })
+
+  it('colors the number and change green when waste is down and red when it is up', () => {
+    render(<SummaryCardsRow data={data} />)
+    expect(screen.getByText('Up 20%')).toHaveClass('text-bad')
+    expect(screen.getByText('Down 20%')).toHaveClass('text-good')
+    expect(screen.getByTitle('Pixels wasted: 1,200')).toHaveClass('text-bad')
+    expect(screen.getByTitle('Pixels wasted: 8,000')).toHaveClass('text-good')
+    expect(screen.getByTitle('Pixels wasted: 3,000')).toHaveClass('text-ink')
+  })
 })

@@ -1,0 +1,23 @@
+station,food,weight_g_per_cm2,C_kg_co2e_per_kg,W_water_m3_per_kg,O_nutrient_days_per_kg,kcal_per_kg,nutrient_credit_days,calorie_credit_days,quality_multiplier,carbon_usd_per_kg,water_usd_per_kg,nutrition_usd_per_kg,impact_score_usd_per_kg,largest_factor,menu_co2_label,notes,recipe_kg_per_kg
+Soup,Broccoli Cheddar Soup,1.5,4.9,1.07,0.53,1176,0.469,0.059,0.7,0.93,1.6,4.96,7.49,nutrition,high,"liquid in a bowl; top-down area is a weak proxy for weight, so treat as rough",broccoli 0.2; milk 0.3; cheddar 0.1; cream 0.05; butter 0.03; flour 0.03; onion 0.03; carrot 0.03; salt 0.007
+Signature Maize,Baked Boneless Ham,0.9,15.0,2.19,0.47,1571,0.39,0.079,0.6,2.85,3.28,4.4,10.54,nutrition,medium,,ham 0.97; sugar 0.03
+Signature Maize,Baked Sweet Potatoes,2.0,0.43,0.028,1.8,900,1.75,0.045,0.95,0.08,0.04,16.86,16.98,nutrition,low,whole or halved baked; use ~1.5 g/cm2 if served mashed,sweet potato 1; salt 0.002
+Signature Maize,Roasted Cauliflower,1.0,0.75,0.211,0.79,616,0.759,0.031,0.88,0.14,0.32,7.42,7.88,nutrition,low,,cauliflower 1.05; olive oil 0.04; salt 0.005
+24 Carrots,Michigan Farmers 4 Bean Stew,1.5,1.05,0.223,0.67,868,0.625,0.043,0.89,0.2,0.34,6.27,6.81,nutrition,low,assumes a thick stew; thinner broth would be lower,beans 0.45; tomato 0.25; onion 0.06; carrot 0.06; celery 0.04; spinach 0.03; olive oil 0.02; salt 0.006
+24 Carrots,Farro,1.1,0.72,0.294,0.6,1409,0.532,0.07,0.92,0.14,0.44,5.66,6.24,nutrition,low,,farro 0.97; olive oil 0.02; salt 0.004
+24 Carrots,Shaved Brussel Sprouts,0.5,0.7,0.199,1.5,762,1.465,0.038,0.9,0.13,0.3,14.11,14.55,nutrition,low,"raw shaved, airy; use ~0.9 g/cm2 if roasted",brussels 0.95; olive oil 0.04; salt 0.004
+24 Carrots,Vegetable Cannelloni,2.0,4.56,1.021,0.63,1241,0.563,0.062,0.77,0.87,1.53,5.87,8.27,nutrition,medium,,pasta 0.3; ricotta 0.2; mozzarella 0.08; spinach 0.1; zucchini 0.07; tomato sauce 0.22; parmesan 0.02; eggs 0.02; salt 0.003
+24 Carrots,Panzanella Salad,0.9,1.74,0.537,0.56,1805,0.47,0.09,0.81,0.33,0.81,5.27,6.4,nutrition,low,,bread 0.4; tomato 0.3; cucumber 0.12; onion 0.05; bell pepper 0.04; olive oil 0.07; salt 0.004
+Halal,Ancho Flank Steak,1.2,131.69,1.925,0.8,2058,0.695,0.103,0.74,25.02,2.89,7.5,35.4,carbon,high,global-median beef emissions; US beef is typically lower,flank steak 0.98; veg oil 0.02; salt 0.008
+Halal,Sticky Rice,1.6,1.78,0.899,0.16,970,0.113,0.049,1.0,0.34,1.35,1.52,3.2,nutrition,low,,sticky rice 1
+Halal,Vegetable Stir Fry Blend,0.8,0.61,0.089,1.02,671,0.984,0.034,0.86,0.12,0.13,9.56,9.81,nutrition,low,,broccoli 0.3; carrot 0.15; bell pepper 0.15; snap peas 0.12; onion 0.1; mushroom 0.1; veg oil 0.04; salt 0.008
+Pizziti,Cheese Bread,0.7,9.41,2.33,0.69,2824,0.546,0.141,0.64,1.79,3.5,6.46,11.74,nutrition,low,,bread 0.6; mozzarella 0.3; butter 0.05
+Pizziti,Pepperoni Pizza,1.0,10.46,1.984,0.67,2621,0.541,0.131,0.67,1.99,2.98,6.31,11.28,nutrition,low,a 14-inch slice is ~125 cm2 and ~120 g,bread 0.53; mozzarella 0.24; tomato sauce 0.14; pepperoni 0.06; olive oil 0.02
+Pizziti,Cheese Pizza,1.0,7.65,1.94,0.69,2431,0.572,0.122,0.7,1.45,2.91,6.51,10.87,nutrition,low,a 14-inch slice is ~125 cm2 and ~115 g,bread 0.55; mozzarella 0.26; tomato sauce 0.15; olive oil 0.02
+Pizziti,Chicken Broccoli Alfredo Pizza,1.1,8.75,1.922,0.74,2551,0.617,0.128,0.67,1.66,2.88,6.99,11.54,nutrition,low,,bread 0.5; mozzarella 0.18; chicken 0.1; broccoli 0.08; cream 0.07; parmesan 0.03; butter 0.02
+MBakery,Chocolate Coconut Cream Pie,2.4,7.86,1.118,0.41,2946,0.26,0.147,0.5,1.49,1.68,3.83,7.0,nutrition,low,,flour 0.12; butter 0.07; milk 0.35; sugar 0.15; coconut 0.08; eggs 0.06; cornstarch 0.03; chocolate 0.05; cream 0.12; salt 0.002
+MBakery,Pumpkin Pie,2.2,4.4,0.873,0.7,2008,0.599,0.1,0.63,0.84,1.31,6.56,8.71,nutrition,medium,a 9-inch slice is ~51 cm2 and ~110 g,pumpkin 0.35; evap milk 0.2; sugar 0.13; eggs 0.1; flour 0.13; butter 0.07; salt 0.004
+MBakery,Snickers Brownies with Peanuts,2.2,12.93,1.365,0.55,4161,0.344,0.208,0.42,2.46,2.05,5.18,9.69,nutrition,medium,,flour 0.13; sugar 0.3; butter 0.14; eggs 0.11; chocolate 0.12; cocoa 0.03; peanuts 0.1; cream 0.04; salt 0.003
+MBakery,Peppermint White Chocolate Blondie,2.0,8.83,1.473,0.43,4305,0.212,0.215,0.4,1.68,2.21,4.01,7.9,nutrition,low,,flour 0.28; sugar 0.33; butter 0.17; eggs 0.1; white chocolate 0.12; salt 0.004
+MBakery,Golden Cake with Chocolate Frosting,1.8,7.69,1.28,0.44,3664,0.254,0.183,0.44,1.46,1.92,4.1,7.48,nutrition,low,,flour 0.22; sugar 0.37; eggs 0.1; butter 0.16; milk 0.12; cocoa 0.03; salt 0.004
+MBakery,Strawberry Shortcake Bar,1.5,6.47,1.351,0.49,3252,0.328,0.163,0.49,1.23,2.03,4.61,7.86,nutrition,low,,flour 0.22; butter 0.12; sugar 0.22; eggs 0.06; strawberries 0.22; cream 0.12; cream cheese 0.05; salt 0.004

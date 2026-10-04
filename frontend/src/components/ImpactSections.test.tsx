@@ -22,7 +22,7 @@ describe('HeadlineCards', () => {
     expect(screen.getByText('relative points')).toBeInTheDocument()
     expect(screen.getByText('Relative points: they compare foods with each other, not kg or litres.')).toBeInTheDocument()
     // the "?" tip explains how points are made and the impact weights
-    expect(screen.getByText(/pixels ÷ 1,000 × the food’s typical density × a footprint factor/)).toBeInTheDocument()
+    expect(screen.getByText(/pixels ÷ 1,000 × the food’s typical weight per cm² × a footprint factor/)).toBeInTheDocument()
     expect(screen.getByText(/0\.19 × greenhouse-gas points \+ 1\.50 × water points/)).toBeInTheDocument()
     expect(screen.getByText(/1 food has no impact data/)).toBeInTheDocument()
     // Uncalibrated: the estimate cards say so instead of showing 0.

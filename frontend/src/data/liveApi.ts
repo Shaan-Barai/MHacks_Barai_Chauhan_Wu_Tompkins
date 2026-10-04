@@ -384,7 +384,7 @@ export async function getMeasurementSettings(): Promise<MeasurementSettings> {
 }
 
 export async function saveMeasurementSettings(
-  next: Pick<MeasurementSettings, 'depthEnabled' | 'activeCalibrationId' | 'plateThicknessCm'>,
+  next: Pick<MeasurementSettings, 'activeCalibrationId'>,
 ): Promise<MeasurementSettings> {
   const body = await call('/api/settings/measurement', {
     method: 'PUT',
@@ -462,17 +462,16 @@ export async function createCalibration(input: NewCalibration): Promise<CameraCa
   return unwrap(body, 'calibration')
 }
 
-type ImagesBody = Partial<Record<'photo' | 'original' | 'image' | 'outline' | 'overlay' | 'reference' | 'depth' | 'depthPreview', SignedImage | null>> & {
+type ImagesBody = Partial<Record<'photo' | 'original' | 'image' | 'outline' | 'overlay' | 'reference', SignedImage | null>> & {
   calibrationId?: string
 }
 
-/** Short-lived links for the calibration photo, the reference outline, and the depth preview. */
+/** Short-lived links for the calibration photo and the reference outline. */
 export async function getCalibrationImages(calibrationId: string): Promise<CalibrationImages> {
   const body = await call<ImagesBody>(`/api/calibrations/${encodeURIComponent(calibrationId)}/images`)
   return {
     calibrationId,
     photo: body.photo ?? body.original ?? body.image ?? null,
     outline: body.outline ?? body.overlay ?? body.reference ?? null,
-    depth: body.depth ?? body.depthPreview ?? null,
   }
 }

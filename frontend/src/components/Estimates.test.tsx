@@ -23,35 +23,34 @@ function calibrated(over: Partial<ImpactDashboard['totals']> = {}): ImpactDashbo
     kgCo2e: 312.4,
     waterLitres: 18_650,
     physicalMethod: 'area-calibrated-v1',
-    physicalCoverage: { calibratedCaptures: 12, volumeCaptures: 0, analyzedCaptures: 14 },
+    physicalCoverage: { calibratedCaptures: 12, analyzedCaptures: 14 },
     ...over,
   }
   return d
 }
 
 describe('HeadlineCards with estimates', () => {
-  it('keeps Pixels wasted first and adds Estimated CO2e and water with coverage and the method', () => {
+  it('keeps Pixels wasted first and adds Estimated CO2e and water with calibrated-plate coverage', () => {
     render(<HeadlineCards data={calibrated()} />)
     const titles = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent?.split('?')[0].trim())
     expect(titles).toEqual(['Total waste', 'Estimated CO2e', 'Estimated water', 'Relative impact'])
     expect(screen.getByLabelText('Estimated CO2e: 310 kg CO2e')).toBeInTheDocument()
     expect(screen.getByLabelText('Estimated water: 19,000 L')).toBeInTheDocument()
     expect(screen.getAllByText('From 12 of 14 plates (calibrated)')).toHaveLength(2)
-    expect(screen.getAllByText('Method: area')).toHaveLength(2)
+    // No method breakdown: area from the calibration is the only method.
+    expect(screen.queryByText(/^Method:/)).toBeNull()
+    expect(screen.queryByText(/depth|volume|mixed/i)).toBeNull()
     expect(screen.getByText(/about 42 kg of food/)).toBeInTheDocument()
     expect(screen.getAllByText('estimate')).toHaveLength(2)
     expect(screen.getAllByText(/An estimate, not a scale reading/)).toHaveLength(2)
   })
 
-  it('names depth volume and mixed methods', () => {
-    const { unmount } = render(
-      <HeadlineCards data={calibrated({ physicalMethod: 'volume-dav2-v1', physicalCoverage: { calibratedCaptures: 5, volumeCaptures: 5, analyzedCaptures: 5 } })} />,
-    )
-    expect(screen.getAllByText('Method: depth volume')).toHaveLength(2)
+  it('explains that area comes from the camera calibration and grams from typical weight per cm²', () => {
+    render(<HeadlineCards data={calibrated({ physicalCoverage: { calibratedCaptures: 5, analyzedCaptures: 5 } })} />)
     expect(screen.getAllByText('From 5 of 5 plates (calibrated)')).toHaveLength(2)
-    unmount()
-    render(<HeadlineCards data={calibrated({ physicalMethod: 'mixed', physicalCoverage: { calibratedCaptures: 12, volumeCaptures: 5, analyzedCaptures: 14 } })} />)
-    expect(screen.getAllByText('Method: mixed (5 plates by depth volume, 7 by area)')).toHaveLength(2)
+    const tip = screen.getAllByText(/An estimate, not a scale reading/)[0]
+    expect(tip).toHaveTextContent('The camera calibration (a reference object of known area) turns pixels into square centimetres')
+    expect(tip).toHaveTextContent('typical weight per cm² turns that into grams')
   })
 
   it('calibrated plates without footprint data say Not available, never 0', () => {
@@ -135,12 +134,12 @@ function plate(over: Partial<CaptureListItem>): CaptureListItem {
 }
 
 describe('plate viewer with estimates', () => {
-  it('adds an Estimated amount column and names the method', async () => {
+  it('adds an Estimated amount column and says where the estimate comes from', async () => {
     const c = plate({
-      physicalMethod: 'volume-dav2-v1',
+      physicalMethod: 'area-calibrated-v1',
       calibrationId: 'cal_1',
       items: [
-        { itemId: 'item_steak', displayName: 'Ancho Flank Steak', pixels: 20_000, grams: 38, kgCo2e: 1.1, waterLitres: 18, volumeCm3: 40, areaCm2: 27 },
+        { itemId: 'item_steak', displayName: 'Ancho Flank Steak', pixels: 20_000, grams: 38, kgCo2e: 1.1, waterLitres: 18, areaCm2: 27 },
         { itemId: 'item_soup', displayName: "Chef's Soup", pixels: 10_000, grams: null, kgCo2e: null, waterLitres: null, physicalUnavailableReason: 'no_factor' },
       ],
     })
@@ -155,7 +154,7 @@ describe('plate viewer with estimates', () => {
     expect(rowsEl[0]).toHaveTextContent('Ancho Flank Steak20,000')
     expect(rowsEl[0]).toHaveTextContent('38 g1.1 kg CO2e18 L waterest.')
     expect(rowsEl[1]).toHaveTextContent('no estimate for this food')
-    expect(screen.getByText('Estimated by depth volume from the camera calibration.')).toBeInTheDocument()
+    expect(screen.getByText('Estimated from the camera calibration (area) and each food’s typical weight per cm² (grams).')).toBeInTheDocument()
   })
 
   it('an uncalibrated plate keeps two columns and says why there are no estimates', async () => {

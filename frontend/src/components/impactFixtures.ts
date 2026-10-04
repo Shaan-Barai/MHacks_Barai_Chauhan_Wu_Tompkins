@@ -12,7 +12,7 @@ export function impact(over: Partial<WasteImpact> = {}): WasteImpact {
     waterPoints: 19.4,
     impactPoints: 0.19 * 160.6 + 1.5 * 19.4,
     nutritionPoints: 6.9,
-    wasteFactorsVersion: 'waste-factors-v3',
+    wasteFactorsVersion: 'waste-factors-v4',
     ...over,
   }
 }

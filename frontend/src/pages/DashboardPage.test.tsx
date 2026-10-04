@@ -22,11 +22,11 @@ describe('DashboardPage (mock data)', () => {
 
     expect(await screen.findByLabelText(/^Total waste: [\d,]+ pixels$/)).toBeInTheDocument()
     expect(screen.getByLabelText(/^Relative impact: [\d,.]+ points$/)).toBeInTheDocument()
-    // IT_4: estimates only from calibrated plates (the mock calibrated 20 days ago), mixed methods.
+    // IT_4: estimates only from calibrated plates (the mock calibrated 20 days ago); no method breakdown.
     expect(screen.getByLabelText(/^Estimated CO2e: [\d,.]+ kg CO2e$/)).toBeInTheDocument()
     expect(screen.getByLabelText(/^Estimated water: [\d,.]+ L$/)).toBeInTheDocument()
     expect(screen.getAllByText(/^From [\d,]+ of [\d,]+ plates \(calibrated\)$/)).toHaveLength(2)
-    expect(screen.getAllByText(/^Method: mixed \([\d,]+ plates by depth volume, [\d,]+ by area\)$/)).toHaveLength(2)
+    expect(screen.queryByText(/^Method:/)).toBeNull()
 
     expect(await screen.findByRole('heading', { name: 'Pixels wasted by day' })).toBeInTheDocument()
     expect(await screen.findByText('Foods to target')).toBeInTheDocument()

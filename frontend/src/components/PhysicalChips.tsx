@@ -4,11 +4,11 @@
  * measurement. Missing values are never shown as 0: a food without an
  * estimate shows nothing, or a short muted reason ("not calibrated").
  */
-import type { PhysicalAmounts, PhysicalMethod, PhysicalUnavailableReason } from '../data/types'
+import type { PhysicalAmounts, PhysicalUnavailableReason } from '../data/types'
 import { formatGrams, formatKgCo2e, formatLitres } from '../lib/format'
 
 export const ESTIMATE_EXPLANATION =
-  'Estimated from the camera calibration and typical food density; pixels are the measurement. CO2e and water come from each food’s footprint per kilogram.'
+  'Estimated, not weighed. The area comes from the camera calibration (a reference object of known area gives the size of each pixel), and grams from the food’s typical weight per cm². CO2e and water come from each food’s footprint per kilogram. Pixels are the measurement.'
 
 /** Plain words for why a food has no estimate. Null = say nothing. */
 export function physicalReasonText(reason: PhysicalUnavailableReason | undefined): string | null {
@@ -20,17 +20,12 @@ export function physicalReasonText(reason: PhysicalUnavailableReason | undefined
       return 'photo size differs from the calibration'
     case 'no_factor':
       return 'no estimate for this food'
-    case 'no_density':
-      return 'no density data for this food'
     case 'unknown_item':
       return null
+    default:
+      // A reason from an older backend: say nothing rather than guess.
+      return null
   }
-}
-
-export const METHOD_TEXT: Record<PhysicalMethod | 'mixed', string> = {
-  'area-calibrated-v1': 'area',
-  'volume-dav2-v1': 'depth volume',
-  mixed: 'mixed',
 }
 
 export function CloudIcon() {

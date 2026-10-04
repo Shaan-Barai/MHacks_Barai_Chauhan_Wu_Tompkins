@@ -1,8 +1,8 @@
 /**
  * Headline cards for the selected days. Total waste in Pixels wasted (the
  * measurement, BIG-PLAN v2) comes first. IT_4 adds Estimated CO2e (kg) and
- * Estimated water (L) from calibrated plates only, with their coverage and
- * method (area / depth volume / mixed). Relative impact stays in unitless
+ * Estimated water (L) from calibrated plates only, with their coverage.
+ * Relative impact stays in unitless
  * points. Missing estimates say "Not available", never 0.
  */
 import { useId, type ReactNode } from 'react'
@@ -59,18 +59,7 @@ function HeadlineCard({
 
 const points = (n: number | null | undefined) => (n == null ? 'not available' : `${formatPoints(n)} points`)
 
-/** "Method: area" / "depth volume" / "mixed (5 plates by depth volume, 7 by area)". */
-export function methodLine(data: ImpactDashboard): string | null {
-  const t = data.totals
-  const cov = t.physicalCoverage
-  if (!t.physicalMethod || !cov || cov.calibratedCaptures === 0) return null
-  if (t.physicalMethod === 'area-calibrated-v1') return 'Method: area'
-  if (t.physicalMethod === 'volume-dav2-v1') return 'Method: depth volume'
-  const area = cov.calibratedCaptures - cov.volumeCaptures
-  return `Method: mixed (${formatNumber(cov.volumeCaptures)} plate${cov.volumeCaptures === 1 ? '' : 's'} by depth volume, ${formatNumber(area)} by area)`
-}
-
-/** Coverage and method under each estimated total. */
+/** Calibrated-plate coverage under each estimated total. */
 function EstimateCoverage({ data, value }: { data: ImpactDashboard; value: number | null | undefined }) {
   const cov = data.totals.physicalCoverage
   const calibrated = cov?.calibratedCaptures ?? 0
@@ -82,13 +71,11 @@ function EstimateCoverage({ data, value }: { data: ImpactDashboard; value: numbe
       </p>
     )
   }
-  const method = methodLine(data)
   return (
     <>
       <p className="mt-2 text-base">
         From {formatNumber(calibrated)} of {formatNumber(analyzed)} plate{analyzed === 1 ? '' : 's'} (calibrated)
       </p>
-      {method && <p className="text-sm">{method}</p>}
       {value == null && <p className="text-sm">None of the foods on those plates has footprint data.</p>}
     </>
   )

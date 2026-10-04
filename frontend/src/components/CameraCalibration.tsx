@@ -1,9 +1,10 @@
 /**
  * Settings -> Camera calibration (IT_4 I2, I3, I9). Staff lay a flat object
  * of known area (a credit card by default) where plates go, upload a photo
- * from the locked camera, and get cm² per pixel plus the camera height two
- * ways (from the photo geometry, and from Depth Anything V2). The active
- * calibration turns Pixels wasted into ESTIMATED grams, CO2e and water.
+ * from the locked camera, and get cm² per pixel plus the camera height (from
+ * the photo geometry). The active calibration is the only source of food
+ * area (pixels × cm² per pixel); with each food's typical weight per cm² it
+ * turns Pixels wasted into ESTIMATED grams, CO2e and water.
  * Reads are public; every change needs a staff session.
  */
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
@@ -27,19 +28,10 @@ const MAX_PHOTO_BYTES = 15 * 1024 * 1024
 const POLL_MS = 2000
 const POLL_TRIES = 45
 
-export const DEPTH_EXPLANATION = 'On: estimates each food’s volume from a depth map of the photo. Off: uses the food’s area only.'
-export const DEPTH_FALLBACK_NOTE = 'If depth can’t be measured, the area estimate is used.'
-
-/** Height difference between the two estimates, as a share of the photo-geometry height. */
-export function heightDifference(cal: CameraCalibration): number | null {
-  if (!cal.depth || !(cal.cameraHeightCmGeometric > 0)) return null
-  return Math.abs(cal.depth.cameraHeightCmDepth - cal.cameraHeightCmGeometric) / cal.cameraHeightCmGeometric
-}
-
 const cm = (n: number) => `${n.toFixed(1)} cm`
 
-/** Each calibration flag in plain words. */
-export function flagText(flag: CameraCalibrationFlag, cal: CameraCalibration): string {
+/** Each calibration flag in plain words; null for a flag this dashboard doesn't know (e.g. from an older backend). */
+export function flagText(flag: CameraCalibrationFlag, cal: CameraCalibration): string | null {
   const thing = cal.referenceLabel.trim() || 'reference object'
   switch (flag) {
     case 'reference_not_found':
@@ -48,13 +40,8 @@ export function flagText(flag: CameraCalibrationFlag, cal: CameraCalibration): s
       return `The AI was unsure of the ${thing}'s outline. Check the outline picture before using this calibration.`
     case 'reference_touches_edge':
       return `The ${thing} touches the edge of the photo, so part of it may be cut off. Move it toward the middle and calibrate again.`
-    case 'depth_unavailable':
-      return 'Depth Anything V2 was not available, so only the area scale was measured. Plates will use the area method with this calibration.'
-    case 'depth_scale_disagrees': {
-      const geo = cm(cal.cameraHeightCmGeometric)
-      const depth = cal.depth ? cm(cal.depth.cameraHeightCmDepth) : 'the depth estimate'
-      return `The two height estimates disagree by more than 15% (${geo} from the photo, ${depth} from Depth Anything V2). Area estimates still work; check the setup before relying on volume.`
-    }
+    default:
+      return null
   }
 }
 
@@ -87,18 +74,13 @@ export function CameraCalibrationPanel() {
   const shownId = picked ?? activeId ?? calibrations[0]?.calibrationId ?? null
   const shown = calibrations.find((c) => c.calibrationId === shownId) ?? null
 
-  const save = async (patch: Partial<Pick<MeasurementSettings, 'depthEnabled' | 'activeCalibrationId' | 'plateThicknessCm'>>, done: string) => {
+  const save = async (patch: Partial<Pick<MeasurementSettings, 'activeCalibrationId'>>, done: string) => {
     if (!current) return
     setBusy(true)
     setError(null)
     setNote(null)
     try {
-      await saveMeasurementSettings({
-        depthEnabled: current.depthEnabled,
-        activeCalibrationId: current.activeCalibrationId,
-        plateThicknessCm: current.plateThicknessCm,
-        ...patch,
-      })
+      await saveMeasurementSettings({ activeCalibrationId: current.activeCalibrationId, ...patch })
       setNote(done)
       refresh()
     } catch (e) {
@@ -113,8 +95,9 @@ export function CameraCalibrationPanel() {
       <div>
         <h2 className="text-lg font-semibold">Camera calibration</h2>
         <p className="mt-1">
-          Calibration lets ScrapSaver estimate grams, CO2e and water from the pixels it counts. Pixels wasted stay the measurement; the
-          rest are estimates.
+          Calibration lets ScrapSaver estimate grams, CO2e and water from the pixels it counts. The reference object of known area gives
+          the area of each pixel, and each food's typical weight per cm² turns that area into grams. Pixels wasted stay the measurement;
+          the rest are estimates.
         </p>
       </div>
 
@@ -123,13 +106,6 @@ export function CameraCalibrationPanel() {
       {!canEdit && <SignInHint>Staff can calibrate the camera and change these settings.</SignInHint>}
 
       {settings.status === 'error' && <EmptyState title="Couldn't load the measurement settings.">{settings.error}</EmptyState>}
-      {current && (
-        <DepthToggle
-          enabled={current.depthEnabled}
-          disabled={!canEdit || busy}
-          onChange={(on) => void save({ depthEnabled: on }, on ? 'Depth Anything V2 is on.' : 'Depth Anything V2 is off.')}
-        />
-      )}
 
       {note && (
         <p role="status" className="font-semibold">
@@ -176,10 +152,6 @@ export function CameraCalibrationPanel() {
       {calibrations.length > 0 && (
         <CalibrationHistory calibrations={calibrations} activeId={activeId} shownId={shownId} onPick={setPicked} />
       )}
-
-      {current && (
-        <PlateThickness value={current.plateThicknessCm} canEdit={canEdit} busy={busy} onSave={(v) => void save({ plateThicknessCm: v }, 'Plate thickness saved.')} />
-      )}
     </Card>
   )
 }
@@ -194,24 +166,6 @@ function HowTo() {
         <li>Take the photo with the mounted camera at its usual position, then upload it below.</li>
         <li>Don't move the camera afterwards. If it moves, or its picture size changes, calibrate again.</li>
       </ol>
-    </div>
-  )
-}
-
-function DepthToggle({ enabled, disabled, onChange }: { enabled: boolean; disabled: boolean; onChange: (on: boolean) => void }) {
-  const id = useId()
-  return (
-    <div className="border border-ink p-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <label htmlFor={id} className="flex items-center gap-3 text-base font-semibold">
-          <input id={id} type="checkbox" role="switch" className="h-5 w-5" checked={enabled} disabled={disabled} aria-describedby={`${id}-help`} onChange={(e) => onChange(e.target.checked)} />
-          Depth Anything V2 {enabled ? 'on' : 'off'}
-        </label>
-        <Badge>Experimental</Badge>
-      </div>
-      <p id={`${id}-help`} className="mt-1 text-base">
-        {DEPTH_EXPLANATION} {DEPTH_FALLBACK_NOTE} Off is the default.
-      </p>
     </div>
   )
 }
@@ -319,8 +273,8 @@ function NewCalibrationForm({ cameraId, onCreated }: { cameraId: string; onCreat
           className="block max-w-full text-base file:mr-3 file:rounded-btn file:border file:border-solid file:border-ink file:bg-cream file:px-3 file:py-1 file:font-sans file:text-ink"
         />
         <p className="mt-1 text-sm">
-          It must come from the mounted camera that scans the plates, at its usual position. The photo is cropped to the same centre square
-          as plate photos.
+          It must come from the mounted camera that scans the plates, at its usual position. The photo is cropped to the same 1024 × 1024
+          centre square as plate photos.
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-3">
@@ -411,8 +365,11 @@ function CalibrationResult({
   }, [latest.status, latest.calibrationId, onSettled])
 
   const cal = latest
-  const diff = heightDifference(cal)
   const thing = cal.referenceLabel || 'reference object'
+  const flagTexts = cal.flags.flatMap((f) => {
+    const text = flagText(f, cal)
+    return text === null ? [] : [[f, text] as const]
+  })
 
   return (
     <section aria-labelledby={`cal-${cal.calibrationId}`} className="border border-ink p-4">
@@ -454,17 +411,9 @@ function CalibrationResult({
             <dd className="font-semibold">{Number(cal.cm2PerPx.toPrecision(3))} cm² per pixel</dd>
             <dt>
               Camera height, from the photo
-              <InfoTip id={heightTip} text="From the camera's lens (a Logitech C920s) and how big the reference looks. Depth Anything V2 measures it a second way." />
+              <InfoTip id={heightTip} text="From the camera's lens (a Logitech C920s) and how big the reference looks in the photo. A check on the setup; it does not change the estimates." />
             </dt>
             <dd className="font-semibold">{cm(cal.cameraHeightCmGeometric)}</dd>
-            <dt>Camera height, Depth Anything V2</dt>
-            <dd className="font-semibold">{cal.depth ? cm(cal.depth.cameraHeightCmDepth) : 'Not measured'}</dd>
-            {diff !== null && (
-              <>
-                <dt>Difference</dt>
-                <dd className="font-semibold">{Math.round(diff * 100)}%</dd>
-              </>
-            )}
             <dt>Picture size</dt>
             <dd className="font-semibold">
               {cal.widthPx} × {cal.heightPx} pixels
@@ -473,12 +422,12 @@ function CalibrationResult({
         )}
       </div>
 
-      {cal.flags.length > 0 && (
+      {flagTexts.length > 0 && (
         <div className="mt-3">
           <h4 className="text-base font-semibold">Check this</h4>
           <ul className="mt-1 list-disc space-y-1 pl-6">
-            {cal.flags.map((f) => (
-              <li key={f}>{flagText(f, cal)}</li>
+            {flagTexts.map(([f, text]) => (
+              <li key={f}>{text}</li>
             ))}
           </ul>
         </div>
@@ -538,60 +487,5 @@ function CalibrationHistory({
         ))}
       </ul>
     </div>
-  )
-}
-
-function PlateThickness({ value, canEdit, busy, onSave }: { value: number; canEdit: boolean; busy: boolean; onSave: (v: number) => void }) {
-  const id = useId()
-  const [draft, setDraft] = useState(String(value))
-  const [error, setError] = useState<string | null>(null)
-  useEffect(() => setDraft(String(value)), [value])
-  return (
-    <form
-      className="space-y-2"
-      noValidate
-      onSubmit={(e) => {
-        e.preventDefault()
-        const v = Number(draft)
-        if (!(draft.trim() !== '' && Number.isFinite(v) && v >= 0 && v <= 10)) {
-          setError('Use a number of centimetres from 0 to 10.')
-          return
-        }
-        setError(null)
-        onSave(v)
-      }}
-    >
-      <h3 className="text-base font-semibold">Plate thickness</h3>
-      <p className="text-sm">
-        Used for depth volume only when the plate's rim can't be seen: how high the plate's surface sits above the tray.
-      </p>
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="w-36">
-          <FieldLabel htmlFor={id}>Thickness (cm)</FieldLabel>
-          <input
-            id={id}
-            type="number"
-            inputMode="decimal"
-            min="0"
-            max="10"
-            step="0.1"
-            className={inputClass}
-            value={draft}
-            disabled={!canEdit || busy}
-            onChange={(e) => setDraft(e.target.value)}
-          />
-        </div>
-        {canEdit && (
-          <GhostButton type="submit" disabled={busy}>
-            Save thickness
-          </GhostButton>
-        )}
-      </div>
-      {error && (
-        <p role="alert" className="font-semibold">
-          {error}
-        </p>
-      )}
-    </form>
   )
 }

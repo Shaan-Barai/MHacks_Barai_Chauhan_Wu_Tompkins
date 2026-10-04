@@ -18,7 +18,7 @@ import { getCaptureImages } from '../data/api'
 import type { CaptureImages, CaptureListItem, ProcessingState, SignedImage } from '../data/types'
 import { formatNumber } from '../lib/format'
 import { NEIGHBOR_EXPLANATION } from './impactCopy'
-import { ESTIMATE_EXPLANATION, METHOD_TEXT, PhysicalChips, hasPhysical } from './PhysicalChips'
+import { ESTIMATE_EXPLANATION, PhysicalChips, hasPhysical } from './PhysicalChips'
 import { Badge, Card, GhostButton, InfoTip } from './ui'
 
 const SHOW_FIRST = 12
@@ -278,7 +278,7 @@ function PlateViewer({
           </table>
         )}
         {anyEstimate && capture.physicalMethod && (
-          <p className="mt-2 text-sm">Estimated by {METHOD_TEXT[capture.physicalMethod]} from the camera calibration.</p>
+          <p className="mt-2 text-sm">Estimated from the camera calibration (area) and each food’s typical weight per cm² (grams).</p>
         )}
         {!anyEstimate && capture.items.length > 0 && (
           <p className="mt-2 text-sm italic">{noEstimateText(capture)}</p>

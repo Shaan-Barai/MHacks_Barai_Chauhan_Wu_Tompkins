@@ -169,7 +169,7 @@ export function mockMealDetail(date: IsoDate, meal: MealLabel, menu: DayMenu | n
   const method = mockPhysicalMethodFor(date, today)
   const sorted = rows
     .map(({ it, units }) => {
-      const { grams, kgCo2e, waterLitres, physicalUnavailableReason } = mockPhysical(units, mockFactorFor(it.displayName), it.displayName, method)
+      const { grams, kgCo2e, waterLitres, physicalUnavailableReason } = mockPhysical(units, mockFactorFor(it.displayName), method)
       return {
         itemId: it.itemId,
         displayName: it.displayName,
@@ -214,7 +214,7 @@ export function mockMealDetail(date: IsoDate, meal: MealLabel, menu: DayMenu | n
 // CO2e and litres of water for calibrated days (see the calibration timeline).
 // ===========================================================================
 
-export const WASTE_FACTORS_VERSION = 'waste-factors-v3'
+export const WASTE_FACTORS_VERSION = 'waste-factors-v4'
 /** Impact score weights (BIG-PLAN v2 V2): impactPoints = 0.19 C + 1.50 W. No nutrition term. */
 export const CO2_WEIGHT = 0.19
 export const WATER_WEIGHT = 1.5
@@ -340,24 +340,20 @@ function impactFrom(pixels: number, factor: MockFactorFood | null, unavailable?:
 // ---------------------------------------------------------------------------
 // IT_4 mock: camera calibration timeline and ESTIMATED grams / CO2e / water.
 // Days more than 20 days ago were before the camera was calibrated (no
-// estimates), days 3-20 ago used the area method, and the last 3 days used
-// Depth Anything V2 volume. So "Today" is volume, "Last 7 days" mixes area
-// and volume, and "Last 30 days" is only partly calibrated.
+// estimates); the last 20 days use the calibrated area. So "Today" and "Last
+// 7 days" are fully calibrated and "Last 30 days" is only partly calibrated.
+// Area comes only from the calibration (pixels x cm2 per pixel); grams =
+// area x the food's typical weight per cm2.
 // ---------------------------------------------------------------------------
 
-/** A 46.21 cm2 credit card covering 34,186 pixels: the camera is about 50 cm up. */
-export const MOCK_CM2_PER_PX = 46.21 / 34_186
+/** A 46.21 cm2 credit card covering 30,730 pixels of the 1024 x 1024 photo: the camera is about 50 cm up. */
+export const MOCK_CARD_PIXELS = 30_730
+export const MOCK_CM2_PER_PX = 46.21 / MOCK_CARD_PIXELS
 export const MOCK_ACTIVE_CALIBRATION_ID = 'cal_demo_3'
 const CALIBRATED_DAYS = 20
-const VOLUME_DAYS = 2
-/** Volume needs a density; this food has none (exercises "no density data"). */
-export const NO_DENSITY_FOOD = 'Panzanella Salad'
-/** Bowls hide their floor, so volume falls back to area for soups. */
-const BOWL_FOODS = new Set(['Broccoli Cheddar Soup', 'Tomato Soup'])
 
 export function mockPhysicalMethodFor(date: IsoDate, today: IsoDate): PhysicalMethod | null {
-  if (date < addDays(today, -CALIBRATED_DAYS)) return null
-  return date >= addDays(today, -VOLUME_DAYS) ? 'volume-dav2-v1' : 'area-calibrated-v1'
+  return date < addDays(today, -CALIBRATED_DAYS) ? null : 'area-calibrated-v1'
 }
 
 interface MockPhysicalFactor {
@@ -375,26 +371,20 @@ function mockFactorFor(name: string): MockPhysicalFactor | null {
   return { weight: 0.8 + r() * 1.0, c: 1 + r() * 14, w: 0.2 + r() * 1.6 }
 }
 
-function mockDensity(name: string): number | null {
-  return name === NO_DENSITY_FOOD ? null : 0.45 + rng(`density:${name}`)() * 0.6
-}
-
 export type MockPhysical = {
   grams: number | null
   kgCo2e: number | null
   waterLitres: number | null
   areaCm2: number | null
-  volumeCm3: number | null
   physicalUnavailableReason?: PhysicalAmounts['physicalUnavailableReason']
 }
 
-const NO_PHYSICAL = { grams: null, kgCo2e: null, waterLitres: null, areaCm2: null, volumeCm3: null }
+const NO_PHYSICAL = { grams: null, kgCo2e: null, waterLitres: null, areaCm2: null }
 
-/** I6/I7: area = pixels x k; grams by area x weight, or volume x density; CO2e = kg x C; litres = grams x W. */
+/** I6/I7: area = pixels x k (calibration only); grams = area x weight per cm2; CO2e = kg x C; litres = grams x W. */
 export function mockPhysical(
   pixels: number,
   factor: MockPhysicalFactor | null,
-  name: string,
   method: PhysicalMethod | null,
   unknown = false,
 ): MockPhysical {
@@ -402,22 +392,12 @@ export function mockPhysical(
   if (!method) return { ...NO_PHYSICAL, physicalUnavailableReason: 'no_calibration' }
   const areaCm2 = pixels * MOCK_CM2_PER_PX
   if (!factor) return { ...NO_PHYSICAL, areaCm2, physicalUnavailableReason: 'no_factor' }
-  let grams: number
-  let volumeCm3: number | null = null
-  if (method === 'volume-dav2-v1' && !BOWL_FOODS.has(name)) {
-    volumeCm3 = areaCm2 * (0.6 + rng(`height:${name}`)() * 1.6)
-    const density = mockDensity(name)
-    if (density === null) return { ...NO_PHYSICAL, areaCm2, volumeCm3, physicalUnavailableReason: 'no_density' }
-    grams = volumeCm3 * density
-  } else {
-    grams = areaCm2 * factor.weight
-  }
-  return { grams, kgCo2e: (grams / 1000) * factor.c, waterLitres: grams * factor.w, areaCm2, volumeCm3 }
+  const grams = areaCm2 * factor.weight
+  return { grams, kgCo2e: (grams / 1000) * factor.c, waterLitres: grams * factor.w, areaCm2 }
 }
 
-function combineMethods(methods: Set<PhysicalMethod>): PhysicalMethod | 'mixed' | null {
-  if (methods.size === 0) return null
-  return methods.size > 1 ? 'mixed' : [...methods][0]
+function combineMethods(methods: Set<PhysicalMethod>): PhysicalMethod | null {
+  return methods.size === 0 ? null : 'area-calibrated-v1'
 }
 
 /** Mock GET /api/dashboard/impact over a window of dinner services. */
@@ -444,7 +424,6 @@ export function mockImpactDashboard(start: IsoDate, end: IsoDate, today: IsoDate
   let excluded = 0
   let neighborExcluded = 0
   let calibratedCaptures = 0
-  let volumeCaptures = 0
   const windowMethods = new Set<PhysicalMethod>()
   const add = (a: number | null, b: number | null) => (b === null ? a : (a ?? 0) + b)
   for (const date of eachDayInclusive(start, end)) {
@@ -458,7 +437,6 @@ export function mockImpactDashboard(start: IsoDate, end: IsoDate, today: IsoDate
     if (method) {
       windowMethods.add(method)
       calibratedCaptures += svc.plates - svc.excluded
-      if (method === 'volume-dav2-v1') volumeCaptures += svc.plates - svc.excluded
     }
     for (const it of svc.items) {
       const acc: Acc = byItem.get(it.name) ?? {
@@ -478,7 +456,7 @@ export function mockImpactDashboard(start: IsoDate, end: IsoDate, today: IsoDate
       acc.pixels += it.pixels
       if (it.portions === null) acc.portionsMissing = true
       else acc.portions = (acc.portions ?? 0) + it.portions
-      const p = mockPhysical(it.pixels, it.factor, it.name, method)
+      const p = mockPhysical(it.pixels, it.factor, method)
       if (p.grams !== null && method) {
         acc.grams = add(acc.grams, p.grams)
         acc.kgCo2e = add(acc.kgCo2e, p.kgCo2e)
@@ -580,7 +558,7 @@ export function mockImpactDashboard(start: IsoDate, end: IsoDate, today: IsoDate
       captures,
       analyzedCaptures: captures - excluded,
       excludedCaptures: excluded,
-      physicalCoverage: { calibratedCaptures, volumeCaptures, analyzedCaptures: captures - excluded },
+      physicalCoverage: { calibratedCaptures, analyzedCaptures: captures - excluded },
     },
     targets,
     mostWasted,
@@ -628,7 +606,7 @@ export function mockCapture(date: IsoDate, n: number, today: IsoDate): CaptureLi
   const pool = [...svc.items].sort(() => r() - 0.5).slice(0, count)
   const items = pool.map((it) => {
     const pixels = 6_000 + Math.floor(r() * 52_000)
-    const p = mockPhysical(pixels, it.factor, it.name, method)
+    const p = mockPhysical(pixels, it.factor, method)
     return {
       itemId: itemIdFor(it.name),
       displayName: it.name,
@@ -637,7 +615,6 @@ export function mockCapture(date: IsoDate, n: number, today: IsoDate): CaptureLi
       kgCo2e: p.kgCo2e,
       waterLitres: p.waterLitres,
       areaCm2: p.areaCm2,
-      volumeCm3: p.volumeCm3,
       physicalUnavailableReason: replay ? ('incompatible_geometry' as const) : p.physicalUnavailableReason,
     }
   })
@@ -813,15 +790,17 @@ export function mockRecommendation(dash: ImpactDashboard, now: Date): Recommenda
 
 // ---------------------------------------------------------------------------
 // IT_4 mock camera calibrations (Settings -> Camera calibration). A credit
-// card under a Logitech C920s at about 50 cm, 1920 x 1080. Nominal C920s focal
-// length: (sqrt(1920^2 + 1080^2) / 2) / tan(39 deg) = 1360 px (IT_4 I3).
+// card under a Logitech C920s at about 50 cm. Photos are normalized to the
+// same 1024 x 1024 centre square as plate photos. Nominal C920s focal length:
+// (sqrt(1920^2 + 1080^2) / 2) / tan(39 deg) = 1360 px at 1920 x 1080, so
+// 1360 x 1024 / 1080 = 1289.7 px for the 1024 crop (IT_4 I3).
 // ---------------------------------------------------------------------------
 
 export const MOCK_CAMERA_ID = 'uno-q-c920s-1'
-const MOCK_FX = 1360
+const MOCK_FX = 1289.7
 
 function mockIntrinsics(): CameraCalibration['intrinsics'] {
-  return { cameraModel: 'logitech-c920s', widthPx: 1920, heightPx: 1080, fxPx: MOCK_FX, fyPx: MOCK_FX, cxPx: 960, cyPx: 540, source: 'nominal-fov' }
+  return { cameraModel: 'logitech-c920s', widthPx: 1024, heightPx: 1024, fxPx: MOCK_FX, fyPx: MOCK_FX, cxPx: 512, cyPx: 512, source: 'nominal-fov' }
 }
 
 /** Build a mock calibration: k = known area / reference pixels, height = f x sqrt(k). */
@@ -831,8 +810,6 @@ export function mockCalibration(opts: {
   knownAreaCm2: number
   referenceLabel: string
   referencePixels: number
-  /** Raw Depth Anything V2 median over the reference, metres; null = depth not run. */
-  rawDepthM: number | null
   flags?: CameraCalibration['flags']
   failed?: string
 }): CameraCalibration {
@@ -843,8 +820,8 @@ export function mockCalibration(opts: {
     createdAt: opts.createdAt,
     method: 'reference-area-v1' as const,
     imageObjectId: `img_${opts.calibrationId}`,
-    widthPx: 1920,
-    heightPx: 1080,
+    widthPx: 1024,
+    heightPx: 1024,
     knownAreaCm2: opts.knownAreaCm2,
     referenceLabel: opts.referenceLabel,
     intrinsics: mockIntrinsics(),
@@ -856,30 +833,13 @@ export function mockCalibration(opts: {
       referencePixels: 0,
       cm2PerPx: 0,
       cameraHeightCmGeometric: 0,
-      depth: null,
       flags: opts.flags ?? ['reference_not_found'],
       error: { code: 'REFERENCE_NOT_FOUND', message: opts.failed, retryable: true },
     }
   }
   const k = opts.knownAreaCm2 / opts.referencePixels
   const heightCm = MOCK_FX * Math.sqrt(k)
-  const depth =
-    opts.rawDepthM === null
-      ? null
-      : {
-          checkpoint: 'depth-anything/Depth-Anything-V2-Metric-Indoor-Small-hf',
-          settingsVersion: 'dav2-metric-small-v1',
-          rawReferenceMedianM: opts.rawDepthM,
-          scale: heightCm / (100 * opts.rawDepthM),
-          cameraHeightCmDepth: 100 * opts.rawDepthM,
-          tablePlane: { a: 0.0004, b: -0.0002, c: heightCm },
-          depthObjectId: `img_${opts.calibrationId}_depth`,
-        }
   const flags = [...(opts.flags ?? [])]
-  if (depth === null && !flags.includes('depth_unavailable')) flags.push('depth_unavailable')
-  if (depth && Math.abs(depth.cameraHeightCmDepth - heightCm) / heightCm > 0.15 && !flags.includes('depth_scale_disagrees')) {
-    flags.push('depth_scale_disagrees')
-  }
   return {
     ...base,
     status: 'succeeded',
@@ -888,7 +848,6 @@ export function mockCalibration(opts: {
     referencePixels: opts.referencePixels,
     cm2PerPx: k,
     cameraHeightCmGeometric: heightCm,
-    depth,
     flags,
   }
 }
@@ -899,13 +858,13 @@ function atNine(date: IsoDate): string {
   return d.toISOString()
 }
 
-/** Calibration history, newest first: active, heights disagree, no depth + card at the edge, failed. */
+/** Calibration history, newest first: active, an older card, an index card at the edge, failed. */
 export function mockCalibrationHistory(today: IsoDate): CameraCalibration[] {
   return [
-    mockCalibration({ calibrationId: MOCK_ACTIVE_CALIBRATION_ID, createdAt: atNine(addDays(today, -20)), knownAreaCm2: 46.21, referenceLabel: 'credit card', referencePixels: 34_186, rawDepthM: 0.47 }),
-    mockCalibration({ calibrationId: 'cal_demo_2', createdAt: atNine(addDays(today, -26)), knownAreaCm2: 46.21, referenceLabel: 'credit card', referencePixels: 35_120, rawDepthM: 0.58 }),
-    mockCalibration({ calibrationId: 'cal_demo_1', createdAt: atNine(addDays(today, -33)), knownAreaCm2: 93.5, referenceLabel: 'index card', referencePixels: 70_400, rawDepthM: null, flags: ['reference_touches_edge'] }),
-    mockCalibration({ calibrationId: 'cal_demo_0', createdAt: atNine(addDays(today, -34)), knownAreaCm2: 46.21, referenceLabel: 'credit card', referencePixels: 0, rawDepthM: null, failed: 'The card was not found in the photo.' }),
+    mockCalibration({ calibrationId: MOCK_ACTIVE_CALIBRATION_ID, createdAt: atNine(addDays(today, -20)), knownAreaCm2: 46.21, referenceLabel: 'credit card', referencePixels: MOCK_CARD_PIXELS }),
+    mockCalibration({ calibrationId: 'cal_demo_2', createdAt: atNine(addDays(today, -26)), knownAreaCm2: 46.21, referenceLabel: 'credit card', referencePixels: 31_570 }),
+    mockCalibration({ calibrationId: 'cal_demo_1', createdAt: atNine(addDays(today, -33)), knownAreaCm2: 93.5, referenceLabel: 'index card', referencePixels: 63_290, flags: ['reference_touches_edge'] }),
+    mockCalibration({ calibrationId: 'cal_demo_0', createdAt: atNine(addDays(today, -34)), knownAreaCm2: 46.21, referenceLabel: 'credit card', referencePixels: 0, failed: 'The card was not found in the photo.' }),
   ]
 }
 
@@ -917,24 +876,16 @@ export function mockCalibrationImages(cal: CameraCalibration, now: Date): Calibr
   const tray = '<rect width="640" height="360" fill="#8d8478"/><rect x="40" y="30" width="560" height="300" rx="10" fill="#b9b1a4"/>'
   const card = '<rect x="262" y="140" width="116" height="73" rx="5" fill="#2f4a6d"/><rect x="276" y="160" width="22" height="16" rx="2" fill="#d7b65c"/>'
   const photo = { objectId: cal.imageObjectId, url: wide(tray + (cal.status === 'failed' ? '' : card)), expiresAt }
-  if (cal.status !== 'succeeded') return { calibrationId: cal.calibrationId, photo, outline: null, depth: null }
+  if (cal.status !== 'succeeded') return { calibrationId: cal.calibrationId, photo, outline: null }
   const outline = wide(
     tray +
       card +
       '<rect x="262" y="140" width="116" height="73" rx="5" fill="#17bebb" fill-opacity="0.35" stroke="#ffc914" stroke-width="4"/>' +
       `<text x="320" y="240" text-anchor="middle" font-family="Times New Roman, serif" font-size="16" fill="#ffffff">${escapeXml(cal.referenceLabel)}: ${cal.knownAreaCm2} cm2</text>`,
   )
-  const depth = cal.depth
-    ? {
-        objectId: cal.depth.depthObjectId,
-        url: wide('<defs><linearGradient id="g"><stop offset="0" stop-color="#222"/><stop offset="1" stop-color="#ddd"/></linearGradient></defs><rect width="640" height="360" fill="url(#g)"/>'),
-        expiresAt,
-      }
-    : null
   return {
     calibrationId: cal.calibrationId,
     photo,
     outline: { objectId: cal.overlayObjectId ?? `${cal.imageObjectId}_outline`, url: outline, expiresAt },
-    depth,
   }
 }

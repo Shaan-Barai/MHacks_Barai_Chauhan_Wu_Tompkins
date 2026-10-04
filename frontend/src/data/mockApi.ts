@@ -8,6 +8,7 @@ import { addDays, eachDay, startOfMonth, startOfWeek, todayIso } from '../lib/da
 import { AuthRequiredError, notifyAuthRequired } from './authEvents'
 import {
   MOCK_ACTIVE_CALIBRATION_ID,
+  MOCK_CARD_PIXELS,
   MOCK_FUTURE_MENU_DAYS,
   MOCK_HALL_ID,
   mockCalibration,
@@ -328,7 +329,7 @@ export async function logout(): Promise<void> {
 // Camera calibration + measurement settings (IT_4), kept in this browser.
 // ---------------------------------------------------------------------------
 
-const CALIBRATION_KEY = 'scrap.mock.calibration.v1'
+const CALIBRATION_KEY = 'scrap.mock.calibration.v2'
 
 interface CalibrationStore {
   settings: MeasurementSettings
@@ -346,9 +347,7 @@ function readCalibrationStore(): CalibrationStore {
   return {
     settings: {
       hallId: MOCK_HALL_ID,
-      depthEnabled: false,
       activeCalibrationId: MOCK_ACTIVE_CALIBRATION_ID,
-      plateThicknessCm: 1.5,
       updatedAt: new Date(`${addDays(today, -20)}T13:00:00Z`).toISOString(),
     },
     calibrations: mockCalibrationHistory(today),
@@ -365,19 +364,16 @@ export async function getMeasurementSettings(): Promise<MeasurementSettings> {
 }
 
 export async function saveMeasurementSettings(
-  next: Pick<MeasurementSettings, 'depthEnabled' | 'activeCalibrationId' | 'plateThicknessCm'>,
+  next: Pick<MeasurementSettings, 'activeCalibrationId'>,
 ): Promise<MeasurementSettings> {
   await wait()
   requireSession()
-  if (!(Number.isFinite(next.plateThicknessCm) && next.plateThicknessCm >= 0 && next.plateThicknessCm <= 10)) {
-    throw new Error('Plate thickness must be between 0 and 10 cm.')
-  }
   const store = readCalibrationStore()
   if (next.activeCalibrationId !== null) {
     const cal = store.calibrations.find((c) => c.calibrationId === next.activeCalibrationId)
     if (!cal || cal.status !== 'succeeded') throw new Error('Only a finished calibration can be used.')
   }
-  store.settings = { ...store.settings, ...next, updatedAt: new Date().toISOString() }
+  store.settings = { hallId: store.settings.hallId, activeCalibrationId: next.activeCalibrationId, updatedAt: new Date().toISOString() }
   writeCalibrationStore(store)
   return store.settings
 }
@@ -396,7 +392,7 @@ export async function getCalibration(calibrationId: string): Promise<CameraCalib
 
 /**
  * Demo calibration: the "photo" is not analyzed. The card always covers
- * 34,186 pixels (scaled by the known area) and the depth scale is measured.
+ * MOCK_CARD_PIXELS (30,730 of the 1024 x 1024 photo), scaled by the known area.
  */
 export async function createCalibration(input: NewCalibration): Promise<CameraCalibration> {
   await wait()
@@ -410,10 +406,7 @@ export async function createCalibration(input: NewCalibration): Promise<CameraCa
     createdAt: new Date().toISOString(),
     knownAreaCm2: input.knownAreaCm2,
     referenceLabel: input.referenceLabel.trim() || 'reference object',
-    referencePixels: Math.round(34_186 * (input.knownAreaCm2 / 46.21)),
-    // Calibration measures the depth scale whenever the worker answers (I9),
-    // so the toggle can be turned on later without recalibrating.
-    rawDepthM: 0.49,
+    referencePixels: Math.round(MOCK_CARD_PIXELS * (input.knownAreaCm2 / 46.21)),
   })
   store.calibrations = [{ ...cal, cameraId: input.cameraId }, ...store.calibrations]
   writeCalibrationStore(store)

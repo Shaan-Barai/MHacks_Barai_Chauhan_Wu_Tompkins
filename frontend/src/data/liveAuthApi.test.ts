@@ -130,23 +130,24 @@ describe('calibration + settings', () => {
     expect(await getCalibrations()).toEqual([{ calibrationId: 'a' }])
     vi.stubGlobal('fetch', vi.fn(async () => json(200, [{ calibrationId: 'b' }])))
     expect(await getCalibrations()).toEqual([{ calibrationId: 'b' }])
-    vi.stubGlobal('fetch', vi.fn(async () => json(200, { settings: { hallId: 'hall-main', depthEnabled: true } })))
-    expect(await getMeasurementSettings()).toMatchObject({ depthEnabled: true })
+    vi.stubGlobal('fetch', vi.fn(async () => json(200, { settings: { hallId: 'hall-main', activeCalibrationId: 'a' } })))
+    expect(await getMeasurementSettings()).toMatchObject({ activeCalibrationId: 'a' })
 
-    const fetchMock = vi.fn(async () => json(200, { hallId: 'hall-main', depthEnabled: false, activeCalibrationId: 'a', plateThicknessCm: 1.5 }))
+    const fetchMock = vi.fn(async () => json(200, { hallId: 'hall-main', activeCalibrationId: 'a', updatedAt: 'x' }))
     vi.stubGlobal('fetch', fetchMock)
-    expect(await saveMeasurementSettings({ depthEnabled: false, activeCalibrationId: 'a', plateThicknessCm: 1.5 })).toMatchObject({ depthEnabled: false })
+    expect(await saveMeasurementSettings({ activeCalibrationId: 'a' })).toMatchObject({ activeCalibrationId: 'a' })
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
     expect(url).toBe('/api/settings/measurement')
     expect(init.method).toBe('PUT')
-    expect(JSON.parse(init.body as string)).toEqual({ hallId: 'hall-main', depthEnabled: false, activeCalibrationId: 'a', plateThicknessCm: 1.5 })
+    expect(JSON.parse(init.body as string)).toEqual({ hallId: 'hall-main', activeCalibrationId: 'a' })
   })
 
   it('maps calibration image links from either naming', async () => {
     const img = { objectId: 'o', url: 'https://img.test/o.jpg', expiresAt: 'x' }
+    // An older backend may still send a legacy preview link; it is ignored.
     vi.stubGlobal('fetch', vi.fn(async () => json(200, { original: img, overlay: img, depth: null })))
-    expect(await getCalibrationImages('cal_1')).toEqual({ calibrationId: 'cal_1', photo: img, outline: img, depth: null })
+    expect(await getCalibrationImages('cal_1')).toEqual({ calibrationId: 'cal_1', photo: img, outline: img })
     vi.stubGlobal('fetch', vi.fn(async () => json(200, { photo: img, outline: null })))
-    expect(await getCalibrationImages('cal_1')).toEqual({ calibrationId: 'cal_1', photo: img, outline: null, depth: null })
+    expect(await getCalibrationImages('cal_1')).toEqual({ calibrationId: 'cal_1', photo: img, outline: null })
   })
 })

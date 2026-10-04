@@ -217,8 +217,8 @@ export interface WasteImpact extends PhysicalAmounts {
   nutritionPoints: number | null
   wasteFactorsVersion: string
   unavailableReason?: ImpactUnavailableReason
-  /** IT_4: the method behind grams; 'mixed' when a total combines both. */
-  physicalMethod?: PhysicalMethod | 'mixed' | null
+  /** IT_4: the method behind grams ('area-calibrated-v1'); null when there are no grams. */
+  physicalMethod?: PhysicalMethod | null
 }
 
 /** Per-portion rates over the same hall/date/service/menu version. */
@@ -276,7 +276,6 @@ export interface CaptureListItem {
   pixelsWasted: number | null
   items: Array<
     { itemId: string | null; displayName: string; pixels: number } & PhysicalAmounts & {
-      volumeCm3?: number | null
       areaCm2?: number | null
     }
   >
@@ -309,16 +308,18 @@ export interface Recommendation {
 }
 
 // ---------------------------------------------------------------------------
-// IT_4 (2026-10-04): camera calibration, calibrated area, Depth Anything V2
-// volume, ESTIMATED grams / kg CO2e / litres of water. Local copy of the
-// contracts/types.ts IT_4 section. Pixels wasted stay the measurement;
-// physical numbers are labeled estimates and are null (never 0) when missing.
-// New fields are optional here so payloads from older backends still parse.
+// IT_4 (2026-10-04): camera calibration, calibrated area, ESTIMATED grams /
+// kg CO2e / litres of water. Local copy of the contracts/types.ts IT_4
+// section. Area comes only from the camera calibration (pixels x cm2PerPx);
+// grams = area x the food's typical weight per cm2. Pixels wasted stay the
+// measurement; physical numbers are labeled estimates and are null (never 0)
+// when missing. New fields are optional here so payloads from older backends
+// still parse.
 // ---------------------------------------------------------------------------
 
-export type PhysicalMethod = 'area-calibrated-v1' | 'volume-dav2-v1'
+export type PhysicalMethod = 'area-calibrated-v1'
 
-export type PhysicalUnavailableReason = 'no_calibration' | 'incompatible_geometry' | 'no_factor' | 'no_density' | 'unknown_item'
+export type PhysicalUnavailableReason = 'no_calibration' | 'incompatible_geometry' | 'no_factor' | 'unknown_item'
 
 /** Estimated physical amounts; null or absent = unavailable, never 0. */
 export interface PhysicalAmounts {
@@ -330,7 +331,6 @@ export interface PhysicalAmounts {
 
 export interface PhysicalCoverage {
   calibratedCaptures: number
-  volumeCaptures: number
   analyzedCaptures: number
 }
 
@@ -349,18 +349,6 @@ export type CameraCalibrationFlag =
   | 'reference_not_found'
   | 'reference_low_confidence'
   | 'reference_touches_edge'
-  | 'depth_unavailable'
-  | 'depth_scale_disagrees'
-
-export interface CalibrationDepth {
-  checkpoint: string
-  settingsVersion: string
-  rawReferenceMedianM: number
-  scale: number
-  cameraHeightCmDepth: number
-  tablePlane: { a: number; b: number; c: number }
-  depthObjectId: string
-}
 
 /** POST /api/calibrations, GET /api/calibrations[/:id] */
 export interface CameraCalibration {
@@ -380,8 +368,8 @@ export interface CameraCalibration {
   referencePixels: number
   cm2PerPx: number
   intrinsics: CameraIntrinsics
+  /** Camera height above the table, f x sqrt(k) (cm), from the photo. */
   cameraHeightCmGeometric: number
-  depth: CalibrationDepth | null
   flags: CameraCalibrationFlag[]
   error?: { code: string; message: string; retryable?: boolean }
 }
@@ -393,16 +381,12 @@ export interface CalibrationImages {
   photo: SignedImage | null
   /** The photo with the reference object outlined. */
   outline: SignedImage | null
-  /** Depth Anything V2 preview, when depth ran. */
-  depth: SignedImage | null
 }
 
 /** GET/PUT /api/settings/measurement (per hall). */
 export interface MeasurementSettings {
   hallId: string
-  depthEnabled: boolean
   activeCalibrationId: string | null
-  plateThicknessCm: number
   updatedAt: string
 }
 

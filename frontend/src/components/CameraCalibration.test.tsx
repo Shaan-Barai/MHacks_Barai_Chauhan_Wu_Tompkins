@@ -1,9 +1,9 @@
 /** Settings -> Camera calibration against the mock layer (VITE_USE_MOCK data). */
 import { describe, expect, it } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { CameraCalibrationPanel, flagText, heightDifference } from './CameraCalibration'
+import { CameraCalibrationPanel, flagText } from './CameraCalibration'
 import { getMeasurementSettings, login, MOCK_PASSCODE } from '../data/api'
-import { mockCalibration } from '../data/mockData'
+import { MOCK_CARD_PIXELS, mockCalibration } from '../data/mockData'
 import { AuthProvider } from '../state/auth'
 
 function renderPanel(status: 'signedIn' | 'signedOut') {
@@ -17,34 +17,32 @@ function renderPanel(status: 'signedIn' | 'signedOut') {
 const photo = () => new File([new Uint8Array([0xff, 0xd8, 0xff])], 'card.jpg', { type: 'image/jpeg' })
 
 describe('CameraCalibrationPanel signed out', () => {
-  it('shows the how-to, the active calibration with both heights, and history, but no write controls', async () => {
+  it('shows the how-to, the active calibration with its scale and camera height, and history, but no write controls', async () => {
     renderPanel('signedOut')
     expect(screen.getByText(/Lock the camera in place/)).toBeInTheDocument()
     expect(screen.getByText(/Don't move the camera afterwards/)).toBeInTheDocument()
     expect(screen.getByText('Sign in to change this.')).toBeInTheDocument()
 
-    const toggle = await screen.findByRole('switch', { name: /Depth Anything V2 off/ })
-    expect(toggle).not.toBeChecked()
-    expect(toggle).toBeDisabled()
-    expect(screen.getByText('Experimental')).toBeInTheDocument()
-    expect(screen.getByText(/On: estimates each food’s volume from a depth map.*If depth can’t be measured, the area estimate is used\./)).toBeInTheDocument()
     expect(screen.getByText(/mounted camera at its usual position/)).toBeInTheDocument()
+    expect(screen.getByText(/each food's typical weight per cm² turns that area into grams/)).toBeInTheDocument()
+    // Depth Anything V2 is gone: no toggle, no plate thickness, no second height.
+    expect(screen.queryByRole('switch')).toBeNull()
+    expect(screen.queryByText(/Depth Anything|depth|volume|thickness/i)).toBeNull()
 
     // the active calibration is shown first
     const result = await screen.findByRole('region', { name: /Calibration from/ })
     expect(within(result).getAllByText('Active').length).toBeGreaterThan(0)
     expect(within(result).getByText('credit card, 46.21 cm²')).toBeInTheDocument()
-    expect(within(result).getByText('34,186 pixels')).toBeInTheDocument()
-    expect(within(result).getByText('0.00135 cm² per pixel')).toBeInTheDocument()
+    expect(within(result).getByText('30,730 pixels')).toBeInTheDocument()
+    // k = 46.21 / 30,730 = 0.0015037 cm²/px (3 significant digits: 0.00150)
+    expect(within(result).getByText('0.0015 cm² per pixel')).toBeInTheDocument()
+    // height = 1289.7 px × √0.0015037 = 50.01 cm
     expect(within(result).getByText('50.0 cm')).toBeInTheDocument()
-    expect(within(result).getByText('47.0 cm')).toBeInTheDocument()
-    expect(within(result).getByText('6%')).toBeInTheDocument()
+    expect(within(result).getByText('1024 × 1024 pixels')).toBeInTheDocument()
     expect(await within(result).findByAltText(/credit card outlined by the AI/)).toBeInTheDocument()
 
     expect(screen.queryByRole('form', { name: 'New calibration' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Activate' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Save thickness' })).toBeNull()
-    expect(screen.getByLabelText('Thickness (cm)')).toBeDisabled()
 
     // history: four entries, the active one marked
     const history = screen.getByText('Past calibrations').parentElement!
@@ -56,11 +54,13 @@ describe('CameraCalibrationPanel signed out', () => {
     renderPanel('signedOut')
     const buttons = await screen.findAllByRole('button', { name: /Show the calibration from/ })
     fireEvent.click(buttons[1])
-    expect(await screen.findByText(/The two height estimates disagree by more than 15%/)).toBeInTheDocument()
+    // k = 46.21 / 31,570 = 0.00146; height = 1289.7 × √k = 49.3 cm; no flags
+    expect(await screen.findByText('49.3 cm')).toBeInTheDocument()
+    expect(screen.queryByText('Check this')).toBeNull()
     fireEvent.click(buttons[2])
     expect(await screen.findByText(/index card touches the edge of the photo/)).toBeInTheDocument()
-    expect(screen.getByText(/Depth Anything V2 was not available/)).toBeInTheDocument()
-    expect(screen.getByText('Not measured')).toBeInTheDocument()
+    // k = 93.5 / 63,290 = 0.00148; height = 49.6 cm
+    expect(screen.getByText('49.6 cm')).toBeInTheDocument()
     fireEvent.click(buttons[3])
     expect(await screen.findByText(/This calibration didn't work: The card was not found in the photo/)).toBeInTheDocument()
     expect(screen.getByText(/credit card was not found in the photo/)).toBeInTheDocument()
@@ -99,7 +99,7 @@ describe('CameraCalibrationPanel signed in', () => {
     expect(screen.getByText('Past calibrations').parentElement!.querySelectorAll('li')).toHaveLength(5)
   })
 
-  it('rejects a non-positive area, then flips the depth toggle and saves the plate thickness', async () => {
+  it('rejects a non-positive area', async () => {
     await login(MOCK_PASSCODE)
     renderPanel('signedIn')
     const form = await screen.findByRole('form', { name: 'New calibration' })
@@ -107,20 +107,16 @@ describe('CameraCalibrationPanel signed in', () => {
     fireEvent.change(within(form).getByLabelText('Calibration photo'), { target: { files: [photo()] } })
     fireEvent.click(within(form).getByRole('button', { name: 'Calibrate' }))
     expect(await within(form).findByRole('alert')).toHaveTextContent('more than 0')
-
-    fireEvent.click(await screen.findByRole('switch', { name: /Depth Anything V2 off/ }))
-    expect(await screen.findByRole('switch', { name: /Depth Anything V2 on/ })).toBeChecked()
-    expect((await getMeasurementSettings()).depthEnabled).toBe(true)
-
-    fireEvent.change(screen.getByLabelText('Thickness (cm)'), { target: { value: '2.5' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save thickness' }))
-    await waitFor(async () => expect((await getMeasurementSettings()).plateThicknessCm).toBe(2.5))
+    const settings = await getMeasurementSettings()
+    expect(Object.keys(settings).sort()).toEqual(['activeCalibrationId', 'hallId', 'updatedAt'])
   })
 
   it('a refused change (401) opens the staff sign-in dialog', async () => {
     // The page thinks it is signed in, but the session has ended.
     renderPanel('signedIn')
-    fireEvent.click(await screen.findByRole('switch', { name: /Depth Anything V2/ }))
+    const buttons = await screen.findAllByRole('button', { name: /Show the calibration from/ })
+    fireEvent.click(buttons[1])
+    fireEvent.click(await screen.findByRole('button', { name: 'Activate' }))
     const dialog = await screen.findByRole('dialog', { name: 'Staff sign-in' })
     expect(dialog).toHaveTextContent('Sign in to save this change.')
     expect(within(dialog).getByLabelText('Staff passcode')).toHaveFocus()
@@ -130,15 +126,21 @@ describe('CameraCalibrationPanel signed in', () => {
 })
 
 describe('calibration helpers', () => {
-  it('flags the 15% height disagreement in plain words with both heights', () => {
-    const cal = mockCalibration({ calibrationId: 'c', createdAt: '2026-10-04T13:00:00Z', knownAreaCm2: 46.21, referenceLabel: 'credit card', referencePixels: 34_186, rawDepthM: 0.6 })
-    expect(cal.flags).toContain('depth_scale_disagrees')
-    expect(heightDifference(cal)).toBeCloseTo(0.2, 2)
-    expect(flagText('depth_scale_disagrees', cal)).toBe(
-      'The two height estimates disagree by more than 15% (50.0 cm from the photo, 60.0 cm from Depth Anything V2). Area estimates still work; check the setup before relying on volume.',
-    )
-    // k = 46.21 / 34,186 and height = f x sqrt(k) with the C920s nominal f = 1360 px
-    expect(cal.cm2PerPx).toBeCloseTo(0.0013517, 6)
-    expect(cal.cameraHeightCmGeometric).toBeCloseTo(50.0, 1)
+  it('k = known area / reference pixels and height = f × √k with the C920s f = 1289.7 px for the 1024² crop', () => {
+    const cal = mockCalibration({ calibrationId: 'c', createdAt: '2026-10-04T13:00:00Z', knownAreaCm2: 46.21, referenceLabel: 'credit card', referencePixels: MOCK_CARD_PIXELS })
+    expect(cal.cm2PerPx).toBeCloseTo(46.21 / 30_730, 10) // 0.0015037
+    expect(cal.cameraHeightCmGeometric).toBeCloseTo(50.01, 2) // 1289.7 × 0.038778
+    expect([cal.widthPx, cal.heightPx]).toEqual([1024, 1024])
+    expect(cal.flags).toEqual([])
+    expect('depth' in cal).toBe(false)
+  })
+
+  it('says each reference flag in plain words, and nothing for flags it does not know', () => {
+    const cal = mockCalibration({ calibrationId: 'c', createdAt: '2026-10-04T13:00:00Z', knownAreaCm2: 46.21, referenceLabel: 'credit card', referencePixels: MOCK_CARD_PIXELS })
+    expect(flagText('reference_not_found', cal)).toMatch(/credit card was not found in the photo/)
+    expect(flagText('reference_low_confidence', cal)).toMatch(/unsure of the credit card's outline/)
+    expect(flagText('reference_touches_edge', cal)).toMatch(/credit card touches the edge/)
+    // a flag stored by an older backend during the removed depth trial
+    expect(flagText('depth_unavailable' as unknown as Parameters<typeof flagText>[0], cal)).toBeNull()
   })
 })

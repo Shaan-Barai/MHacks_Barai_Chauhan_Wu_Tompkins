@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { PhysicalChips, physicalReasonText } from './PhysicalChips'
+import { ESTIMATE_EXPLANATION, PhysicalChips, physicalReasonText } from './PhysicalChips'
 import { formatAmount, formatGrams, formatKgCo2e, formatLitres, formatMass } from '../lib/format'
 
 describe('estimate formatting', () => {
@@ -34,7 +34,7 @@ describe('PhysicalChips', () => {
     const svgs = container.querySelectorAll('svg')
     expect(svgs).toHaveLength(2)
     svgs.forEach((s) => expect(s).toHaveAttribute('aria-hidden', 'true'))
-    expect(container.firstElementChild).toHaveAttribute('title', expect.stringMatching(/camera calibration and typical food density; pixels are the measurement/))
+    expect(container.firstElementChild).toHaveAttribute('title', expect.stringMatching(/area comes from the camera calibration .* grams from the food’s typical weight per cm²/))
   })
 
   it('never shows 0 for a missing estimate: a muted reason, or nothing', () => {
@@ -55,9 +55,17 @@ describe('PhysicalChips', () => {
     expect(screen.queryByText(/CO2e/)).toBeNull()
   })
 
+  it('the explainer says area comes from the camera calibration and grams from typical weight per cm²', () => {
+    expect(ESTIMATE_EXPLANATION).toMatch(/area comes from the camera calibration \(a reference object of known area/)
+    expect(ESTIMATE_EXPLANATION).toMatch(/grams from the food’s typical weight per cm²/)
+    expect(ESTIMATE_EXPLANATION).not.toMatch(/density|depth|volume/i)
+  })
+
   it('has plain words for every reason', () => {
     expect(physicalReasonText('no_factor')).toBe('no estimate for this food')
-    expect(physicalReasonText('no_density')).toBe('no density data for this food')
+    expect(physicalReasonText('incompatible_geometry')).toBe('photo size differs from the calibration')
+    // A reason from an older backend (the removed depth trial) says nothing rather than guessing.
+    expect(physicalReasonText('no_density' as unknown as Parameters<typeof physicalReasonText>[0])).toBeNull()
     expect(physicalReasonText(undefined)).toBe('not calibrated')
     expect(physicalReasonText('unknown_item')).toBeNull()
   })

@@ -311,11 +311,15 @@ describe('BIG-PLAN live e2e: simulated camera → R2/SpacetimeDB → Gemini+SAM 
       }
       const attempts = await sql(`SELECT * FROM analysis_attempt WHERE event_id = ${quote(id)}`);
       assert.ok(attempts.length >= 1, `${id}: analysis_attempt row`);
-      const calCols = Object.keys(attempts[0]).filter((c) => c.includes('calibration'));
-      assert.ok(calCols.length > 0, 'analysis_attempt has a calibration column');
-      assert.ok(attempts.some((a) => calCols.some((c) => isSome(a[c]))), `${id}: calibration stored`);
+      // attempt_calibration (db/README.md): AnalysisAttempt.calibration + overlayObjectId.
+      const cals = await sql(`SELECT * FROM attempt_calibration WHERE event_id = ${quote(id)}`);
+      assert.ok(cals.some((c) => isSome(c.calibration)), `${id}: attempt_calibration row with a calibration`);
+      assert.ok(
+        cals.some((c) => JSON.stringify(c.overlay_object_id ?? null).includes(imgs.overlay.objectId)),
+        `${id}: attempt_calibration.overlay_object_id references the overlay image_object`,
+      );
       const measurements = await sql(`SELECT * FROM food_measurement WHERE event_id = ${quote(id)}`);
-      console.log(`# ${id}: capture_event + ${expected.length} image_object (r2) + ${attempts.length} attempt + ${measurements.length} food_measurement rows`);
+      console.log(`# ${id}: capture_event + ${expected.length} image_object (r2) + ${attempts.length} attempt + ${cals.length} attempt_calibration + ${measurements.length} food_measurement rows`);
     }
   });
 

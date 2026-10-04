@@ -41,8 +41,8 @@ SpacetimeDB) plus the SAM worker (`SAM_WORKER_URL`, default `http://127.0.0.1:87
 5. `GET /api/captures/:id/images` (`CaptureImages`): original + overlay + masks; every read URL
    fetches with HTTP 200 and an image content type (URLs are never printed).
 6. With `SPACETIMEDB_URI` set: `capture_event`, `image_object` (provider `r2`, `finalized`,
-   association kinds `capture`/`overlay`/`mask`, keys not URLs, no blobs), `analysis_attempt` with a
-   calibration column, `food_measurement` rows — via the SpacetimeDB SQL HTTP API.
+   association kinds `capture`/`overlay`/`mask`, keys not URLs, no blobs), `analysis_attempt`, `attempt_calibration` (calibration + overlay id), and
+   `food_measurement` rows — via the SpacetimeDB SQL HTTP API.
 7. `GET /api/dashboard/impact` (`ImpactDashboard`): totals, `targets`, `mostWasted` populated.
 8. `GET /api/recommendation` (`Recommendation`): non-empty text, source `gemini` or `fallback`.
 
@@ -50,6 +50,10 @@ SpacetimeDB) plus the SAM worker (`SAM_WORKER_URL`, default `http://127.0.0.1:87
 cd tests
 SCRAP_E2E=1 SPACETIMEDB_MODULE=scrap-bigplan npm run test:e2e:bigplan   # loads ../.env; shell vars win
 ```
+
+The real-hardware counterpart is `capture/scripts/live_camera_test.py` (board + C920 + bridge
+`--watch`, `source = camera`); this E2E swaps only the board for `simulate-camera` and goes on to
+assert the analysis, storage, and dashboard results.
 
 `test:e2e:bigplan` uses `node --env-file-if-exists` (Node ≥ 22.9). Always pass test **files** to
 `node --test`: `node --test tests/e2e` treats the folder as one script and fails; use

@@ -9,8 +9,7 @@
  *   --poll <s>      --watch scan interval in seconds (default 2)
  *   --idle <s>      --watch: close the open dish after this long with no new photos (default 10)
  *   --no-dedupe     one dish per manual photo, no Gemini; --auto frames are skipped
- *   --state-dir <d> where .inbox-groups.json / .inbox-ingest.json live (default: capture/);
- *                   use a fresh folder for an isolated demo or E2E run
+ *   --state-dir <d> where .inbox-groups.json / .inbox-ingest.json live (default: capture/)
  *   API_URL=...     backend (default http://localhost:8787)
  *
  * Frames are grouped into dishes with POST /api/dish-match (Gemini), then one

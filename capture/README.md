@@ -180,8 +180,10 @@ submit these dishes as `source: 'replay'`, never `'camera'`. With `--service` it
 `ingest-inbox` pass (`--no-dedupe` unless `--dedupe`). Options and rationale:
 [BRIDGE.md](../BRIDGE.md#run-it-without-the-board-simulate-camera).
 
-`ingest-inbox --state-dir <dir>` keeps the bridge's grouping/event-ID state in another folder, so a
-demo or E2E run never touches `capture/.inbox-*.json`.
+Use the bridge's `--state-dir <dir>` to keep a demo or E2E run's grouping/event-ID state out of
+`capture/.inbox-*.json`. For the real board, `scripts/live_camera_test.py` is the hardware check
+(camera preflight, manual + auto frames, cued plate run through the bridge); the simulator covers the
+same bridge path without hardware.
 
 ## Run tests
 

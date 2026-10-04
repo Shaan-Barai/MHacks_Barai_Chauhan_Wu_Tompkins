@@ -25,7 +25,7 @@ cd capture && npm run ingest-inbox -- --service svc_hall-main_2026-10-03_lunch -
 | `--inbox <dir>` | Default `<repo>/images/arduino-inbox` |
 | `--poll <s>` / `--idle <s>` | Scan interval (default 2) / close the open dish after this long with no new photos (default 10) |
 | `--no-dedupe` | One dish per manual photo, no Gemini; `--auto` frames are skipped. Prints a warning |
-| `--state-dir <dir>` | Where `.inbox-groups.json` / `.inbox-ingest.json` live (default `capture/`). Use a fresh folder for an isolated demo or E2E run |
+| `--state-dir <dir>` | Where `.inbox-groups.json` / `.inbox-ingest.json` live. Default `capture/` |
 | `API_URL` | Backend, default `http://localhost:8787` |
 
 Output: `+` new dish, `■` dish closed, `✓ dish … → <eventId> (<state>)` ingested, `?` an unsure
@@ -55,6 +55,13 @@ npm run simulate-camera -- --inbox /tmp/inbox --photos path/to/photos --count 2
 | `--service <id>` | After writing, run one `ingest-inbox` pass for this service |
 | `--dedupe` | With `--service`: Gemini grouping instead of `--no-dedupe` |
 | `--state-dir <dir>` | With `--service`: passed through to `ingest-inbox` |
+
+**How it complements `live_camera_test.py`.** `capture/scripts/live_camera_test.py` (§6) is the
+hardware check: real board, real C920 frames, Gemini grouping in `--watch`, `source = camera`. The
+simulator replaces only the board + SSH step, so the rest of the path (bridge → R2 → SpacetimeDB →
+Gemini + SAM → overlay → dashboard API) can be run and asserted repeatably without hardware; the live
+E2E `tests/e2e/bigplan-live.test.mjs` uses it. Both use the bridge's `--state-dir` to keep their state
+out of `capture/.inbox-*.json`.
 
 **Labeling.** Only two values differ from a real capture: `captureSource: "simulated_camera"` and
 `device: "simulate-camera:<file>"`. The inbox reader turns that into `InboxFrame.simulated`, and the

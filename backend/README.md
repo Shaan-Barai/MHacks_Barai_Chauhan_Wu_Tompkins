@@ -15,8 +15,29 @@ npm start          # build (data/vision/analytics first) + run; http://localhost
 npm test           # build + node --test (in-memory repo, mock analyzer, offline R2)
 # live SpacetimeDB check (per-run ids; demo data untouched):
 set -a; . ../.env; set +a; npm test   # runs test/spacetimeRepository.live.test.ts too
-npm run seed       # load data/seed/demo-seed.json through the API (backend running)
+npm run seed       # load data/seed/demo-seed.json through the API (backend running):
+                   # menus (incl. the 23-food demo dinner), reference portions, and
+                   # demo portions served (source "demo"); idempotent
 ```
+
+### BIG-PLAN demo against SpacetimeDB `scrap-bigplan` + R2
+
+```bash
+# once (or after a schema change): publish the module to its own database
+cd db/spacetimedb && npm ci && spacetime publish --module-path . --server local --yes scrap-bigplan
+# SAM worker in its own terminal (vision/sam/README.md)
+.venv/bin/python vision/sam/worker.py
+# backend: real .env (R2 + Gemini + token), overriding only the database name
+cd backend && SPACETIMEDB_MODULE=scrap-bigplan npm start
+# seed menus + demo portions into scrap-bigplan (second terminal)
+cd backend && npm run seed
+```
+
+`.env` must set `OBJECT_STORAGE_PROVIDER=r2`, the `R2_*` credentials,
+`GEMINI_API_KEY`, `SPACETIMEDB_URI=http://127.0.0.1:3000`, and the
+`SPACETIMEDB_TOKEN` of the identity that published the module. Live
+repository check: `SPACETIMEDB_MODULE=scrap-bigplan node --env-file=../.env --test dist/backend/test/spacetimeRepository.live.test.js`
+(after `npm run build`).
 
 ## Environment (see root `.env.example`; all server-side, no secrets in code)
 
@@ -34,11 +55,13 @@ npm run seed       # load data/seed/demo-seed.json through the API (backend runn
 | `READ_URL_TTL_SECONDS` | `600` | Read-URL expiry |
 | `ORPHAN_MAX_AGE_SECONDS` | `3600` | Age after which unfinalized uploads count as orphans |
 | `SPACETIMEDB_URI` | *(unset = in-memory/JSON)* | SpacetimeDB HTTP API, e.g. `http://127.0.0.1:3000` |
-| `SPACETIMEDB_MODULE` | `scrap` | Database name |
+| `SPACETIMEDB_MODULE` | `scrap` | Database name. **Use `scrap-bigplan` for the BIG-PLAN demo** (the schema with `attempt_calibration`); never wipe `scrap` |
 | `SPACETIMEDB_TOKEN` | – | Bearer token of the identity that published the module (reads private tables) |
 | `GEMINI_API_KEY` / `GEMINI_MODEL` | *(unset = mock analyzer)* | Read by `@scrap/vision`; set ⇒ live Gemini analysis and suggestions |
 | `BACKEND_DATA_FILE` | *(unset = in-memory)* | Optional JSON snapshot file for the offline repository |
 | `ATTENDANCE_MIN/MAX/SEED` | `300`/`1200`/– | Passed through for Agent 6's generator |
+| `PLATE_DIAMETER_PX` | *(vision default)* | Fallback plate diameter (px) for the `configured-default` calibration when the plate fit fails (BIG-PLAN D2; flagged `calibration_default`) |
+| `SAM_WORKER_URL` | `http://127.0.0.1:8790` | SAM 2.1 worker (`vision/sam/worker.py`) |
 
 `npm start` loads the repo-root `.env` (real environment variables win).
 
@@ -63,6 +86,9 @@ Every error returns the shared envelope `{ "error": { code, message, details?, r
 ### Reference portions (CRUD-lite)
 - `POST /api/reference-portions` — contract `ReferencePortion` body.
 - `GET /api/reference-portions[?itemId=…]`, `GET|DELETE /api/reference-portions/:baselineId`
+
+### Actual portions served
+- `GET|PUT /api/portions-served?serviceId&hallId`, `POST /api/portions-served/csv`, `GET /api/portions-served/benchmark` — replacement snapshots per service + menu version. `PUT` bodies may carry `"source": "demo"` (seed only); otherwise counts are `manual`.
 
 ### Image uploads (two-step; AGENTS.md 5.7/5.8)
 - `POST /api/images/uploads` — authorize: `{ associationKind: "capture"|"reference",
@@ -127,6 +153,31 @@ Every error returns the shared envelope `{ "error": { code, message, details?, r
 - `GET /api/dashboard/meal?hallId=…&date=…&meal=…` — analytics `PixelServiceSummary` (total, per-item pixels and share, unclassified pixels, counted/empty/excluded plates with reasons), the persisted simulated attendance (generated once on first read), and an `Insight` citing measured pixels (Gemini, or labeled `fallback_rules`; null when no food pixels are attributed). Insights are stored per data version; a stored fallback is retried with Gemini.
 - `GET /api/dashboard/summary` — legacy baseline-percentage summary (`SummaryService`); auxiliary only.
 
+### Waste impact, plates, recommendation (BIG-PLAN D2–D8)
+
+`start`/`end` are inclusive local service dates (`YYYY-MM-DD`); a bad or
+missing window is `400 INVALID_WINDOW`. Grams, CO2e, water and $ are
+**estimates** derived at read time by `@scrap/analytics` from the stored
+pixels + per-capture plate calibration + the factor tables in `scrap-data`
+(D3); Pixels wasted stays the raw measurement.
+
+- `GET /api/dashboard/impact?start&end[&hallId]` → contracts `ImpactDashboard`
+  (`totals`, `targets` ranked by grams per portion, `mostWasted` ranked by
+  grams, `coverage`, `labels`). Only counted (latest succeeded) mask
+  measurements enter; portions are the services' current-version snapshots.
+- `GET /api/captures?start&end[&hallId][&limit]` → `CaptureListItem[]`,
+  newest first, default 50, max 200. `pixelsWasted`/`grams` are `null` for
+  partial or failed captures (never zero).
+- `GET /api/captures/:eventId/images` → `CaptureImages`: short-lived read URLs
+  (`READ_URL_TTL_SECONDS`) for the original photo, the segmented overlay
+  (`null` when none was stored), and each per-food mask with its `itemId` and
+  display name. Missing objects are `null`/omitted; URLs are never logged.
+- `GET /api/recommendation?start&end[&hallId]` → `Recommendation` from
+  analytics `generateRecommendation` over the impact dashboard, via the live
+  Gemini gateway. Cached in memory by the dashboard's content hash (`inputVersion`
+  comes from analytics); without a key, or on a provider error, the labeled
+  rule-based `source: "fallback"` is returned (retried with Gemini after 60 s).
+
 ### Suggestions
 - `GET /api/suggestions?hallId=…` — serves stored `Insight` records. Generation
   belongs to Agent 6; with none stored this returns
@@ -176,9 +227,15 @@ contracts/measurement.md pipeline through `@scrap/vision`
 `analyzeCaptureWithMasks`: Gemini classification + boxes → SAM 2.1 worker
 (`SAM_WORKER_URL`, `vision/sam/`) → validated masks → counted Pixels wasted.
 Ingestion stores each mask PNG through the storage adapter
-(`masks/<date>/<regionId>.png`, image association kind `mask`) and records
-the attempt, measurements, `capture_count`, and `segmentation_region` rows in
-one reducer call; it re-checks that item + unclassified pixels equal the
+(`masks/<date>/<regionId>.png`, image association kind `mask`), stores the
+segmented overlay JPEG when the pipeline returns one
+(`overlays/<date>/<eventId>_<attemptId>.jpg`, association
+`{ kind: 'overlay', id: eventId }`, referenced by `attempt.overlayObjectId`),
+and records the attempt, measurements, `capture_count`,
+`segmentation_region`, and `attempt_calibration` (plate calibration +
+overlay id) rows in one reducer call. An invalid calibration is dropped
+(impact then reads "no calibration") and a malformed or unstorable overlay is
+skipped; neither ever fails a valid pixel count; it re-checks that item + unclassified pixels equal the
 capture union. If the worker is down, captures fail retryably — there is no
 fallback to Gemini-guessed areas. Without a Gemini key the deterministic
 `MockAnalyzer` runs (labeled `mock-segmenter`). Mock gateway text is never

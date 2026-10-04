@@ -25,6 +25,11 @@ export interface BackendConfig {
   /** SpacetimeDB persistence; when unset the JSON/in-memory repository is used. */
   spacetime?: { uri: string; module: string; token?: string };
   attendance: { min: number; max: number; seed?: string };
+  /**
+   * Fallback plate diameter in pixels for the `configured-default`
+   * calibration when the plate-fit fails (BIG-PLAN D2). Unset = vision's default.
+   */
+  plateDiameterPx?: number;
 }
 
 function int(name: string, fallback: number): number {
@@ -35,6 +40,14 @@ function int(name: string, fallback: number): number {
     throw new Error(`Invalid integer for env var ${name}`);
   }
   return Math.floor(n);
+}
+
+function positiveNumber(env: NodeJS.ProcessEnv, name: string): number | undefined {
+  const raw = env[name];
+  if (raw === undefined || raw === '') return undefined;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) throw new Error(`Invalid positive number for env var ${name}`);
+  return n;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): BackendConfig {
@@ -71,6 +84,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BackendConfig 
           token: env.SPACETIMEDB_TOKEN || undefined,
         }
       : undefined,
+    plateDiameterPx: positiveNumber(env, 'PLATE_DIAMETER_PX'),
     attendance: {
       min: int('ATTENDANCE_MIN', 300),
       max: int('ATTENDANCE_MAX', 1200),

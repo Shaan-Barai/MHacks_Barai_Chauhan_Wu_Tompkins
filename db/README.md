@@ -88,6 +88,23 @@ data) or a migration plan. For the hackathon, re-publish + re-seed from
 | `food_measurement` | FoodMeasurement | `measurementId` | `eventId`, `attemptId` | yes |
 | `attendance` | Attendance | `serviceId` | `hallId` | yes |
 | `insight` | Insight | `insightId` | `hallId` | yes |
+| `portions_served` | PortionsServed | `recordId` | `serviceId` | yes |
+| `capture_count` | SegmentationResult (minus regions) | `attemptId` | `eventId` | **no — server-only** |
+| `segmentation_region` | ClassificationRegion | `regionId` | `attemptId`, `eventId` | **no — server-only** |
+| `attempt_calibration` | AnalysisAttempt.calibration + overlayObjectId (BIG-PLAN D2/D7) | `attemptId` | `eventId` | **no — server-only** |
+
+`attempt_calibration` (2026-10-03, additive) holds one row per attempt that
+reported a `PlateCalibration` and/or a segmented overlay: `calibration`
+(`method`, `plateDiameterCm`, `plateDiameterPx`, `cm2PerPx`, `dishType?`,
+`fullyVisible?`, `flags`) and `overlayObjectId` (an `image_object` with
+association kind `overlay` whose id is the capture's eventId; the JPEG itself
+is in object storage). It is written by `record_analysis` in the same
+transaction as its attempt, which rejects `cm2PerPx` ≠ (cm/px)², unknown
+methods/flags, a `configured-default` without `calibration_default`, and an
+overlay id that is not this capture's overlay. Grams/impact are never stored
+(D3). A separate table rather than new `analysis_attempt` columns keeps the
+change additive (publishes in place over existing rows). The BIG-PLAN demo
+database is `scrap-bigplan`.
 
 ### Representation choices (schema ⇄ contract mapping)
 

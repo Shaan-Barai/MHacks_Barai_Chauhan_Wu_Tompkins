@@ -213,3 +213,14 @@ with a held-out split, and team-agreed error/latency thresholds.
 | "Gemini works" | live smoke with key |
 | "Camera works" | hardware test (`capture/scripts/live_camera_test.py`) |
 | "Camera path works without the board" | `simulate-camera` + bridge live run (labeled `replay`) |
+
+## Live: real Uno Q camera → R2 → `scrap` → Gemini + SAM (2026-10-04, v2)
+
+- **Board:** `arduino@35.1.88.76`, SSH key `~/.ssh/scrap_unoq`. `live_camera_test.py --stage camera` passed 11/11: board script, ffmpeg, `/dev/video0` MJPG 1920×1080, clock within 0.9 s, a manual `--once` capture, and 5 `--auto` frames at about 1.0 s intervals, all distinct.
+- **One real photo end to end** (`laptop_capture.py --once` → `ingest-inbox --no-dedupe` → `svc_hall-main_2026-10-04_dinner`): `cap_01M42NEJWGJG9XZX14797RSDCV`, source `camera`, `succeeded`, counting rule `target-dish-v1`.
+  - Original photo and overlay are both in R2; the overlay fetch returned HTTP 200.
+  - The dish was a foil takeout tray (rice and chicken), which is not on the dinner menu, so 293,052 px went to "Food not on the menu". Gemini boxed 19 pieces and SAM segmented all of them.
+  - Gemini called the tray dish type `other`, and its region was incomplete. The clip was skipped and the attempt was flagged `target_dish_unavailable`, so the counts were kept as designed.
+- **Known issues seen live:**
+  - After `--auto --count 5`, `uno_q_camera.py --stream` and its ffmpeg kept running on the board and held the camera ("Another capture is using the camera"). They had to be killed by PID.
+  - The bridge's 1024² center crop of a 1920×1080 frame cuts off the sides, so the dish should sit in the middle of the frame.

@@ -15,11 +15,15 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
 import textwrap
+import time
+from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 import uuid
 import zipfile
 
@@ -91,7 +95,7 @@ def imencode(ext, frame, params):
 '''
 
 FAKE_SSH = '''#!{python}
-import json, os, shlex, subprocess, sys
+import json, os, shlex, signal, subprocess, sys
 
 args = sys.argv[1:]
 with open(os.environ["FAKE_SSH_LOG"], "a") as log:
@@ -101,11 +105,36 @@ while args[i].startswith("-"):
     i += 2 if args[i] in ("-i", "-o") else 1
 remote = shlex.split(args[i + 1])
 prefix = ["timeout", "--signal=TERM", "--kill-after=2s", "20s", "/usr/bin/python3"]
-if remote[:5] != prefix:
+if remote[:5] == prefix:
+    script_args = remote[5:]
+elif remote[:1] == ["/usr/bin/python3"] and "--stream" in remote:
+    script_args = remote[1:]
+else:
     sys.exit("fake ssh: unexpected remote command " + args[i + 1])
 home = os.environ["FAKE_BOARD_HOME"]
+if "--stream" in remote:
+    signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(0))
+    process = subprocess.Popen(
+        [sys.executable] + script_args, cwd=home,
+        env=dict(os.environ, HOME=home), stdout=subprocess.PIPE,
+    )
+    try:
+        while True:
+            data = os.read(process.stdout.fileno(), 64 * 1024)
+            if not data:
+                sys.exit(process.wait())
+            if os.environ.get("FAKE_SSH_DROP") == "1":
+                sys.stdout.buffer.write(data[:10])
+                sys.stdout.buffer.flush()
+                sys.exit(255)
+            sys.stdout.buffer.write(data)
+            sys.stdout.buffer.flush()
+    finally:
+        if process.poll() is None:
+            process.terminate()
+        process.wait(timeout=5)
 result = subprocess.run(
-    [sys.executable] + remote[5:], cwd=home,
+    [sys.executable] + script_args, cwd=home,
     env=dict(os.environ, HOME=home), stdout=subprocess.PIPE,
 )
 if os.environ.get("FAKE_SSH_DROP") == "1":
@@ -118,6 +147,28 @@ sys.stdout.buffer.write(data)
 sys.exit(result.returncode)
 '''
 
+FAKE_FFMPEG = '''#!{python}
+import json, os, signal, sys, time
+
+with open(os.environ["FAKE_FFMPEG_LOG"], "a") as log:
+    log.write(json.dumps(sys.argv[1:]) + "\\n")
+if os.environ.get("FAKE_CAMERA_MISSING") == "1":
+    sys.stderr.write("Cannot open /dev/video0: camera disconnected\\n")
+    sys.exit(1)
+signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+with open(os.environ["FAKE_CV2_JPEG"], "rb") as file:
+    photo = file.read()
+headers = b"--ffmpeg\\r\\nContent-type: image/jpeg\\r\\nContent-length: " + str(len(photo)).encode() + b"\\r\\n\\r\\n"
+empty = b"--ffmpeg\\r\\nContent-type: image/jpeg\\r\\nContent-length: 0\\r\\n\\r\\n\\r\\n"
+for _ in range(int(os.environ.get("FAKE_EMPTY_FRAMES", "0"))):
+    sys.stdout.buffer.write(empty)
+    sys.stdout.buffer.flush()
+while True:
+    sys.stdout.buffer.write(headers + photo + b"\\r\\n")
+    sys.stdout.buffer.flush()
+    time.sleep(0.025)
+'''
+
 
 def load_laptop_module():
     spec = importlib.util.spec_from_file_location("laptop_capture", LAPTOP_SCRIPT)
@@ -127,6 +178,9 @@ def load_laptop_module():
 
 
 laptop = load_laptop_module()
+board_spec = importlib.util.spec_from_file_location("uno_q_camera", BOARD_SCRIPT)
+board = importlib.util.module_from_spec(board_spec)
+board_spec.loader.exec_module(board)
 
 
 class SimulatedRig(unittest.TestCase):
@@ -147,10 +201,14 @@ class SimulatedRig(unittest.TestCase):
         ssh = fake_bin / "ssh"
         ssh.write_text(FAKE_SSH.format(python=sys.executable))
         ssh.chmod(0o755)
+        ffmpeg = fake_bin / "ffmpeg"
+        ffmpeg.write_text(FAKE_FFMPEG.format(python=sys.executable))
+        ffmpeg.chmod(0o755)
         self.out = self.root / "laptop" / "images" / "arduino-inbox"
         self.open_log = self.root / "camera-opens.log"
         self.open_log.touch()
         self.ssh_log = self.root / "ssh.log"
+        (self.root / "fake_key").touch()
         self.env = dict(
             os.environ,
             PATH=f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
@@ -159,16 +217,19 @@ class SimulatedRig(unittest.TestCase):
             FAKE_CAMERA_OPEN_LOG=str(self.open_log),
             FAKE_SSH_LOG=str(self.ssh_log),
             FAKE_CV2_JPEG=str(FIXTURE_JPEG),
+            FAKE_FFMPEG_LOG=str(self.root / "ffmpeg.log"),
         )
 
-    def run_laptop(self, *extra, stdin=None, **env):
-        command = [
+    def laptop_command(self, *extra):
+        return [
             sys.executable, str(LAPTOP_SCRIPT), "--target", TARGET,
             "--identity", str(self.root / "fake_key"), "--out", str(self.out),
             "--warmup", "0", *extra,
         ]
+
+    def run_laptop(self, *extra, stdin=None, **env):
         return subprocess.run(
-            command, input=stdin, capture_output=True, text=True, timeout=60,
+            self.laptop_command(*extra), input=stdin, capture_output=True, text=True, timeout=60,
             env=dict(self.env, **env),
         )
 
@@ -315,6 +376,227 @@ class SimulatedRig(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 2)
         self.assertIn("SSH target", result.stderr)
+
+    def test_automatic_photos_every_second_without_opencv(self):
+        result = self.run_laptop("--auto", "--count", "3")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        directories = self.capture_dirs()
+        self.assertEqual(len(directories), 3)
+        timestamps = []
+        from datetime import datetime
+        for directory in directories:
+            metadata = self.assert_saved(directory)
+            self.assertEqual(metadata["triggerSource"], "interval")
+            self.assertEqual(metadata["dishIdentity"], "unresolved")
+            self.assertEqual(metadata["intervalSeconds"], 1)
+            self.assertEqual((metadata["widthPx"], metadata["heightPx"]), board.jpeg_dimensions(FIXTURE_JPEG.read_bytes()))
+            timestamps.append(datetime.fromisoformat(metadata["capturedAt"].replace("Z", "+00:00")))
+        timestamps.sort()
+        for before, after in zip(timestamps, timestamps[1:]):
+            self.assertGreater((after - before).total_seconds(), 0.85)
+            self.assertLess((after - before).total_seconds(), 1.5)
+        self.assertEqual(self.camera_opens(), 0, "automatic capture must not use cv2")
+        self.assertEqual(len(self.ssh_log.read_text().splitlines()), 1)
+        [invocation] = (self.root / "ffmpeg.log").read_text().splitlines()
+        args = json.loads(invocation)
+        self.assertEqual(args[args.index("-c:v") + 1], "copy")
+        self.assertEqual(args[args.index("-f", args.index("-c:v")) + 1], "mpjpeg")
+        self.assertFalse((self.out / ".pending.json").exists())
+        self.assertEqual(list(self.cache.glob("*.zip")), [])
+
+    def test_automatic_stream_releases_camera_lock(self):
+        for _ in range(2):
+            result = self.run_laptop("--auto", "--interval", "0.1", "--count", "2")
+            self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(self.capture_dirs()), 4)
+
+    def test_automatic_recovers_from_empty_startup_packets(self):
+        result = self.run_laptop("--auto", "--count", "2", "--interval", "0.1", FAKE_EMPTY_FRAMES="3")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(self.capture_dirs()), 2)
+        for directory in self.capture_dirs():
+            self.assert_saved(directory)
+
+    def test_automatic_persistent_empty_packets_are_unavailable(self):
+        result = self.run_laptop("--auto", "--count", "1", FAKE_EMPTY_FRAMES="90")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("90 consecutive empty frames from /dev/video0", result.stderr)
+        self.assertEqual(self.capture_dirs(), [])
+
+    def test_password_capture_works_without_an_identity_file(self):
+        result = subprocess.run(
+            [sys.executable, str(LAPTOP_SCRIPT), "--target", TARGET,
+             "--out", str(self.out), "--warmup", "0", "--auto", "--password",
+             "--interval", "0.1", "--count", "2"],
+            capture_output=True, text=True, timeout=15, env=self.env,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(self.capture_dirs()), 2)
+        invocation = json.loads(self.ssh_log.read_text().splitlines()[0])
+        self.assertNotIn("-i", invocation)
+        self.assertIn("BatchMode=no", invocation)
+        self.assertIn("Arduino/App Lab board password", result.stdout)
+
+    def test_continuous_automatic_capture_stops_on_ctrl_c(self):
+        process = subprocess.Popen(
+            self.laptop_command("--auto", "--interval", "0.1"),
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, env=self.env,
+        )
+        try:
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline:
+                if self.out.exists() and len(self.capture_dirs()) >= 2:
+                    break
+                if process.poll() is not None:
+                    self.fail("Automatic capture stopped before two photos arrived.")
+                time.sleep(0.025)
+            else:
+                self.fail("Automatic photos did not arrive within 10 seconds.")
+            process.send_signal(signal.SIGINT)
+            stdout, stderr = process.communicate(timeout=10)
+            self.assertEqual(process.returncode, 0, stderr)
+            self.assertIn("Stopped", stdout)
+            for directory in self.capture_dirs():
+                self.assert_saved(directory)
+            result = self.run_laptop("--auto", "--count", "1")
+            self.assertEqual(result.returncode, 0, result.stderr)
+        finally:
+            if process.poll() is None:
+                process.terminate()
+            process.communicate(timeout=10)
+
+    def test_automatic_missing_camera_is_an_explicit_failure(self):
+        result = self.run_laptop("--auto", "--count", "2", FAKE_CAMERA_MISSING="1")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("camera disconnected", result.stderr)
+        self.assertEqual(self.capture_dirs(), [])
+
+    def test_automatic_truncated_transfer_saves_no_incomplete_photo(self):
+        result = self.run_laptop("--auto", "--count", "2", FAKE_SSH_DROP="1")
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(self.capture_dirs(), [])
+        self.assertIn("Complete saved photos are retained", result.stderr)
+
+    def test_automatic_respects_pending_manual_capture(self):
+        self.run_laptop("--once", FAKE_CAMERA_MISSING="1")
+        pending = self.pending_id()
+        result = self.run_laptop("--auto", "--count", "1")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("manual capture is pending", result.stderr)
+        self.assertEqual(self.pending_id(), pending)
+
+    def test_automatic_rejects_invalid_interval_and_mode(self):
+        for options in (("--auto", "--interval", "0"), ("--auto", "--interval", "nan"),
+                        ("--auto", "--count", "-1"), ("--auto", "--once")):
+            self.assertEqual(self.run_laptop(*options).returncode, 2)
+
+
+class StreamParsing(unittest.TestCase):
+    def test_short_reads_reconstruct_transfer(self):
+        class ShortReads(io.BytesIO):
+            def read(self, size):
+                return super().read(min(3, size))
+
+        self.assertEqual(laptop.read_exact(ShortReads(b"abcdefg"), 7), b"abcdefg")
+        self.assertIsNone(laptop.read_exact(io.BytesIO(), 20, allow_eof=True))
+        with self.assertRaisesRegex(ValueError, "during a transfer"):
+            laptop.read_exact(io.BytesIO(b"abc"), 20, allow_eof=True)
+
+    def test_multipart_lengths_preserve_jpeg_bytes_and_repeated_frames(self):
+        photo = FIXTURE_JPEG.read_bytes()
+        frame = (b"--ffmpeg\r\nContent-type: image/jpeg\r\nContent-length: "
+                 + str(len(photo)).encode() + b"\r\n\r\n" + photo + b"\r\n")
+        stream = io.BytesIO(frame * 2)
+        self.assertEqual(board.read_mjpeg_frame(stream), photo)
+        self.assertEqual(board.read_mjpeg_frame(stream), photo)
+
+    def test_bad_multipart_and_geometry_are_rejected(self):
+        for data in (b"--wrong\r\n", b"--ffmpeg\r\nContent-length: 999999999\r\n\r\n",
+                     b"--ffmpeg\r\nContent-type: image/jpeg\r\nContent-length: 20\r\n\r\nabc"):
+            with self.assertRaises(ValueError):
+                board.read_mjpeg_frame(io.BytesIO(data))
+        with self.assertRaisesRegex(ValueError, "dimensions"):
+            board.jpeg_dimensions(b"\xff\xd8\xff\xd9")
+
+    def test_empty_packet_keeps_next_packet_aligned(self):
+        photo = FIXTURE_JPEG.read_bytes()
+        empty = b"--ffmpeg\r\nContent-type: image/jpeg\r\nContent-length: 0\r\n\r\n\r\n"
+        frame = (b"--ffmpeg\r\nContent-type: image/jpeg\r\nContent-length: "
+                 + str(len(photo)).encode() + b"\r\n\r\n" + photo + b"\r\n")
+        stream = io.BytesIO(empty + frame)
+        self.assertIsNone(board.read_mjpeg_frame(stream))
+        self.assertEqual(board.read_mjpeg_frame(stream), photo)
+
+    def test_missing_or_invalid_length_is_not_an_empty_packet(self):
+        for value in (None, b"", b"-1", b"garbage"):
+            header = b"" if value is None else b"Content-length: " + value + b"\r\n"
+            data = b"--ffmpeg\r\nContent-type: image/jpeg\r\n" + header + b"\r\n"
+            with self.assertRaisesRegex(ValueError, "Content-length"):
+                board.read_mjpeg_frame(io.BytesIO(data))
+
+    def test_wrong_format_reports_actual_type_even_with_empty_packet(self):
+        data = b"--ffmpeg\r\nContent-type: image/png\r\nContent-length: 0\r\n\r\n"
+        with self.assertRaisesRegex(ValueError, "image/png"):
+            board.read_mjpeg_frame(io.BytesIO(data))
+
+    def test_camera_timeout_is_explicit(self):
+        stream = board.CameraPipe(io.BytesIO())
+        with patch.object(board.select, "select", return_value=([], [], [])):
+            with self.assertRaisesRegex(TimeoutError, "stopped sending"):
+                stream.fill(board.time.monotonic() + 15)
+
+
+class SshAuthentication(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp(prefix="unoq-auth-"))
+        self.addCleanup(shutil.rmtree, self.root)
+
+    def args(self):
+        return SimpleNamespace(target=TARGET, identity=None, password=False)
+
+    def test_missing_default_key_allows_password_prompt(self):
+        with patch.object(laptop.Path, "home", return_value=self.root):
+            command, interactive = laptop.ssh_command(self.args(), "camera-command")
+        self.assertTrue(interactive)
+        self.assertIn("BatchMode=no", command)
+        self.assertNotIn("-i", command)
+        self.assertEqual(command[-2:], [TARGET, "camera-command"])
+
+    def test_default_key_is_optional_and_allows_password_fallback(self):
+        key = self.root / ".ssh" / "scrap_unoq"
+        key.parent.mkdir()
+        key.touch()
+        with patch.object(laptop.Path, "home", return_value=self.root):
+            command, interactive = laptop.ssh_command(self.args(), "camera-command")
+        self.assertTrue(interactive)
+        self.assertIn(str(key), command)
+        self.assertIn("BatchMode=no", command)
+
+    def test_explicit_key_preserves_noninteractive_authentication(self):
+        key = self.root / "capture-key"
+        key.touch()
+        args = self.args()
+        args.identity = key
+        command, interactive = laptop.ssh_command(args, "camera-command")
+        self.assertFalse(interactive)
+        self.assertIn(str(key), command)
+        self.assertIn("BatchMode=yes", command)
+
+    def test_missing_explicit_key_has_actionable_error(self):
+        args = self.args()
+        args.identity = self.root / "missing-key"
+        with self.assertRaisesRegex(ValueError, "Use --password"):
+            laptop.ssh_command(args, "camera-command")
+
+    def test_password_mode_does_not_use_default_key(self):
+        args = self.args()
+        args.password = True
+        command, interactive = laptop.ssh_command(args, "camera-command")
+        self.assertTrue(interactive)
+        self.assertNotIn("-i", command)
+        self.assertIn("PubkeyAuthentication=no", command)
+        self.assertIn("PreferredAuthentications=password,keyboard-interactive", command)
 
 
 def make_bundle(photo=None, compress=zipfile.ZIP_STORED, extra=None, **overrides):

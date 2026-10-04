@@ -1,5 +1,11 @@
 # Arduino Uno Q + Logitech C920s: photos on the laptop
 
+**Automatic capture (once per second):** use the current repository scripts
+with `--auto`. [The automatic-capture guide](capture/uno-q/README.md) covers
+powered-hub wiring, setup, and the command to run. This mode uses FFmpeg and
+Python's standard library; it does **not** require OpenCV. The embedded code
+and Enter-triggered workflow below are the earlier manual-capture instructions.
+
 This guide gets a photo from the Logitech C920s connected to the **Arduino Uno Q** onto your laptop. Press Enter on the laptop, wait a few seconds, and receive a JPEG plus a small metadata file. Once those files exist, your laptop can use the project's upload flow.
 
 The guide includes both complete Python programs. Copy them into the paths shown below; this Markdown file itself does not install or start anything.

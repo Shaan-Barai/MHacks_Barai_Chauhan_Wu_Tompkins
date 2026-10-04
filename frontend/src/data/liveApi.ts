@@ -265,9 +265,16 @@ interface PeriodResponse {
   platesCounted: number
 }
 
-export async function getSummaryCards(): Promise<SummaryCards> {
+export async function getSummaryCards(hallIds: string[] = [hallId()]): Promise<SummaryCards> {
+  // The cards endpoint is per hall, so several halls are fetched and combined.
+  const perHall = await Promise.all(hallIds.map((id) => summaryForHall(id)))
+  const combine = (key: keyof SummaryCards): PeriodSummary => perHall.map((c) => c[key]).reduce(addPeriods)
+  return { today: combine('today'), thisWeek: combine('thisWeek'), thisMonth: combine('thisMonth') }
+}
+
+async function summaryForHall(id: string): Promise<SummaryCards> {
   const body = await call<Record<'today' | 'thisWeek' | 'thisMonth', PeriodResponse>>(
-    `/api/dashboard/cards?${q({ hallId: hallId(), today: todayIso() })}`,
+    `/api/dashboard/cards?${q({ hallId: id, today: todayIso() })}`,
   )
   const period = (p: PeriodResponse): PeriodSummary => ({
     start: p.start,
@@ -278,6 +285,20 @@ export async function getSummaryCards(): Promise<SummaryCards> {
     platesCounted: p.platesCounted ?? 0,
   })
   return { today: period(body.today), thisWeek: period(body.thisWeek), thisMonth: period(body.thisMonth) }
+}
+
+/** Totals add up; the per-plate percent is averaged over every hall's plates. */
+function addPeriods(a: PeriodSummary, b: PeriodSummary): PeriodSummary {
+  const plates = a.platesCounted + b.platesCounted
+  const leftSum = (p: PeriodSummary) => (p.averagePlateWastePercent ?? 0) * p.platesCounted
+  return {
+    start: a.start,
+    end: a.end,
+    pixelsWasted: a.pixelsWasted + b.pixelsWasted,
+    previousPixelsWasted: addNullable(a.previousPixelsWasted, b.previousPixelsWasted),
+    averagePlateWastePercent: plates > 0 ? (leftSum(a) + leftSum(b)) / plates : null,
+    platesCounted: plates,
+  }
 }
 
 // ---------------------------------------------------------------------------

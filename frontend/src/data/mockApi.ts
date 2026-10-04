@@ -201,7 +201,7 @@ export async function getPortionBenchmark(serviceId: string): Promise<PortionBen
 }
 
 /** The three summary cards. Each compares to the same-length window before it. */
-export async function getSummaryCards(): Promise<SummaryCards> {
+export async function getSummaryCards(_hallIds?: string[]): Promise<SummaryCards> {
   await wait()
   const today = todayIso()
   return {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getCaptureImages, getCaptures, getDailyWaste, getImpactDashboard, getRecommendation } from './liveApi'
+import { getCaptureImages, getCaptures, getDailyWaste, getImpactDashboard, getRecommendation, getSummaryCards } from './liveApi'
 
 function respond(status: number, body: unknown) {
   return vi.fn(async (_url: string) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }))
@@ -60,6 +60,15 @@ describe('liveApi waste-impact endpoints', () => {
       { date: '2026-10-03', pixelsWasted: 20 },
       { date: '2026-10-04', pixelsWasted: null },
     ])
+  })
+
+  it('combines summary cards across halls, averaging plate percent over all plates', async () => {
+    const period = (px: number, prev: number | null, pct: number | null, plates: number) => ({ start: '2026-10-04', end: '2026-10-04', pixelsWasted: px, previousPixelsWasted: prev, averagePlateWastePercent: pct, platesCounted: plates })
+    const cards = (p: ReturnType<typeof period>) => ({ today: p, thisWeek: p, thisMonth: p })
+    const byHall: Record<string, unknown> = { 'hall-main': cards(period(100, 50, 30, 3)), 'hall-b': cards(period(40, null, 10, 1)) }
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(byHall[new URL(url, 'http://x').searchParams.get('hallId')!]), { status: 200 })))
+    const { today } = await getSummaryCards(['hall-main', 'hall-b'])
+    expect(today).toEqual({ start: '2026-10-04', end: '2026-10-04', pixelsWasted: 140, previousPixelsWasted: 50, averagePlateWastePercent: 25, platesCounted: 4 })
   })
 
   it('surfaces image-link errors (e.g. missing object) with the server message', async () => {

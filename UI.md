@@ -48,8 +48,12 @@ segmentation; "Pixels wasted" is the one technical label kept.
 - Settings
 
 ### DASHBOARD
-With more than one dining hall, a dropdown next to the "Dashboard" title picks "All dining halls" (every hall added together) or one hall; everything on the page follows it.
-Everything follows the lookback buttons at the top: Today, Last 7 days, Last 30 days, Last 90 days (no custom range). Under them, one short line on how waste is measured (AI outlines of visible leftovers, turned into grams with the plate size and a typical weight per food; estimates, not a scale reading).
+Top, kept simple:
+- With more than one dining hall, a dropdown next to the "Dashboard" title picks "All dining halls" (every hall added together) or one hall. Everything on the page follows it.
+- Three summary cards: Today, This week, This month. Each shows Pixels wasted, the average percent of a serving left per plate (clean plates count as 0%), how many plates that averages, and the change from the same days before.
+- One chart, one bar per day (estimated food left when the server sends grams, Pixels wasted otherwise), with the lookback buttons on the chart: Today, Last 7 days, Last 30 days, Last 90 days (no custom range).
+
+Below, under "More about these days" (follows the chart's lookback), with one short line on how waste is measured (AI outlines of visible leftovers, turned into grams with the plate size and a typical weight per food; estimates, not a scale reading):
 1. Four headline cards, each marked "estimate" with a "?" explanation:
    - **Total waste**: estimated grams/kg as the big number; under it the measured Pixels wasted, how many plates it covers, and plates not counted.
    - **Greenhouse gases**: kg CO2e.
@@ -59,9 +63,8 @@ Everything follows the lookback buttons at the top: Today, Last 7 days, Last 30 
 2. **What to try next**: the AI suggestion, labeled "AI" or "Rule-based fallback", each point with the number it is based on, and when it was written.
 3. **Foods to target**: finding heading ("X had the most food left per portion."), a table ranked by estimated grams left per portion served, with Pixels wasted per portion, impact per portion, and portions served ("demo numbers" badge when they are demo). Foods that can't be ranked are listed with the reason: no portions entered, no weight estimate for this food, or not on the menu.
 4. **Most wasted**: finding heading, foods ranked by estimated total weight as a bar list with greenhouse gases and water on each row; foods with only Pixels wasted listed after with the reason.
-5. One chart, one bar per day: estimated food left when the server sends grams, Pixels wasted otherwise.
-6. **Plates**: recent plate photos as a grid (time and grams left, or check failed / needs a person to look / being checked / clean plate). Picking one shows the photo and the AI outline image side by side, or one at a time, with each food's Pixels wasted and estimated weight. Expired photo links are renewed once; then "Photo unavailable".
-7. **Nutrition lost**: a small, separate card marked "not part of the impact score", in nutrient-days (enough nutrients for one adult for one day).
+5. **Plates**: recent plate photos as a grid (time and grams left, or check failed / needs a person to look / being checked / clean plate). Picking one shows the photo and the AI outline image side by side, or one at a time, with each food's Pixels wasted and estimated weight. Expired photo links are renewed once; then "Photo unavailable".
+6. **Nutrition lost**: a small, separate card marked "not part of the impact score", in nutrient-days (enough nutrients for one adult for one day).
 
 ### MENU SCHEDULE
 - Top: add a menu, with the same options as setup step 2 (type or upload a spreadsheet, or API). Menus are saved for the first dining hall.

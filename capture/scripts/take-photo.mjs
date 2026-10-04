@@ -42,6 +42,8 @@ const { values: args } = parseArgs({
     hall: { type: 'string', default: process.env.HALL_ID || 'hall-main' },
     out: { type: 'string', default: path.join(repo, 'images', 'take-photo') },
     json: { type: 'boolean', default: false },
+    // Identity registry (minted eventIds); tests point this at a temp file.
+    state: { type: 'string', default: path.join(root, '.take-photo-state.json') },
   },
 });
 // Backend URL (SCRAP_API_URL / API_URL) and the ingest token (SCRAP_INGEST_TOKEN,
@@ -92,7 +94,7 @@ try {
   for (const warning of backend.warnings) say(`  ! ${warning}`);
   const sink = new HttpIngestionSink(api, client);
   const adapter = new ReplayCaptureAdapter(new HttpUploader(api, client), sink, {
-    stateFile: path.join(root, '.take-photo-state.json'),
+    stateFile: args.state,
   });
   const result = await adapter.ingestPhoto({
     photoPath: photo.photoPath,

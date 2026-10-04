@@ -148,12 +148,13 @@ once D lands → C does the final review, updates README/AGENTS, and merges `big
 | --- | --- | --- | --- |
 | M | running | 2026-10-03 | 22 conflicts. The frontend base is main's redesign |
 | C | contracts published | 2026-10-03 | §3 types in `contracts/types.ts`, D1–D8 in `contracts/decisions.md` |
-| A | running (worktree) | 2026-10-03 | factor CSV split, data tables, demo menu/portions, analytics impact + recommendation |
-| B | running (worktree) | 2026-10-03 | calibration + overlay in vision lib, SAM venv + live smoke |
-| D | running (worktree) | 2026-10-03 | schema, overlay storage, impact/captures/images/recommendation endpoints, seeding |
+| A | **done** | 2026-10-04 | `1290f52` `f0221be` `fe7be24` `bc293c6`; data 38/38, analytics 57/57 (fixtures). Water is the largest factor for 17 foods, carbon for 6 |
+| B | **done** | 2026-10-04 | `997eeac` `bb7a7a3` `6857fae` (merge of the user's two-pass localization) `2ada2a2` `71ef028`; vision 68/68; **live** smoke on 4 photos: all plate-fit-v1, foods match ground truth; SAM worker running on :8790 |
+| D | **done** | 2026-10-04 | `a8919d6` `714e158` `5fd5838` `8ef4ecd` `12fd391` `6c34b80`; backend 49 pass; live repo test 13/13 on `scrap-bigplan`; seeded |
 | E | running (worktree) | 2026-10-03 | new dashboard against mocks, then live API |
-| F | running (worktree) | 2026-10-03 | phase 1: camera path audit, simulate-camera, gated live E2E; phase 2 after B+D |
+| F | phase 2 running | 2026-10-04 | phase 1 `2d03127` `af46873` `1c5f3ad` (simulate-camera, gated live E2E); now running the live E2E |
 
 ### Log
 - 2026-10-03: user pushed `85ba842` (capture/scripts/live_camera_test.py, ingest-inbox `--state-dir`) to `big-plan`, and `fef1065` (two Gemini localization passes merged by IoU) + `df909ca` (before/after mixed-dish data) to `menu-source-experiment`. All agents notified; WS-B owns merging `menu-source-experiment` again (overlaps its maskPipeline.ts work); WS-F builds on live_camera_test.py.
 - Landed so far: A `1290f52` (score without nutrition), `f0221be` (factor tables), `fe7be24` (demo dinner + portions); B `997eeac` (calibration + overlay); D `a8919d6` (calibration/overlay persistence, images endpoint), `714e158` (seed), `5fd5838`, `8ef4ecd`.
+- Open judgement calls: (1) clip food counts to the fitted dish? Not enabled: a bad fit would delete real food; `diagnostics.pixelsOutsideDish` reports it instead (it matters for multi-dish phone photos, less so for the single-plate camera). (2) The 900 px default plate diameter should be measured from a real C920s frame. (3) `scrap-bigplan` has one stray test capture (hall `hall-tmuta9xkt`); the dashboard always passes `hallId=hall-main`. Wiping it is the user's call.

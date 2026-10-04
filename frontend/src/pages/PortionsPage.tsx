@@ -80,7 +80,7 @@ function PortionsEditor({ service, onSaved }: { service: PortionService; onSaved
             await importPortionsCsv(service, await file.text())
           }) }} /></label>
       </div>
-      {error && <p role="alert" className="text-red-800">{error}</p>}
+      {error && <p role="alert" className="font-semibold text-ink">{error}</p>}
     </form></Card>
     <Card>{benchmark.status === 'loading' && <LoadingBlock label="Loading benchmarks…" />}
       {benchmark.status === 'error' && <EmptyState title="Couldn't load benchmarks.">{benchmark.error}</EmptyState>}

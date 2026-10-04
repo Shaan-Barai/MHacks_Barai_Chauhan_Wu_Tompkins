@@ -33,7 +33,7 @@ and dashboard migration remain separate implementation work.
   • Today's waste
   • This week's waste
   • This month's waste
-  Each card shows Pixels wasted in pixels and a small ↑/↓ vs the previous period (Basil if waste went down, Tomato if it went up).
+  Each card shows Pixels wasted in pixels and a small ↑/↓ vs the previous period (the arrow shows the direction).
 - One main chart: waste (y-axis) vs date (x-axis), following the selected date range. Put a small toggle above it for Daily / Weekly / Monthly grouping. Hovering shows the exact value and date.
 - Nothing else goes in the middle column.
 
@@ -47,28 +47,30 @@ and dashboard migration remain separate implementation work.
 
 ## SEVERITY COLORS (for items)
 Based on the item's share of that meal's total waste:
-- Low (<10%): Sage
-- Medium (10–25%): Squash
-- High (>25%): Tomato
+- Low (<10%): white dot with a black outline
+- Medium (10–25%): grey dot
+- High (>25%): black dot
 
-## COLOR PALETTE: "Kitchen Garden"
---bg:           #F6F1E7  /* Oat: page background */
---surface:      #FFFDF8  /* Cream: cards, right panel */
---border:       #E4DCCB  /* Linen: dividers, card borders */
---ink:          #1F2A24  /* Charcoal Herb: primary text */
---ink-muted:    #6B7368  /* Thyme: labels, secondary text */
---primary:      #2F5D46  /* Basil: nav background, buttons, active tab */
---primary-soft: #DCE8DA  /* Basil tint: hover, selected states */
---low:          #8FB38A  /* Sage */
---medium:       #E8A93B  /* Squash */
---high:         #D9573B  /* Tomato */
---info:         #2E4A7D  /* Blueberry: chart bars/line */
+## COLOR PALETTE: MVP monochrome (2026-10-03)
+Black, white, and greys only. The Tailwind token names from the earlier
+"Kitchen Garden" palette are kept so components didn't change.
+--bg:           #FFFFFF  /* oat: page background */
+--surface:      #FFFFFF  /* cream: cards, right panel */
+--border:       #D4D4D4  /* linen: dividers, card borders */
+--ink:          #000000  /* ink: primary text */
+--ink-muted:    #555555  /* thyme: labels, secondary text */
+--primary:      #000000  /* basil: nav background, buttons, active tab */
+--primary-soft: #EBEBEB  /* basil-tint: hover, selected states */
+--low:          #FFFFFF  /* sage (outlined dot) */
+--medium:       #808080  /* squash */
+--high:         #000000  /* tomato */
+--info:         #000000  /* blueberry: chart bars/line */
 
 ## VISUAL STYLE
-- Fonts: "Inter" for UI text, "Fraunces" for big numbers and page titles.
+- Font: "Times New Roman" (Times, serif fallback) for all text, including big numbers and page titles.
 - Body text at least 16px; summary card numbers large (40px+).
-- Rounded corners (12px cards, 8px buttons), soft shadows, generous whitespace.
-- Left nav in Basil with cream text. Middle on Oat. Right panel on Cream with a Linen left border.
+- Flat: small 4px corners, no shadows, generous whitespace.
+- Left nav black with white text. Middle and right panel white; right panel has a grey left border.
 - Friendly empty states, e.g., "No menu for this day yet. Add one in Menus."
 
 ## TECH

@@ -224,3 +224,12 @@ pending details arrive; agreed items came from the team or AGENTS.md.
   code-counted Pixels wasted. Grounding DINO and YOLO-World remain optional
   bounding-box alternatives. No SAM 3 setup, downloads, or evaluation are in
   the current scope.
+
+## 2026-10-03: monochrome MVP dashboard
+
+- The user requests a simpler MVP look: black, white, and Times New Roman
+  everywhere. This supersedes UI.md's "Kitchen Garden" palette and the
+  Inter/Fraunces fonts. Greys remain for borders, secondary text, disabled
+  controls, and the medium severity dot.
+- Implemented by remapping the existing Tailwind tokens, so component class
+  names are unchanged. Severity dots are outlined so the white "low" dot shows.

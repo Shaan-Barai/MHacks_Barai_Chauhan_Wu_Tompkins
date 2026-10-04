@@ -9,7 +9,7 @@ export function PrimaryButton(props: React.ButtonHTMLAttributes<HTMLButtonElemen
   return (
     <button
       {...rest}
-      className={`rounded-btn bg-basil px-5 py-2.5 text-base font-semibold text-cream transition-colors hover:bg-[#264c39] disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+      className={`rounded-btn bg-basil px-5 py-2.5 text-base font-semibold text-cream transition-colors hover:bg-[#333333] disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
     />
   )
 }

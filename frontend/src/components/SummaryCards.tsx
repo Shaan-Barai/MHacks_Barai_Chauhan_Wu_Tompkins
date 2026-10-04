@@ -1,7 +1,6 @@
 /**
  * Three summary cards (UI.md): Today / This week / This month, number in waste
- * units + small ↑/↓ vs the previous period (Basil if waste went down, Tomato
- * if it went up).
+ * units + small ↑/↓ vs the previous period (the arrow shows the direction).
  */
 import { useId } from 'react'
 import type { PeriodSummary, SummaryCards as SummaryCardsData } from '../data/types'

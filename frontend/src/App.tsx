@@ -34,7 +34,7 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">
-      {/* Left: narrow nav, Basil with cream text */}
+      {/* Left: narrow nav, black with white text */}
       <nav className="flex w-full shrink-0 flex-col bg-basil p-4 text-cream lg:w-44" aria-label="Main">
         <p className="font-display text-2xl font-semibold">Scrap</p>
         <p className="mt-0.5 truncate text-sm text-cream/80" title={settings.name}>

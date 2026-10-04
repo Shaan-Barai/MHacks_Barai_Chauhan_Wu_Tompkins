@@ -1,14 +1,14 @@
 /**
- * The one main chart (UI.md): waste units vs date, Blueberry bars, hover (and
+ * The one main chart (UI.md): waste units vs date, black bars, hover (and
  * keyboard-focus) tooltip with the exact value and date. Hand-rolled SVG.
  */
 import { useLayoutEffect, useRef, useState } from 'react'
 import { formatCompact, formatNumber } from '../lib/format'
 import { niceCeil, type ChartBucket } from '../lib/grouping'
 
-const BLUEBERRY = '#2E4A7D'
-const LINEN = '#E4DCCB'
-const THYME = '#6B7368'
+const BAR = '#000000'
+const GRID = '#D4D4D4'
+const LABEL = '#555555'
 
 const M = { top: 12, right: 8, bottom: 30, left: 52 }
 const HEIGHT = 300
@@ -54,14 +54,14 @@ export function WasteChart({ buckets }: { buckets: ChartBucket[] }) {
         {/* recessive hairline gridlines + y ticks */}
         {ticks.map((t) => (
           <g key={t}>
-            <line x1={M.left} x2={width - M.right} y1={yFor(t)} y2={yFor(t)} stroke={LINEN} strokeWidth={1} />
-            <text x={M.left - 8} y={yFor(t) + 4} textAnchor="end" fontSize={12} fill={THYME}>
+            <line x1={M.left} x2={width - M.right} y1={yFor(t)} y2={yFor(t)} stroke={GRID} strokeWidth={1} />
+            <text x={M.left - 8} y={yFor(t) + 4} textAnchor="end" fontSize={12} fill={LABEL}>
               {formatCompact(t)}
             </text>
           </g>
         ))}
 
-        {/* Blueberry bars: square at the baseline, 4px rounded data-end */}
+        {/* Black bars: square at the baseline, 4px rounded data-end */}
         {buckets.map((b, i) => {
           if (b.wasteUnits === null) return null
           const x = M.left + i * band + (band - barW) / 2
@@ -72,11 +72,11 @@ export function WasteChart({ buckets }: { buckets: ChartBucket[] }) {
             h <= 0.5
               ? ''
               : `M ${x} ${M.top + plotH} V ${y + r} Q ${x} ${y} ${x + r} ${y} H ${x + barW - r} Q ${x + barW} ${y} ${x + barW} ${y + r} V ${M.top + plotH} Z`
-          return <path key={b.key} d={d} fill={BLUEBERRY} opacity={hover === null || hover === i ? 1 : 0.55} />
+          return <path key={b.key} d={d} fill={BAR} opacity={hover === null || hover === i ? 1 : 0.55} />
         })}
 
         {/* baseline */}
-        <line x1={M.left} x2={width - M.right} y1={M.top + plotH} y2={M.top + plotH} stroke={LINEN} strokeWidth={1} />
+        <line x1={M.left} x2={width - M.right} y1={M.top + plotH} y2={M.top + plotH} stroke={GRID} strokeWidth={1} />
 
         {/* x labels */}
         {buckets.map((b, i) =>
@@ -87,7 +87,7 @@ export function WasteChart({ buckets }: { buckets: ChartBucket[] }) {
               y={HEIGHT - 10}
               textAnchor="middle"
               fontSize={12}
-              fill={THYME}
+              fill={LABEL}
             >
               {b.label}
             </text>

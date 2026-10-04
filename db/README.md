@@ -104,6 +104,7 @@ first and delete only that one.
 | `menu_item_revision` | MenuItem of a superseded menu version | `revisionItemId` (`<itemId>@v<version>`) | `itemId`, `menuId` | yes |
 | `camera_calibration` | CameraCalibration (IT_4) | `calibrationId` | `hallId` | yes |
 | `measurement_settings` | MeasurementSettings (IT_4, one per hall) | `hallId` | – | yes |
+| `dashboard_view` | "Clear data" cutoff (`clearedAt` option, one per hall; reducer `set_dashboard_view`, `''` = none) | `hallId` | – | **no — server-only** |
 
 **IT_4 (2026-10-04, additive, published in place to local `scrap`).** SpacetimeDB
 2.10 migrates **appended columns that declare a default** without a wipe

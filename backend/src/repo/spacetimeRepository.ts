@@ -29,7 +29,7 @@ import type {
   MeasurementSettings,
   ScanInfo,
 } from '../types.js';
-import type { CaptureEventFilter, DemoMarker, Repository } from './repository.js';
+import { isBeforeCutoff, type CaptureEventFilter, type DemoMarker, type Repository } from './repository.js';
 import { attemptFromStored, calibrationFromStored, measurementFromStored, settingsFromStored } from './legacyPhysical.js';
 import { badRequest, conflict, menuVersionConflict } from '../errors.js';
 
@@ -305,11 +305,23 @@ export class SpacetimeRepository implements Repository {
     if (filter?.hallId !== undefined) where.push(`hall_id = ${quote(filter.hallId)}`);
     if (filter?.serviceId !== undefined) where.push(`service_id = ${quote(filter.serviceId)}`);
     const q = `SELECT * FROM capture_event${where.length ? ` WHERE ${where.join(' AND ')}` : ''}`;
-    const [events, hidden] = await Promise.all([
+    const [events, hidden, views] = await Promise.all([
       this.sql(q),
       filter?.includeHidden ? Promise.resolve(new Set<string>()) : this.listHiddenCaptureIds(),
+      filter?.includeHidden ? Promise.resolve([] as Row[]) : this.sql('SELECT * FROM dashboard_view'),
     ]);
-    return clean((events as CaptureEvent[]).filter((e) => !hidden.has(e.eventId)));
+    const cutoffs = new Map(views.map((v) => [String(v.hallId), typeof v.clearedAt === 'string' ? v.clearedAt : null]));
+    return clean((events as CaptureEvent[]).filter((e) => !hidden.has(e.eventId) && !isBeforeCutoff(e, cutoffs.get(e.hallId))));
+  }
+
+  // --- dashboard cutoff ---
+  async getDashboardView(hallId: string) {
+    const row = (await this.sql(`SELECT * FROM dashboard_view WHERE hall_id = ${quote(hallId)}`))[0];
+    if (!row) return undefined;
+    return { hallId, clearedAt: typeof row.clearedAt === 'string' ? row.clearedAt : null, updatedAt: String(row.updatedAt) };
+  }
+  async setDashboardView(hallId: string, clearedAt: string | null, updatedAt: string): Promise<void> {
+    await this.call('set_dashboard_view', { hallId, clearedAt: clearedAt ?? '', updatedAt });
   }
 
   // --- admin curation ---

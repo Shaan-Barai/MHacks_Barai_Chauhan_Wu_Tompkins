@@ -229,6 +229,17 @@ export const set_capture_visibility = spacetimedb.reducer(
   },
 );
 
+/** Upsert a hall's dashboard cutoff; clearedAt '' = no cutoff (Restore default). */
+export const set_dashboard_view = spacetimedb.reducer(
+  { hallId: t.string(), clearedAt: t.string(), updatedAt: t.string() },
+  (ctx, { hallId, clearedAt, updatedAt }) => {
+    if (hallId.length === 0) throw new SenderError('hallId must be a non-empty string');
+    const row = { hallId, clearedAt: clearedAt.length > 0 ? clearedAt : undefined, updatedAt };
+    if (ctx.db.dashboardView.hallId.find(hallId)) ctx.db.dashboardView.hallId.update(row);
+    else ctx.db.dashboardView.insert(row);
+  },
+);
+
 // --- analysis attempts + measurements --------------------------------------
 
 function attemptRow(a: Json) {

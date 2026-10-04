@@ -535,6 +535,22 @@ export function createApp(deps: AppDeps): express.Express {
     }),
   );
 
+  // ---- dashboard demo-data controls: Load dummy data / Clear data / Restore default ----
+  const demoOrThrow = () => {
+    if (!deps.demo) throw new HttpError(503, apiError('DEMO_UNAVAILABLE', 'Sample data is not available on this server.', false));
+    return deps.demo;
+  };
+  const demoHall = (v: unknown) => (typeof v === 'string' && v ? v : 'hall-main');
+  app.get(
+    '/api/demo/status',
+    wrap(async (req, res) => {
+      res.json(await demoOrThrow().status(demoHall(req.query.hallId)));
+    }),
+  );
+  app.post('/api/demo/load', wrap(async (req, res) => void res.json(await demoOrThrow().load(demoHall(req.body?.hallId)))));
+  app.post('/api/demo/clear-data', wrap(async (req, res) => void res.json(await demoOrThrow().clearData(demoHall(req.body?.hallId)))));
+  app.post('/api/demo/restore', wrap(async (req, res) => void res.json(await demoOrThrow().restore(demoHall(req.body?.hallId)))));
+
   // ---- camera: the dashboard's Take photo button (same path as `npm run take-photo`) ----
   app.get('/api/camera/status', (_req, res) => {
     res.json(deps.camera ? deps.camera.status() : { configured: false, busy: false });

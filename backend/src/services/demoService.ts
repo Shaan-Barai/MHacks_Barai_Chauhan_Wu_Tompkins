@@ -28,6 +28,16 @@ import type {
   PortionsServed,
 } from '../types.js';
 
+export const DEMO_TIME_ZONE = 'America/Detroit';
+
+export interface DemoStatus {
+  hallId: string;
+  mode: 'default' | 'sample' | 'cleared';
+  sampleLoaded: boolean;
+  sampleCaptures: number;
+  clearedAt: string | null;
+}
+
 export const DEMO_HISTORY_VERSION = 'demo-history-v1';
 const DEMO_IMAGE = 'demo:none';
 const GEOMETRY: ImageGeometry = { widthPx: 1024, heightPx: 1024, coordinateSpace: 'topdown-normalized-v1' };
@@ -282,6 +292,41 @@ export class DemoService {
       }
     }
     return result;
+  }
+
+  /** Dashboard demo-data state for a hall (GET /api/demo/status). */
+  async status(hallId: string): Promise<DemoStatus> {
+    const clearedAt = (await this.repo.getDashboardView(hallId))?.clearedAt ?? null;
+    const sampleCaptures = (await this.repo.listCaptureEvents({ hallId, includeHidden: true })).filter((c) => c.source === 'demo').length;
+    return {
+      hallId,
+      mode: clearedAt ? 'cleared' : sampleCaptures > 0 ? 'sample' : 'default',
+      sampleLoaded: sampleCaptures > 0,
+      sampleCaptures,
+      clearedAt,
+    };
+  }
+
+  /** Load dummy data: drop the cutoff and add the sample history (idempotent). */
+  async load(hallId: string): Promise<DemoStatus> {
+    await this.repo.setDashboardView(hallId, null, new Date(this.now()).toISOString());
+    const endDate = new Intl.DateTimeFormat('en-CA', { timeZone: DEMO_TIME_ZONE }).format(new Date(this.now()));
+    await this.seedHistory({ hallId, endDate });
+    return this.status(hallId);
+  }
+
+  /** Clear data: remove sample rows and hide every capture taken before now. Real captures stay stored. */
+  async clearData(hallId: string): Promise<DemoStatus> {
+    await this.repo.clearDemoData();
+    await this.repo.setDashboardView(hallId, new Date(this.now()).toISOString(), new Date(this.now()).toISOString());
+    return this.status(hallId);
+  }
+
+  /** Restore default: remove sample rows and the cutoff, back to the live dashboard. */
+  async restore(hallId: string): Promise<DemoStatus> {
+    await this.repo.clearDemoData();
+    await this.repo.setDashboardView(hallId, null, new Date(this.now()).toISOString());
+    return this.status(hallId);
   }
 
   /** Remove every sample row (and only those). */

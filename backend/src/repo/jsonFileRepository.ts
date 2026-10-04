@@ -25,7 +25,7 @@ import type {
   MeasurementSettings,
   ScanInfo,
 } from '../types.js';
-import type { CaptureEventFilter, DemoMarker, Repository } from './repository.js';
+import { isBeforeCutoff, type CaptureEventFilter, type DemoMarker, type Repository } from './repository.js';
 import { menuVersionConflict } from '../errors.js';
 import { attemptFromStored, calibrationFromStored, measurementFromStored, settingsFromStored } from './legacyPhysical.js';
 import { badRequest, conflict } from '../errors.js';
@@ -39,6 +39,7 @@ interface Snapshot {
   captureEvents: CaptureEvent[];
   /** Admin curation: event ids hidden from the dashboard. */
   hiddenCaptureIds?: string[];
+  dashboardViews?: Array<{ hallId: string; clearedAt: string | null; updatedAt: string }>;
   analysisAttempts: AnalysisAttempt[];
   measurements: FoodMeasurement[];
   attendance: Attendance[];
@@ -58,6 +59,7 @@ export class JsonFileRepository implements Repository {
   private imageObjects = new Map<string, ImageObject>();
   private captureEvents = new Map<string, CaptureEvent>();
   private hiddenCaptureIds = new Set<string>();
+  private dashboardViews = new Map<string, { hallId: string; clearedAt: string | null; updatedAt: string }>();
   private analysisAttempts = new Map<string, AnalysisAttempt[]>(); // key: eventId
   private measurementsByAttempt = new Map<string, FoodMeasurement[]>();
   private attendance = new Map<string, Attendance>(); // key: serviceId
@@ -246,9 +248,19 @@ export class JsonFileRepository implements Repository {
         (e) =>
           (filter?.hallId === undefined || e.hallId === filter.hallId) &&
           (filter?.serviceId === undefined || e.serviceId === filter.serviceId) &&
-          (filter?.includeHidden || !this.hiddenCaptureIds.has(e.eventId)),
+          (filter?.includeHidden ||
+            (!this.hiddenCaptureIds.has(e.eventId) && !isBeforeCutoff(e, this.dashboardViews.get(e.hallId)?.clearedAt))),
       )
       .map((e) => structuredClone(e));
+  }
+
+  async getDashboardView(hallId: string) {
+    const v = this.dashboardViews.get(hallId);
+    return v ? { ...v } : undefined;
+  }
+  async setDashboardView(hallId: string, clearedAt: string | null, updatedAt: string): Promise<void> {
+    this.dashboardViews.set(hallId, { hallId, clearedAt, updatedAt });
+    this.persist();
   }
 
   // --- admin curation ---
@@ -372,6 +384,7 @@ export class JsonFileRepository implements Repository {
       imageObjects: [...this.imageObjects.values()],
       captureEvents: [...this.captureEvents.values()],
       hiddenCaptureIds: [...this.hiddenCaptureIds],
+      dashboardViews: [...this.dashboardViews.values()],
       analysisAttempts: [...this.analysisAttempts.values()].flat(),
       measurements: [...this.measurementsByAttempt.values()].flat(),
       attendance: [...this.attendance.values()],
@@ -396,6 +409,7 @@ export class JsonFileRepository implements Repository {
     for (const o of snapshot.imageObjects ?? []) this.imageObjects.set(o.objectId, o);
     for (const e of snapshot.captureEvents ?? []) this.captureEvents.set(e.eventId, e);
     for (const id of snapshot.hiddenCaptureIds ?? []) this.hiddenCaptureIds.add(id);
+    for (const v of snapshot.dashboardViews ?? []) this.dashboardViews.set(v.hallId, v);
     for (const a of snapshot.analysisAttempts ?? []) {
       const list = this.analysisAttempts.get(a.eventId) ?? [];
       list.push(a);

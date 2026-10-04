@@ -483,6 +483,20 @@ const captureVisibility = table(
 );
 
 /**
+ * Dashboard "Clear data" cutoff (additive, one row per hall). The public
+ * dashboard ignores captures taken before clearedAt; nothing is deleted.
+ * No row / clearedAt none = the normal (default) dashboard.
+ */
+const dashboardView = table(
+  { name: 'dashboard_view' },
+  {
+    hallId: t.string().primaryKey(),
+    clearedAt: t.option(t.string()), // UTC ISO 8601
+    updatedAt: t.string(), // UTC ISO 8601
+  },
+);
+
+/**
  * contracts ScanInfo — per-scan capture details, one row per capture_event
  * (eventId). The raw original photo lives in object storage (image_object
  * association kind 'original'); only its object id and SHA-256 are here.
@@ -538,6 +552,7 @@ const spacetimedb = schema({
   cameraCalibration,
   measurementSettings,
   captureVisibility,
+  dashboardView,
 
   scanInfo,
   demoMarker,

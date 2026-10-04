@@ -49,6 +49,14 @@ export interface DemoMarker {
   rowKey: string;
 }
 
+/** True when a capture was taken before the hall's "Clear data" cutoff (instants compared, not strings). */
+export function isBeforeCutoff(event: { capturedAt: string }, clearedAt: string | null | undefined): boolean {
+  if (!clearedAt) return false;
+  const c = Date.parse(event.capturedAt);
+  const cut = Date.parse(clearedAt);
+  return Number.isFinite(c) && Number.isFinite(cut) && c < cut;
+}
+
 export interface CaptureEventFilter {
   hallId?: string;
   serviceId?: string;
@@ -108,6 +116,11 @@ export interface Repository {
   listHiddenCaptureIds(): Promise<Set<string>>;
   /** Hide or show existing captures; rejects unknown event ids. */
   setCaptureVisibility(eventIds: string[], hidden: boolean, updatedAt: string): Promise<void>;
+
+  // --- dashboard "Clear data" cutoff (per hall; captures before clearedAt are ignored) ---
+  /** UTC ISO cutoff, or null when none is set. */
+  getDashboardView(hallId: string): Promise<{ hallId: string; clearedAt: string | null; updatedAt: string } | undefined>;
+  setDashboardView(hallId: string, clearedAt: string | null, updatedAt: string): Promise<void>;
 
   // --- analysis attempts (append-only per event) ---
   addAnalysisAttempt(attempt: AnalysisAttempt): Promise<void>;

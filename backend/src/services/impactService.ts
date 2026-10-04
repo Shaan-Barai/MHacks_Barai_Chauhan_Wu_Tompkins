@@ -404,8 +404,11 @@ export class ImpactService {
   /** Saved impact recommendations for a hall (insight rows), newest first. */
   async savedRecommendations(hallId: string): Promise<Recommendation[]> {
     const out: Recommendation[] = [];
+    // A recommendation made before "Clear data" describes data the dashboard no longer shows.
+    const clearedAt = (await this.repo.getDashboardView(hallId))?.clearedAt ?? null;
     for (const i of await this.repo.listInsights(hallId)) {
       if (i.metrics.kind !== 'impact-recommendation') continue;
+      if (clearedAt && Date.parse(i.generatedAt) < Date.parse(clearedAt)) continue;
       try {
         const body = JSON.parse(i.recommendation) as Pick<Recommendation, 'text' | 'bullets'>;
         out.push({

@@ -391,6 +391,19 @@ provider-independent.
   (`/api/storage/upload|read`) and opaque expiring tokens standing in for
   presigned URLs. Used by tests and offline machines.
 
+## Demo data controls (Load dummy data / Clear data / Restore default)
+
+`GET /api/demo/status?hallId=hall-main` (public) returns
+`{ hallId, mode: 'default'|'sample'|'cleared', sampleLoaded, sampleCaptures, clearedAt }`.
+The three POSTs (`/api/demo/load`, `/api/demo/clear-data`, `/api/demo/restore`, body `{ hallId? }`,
+default `hall-main`; admin session or ingest token) return the same object. No `DEMO_SEED` gate.
+- load: drops the cutoff and adds the labeled sample history (14 days to today, America/Detroit; idempotent).
+- clear-data: removes sample rows and sets the hall's `dashboard_view.clearedAt = now`. The public
+  dashboard ignores captures with `capturedAt < clearedAt` (applied once, in `Repository.listCaptureEvents`
+  for every non-`includeHidden` read; the admin list still shows everything) and drops saved
+  recommendations generated before it. Real data is never deleted.
+- restore: removes sample rows and the cutoff, returning to the live dashboard.
+
 ## Try an Image (public, never stored)
 
 Visitors can analyse one photo without signing in. Gemini classify + boxes, SAM 2.1 masks and the

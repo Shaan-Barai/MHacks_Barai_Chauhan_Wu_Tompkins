@@ -982,6 +982,17 @@ def step_try_image(demo):
         webbrowser.open(url)
 
 
+def step_demo_data(demo):
+    """Dashboard demo-data controls: GET /api/demo/status (read-only; the buttons live on the dashboard)."""
+    status, body = demo.get(f"/api/demo/status?hallId={HALL_ID}", timeout=10, anonymous=True)
+    if status != 200 or not isinstance(body, dict):
+        demo.check("FAIL", f"GET /api/demo/status: HTTP {status} (restart the backend: deploy/local.sh restart)")
+        return
+    print(f"  mode={body.get('mode')}  sample captures={body.get('sampleCaptures')}  cleared at={body.get('clearedAt')}")
+    demo.check("PASS", f"Demo data mode is '{body.get('mode')}' (default = live dashboard; Load dummy data / Clear data / "
+                       "Restore default switch it, and nothing real is ever deleted)")
+
+
 STEPS = [
     ("services", "Services", step_services),
     ("menu", "Menu, waste factors and portions served", step_menu),
@@ -998,6 +1009,7 @@ STEPS = [
     ("admin", "Admin: choose which plates are shown", step_admin),
     ("upload_site", "Upload website: photo → results page", step_upload_site),
     ("try_image", "Try an Image (dashboard → Behind the scenes)", step_try_image),
+    ("demo_data", "Demo data controls (load / clear / restore)", step_demo_data),
     ("deploy", "Production URL", step_deploy),
 ]
 NEEDS_EVENTS = {"analysis", "area", "storage", "images"}

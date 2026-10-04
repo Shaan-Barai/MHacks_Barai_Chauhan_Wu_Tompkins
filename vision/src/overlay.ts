@@ -47,7 +47,7 @@ export interface OverlayBucket {
   /** Exclusive 0/1 bitmap on the W x H analyzed image. */
   bitmap: Uint8Array;
   color: [number, number, number];
-  /** IT_4: the bucket's calibrated area / volume estimate, when one was computed. */
+  /** IT_4: the bucket's calibrated area estimate, when one was computed. */
   physical?: PhysicalEstimate | null;
 }
 

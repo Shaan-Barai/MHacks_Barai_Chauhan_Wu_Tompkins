@@ -6,8 +6,8 @@ in **pixels** (see `contracts/types.ts`; AGENTS.md §7 math is canonical),
 counting only the dish being scanned (BIG-PLAN v2, target-dish counting), and
 owns the server-side Gemini gateway that Agent 6 reuses for suggestions.
 Pixels stay the measurement. IT_4 adds an optional **camera calibration**
-(`calibration.ts`) and a **physical stage** (`volume.ts`): calibrated area
-(cm²) or Depth Anything V2 volume (cm³) per food, always labeled estimates.
+(`calibration.ts`) and a **physical stage** (`area.ts`): calibrated area
+(cm²) per food, always labeled an estimate.
 Grams, CO2e and water are derived from these by `analytics/`, not here.
 
 ```
@@ -19,16 +19,15 @@ vision/
     masks.ts        box conversion, mask validation, smallest-first pixel counting
     overlay.ts      segmented overlay JPEG (pixel legend + optional per-food suffix)
     samClient.ts    SAM 2.1 worker client (vision/sam/)
-    calibration.ts  IT_4 camera calibration (reference-area-v1, C920s intrinsics, DAv2 scale + table plane)
-    volume.ts       IT_4 calibrated area (area-calibrated-v1) / DAv2 volume (volume-dav2-v1), pure
-    depthClient.ts  Depth Anything V2 worker client (vision/depth/) + depth-png16-v1 codec
+    calibration.ts  IT_4 camera calibration (reference-area-v1, C920s intrinsics, geometric height)
+    area.ts         IT_4 calibrated area (area-calibrated-v1), pure
     gateway.ts      Gemini transport (live/mock, timeout, bounded retries, ApiError)
     dishMatch.ts    same-dish judgment for the capture bridge
     prompt.ts       menu sanitizing + legacy classification prompt
     validate.ts / measurement.ts / analyze.ts / leftovers.ts   legacy/research helpers
     image.ts        bytes / read-URL -> Gemini inline-data formatting
     contracts.ts    copy of consumed contracts/types.ts types
-  sam/  depth/              Python workers (SAM 2.1 :8790, Depth Anything V2 :8791) + requirements.txt
+  sam/                      Python SAM 2.1 worker (:8790) + requirements.txt
   scripts/                  live smoke + research scripts (real Gemini calls)
   fixtures/responses.json   canned model responses (mock mode + tests)
   test/                     node --test suite (fixtures and fakes only, no live calls)
@@ -91,9 +90,7 @@ bounded retries. Suggestion prompts and business logic stay in `analytics/`.
 | `GEMINI_PASSES` | `2` | Localization passes per capture (`1` or `2`); equals the Gemini calls per capture. |
 | `SAM_WORKER_URL` | `http://127.0.0.1:8790` | SAM 2.1 worker (`vision/sam/`). |
 | `SAM_TIMEOUT_MS` | `60000` | Per-request SAM worker timeout. |
-| `DEPTH_WORKER_URL` | `http://127.0.0.1:8791` | Depth Anything V2 worker (`vision/depth/`). |
-| `DEPTH_TIMEOUT_MS` | `60000` | Per-request depth worker timeout. |
-| `WORKER_TOKEN` | _unset_ | Sent as `X-Worker-Token` to both workers (they require it when their own `WORKER_TOKEN` is set). |
+| `WORKER_TOKEN` | _unset_ | Sent as `X-Worker-Token` to the SAM worker (it requires it when its own `WORKER_TOKEN` is set). |
 | `CAMERA_FX_PX` / `CAMERA_FY_PX` | _unset_ | Measured focal lengths (px at the calibration image's resolution) via `intrinsicsOverridesFromEnv()`; source `checkerboard`. |
 
 All options can also be passed to `createGeminiGateway()` directly; explicit
@@ -348,11 +345,15 @@ above-baseline item no longer turns the attempt into `needs_review`: the
 measurement carries `above_baseline` and aggregates exclude it, while the
 plate's other items still count.
 
-## IT_4: camera calibration, Depth Anything V2, calibrated area / volume
+## IT_4: camera calibration and calibrated area
 
-See [IT_4.md](../IT_4.md) §2 (I2–I6, I8) and `contracts/types.ts` (IT_4 section). Everything below
-is exported from `@scrap/vision`. Vision never computes grams, CO2e or water: the backend gets those
-from `analytics/` and can pass legend text back through `labelSuffix`.
+See [IT_4.md](../IT_4.md) §2 (I2, I3, I6, I8) and §10, and `contracts/types.ts` (IT_4 section).
+Everything below is exported from `@scrap/vision`. Vision never computes grams, CO2e or water: the
+backend gets those from `analytics/` and can pass legend text back through `labelSuffix`.
+
+Depth Anything V2 (volume) was removed on 2026-10-04 (user decision): there is no depth worker,
+depth client, volume method, plate plane or bowl rule any more. Legacy rows from the brief depth
+trial are read as area estimates by the backend.
 
 ### Calibration (`calibration.ts`, method `reference-area-v1`)
 
@@ -364,17 +365,14 @@ const r = await runCalibration({
   referenceLabel: 'credit card',           // untrusted text, sanitized, sent as data
   gateway,                    // createGeminiGateway()
   sam: createSamWorkerClient(),
-  depth: createDepthWorkerClient(),        // optional; null/omitted ⇒ no depth scale
   intrinsicsOverrides: intrinsicsOverridesFromEnv(),   // optional
 });
 if (r.ok) {
   r.calibration;        // CalibrationFields = CameraCalibration minus calibrationId/hallId/cameraId/createdAt/
-                        //   imageObjectId/overlayObjectId/referenceMaskObjectId/error, status 'succeeded',
-                        //   depth without depthObjectId (or null)
+                        //   imageObjectId/overlayObjectId/referenceMaskObjectId/error, status 'succeeded'
   r.referenceMaskPng;   // binary PNG → referenceMaskObjectId
   r.overlay;            // { jpeg, ... } | null → overlayObjectId (association 'calibration_overlay')
-  r.depthPng;           // depth-png16-v1 | null → calibration.depth.depthObjectId (association 'depth')
-  r.diagnostics;        // Gemini box/confidence, SAM score, raw mask px, box fill, table-plane fit, depth error
+  r.diagnostics;        // Gemini box/confidence, SAM score, raw mask px, box fill
 } else {
   r.error; r.flags;     // ApiError + e.g. ['reference_not_found']; status 'failed'
 }
@@ -386,18 +384,9 @@ if (r.ok) {
    takes the **convex hull**, so holes from glare or printing and a fork across the card are
    closed. The reference must be a flat, convex object such as a card, sheet of paper or coaster.
 3. `k = knownAreaCm2 / N_ref`. Geometric camera height `Z = √(fx·fy) · √k`.
-4. With depth: `D_ref` = median raw DAv2 depth over the mask. `scale = Z / (100·D_ref)`.
-   `cameraHeightCmDepth = 100·D_ref`, which is what DAv2 alone says. `depth_scale_disagrees`
-   is set when the two heights differ by more than 15%.
-5. Table plane `Z(x,y) = a·x + b·y + c` (cm, corrected depth). It is first fitted robustly on
-   the reference alone, the only surface known to be the table. A band one reference-size wide
-   (√N_ref px) around it lengthens the tilt baseline. Band pixels are admitted only within
-   max(0.5 cm, 1.5% of Z) of the reference plane, so plates, food and hands next to the card are
-   excluded. Then a final trimmed-IRLS fit runs on reference + band.
-6. Flags: `reference_touches_edge` (mask on the border or Gemini says cut off),
+4. Flags: `reference_touches_edge` (mask on the border or Gemini says cut off),
    `reference_low_confidence` (Gemini low, SAM score < 0.85, fill < 35% of box, N < 1,000 px, or
-   > 60% of the frame), `depth_unavailable` (worker down or no valid depth; still succeeds),
-   `depth_scale_disagrees`.
+   > 60% of the frame). `reference_not_found` fails the run.
 
 `c920sIntrinsics(W, H, overrides?)`: nominal `f = (√(1920²+1080²)/2)/tan(39°) = 1360.2 px` at
 1920×1080, scaled by `s = max(W/W0, H/H0)` for a center-crop-and-resize from the source frame
@@ -412,63 +401,24 @@ Overrides `fxPx/fyPx/cxPx/cyPx` give source `configured`, or `checkerboard` via
 const r = await analyzeCaptureWithMasks(gateway, sam, {
   ...input,
   physical: {
-    calibration: activeCalibration,  // PhysicalCalibration (a stored CameraCalibration fits) | null
-    depthEnabled: settings.depthEnabled,
-    depthClient: createDepthWorkerClient(),
-    plateThicknessCm: settings.plateThicknessCm,   // default 1.5
+    calibration: activeCalibration,  // PhysicalCalibration {calibrationId, widthPx, heightPx, cm2PerPx} | null
   },
   labelSuffix: (bucket) => bucket.physical ? formatFromAnalytics(bucket) : null,  // e.g. "38 g · 1.1 kg CO2e · 18 L water"
 });
-r.measurements[i].physical;   // PhysicalEstimate (when applied); pixels unchanged
-r.attempt.calibrationId; r.attempt.physicalMethod;   // set when applied (backend adds depthObjectId)
-r.physical;  // { status: 'applied'|'unavailable'|'not_requested', reason?, method?, calibrationId?,
-             //   depth: { png (depth-png16-v1), widthPx, heightPx, version, info } | null,
-             //   depthError?, plate?: { reference, plane, dishPx, ringPx, fit?, fallbackReason? },
-             //   bowl?: { capture, liquidItemIds } }
+r.measurements[i].physical;   // PhysicalEstimate {calibrationId, method: 'area-calibrated-v1', areaCm2}; pixels unchanged
+r.attempt.calibrationId; r.attempt.physicalMethod;   // set when applied
+r.physical;  // { status: 'applied'|'unavailable'|'not_requested', reason?, method?, calibrationId? }
 ```
 
+- `areaCm2 = pixels × k` (`computeAreaEstimate(pixels, {calibrationId, cm2PerPx})`, `area.ts`),
+  with the food treated as lying on the base plane.
 - `reason`: `no_calibration` (null calibration), **`incompatible_geometry`** (calibration
-  `widthPx×heightPx` ≠ image; no depth request is made), `analysis_unavailable`, `no_measurements`.
-  In each case measurements carry no `physical`.
-- `depthEnabled: false` ⇒ `area-calibrated-v1` (`areaCm2 = pixels × k`). Depth on but the
-  calibration has no depth scale, no client, or the worker fails ⇒ area + `depth_unavailable`
-  (`r.physical.depthError` says why). Never zero.
-- The depth request runs **in parallel** with Gemini + SAM.
-- Bowls and liquids: if Gemini's target dish is a `bowl`, every food uses area +
-  `bowl_volume_unreliable`. Otherwise a food whose menu category or name matches
-  `LIQUID_PATTERN` (soup, stew, chili, broth, chowder, bisque, gumbo, congee, porridge, oatmeal,
-  ramen, pho) does.
-- **Analytics rule:** `method` decides the formula. `volume-dav2-v1` ⇒ volume × density;
-  `area-calibrated-v1` (including every fallback) ⇒ area × `weight_g_per_cm2`.
+  `widthPx×heightPx` ≠ image), `analysis_unavailable`, `no_measurements`. In each case
+  measurements carry no `physical`. Never zero.
+- **Analytics rule:** grams = `areaCm2 × weight_g_per_cm2`; CO2e and water follow from grams.
 
-### Volume (`volume.ts`, `volume-dav2-v1`, pure)
-
-`computeVolumeEstimates({calibrationId, cm2PerPx, depthM, width, height, scale, intrinsics, buckets: [{key, bitmap, bowl?}], dishRegion?, excludeFromPlate?, tablePlane, plateThicknessCm?, bowl?, maxFoodHeightCm = 12, depthSettingsVersion?})`
-→ `{ estimates: [{key, estimate}], plate, depthValid }`. Buckets are the pipeline's exclusive
-per-food bitmaps, so overlaps count once.
-
-- **Plate plane:** a robust (trimmed IRLS, deterministic) fit on the target-dish region eroded
-  by 2% of the long side (drops the rim and table margin) minus food dilated by 1% (DAv2 blurs
-  depth edges). If that ring has under 2% of the dish pixels, or there is no dish region, the
-  plane is the calibration table plane − `plateThicknessCm`, flagged `plate_plane_from_calibration`.
-- `h = clamp(Zplane − D, 0, 12 cm)`, footprint `(D/fx)(D/fy)`, `volume = Σh·a`, `area = Σa`,
-  mean and max height in mm. Clipping above 5% of a mask sets `negative_heights_clipped` /
-  `height_outliers_clipped`.
-- Fallbacks to the **area method** (never zero): invalid depth in > 10% of a mask ⇒
-  `depth_invalid`; **> 50% of a mask below the plate ⇒ `negative_heights_clipped` +
-  `depth_invalid`** (depth did not resolve that food); bowl ⇒ `bowl_volume_unreliable`.
-
-`computeAreaEstimate(pixels, {calibrationId, cm2PerPx}, flags?)` → `area-calibrated-v1`.
-
-### Depth client and storage
-
-`createDepthWorkerClient({url?, timeoutMs?, token?})` → `{ estimate(bytes, expected?) }`. It
-validates dimensions and byte length and decodes to `Float32Array` metres. Errors:
-`DEPTH_UNAVAILABLE` (retryable), `DEPTH_UNAUTHORIZED`, `DEPTH_REJECTED`, `DEPTH_FAILED`,
-`DEPTH_INVALID`, `DEPTH_MISALIGNED`. `encodeDepthPng16` / `decodeDepthPng16` handle
-`depth-png16-v1`: 16-bit greyscale, 0.1 mm, 0 = invalid, readable by sharp/PIL.
-`createSamWorkerClient(url?, timeoutMs?, token?)` now sends `X-Worker-Token` too, and a 401
-becomes `SEGMENTATION_UNAUTHORIZED`.
+`createSamWorkerClient(url?, timeoutMs?, token?)` sends `X-Worker-Token` when a token is set
+(env `WORKER_TOKEN`), and a 401 becomes `SEGMENTATION_UNAUTHORIZED`.
 
 ### Overlay legend suffix (I8)
 
@@ -477,37 +427,3 @@ callback's text after each food's pixels: `Ancho Flank Steak: 12,345 px · 38 g 
 18 L water`. The text is sanitized, and a throwing callback is ignored. Lines that would overflow
 the image width are truncated with "…": the **food name is shortened first**, so the numbers stay
 visible (`fitLegendText`, `layoutLegend`). Buckets carry `physical` for the callback.
-
-### IT_4 live check (2026-10-04)
-
-`node --env-file=../.env scripts/volume-smoke.mjs <outDir> [images]` (needs Gemini, SAM :8790 and
-depth :8791). It calibrates on each photo, then runs the pipeline with depth on.
-Env `REF_LABEL`, `REF_AREA_CM2`, `FX_PX`. Gemini calls: 1 + passes per image.
-
-**Run on 3 `test2/` iPhone photos.** These are not C920s frames, and no object of known area is
-in them. Settings: `FX_PX=948` (iPhone 16 Pro main camera, 24 mm-equivalent ≈ 84° diagonal,
-normalized to 1024²). Stand-in reference: the dinner plate, *assumed* 26.7 cm diameter
-(559.9 cm²). Its rim sits a couple of cm above the table. **Plausibility only, not a
-known-volume validation.**
-
-| Photo | Reference px (flags) | Geometric height | DAv2 raw height | Foods (pixels → calibrated area) |
-| --- | --- | --- | --- | --- |
-| IMG_2697 | 663,303 (edge, low-conf: plate cut off) | 27.5 cm | 105.2 cm | sweet potatoes 77,991 px → 65.8 cm²; ham 28,825 → 24.3; cauliflower 77,744 → 65.6 |
-| IMG_2701 | 556,248 (low-conf: sauce on plate) | 30.1 cm | 89.8 cm | cannelloni 17,384 px → 17.5 cm² |
-| IMG_2695 | 1,028,411 (edge, low-conf: > 60% of frame) | 22.1 cm | 107.9 cm | stir fry 105,426 px → 57.4 cm²; sticky rice 80,733 → 44.0 |
-
-- The geometric heights (22–30 cm) fit a handheld phone. **DAv2 Metric Indoor Small reported
-  3–5× those distances** (`depth_scale_disagrees`). The calibration scale removes that factor.
-- **DAv2 placed the food at or below the plate surface** (depth preview: the fork reads nearest,
-  as expected, but food reads farther than the plate). The heights were noise, so every food fell
-  back to the calibrated area (`negative_heights_clipped` + `depth_invalid`). Before this
-  fallback the same run reported 0.0–2.7 cm³ "volumes", which were silent zeros.
-- In an earlier run Gemini called the IMG_2701 dish a `bowl`, and its stew got
-  `bowl_volume_unreliable`. The dish type varies between runs.
-- Timing (M1 Max, MPS): depth ≈ 170 ms per 1024² image warm. Calibration took 5–10 s and a
-  capture with depth 10–17 s, mostly Gemini.
-
-**Conclusion:** the integration works end to end, but DAv2 Small does **not** resolve food
-heights on these close top-down photos. Keep `depthEnabled` off (area method) until a live check
-under the mounted C920s, with a credit card and an object of measured volume, is recorded in
-`docs/verification-report.md`.

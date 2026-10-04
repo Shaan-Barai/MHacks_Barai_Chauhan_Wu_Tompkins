@@ -29,13 +29,11 @@
  *      store: counted food tinted per item, other-dish food hatched grey,
  *      target dish outlined. A rendering failure leaves `overlay: null`.
  *
- *   8. Optional physical stage (IT_4 I5/I6, `input.physical`): with an
+ *   8. Optional physical stage (IT_4 I6, `input.physical`): with an
  *      active camera calibration of the SAME resolution, every measurement
- *      gets `physical` (calibrated area, or Depth Anything V2 volume when
- *      depth is enabled; volume.ts). The depth request runs in parallel with
- *      Gemini/SAM. A different resolution ⇒ no physical numbers, reason
- *      `incompatible_geometry`; no calibration ⇒ `no_calibration`. Pixels are
- *      never changed by this stage.
+ *      gets `physical` = calibrated area (pixels × k, area.ts). A different
+ *      resolution ⇒ no physical numbers, reason `incompatible_geometry`; no
+ *      calibration ⇒ `no_calibration`. Pixels are never changed by this stage.
  *
  * No per-capture plate-size calibration (BIG-PLAN v2, V1): pixels are the
  * measurement; physical numbers come only from a camera calibration (IT_4).
@@ -49,7 +47,6 @@ import type {
   AnalysisAttempt,
   AnalysisStatus,
   ApiError,
-  CalibrationDepth,
   CameraIntrinsics,
   ClassificationRegion,
   CountStatus,
@@ -89,8 +86,7 @@ import {
 import type { Segmenter, SegmenterInfo, SegmentResponse } from './samClient.js';
 import { buildDishRegion, clipToRegion, dishDilatePx } from './targetDish.js';
 import { colorForIndex, renderOverlay, UNKNOWN_COLOR, type LabelSuffix, type OverlayBucket, type OverlayImage } from './overlay.js';
-import { DEPTH_PNG_VERSION, encodeDepthPng16, type DepthEstimator, type DepthInfo, type DepthMap } from './depthClient.js';
-import { computeAreaEstimate, computeVolumeEstimates, DEFAULT_PLATE_THICKNESS_CM, type PlateReferenceInfo } from './volume.js';
+import { AREA_METHOD, computeAreaEstimate } from './area.js';
 
 /** The calibration fields the physical stage needs (a stored CameraCalibration satisfies it). */
 export interface PhysicalCalibration {
@@ -98,21 +94,12 @@ export interface PhysicalCalibration {
   widthPx: number;
   heightPx: number;
   cm2PerPx: number;
-  intrinsics: Pick<CameraIntrinsics, 'fxPx' | 'fyPx'>;
-  depth: Pick<CalibrationDepth, 'scale' | 'tablePlane' | 'settingsVersion'> | null;
 }
 
-/** IT_4 optional physical stage input (the hall's MeasurementSettings + its active calibration). */
+/** IT_4 optional physical stage input (the hall's active calibration). */
 export interface PhysicalStageInput {
   /** The hall's active calibration; null ⇒ reason `no_calibration`. */
   calibration: PhysicalCalibration | null;
-  /** Depth Anything V2 on/off (MeasurementSettings.depthEnabled). Off ⇒ area method. */
-  depthEnabled: boolean;
-  /** Required for the volume method; missing ⇒ area + `depth_unavailable`. */
-  depthClient?: DepthEstimator;
-  /** Fallback plate surface above the table plane (default 1.5 cm). */
-  plateThicknessCm?: number;
-  maxFoodHeightCm?: number;
 }
 
 export type PhysicalUnavailable = 'no_calibration' | 'incompatible_geometry' | 'analysis_unavailable' | 'no_measurements';
@@ -121,26 +108,8 @@ export interface PhysicalStageResult {
   status: 'applied' | 'unavailable' | 'not_requested';
   reason?: PhysicalUnavailable;
   calibrationId?: string;
-  /** 'volume-dav2-v1' when depth produced at least one volume, else 'area-calibrated-v1'. */
+  /** Always 'area-calibrated-v1' when applied. */
   method?: PhysicalMethod;
-  /** Raw DAv2 depth as `depth-png16-v1` (0.1 mm) for the backend to store (AnalysisAttempt.depthObjectId). */
-  depth: { png: Uint8Array; widthPx: number; heightPx: number; version: typeof DEPTH_PNG_VERSION; info: DepthInfo } | null;
-  /** Why depth was not used although it was enabled. */
-  depthError?: ApiError;
-  plate?: PlateReferenceInfo | null;
-  /** Bowl/liquid detection used for `bowl_volume_unreliable`. */
-  bowl?: { capture: boolean; liquidItemIds: string[] };
-}
-
-/**
- * Bowl / liquid rule (documented choice): the whole capture is a bowl when
- * Gemini's target dish type is 'bowl'; otherwise a single food is a liquid
- * when its menu category or name says soup, stew, chili, broth, chowder,
- * bisque, gumbo, congee, porridge, oatmeal, ramen or pho.
- */
-export const LIQUID_PATTERN = /\b(soups?|stews?|chili|chilli|broth|chowder|bisque|gumbo|congee|porridge|oatmeal|ramen|pho)\b/i;
-export function isLiquidMenuItem(item: Pick<MenuItem, 'displayName' | 'category'> | undefined): boolean {
-  return !!item && (LIQUID_PATTERN.test(item.category ?? '') || LIQUID_PATTERN.test(item.displayName));
 }
 
 export interface MaskAnalysisInput {
@@ -159,7 +128,7 @@ export interface MaskAnalysisInput {
   calibration?: unknown;
   /** Render the segmented overlay JPEG. Default true. */
   renderOverlay?: boolean;
-  /** IT_4: calibrated area / DAv2 volume per measurement. Omitted ⇒ pixels only. */
+  /** IT_4: calibrated area per measurement. Omitted ⇒ pixels only. */
   physical?: PhysicalStageInput;
   /** IT_4 I8: text after each food's pixels in the overlay legend (backend-supplied, e.g. grams · CO2e · water). */
   labelSuffix?: LabelSuffix;
@@ -272,25 +241,12 @@ export async function analyzeCaptureWithMasks(
   const phys = input.physical;
   const cal = phys?.calibration ?? null;
   const compatible = !!cal && cal.widthPx === W && cal.heightPx === H;
-  // Depth runs in parallel with Gemini + SAM; a failure becomes an explicit fallback, never a rejection.
-  type DepthOutcome = { ok: true; map: DepthMap } | { ok: false; error: ApiError };
-  const depthPromise: Promise<DepthOutcome> | null =
-    phys?.depthEnabled && compatible && cal!.depth && phys.depthClient
-      ? phys.depthClient.estimate(input.image.bytes, { widthPx: W, heightPx: H }).then(
-          (map) => ({ ok: true as const, map }),
-          (err: unknown) => ({
-            ok: false as const,
-            error: err instanceof GatewayError ? err.apiError : makeApiError('DEPTH_FAILED', 'Depth estimation failed.', true),
-          }),
-        )
-      : null;
-
   const stages = await runStages(gateway, segmenter, input);
   const countStatus = stages.result.attempt.segmentation?.countStatus;
   const analyzable = countStatus === 'complete' || countStatus === 'partial' || countStatus === 'empty';
 
   // IT_4 physical stage (pixels untouched).
-  const physical: PhysicalStageResult = { status: 'not_requested', depth: null };
+  const physical: PhysicalStageResult = { status: 'not_requested' };
   const physicalByBucket: (PhysicalEstimate | null)[] = stages.buckets.map(() => null);
   if (phys) {
     if (!cal) Object.assign(physical, { status: 'unavailable', reason: 'no_calibration' });
@@ -300,67 +256,14 @@ export async function analyzeCaptureWithMasks(
     else if (stages.result.measurements.length === 0) {
       Object.assign(physical, { status: 'unavailable', reason: 'no_measurements', calibrationId: cal.calibrationId });
     } else {
-      const items = new Map(input.menu.items.map((i) => [i.itemId, i]));
-      const bowlCapture = stages.result.targetDish.dishType === 'bowl';
-      const liquidItemIds = stages.buckets.filter((b) => b.itemId !== null && isLiquidMenuItem(items.get(b.itemId))).map((b) => b.itemId!);
-      physical.bowl = { capture: bowlCapture, liquidItemIds };
       physical.calibrationId = cal.calibrationId;
-      let estimates: PhysicalEstimate[];
-      if (!phys.depthEnabled) {
-        estimates = stages.buckets.map((b) => computeAreaEstimate(b.pixels, cal));
-      } else {
-        const got: DepthOutcome = depthPromise
-          ? await depthPromise
-          : {
-              ok: false,
-              error: makeApiError(
-                'DEPTH_UNAVAILABLE',
-                cal.depth ? 'No depth service is configured.' : 'The active calibration has no depth scale; recalibrate with the depth worker running.',
-                false,
-              ),
-            };
-        if (!got.ok) {
-          physical.depthError = got.error;
-          estimates = stages.buckets.map((b) => computeAreaEstimate(b.pixels, cal, ['depth_unavailable']));
-        } else {
-          const vol = computeVolumeEstimates({
-            calibrationId: cal.calibrationId,
-            cm2PerPx: cal.cm2PerPx,
-            depthM: got.map.depthM,
-            width: W,
-            height: H,
-            scale: cal.depth!.scale,
-            intrinsics: cal.intrinsics,
-            buckets: stages.buckets.map((b, k) => ({
-              key: String(k),
-              bitmap: b.bitmap,
-              bowl: b.itemId !== null && liquidItemIds.includes(b.itemId),
-            })),
-            dishRegion: stages.dishRegion,
-            excludeFromPlate: stages.otherBitmap,
-            tablePlane: cal.depth!.tablePlane,
-            plateThicknessCm: phys.plateThicknessCm ?? DEFAULT_PLATE_THICKNESS_CM,
-            bowl: bowlCapture,
-            ...(phys.maxFoodHeightCm !== undefined ? { maxFoodHeightCm: phys.maxFoodHeightCm } : {}),
-            depthSettingsVersion: cal.depth!.settingsVersion,
-          });
-          estimates = vol.estimates.map((e) => e.estimate);
-          physical.plate = vol.plate;
-          physical.depth = {
-            png: encodeDepthPng16(got.map.depthM, W, H),
-            widthPx: W,
-            heightPx: H,
-            version: DEPTH_PNG_VERSION,
-            info: { model: got.map.model, checkpoint: got.map.checkpoint, device: got.map.device, settingsVersion: got.map.settingsVersion },
-          };
-        }
-      }
+      const estimates = stages.buckets.map((b) => computeAreaEstimate(b.pixels, cal));
       estimates.forEach((e, k) => {
         physicalByBucket[k] = e;
         stages.result.measurements[k]!.physical = e;
       });
       physical.status = 'applied';
-      physical.method = estimates.some((e) => e.method === 'volume-dav2-v1') ? 'volume-dav2-v1' : 'area-calibrated-v1';
+      physical.method = AREA_METHOD;
       stages.result.attempt.calibrationId = cal.calibrationId;
       stages.result.attempt.physicalMethod = physical.method;
     }

@@ -15,27 +15,12 @@
  *   4. Camera height, geometric: a pixel at distance Z covers (Z/f)², so
  *      Z = f·√k, with f = √(fx·fy) from the C920s nominal intrinsics (or
  *      overrides).
- *   5. Depth Anything V2 (optional, when a depth client is given): D_ref =
- *      median raw metric depth over the reference mask; scale = Z_geo /
- *      (100·D_ref); cameraHeightCmDepth = 100·D_ref (what DAv2 alone says);
- *      `depth_scale_disagrees` when the two heights differ by more than 15%.
- *   6. Table plane Z(x, y) = a·x + b·y + c (cm, corrected depth), fitted on
- *      the reference mask plus a band around it. Choice: the reference is the
- *      only surface KNOWN to be the table, so a robust plane is first fitted
- *      on the reference alone. The band (one reference-size, √N_ref px, wide)
- *      lengthens the baseline so the tilt is better determined; band pixels
- *      are admitted only if they lie within max(0.5 cm, 1.5% of Z_geo) of the
- *      reference-only plane, which drops plates, food, cups and hands
- *      (≥ 1 cm above the table) next to the reference. The final plane is a
- *      robust (trimmed IRLS) fit on reference + admitted band.
  *
  * Flags: `reference_not_found` (Gemini found nothing / empty mask; the run
  * fails), `reference_touches_edge` (mask touches the image border or Gemini
  * says it is cut off), `reference_low_confidence` (Gemini confidence low,
  * SAM score < 0.85, mask fills < 35% of its box, N_ref < 1,000 px, or the
- * reference covers more than 60% of the frame),
- * `depth_unavailable` (depth requested but the worker failed or the map was
- * unusable), `depth_scale_disagrees`.
+ * reference covers more than 60% of the frame).
  *
  * The calibration is tied to one image resolution: the backend must run it on
  * an image normalized exactly like the captures it will measure (1024² center
@@ -43,8 +28,7 @@
  */
 
 import { Type } from '@google/genai';
-import type { ApiError, CalibrationDepth, CameraCalibration, CameraCalibrationFlag, CameraIntrinsics } from './contracts.js';
-import { encodeDepthPng16, type DepthEstimator, type DepthInfo } from './depthClient.js';
+import type { ApiError, CameraCalibration, CameraCalibrationFlag, CameraIntrinsics } from './contracts.js';
 import { GatewayError, makeApiError } from './errors.js';
 import type { GeminiGateway } from './gateway.js';
 import { imageInputToPart } from './image.js';
@@ -52,9 +36,7 @@ import { decodeBinaryMask, encodeBinaryMask, geminiBoxToPixels } from './masks.j
 import { composeWithLegend, loadSharp, type LegendLine, type OverlayImage } from './overlay.js';
 import { sanitizeMenuText } from './prompt.js';
 import type { Segmenter, SegmenterInfo } from './samClient.js';
-import { convexHullFill, dilateSquare, dropSpecks } from './targetDish.js';
-import { collectPoints, fitPlaneRobust, validDepth, type Plane } from './volume.js';
-
+import { convexHullFill, dropSpecks } from './targetDish.js';
 
 export const CALIBRATION_METHOD = 'reference-area-v1' as const;
 export const CALIBRATION_PROMPT_VERSION = 'scrap-calib-ref-v1';
@@ -64,7 +46,6 @@ export const CREDIT_CARD_AREA_CM2 = 46.21;
 export const C920S = { nativeWidthPx: 1920, nativeHeightPx: 1080, diagonalFovDeg: 78 } as const;
 /** Nominal focal length at 1920×1080: (√(1920² + 1080²) / 2) / tan(39°) ≈ 1360.2 px. */
 export const C920S_NATIVE_FOCAL_PX = Math.hypot(1920, 1080) / 2 / Math.tan(((C920S.diagonalFovDeg / 2) * Math.PI) / 180);
-export const DEPTH_DISAGREE_FRACTION = 0.15;
 export const MIN_REFERENCE_PX = 1000;
 export const MIN_SAM_SCORE = 0.85;
 export const MIN_BOX_FILL = 0.35;
@@ -275,68 +256,6 @@ export function touchesEdge(bitmap: Uint8Array, width: number, height: number): 
 }
 
 // ---------------------------------------------------------------------------
-// Depth: scale + table plane.
-// ---------------------------------------------------------------------------
-
-export interface TablePlaneFit {
-  plane: Plane;
-  referencePoints: number;
-  bandPoints: number;
-  bandAdmitted: number;
-  inliers: number;
-  residualMadCm: number;
-}
-
-/**
- * Fit the table plane (cm, corrected depth) on the reference mask plus an
- * admitted band around it (see the file header). null when the reference
- * has too few valid depth pixels.
- */
-export function fitTablePlane(
-  depthM: ArrayLike<number>,
-  width: number,
-  height: number,
-  referenceMask: Uint8Array,
-  referencePixels: number,
-  scale: number,
-  zGeoCm: number,
-): TablePlaneFit | null {
-  const ref = collectPoints(referenceMask, depthM, width, scale);
-  const base = fitPlaneRobust(ref.xs, ref.ys, ref.zs);
-  if (!base) return null;
-  const bandPx = Math.max(5, Math.round(Math.sqrt(referencePixels)));
-  const grown = dilateSquare(referenceMask, width, height, bandPx);
-  const tol = Math.max(0.5, 0.015 * zGeoCm);
-  const select = new Uint8Array(width * height);
-  let bandPoints = 0;
-  let bandAdmitted = 0;
-  for (let i = 0; i < select.length; i++) {
-    if (referenceMask[i]) {
-      select[i] = 1;
-      continue;
-    }
-    if (!grown[i] || !validDepth(depthM[i]!)) continue;
-    bandPoints++;
-    const z = depthM[i]! * scale * 100;
-    const p = base.plane;
-    if (Math.abs(z - (p.a * (i % width) + p.b * Math.floor(i / width) + p.c)) <= tol) {
-      select[i] = 1;
-      bandAdmitted++;
-    }
-  }
-  const all = collectPoints(select, depthM, width, scale);
-  const fit = fitPlaneRobust(all.xs, all.ys, all.zs) ?? base;
-  return {
-    plane: fit.plane,
-    referencePoints: ref.zs.length,
-    bandPoints,
-    bandAdmitted,
-    inliers: fit.inliers,
-    residualMadCm: fit.residualMadCm,
-  };
-}
-
-// ---------------------------------------------------------------------------
 // runCalibration
 // ---------------------------------------------------------------------------
 
@@ -350,8 +269,6 @@ export interface RunCalibrationInput {
   referenceLabel: string;
   gateway: GeminiGateway;
   sam: Segmenter;
-  /** When given, DAv2 depth scale + table plane are computed too. */
-  depth?: DepthEstimator | null;
   intrinsicsOverrides?: IntrinsicsOverrides;
   /** Image size; read from the image with sharp when omitted. */
   widthPx?: number;
@@ -363,11 +280,9 @@ export interface RunCalibrationInput {
 /** CameraCalibration minus the ids/object ids/timestamps the backend fills. */
 export type CalibrationFields = Omit<
   CameraCalibration,
-  'calibrationId' | 'hallId' | 'cameraId' | 'createdAt' | 'imageObjectId' | 'overlayObjectId' | 'referenceMaskObjectId' | 'depth' | 'status' | 'error'
+  'calibrationId' | 'hallId' | 'cameraId' | 'createdAt' | 'imageObjectId' | 'overlayObjectId' | 'referenceMaskObjectId' | 'status' | 'error'
 > & {
   status: 'succeeded';
-  /** Without depthObjectId: the backend stores `depthPng` and fills it. */
-  depth: Omit<CalibrationDepth, 'depthObjectId'> | null;
 };
 
 export interface CalibrationDiagnostics {
@@ -382,9 +297,6 @@ export interface CalibrationDiagnostics {
   samScore?: number;
   rawMaskPixels?: number;
   boxFill?: number;
-  depthInfo?: DepthInfo;
-  depthError?: ApiError;
-  tablePlaneFit?: Omit<TablePlaneFit, 'plane'>;
   overlayError?: string;
 }
 
@@ -396,8 +308,6 @@ export type CalibrationRunResult =
       referenceMaskPng: Uint8Array;
       /** Calibration overlay JPEG → `overlayObjectId` (association kind 'calibration_overlay'). */
       overlay: OverlayImage | null;
-      /** Raw DAv2 depth, `depth-png16-v1` (0.1 mm) → depth.depthObjectId (kind 'depth'). null without depth. */
-      depthPng: Uint8Array | null;
       diagnostics: CalibrationDiagnostics;
     }
   | {
@@ -454,17 +364,6 @@ export async function runCalibration(input: RunCalibrationInput): Promise<Calibr
     return fail(makeApiError('CALIBRATION_INVALID_INTRINSICS', 'The configured camera focal length is not valid.', false, { reason: String((err as Error).message) }), size);
   }
 
-  // Depth runs in parallel with Gemini + SAM (separate worker).
-  const depthPromise = input.depth
-    ? input.depth.estimate(input.imageBytes, size).then(
-        (map) => ({ ok: true as const, map }),
-        (err: unknown) => ({
-          ok: false as const,
-          error: err instanceof GatewayError ? err.apiError : makeApiError('DEPTH_FAILED', 'Depth estimation failed.', true),
-        }),
-      )
-    : null;
-
   // 1. Gemini box.
   let located: ReferenceLocateOutcome;
   try {
@@ -477,19 +376,16 @@ export async function runCalibration(input: RunCalibrationInput): Promise<Calibr
     });
     located = validateCalibrationText(text);
   } catch (err) {
-    await depthPromise;
     return fail(err instanceof GatewayError ? err.apiError : makeApiError('VISION_INTERNAL', 'Unexpected error while locating the reference.', true), {
       ...size,
       intrinsics,
     });
   }
   if (!located.ok) {
-    await depthPromise;
     return fail(makeApiError('VISION_INVALID_RESPONSE', 'The reference-object answer was unusable.', true, { reason: located.reason }), { ...size, intrinsics });
   }
   if (!located.found) {
     flags.add('reference_not_found');
-    await depthPromise;
     return fail(makeApiError('REFERENCE_NOT_FOUND', 'The reference object was not found in the calibration photo.', false), { ...size, intrinsics });
   }
   diagnostics.geminiBox = located.box2d;
@@ -498,7 +394,6 @@ export async function runCalibration(input: RunCalibrationInput): Promise<Calibr
   const box = geminiBoxToPixels(located.box2d, W, H);
   if (!box.ok) {
     flags.add('reference_not_found');
-    await depthPromise;
     return fail(makeApiError('REFERENCE_NOT_FOUND', 'The reference object box was not usable.', true, { reason: box.reason }), { ...size, intrinsics });
   }
   const pixelBox = box.box.pixelXyxy;
@@ -515,19 +410,16 @@ export async function runCalibration(input: RunCalibrationInput): Promise<Calibr
     maskPng = res.results[0]!.maskPng;
     if (Number.isFinite(res.results[0]!.score)) diagnostics.samScore = res.results[0]!.score;
   } catch (err) {
-    await depthPromise;
     return fail(err instanceof GatewayError ? err.apiError : makeApiError('SEGMENTATION_FAILED', 'Segmentation failed.', true), { ...size, intrinsics });
   }
   const decoded = decodeBinaryMask(maskPng, W, H);
   if (!decoded.ok) {
-    await depthPromise;
     return fail(makeApiError('MASK_INVALID', 'The reference mask failed validation.', false, { reason: decoded.reason }), { ...size, intrinsics });
   }
   diagnostics.rawMaskPixels = decoded.pixels;
   const cleaned = cleanReferenceMask(decoded.bitmap, W, H, pixelBox);
   if (cleaned.pixels === 0) {
     flags.add('reference_not_found');
-    await depthPromise;
     return fail(makeApiError('REFERENCE_NOT_FOUND', 'The reference object could not be segmented.', true), { ...size, intrinsics });
   }
 
@@ -548,49 +440,6 @@ export async function runCalibration(input: RunCalibrationInput): Promise<Calibr
     flags.add('reference_low_confidence');
   }
 
-  // 5-6. Depth scale + table plane.
-  let depth: CalibrationFields['depth'] = null;
-  let depthPng: Uint8Array | null = null;
-  if (depthPromise) {
-    const got = await depthPromise;
-    if (!got.ok) {
-      flags.add('depth_unavailable');
-      diagnostics.depthError = got.error;
-    } else {
-      const map = got.map;
-      diagnostics.depthInfo = { model: map.model, checkpoint: map.checkpoint, device: map.device, settingsVersion: map.settingsVersion };
-      const values: number[] = [];
-      for (let i = 0; i < cleaned.bitmap.length; i++) if (cleaned.bitmap[i] && validDepth(map.depthM[i]!)) values.push(map.depthM[i]!);
-      values.sort((a, b) => a - b);
-      const dRef = values.length === 0 ? NaN : values.length % 2 ? values[(values.length - 1) / 2]! : (values[values.length / 2 - 1]! + values[values.length / 2]!) / 2;
-      if (!(dRef > 0) || values.length < 0.5 * N) {
-        flags.add('depth_unavailable');
-        diagnostics.depthError = makeApiError('DEPTH_INVALID', 'The depth map had no valid depth over the reference.', false, { validPx: values.length });
-      } else {
-        const scale = zGeo / (100 * dRef);
-        const plane = fitTablePlane(map.depthM, W, H, cleaned.bitmap, N, scale, zGeo);
-        if (!plane) {
-          flags.add('depth_unavailable');
-          diagnostics.depthError = makeApiError('DEPTH_INVALID', 'The table plane could not be fitted.', false);
-        } else {
-          const { plane: tablePlane, ...fitInfo } = plane;
-          diagnostics.tablePlaneFit = fitInfo;
-          const heightDepth = 100 * dRef;
-          if (Math.abs(heightDepth - zGeo) / zGeo > DEPTH_DISAGREE_FRACTION) flags.add('depth_scale_disagrees');
-          depth = {
-            checkpoint: map.checkpoint,
-            settingsVersion: map.settingsVersion,
-            rawReferenceMedianM: round(dRef, 6),
-            scale: round(scale, 6),
-            cameraHeightCmDepth: round(heightDepth, 3),
-            tablePlane: { a: tablePlane.a, b: tablePlane.b, c: tablePlane.c },
-          };
-          depthPng = encodeDepthPng16(map.depthM, W, H);
-        }
-      }
-    }
-  }
-
   const calibration: CalibrationFields = {
     status: 'succeeded',
     method: CALIBRATION_METHOD,
@@ -602,7 +451,6 @@ export async function runCalibration(input: RunCalibrationInput): Promise<Calibr
     cm2PerPx: k,
     intrinsics,
     cameraHeightCmGeometric: round(zGeo, 3),
-    depth,
     flags: [...flags],
   };
 
@@ -613,7 +461,7 @@ export async function runCalibration(input: RunCalibrationInput): Promise<Calibr
     if (rendered.ok) overlay = rendered.overlay;
     else diagnostics.overlayError = rendered.reason;
   }
-  return { ok: true, calibration, referenceMaskPng: encodeBinaryMask(cleaned.bitmap, W, H), overlay, depthPng, diagnostics };
+  return { ok: true, calibration, referenceMaskPng: encodeBinaryMask(cleaned.bitmap, W, H), overlay, diagnostics };
 }
 
 /** Legend rows of the calibration overlay (also used by tests). */
@@ -627,12 +475,6 @@ export function calibrationLegendRows(c: CalibrationFields): LegendLine[] {
       text: `Reference ${c.referencePixels.toLocaleString('en-US')} px · k = ${c.cm2PerPx.toPrecision(4)} cm²/px (${(10 * Math.sqrt(c.cm2PerPx)).toFixed(3)} mm/px)`,
     },
     { kind: 'info', text: `Camera height (geometric, f = ${f.toFixed(0)} px ${c.intrinsics.source}): ${c.cameraHeightCmGeometric.toFixed(1)} cm` },
-    {
-      kind: 'info',
-      text: c.depth
-        ? `Depth Anything V2 height ${c.depth.cameraHeightCmDepth.toFixed(1)} cm · scale ${c.depth.scale.toFixed(3)}`
-        : 'Depth Anything V2: not run',
-    },
   ];
   if (c.flags.length) rows.push({ kind: 'info', text: `Flags: ${c.flags.join(', ')}` });
   return rows;

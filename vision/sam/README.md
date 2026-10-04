@@ -27,10 +27,8 @@ existing Mac setup instead uses an editable clone at that commit
 (`git clone https://github.com/facebookresearch/sam2 ../sam2 && (cd ../sam2 &&
 git checkout 2b90b9f && SAM2_BUILD_CUDA=0 ../mhacks/.venv/bin/pip install -e .)`).
 Both give `codeRevision` `sam2@2b90b9f` (the editable clone reports the git
-revision; a non-editable install reports the package version). The depth
-worker (`vision/depth/`) shares this venv. `transformers` 5.18 pins
-`huggingface_hub` to 1.33.0, which the SAM worker was re-verified with
-(2026-10-04).
+revision; a non-editable install reports the package version). The SAM
+worker was re-verified with `huggingface_hub` 1.33.0 (2026-10-04).
 
 `huggingface_hub` is required by `SAM2ImagePredictor.from_pretrained` but is
 not installed by `sam2` itself. To keep the worker running after the shell

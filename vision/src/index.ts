@@ -35,10 +35,10 @@ export { analyzeCapture } from './analyze.js';
 
 export { analyzeCaptureWithMasks } from './maskPipeline.js';
 export type { MaskAnalysisInput, MaskAnalysisResult, MaskAnalysisDiagnostics, LocalizationStats } from './maskPipeline.js';
-export { NEIGHBOR_CLIP_MIN_FRACTION, LIQUID_PATTERN, isLiquidMenuItem } from './maskPipeline.js';
+export { NEIGHBOR_CLIP_MIN_FRACTION } from './maskPipeline.js';
 export type { PhysicalCalibration, PhysicalStageInput, PhysicalStageResult, PhysicalUnavailable } from './maskPipeline.js';
 
-// IT_4: camera calibration, Depth Anything V2 client, calibrated area / volume.
+// IT_4: camera calibration (reference-area-v1) and calibrated area.
 export {
   C920S,
   C920S_NATIVE_FOCAL_PX,
@@ -46,7 +46,6 @@ export {
   CALIBRATION_PROMPT_VERSION,
   CALIBRATION_SYSTEM_INSTRUCTION,
   CREDIT_CARD_AREA_CM2,
-  DEPTH_DISAGREE_FRACTION,
   MAX_REFERENCE_FRACTION,
   REFERENCE_MASK_VERSION,
   buildCalibrationPrompt,
@@ -55,7 +54,6 @@ export {
   calibrationLegendRows,
   cleanReferenceMask,
   fillHoles,
-  fitTablePlane,
   geometricHeightCm,
   intrinsicsOverridesFromEnv,
   runCalibration,
@@ -68,36 +66,9 @@ export type {
   IntrinsicsOverrides,
   ReferenceLocateOutcome,
   RunCalibrationInput,
-  TablePlaneFit,
 } from './calibration.js';
-export {
-  DEPTH_CHECKPOINT,
-  DEPTH_PNG_UNITS_PER_M,
-  DEPTH_PNG_VERSION,
-  DEPTH_SETTINGS_VERSION,
-  createDepthWorkerClient,
-  decodeDepthPng16,
-  decodeDepthResponse,
-  depthToUnits,
-  encodeDepthPng16,
-} from './depthClient.js';
-export type { DecodedDepthPng, DepthEstimator, DepthInfo, DepthMap, DepthWorkerClientOptions } from './depthClient.js';
-export {
-  AREA_METHOD,
-  VOLUME_METHOD,
-  DEFAULT_MAX_FOOD_HEIGHT_CM,
-  DEFAULT_PLATE_THICKNESS_CM,
-  MIN_RING_FRACTION,
-  MAX_INVALID_FRACTION,
-  MAX_NEGATIVE_FRACTION,
-  computeAreaEstimate,
-  computeVolumeEstimates,
-  erodeSquare,
-  fitPlaneLeastSquares,
-  fitPlaneRobust,
-  planeAt,
-} from './volume.js';
-export type { AreaCalibration, Plane, PlateReferenceInfo, RobustPlaneFit, VolumeBucket, VolumeInput, VolumeResult } from './volume.js';
+export { AREA_METHOD, computeAreaEstimate } from './area.js';
+export type { AreaCalibration } from './area.js';
 export type { TargetDishInfo } from './maskPipeline.js';
 export {
   DISH_REGION_VERSION,

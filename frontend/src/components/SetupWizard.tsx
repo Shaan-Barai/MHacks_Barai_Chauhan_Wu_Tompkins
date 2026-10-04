@@ -1,16 +1,18 @@
 /**
- * First-time setup, shown once per browser: the hall name, then menus.
+ * First-time setup, shown once per browser: the dining hall names, then menus.
  * Meal times start from sensible defaults and can be changed in Settings.
  */
 import { useState } from 'react'
 import type { HallSettings } from '../data/types'
 import { DEFAULT_SETTINGS } from '../state/settings'
+import { LocationFields, cleanLocations } from './LocationFields'
 import { MenuSource } from './MenuSource'
-import { FieldLabel, GhostButton, PrimaryButton, inputClass } from './ui'
+import { GhostButton, PrimaryButton } from './ui'
 
 export function SetupWizard({ onComplete }: { onComplete: (settings: HallSettings) => void }) {
   const [step, setStep] = useState<1 | 2>(1)
   const [draft, setDraft] = useState<HallSettings>(DEFAULT_SETTINGS)
+  const named = cleanLocations(draft.locations).length > 0
 
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center px-6 py-10">
@@ -24,19 +26,16 @@ export function SetupWizard({ onComplete }: { onComplete: (settings: HallSetting
             className="mt-5 max-w-md"
             onSubmit={(e) => {
               e.preventDefault()
-              if (draft.name.trim()) setStep(2)
+              if (named) setStep(2)
             }}
           >
-            <FieldLabel htmlFor="setup-hall-name">Dining hall name</FieldLabel>
-            <input
-              id="setup-hall-name"
-              placeholder="e.g. South Quad Dining"
-              value={draft.name}
-              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-              className={inputClass}
+            <LocationFields
+              idPrefix="setup-hall-name"
+              locations={draft.locations}
+              onChange={(locations) => setDraft({ ...draft, locations })}
             />
-            <p className="mt-2 text-sm">Meal times start at the usual hours. You can change them in Settings.</p>
-            <PrimaryButton type="submit" className="mt-6" disabled={!draft.name.trim()}>
+            <p className="mt-4 text-sm">Meal times start at the usual hours. You can change them in Settings.</p>
+            <PrimaryButton type="submit" className="mt-6" disabled={!named}>
               Next
             </PrimaryButton>
           </form>
@@ -54,7 +53,7 @@ export function SetupWizard({ onComplete }: { onComplete: (settings: HallSetting
             <GhostButton type="button" onClick={() => setStep(1)}>
               Back
             </GhostButton>
-            <PrimaryButton type="button" onClick={() => onComplete(draft)}>
+            <PrimaryButton type="button" onClick={() => onComplete({ ...draft, locations: cleanLocations(draft.locations) })}>
               Go to the dashboard
             </PrimaryButton>
           </div>

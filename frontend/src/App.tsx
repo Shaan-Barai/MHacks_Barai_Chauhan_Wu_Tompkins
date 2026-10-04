@@ -35,9 +35,11 @@ export default function App() {
       {/* Left: narrow nav, black with white text */}
       <nav className="flex w-full shrink-0 flex-col bg-ink p-4 text-cream lg:w-48" aria-label="Main">
         <p className="font-display text-2xl font-semibold">ScrapSaver</p>
-        <p className="mt-0.5 truncate text-sm" title={settings.name}>
-          {settings.name}
-        </p>
+        {settings.locations.map((name, i) => (
+          <p key={i} className="mt-0.5 truncate text-sm" title={name}>
+            {name}
+          </p>
+        ))}
         <ul className="mt-3 flex flex-wrap gap-1 lg:mt-6 lg:block lg:space-y-1">
           {NAV.map((item) => (
             <li key={item.page}>

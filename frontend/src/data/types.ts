@@ -50,7 +50,8 @@ export interface SpecialEvent {
 /** Saved by first-time setup and Settings (localStorage). */
 export interface HallSettings {
   hallId: string
-  name: string
+  /** Dining hall names, at least one. Display only: data is still for one hallId. */
+  locations: string[]
   timeSets: MealTimeSet[]
   events: SpecialEvent[]
 }

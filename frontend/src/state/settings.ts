@@ -14,7 +14,7 @@ const WEEKDAY_MEALS: Record<MealLabel, MealHours> = {
 
 export const DEFAULT_SETTINGS: HallSettings = {
   hallId: 'hall-main',
-  name: '',
+  locations: [''],
   timeSets: [
     { id: 'weekdays', name: 'Weekdays', days: ['mon', 'tue', 'wed', 'thu', 'fri'], meals: WEEKDAY_MEALS },
     {
@@ -31,14 +31,18 @@ export const DEFAULT_SETTINGS: HallSettings = {
   events: [],
 }
 
-/** Settings saved before time sets existed had one `mealTimes` for every day. */
-function migrate(raw: Partial<HallSettings> & { mealTimes?: Record<MealLabel, MealHours> }): HallSettings {
+/**
+ * Settings saved before time sets existed had one `mealTimes` for every day;
+ * settings saved before multiple locations had one `name`.
+ */
+function migrate(raw: Partial<HallSettings> & { mealTimes?: Record<MealLabel, MealHours>; name?: string }): HallSettings {
   const timeSets =
     raw.timeSets ??
     (raw.mealTimes
       ? [{ id: 'every-day', name: 'Every day', days: [...WEEKDAYS], meals: raw.mealTimes }]
       : DEFAULT_SETTINGS.timeSets)
-  return { hallId: raw.hallId ?? 'hall-main', name: raw.name ?? '', timeSets, events: raw.events ?? [] }
+  const locations = raw.locations?.length ? raw.locations : [raw.name ?? '']
+  return { hallId: raw.hallId ?? 'hall-main', locations, timeSets, events: raw.events ?? [] }
 }
 
 export function loadSettings(): HallSettings | null {

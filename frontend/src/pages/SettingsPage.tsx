@@ -1,5 +1,6 @@
 /** Settings: hall name, meal times for different days, special events, and a download. */
 import { useState } from 'react'
+import { LocationFields, cleanLocations } from '../components/LocationFields'
 import { MealTimesFields } from '../components/MealTimesFields'
 import { Card, FieldLabel, GhostButton, PrimaryButton, inputClass } from '../components/ui'
 import type { HallSettings, MealTimeSet, SpecialEvent, Weekday } from '../data/types'
@@ -87,8 +88,13 @@ export function SettingsPage({ settings, onSave }: { settings: HallSettings; onS
   const unassigned = WEEKDAYS.filter((d) => !draft.timeSets.some((t) => t.days.includes(d)))
   const doubled = WEEKDAYS.filter((d) => draft.timeSets.filter((t) => t.days.includes(d)).length > 1)
 
+  const named = cleanLocations(draft.locations).length > 0
+
   const save = () => {
-    onSave({ ...draft, events: draft.events.filter((e) => e.name.trim()) })
+    const locations = cleanLocations(draft.locations)
+    const next = { ...draft, locations, events: draft.events.filter((e) => e.name.trim()) }
+    onSave(next)
+    setDraft(next)
     setSaved(true)
   }
 
@@ -107,10 +113,10 @@ export function SettingsPage({ settings, onSave }: { settings: HallSettings; onS
 
       <Card className="space-y-4">
         <div>
-          <h2 className="text-lg font-semibold">Dining hall</h2>
+          <h2 className="text-lg font-semibold">Dining halls</h2>
           <div className="mt-2 max-w-md">
-            <FieldLabel htmlFor="hall-name">Hall name</FieldLabel>
-            <input id="hall-name" value={draft.name} onChange={(e) => edit({ ...draft, name: e.target.value })} className={inputClass} />
+            <LocationFields idPrefix="hall-name" locations={draft.locations} onChange={(locations) => edit({ ...draft, locations })} />
+            {!named && <p className="mt-2">Add at least one dining hall name.</p>}
           </div>
         </div>
 
@@ -153,7 +159,7 @@ export function SettingsPage({ settings, onSave }: { settings: HallSettings; onS
         </div>
 
         <div className="flex items-center gap-3 border-t border-ink pt-4">
-          <PrimaryButton type="button" onClick={save}>
+          <PrimaryButton type="button" onClick={save} disabled={!named}>
             Save settings
           </PrimaryButton>
           {saved && (

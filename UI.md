@@ -33,7 +33,7 @@ segmentation; "Pixels wasted" is the one technical label kept.
 - AI-written suggestions pass through the same rules (dashes and emoji are stripped on display).
 
 ## FIRST-TIME SETUP (2 steps, shown once)
-1. Dining hall name. Meal times start from defaults (weekdays and weekends) and are edited in Settings.
+1. Dining hall names: one box to start, and "Add another location" adds another box (each extra box can be removed). Meal times start from defaults (weekdays and weekends) and are edited in Settings.
 2. Add menus: pick a date, type foods under Breakfast / Lunch / Dinner, or upload a spreadsheet (.csv). Then go to the Dashboard.
 
 ## LAYOUT
@@ -70,7 +70,7 @@ Everything follows the lookback buttons at the top: Today, Last 7 days, Last 30 
 - Pick a date and meal. Every scanned plate photo with the AI's labels: food, units left, percent of a serving, and notes (AI estimate, more than a full serving, not on the menu). Clean plates say so. Photo links are temporary and renewed when they expire.
 
 ### SETTINGS
-- Hall name.
+- Dining hall names, with "Add another location". At least one is required.
 - Meal times: several named sets (e.g. Weekdays, Weekends), each with the days it covers and Breakfast/Lunch/Dinner hours. Warn about days with no set or in two sets (the first set wins).
 - Special events: name, date, from, to (e.g. Football game).
 - Download the last 30 days as a spreadsheet.

@@ -89,6 +89,28 @@ const menuItem = table(
 );
 
 /**
+ * Archive of menu items from SUPERSEDED menu versions (2026-10-04, additive,
+ * BIG-PLAN v2 V4). menu_item holds only the live version of each menu (the
+ * classification vocabulary); when upsert_menu stores a higher menuVersion it
+ * first copies the outgoing version's items here, so food measurements from
+ * analyses that froze the older version still resolve their itemId to a
+ * display name/category. Never used for classification. Insert-only.
+ */
+const menuItemRevision = table(
+  { name: 'menu_item_revision', public: true },
+  {
+    revisionItemId: t.string().primaryKey(), // <itemId>@v<menuVersion>
+    itemId: t.string().index('btree'),
+    menuId: t.string().index('btree'),
+    menuVersion: t.u32(), // the superseded version these items belonged to
+    displayName: t.string(),
+    category: t.option(t.string()),
+    description: t.option(t.string()),
+    supersededAt: t.string(), // UTC ISO 8601: when the next version replaced it
+  },
+);
+
+/**
  * contracts ReferencePortion — expected visible pixel area of ONE uneaten
  * serving. Rows are append-only versions: a revision inserts a new
  * baselineId/baselineVersion (data/ createReferencePortion), never updates an
@@ -323,7 +345,10 @@ const PlateCalibration = t.object('PlateCalibration', {
  * contracts AnalysisAttempt.calibration and AnalysisAttempt.overlayObjectId.
  * A separate small table (like capture_count) so the existing
  * analysis_attempt rows stay untouched: additive, publishes in place.
- * Grams/impact are NOT stored (D3: analytics derives them at read time).
+ * Impact is NOT stored (analytics derives relative impact points from pixels
+ * at read time). BIG-PLAN v2 (2026-10-04): `calibration` is deprecated and
+ * left empty by new attempts (no plate-size calibration); the column stays so
+ * the table keeps publishing in place and legacy rows parse.
  * The overlay JPEG lives in object storage (image_object association kind
  * 'overlay'); only its object id is here. Written in the same record_analysis
  * transaction as its attempt. Legacy attempts have no row.
@@ -345,6 +370,7 @@ const attemptCalibration = table(
 const spacetimedb = schema({
   mealService,
   menuItem,
+  menuItemRevision,
   referencePortion,
   imageObject,
   captureEvent,

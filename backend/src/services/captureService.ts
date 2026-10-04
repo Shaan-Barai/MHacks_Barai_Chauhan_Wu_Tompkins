@@ -5,8 +5,8 @@
  * read access, appear only in responses, and are never logged or stored.
  */
 
-import { UNKNOWN_FOOD_LABEL } from '@scrap/analytics';
 import { HttpError, notFound } from '../errors.js';
+import { ItemNameResolver } from './itemNames.js';
 import type { Repository } from '../repo/repository.js';
 import type { ImageService } from './imageService.js';
 import type { IngestionService } from './ingestionService.js';
@@ -14,11 +14,15 @@ import type { AnalysisAttempt, CaptureImages, FoodMeasurement, SignedImage } fro
 
 
 export class CaptureService {
+  private readonly names: ItemNameResolver;
+
   constructor(
     private readonly repo: Repository,
     private readonly images: ImageService,
     private readonly ingestion: IngestionService,
-  ) {}
+  ) {
+    this.names = new ItemNameResolver(repo);
+  }
 
   /**
    * The attempt whose images describe the plate: the counted (latest
@@ -35,8 +39,6 @@ export class CaptureService {
     const attempt = await this.displayAttempt(eventId);
     const measurements: FoodMeasurement[] = attempt ? await this.repo.listMeasurementsByAttempt(attempt.attemptId) : [];
     const menu = await this.repo.getMenuByService(event.serviceId);
-    const names = new Map((menu?.items ?? []).map((i) => [i.itemId, i.displayName]));
-    const nameOf = (itemId: string | null) => (itemId === null ? UNKNOWN_FOOD_LABEL : names.get(itemId) ?? itemId);
 
     // Per-food masks: the exclusive per-item masks behind each count; for
     // attempts without them, the per-region masks.
@@ -50,6 +52,9 @@ export class CaptureService {
       }
     }
 
+    // Names from the current menu, else the item's stored row from the menu
+    // version the attempt froze, else a humanized id (never the raw id).
+    const nameOf = await this.names.nameOf(menu, maskRefs.map((r) => r.itemId));
     const masks: CaptureImages['masks'] = [];
     for (const ref of maskRefs) {
       const signed = await this.sign(ref.objectId);

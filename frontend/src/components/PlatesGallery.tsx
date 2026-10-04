@@ -1,17 +1,20 @@
 /**
  * Plates gallery: recent scanned plates as a thumbnail grid. Opening one shows
  * the original photo and the AI outline image (the segmented overlay), as a
- * toggle or side by side, with each food's Pixels wasted and estimated grams.
+ * toggle or side by side, with each food's Pixels wasted. Only the scanned
+ * plate is counted; food on a neighboring plate is outlined as "Other dish
+ * (not counted)" in the AI outline image and left out (BIG-PLAN v2 V3).
  *
  * Image links are short-lived (GET /api/captures/:id/images). A link that is
  * expired or fails to load is renewed once by asking for the images again;
  * if the fresh link fails too, the image says it is unavailable.
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { getCaptureImages } from '../data/api'
 import type { CaptureImages, CaptureListItem, ProcessingState, SignedImage } from '../data/types'
-import { formatGrams, formatNumber } from '../lib/format'
-import { Badge, Card, GhostButton } from './ui'
+import { formatNumber } from '../lib/format'
+import { NEIGHBOR_EXPLANATION } from './impactCopy'
+import { Badge, Card, GhostButton, InfoTip } from './ui'
 
 const SHOW_FIRST = 12
 /** Renew a link this long before it expires. */
@@ -103,8 +106,7 @@ function tileSummary(c: CaptureListItem): string {
   if (c.state === 'pending' || c.state === 'processing') return 'Being checked'
   if (c.state === 'needs_review') return 'Needs a person to look'
   if (c.pixelsWasted === 0) return 'Clean plate'
-  if (c.grams !== null) return `${formatGrams(c.grams)} left (estimate)`
-  if (c.pixelsWasted !== null) return `${formatNumber(c.pixelsWasted)} Pixels wasted`
+  if (c.pixelsWasted !== null) return `${formatNumber(c.pixelsWasted)} pixels wasted`
   return 'Only partly checked. Not in the totals.'
 }
 
@@ -217,7 +219,7 @@ function PlateViewer({
               missingText={noOverlayText}
               onBroken={onBroken}
             />
-            <figcaption className="mt-1 text-sm">AI outlines of the leftover food</figcaption>
+            <figcaption className="mt-1 text-sm">AI outlines of the leftover food on the scanned plate</figcaption>
           </figure>
         )}
       </div>
@@ -235,10 +237,7 @@ function PlateViewer({
             <thead>
               <tr className="border-b border-ink text-sm">
                 <th scope="col" className="py-1 pr-2">Food</th>
-                <th scope="col" className="py-1 pr-2">Pixels wasted</th>
-                <th scope="col" className="py-1">
-                  Weight <span className="font-normal">(estimate)</span>
-                </th>
+                <th scope="col" className="py-1">Pixels wasted</th>
               </tr>
             </thead>
             <tbody>
@@ -248,8 +247,7 @@ function PlateViewer({
                     {it.displayName}
                     {it.itemId === null && <span className="font-normal"> (not on the menu)</span>}
                   </th>
-                  <td className="py-1 pr-2">{formatNumber(it.pixels)}</td>
-                  <td className="py-1">{it.grams === null ? 'No weight estimate' : formatGrams(it.grams)}</td>
+                  <td className="py-1">{formatNumber(it.pixels)}</td>
                 </tr>
               ))}
             </tbody>
@@ -270,7 +268,17 @@ function Thumbnail({ entry, onBroken }: { entry: ImageEntry | undefined; onBroke
   return <div className="flex aspect-square w-full items-center justify-center border-b border-dashed border-ink text-sm">{text}</div>
 }
 
-export function PlatesGallery({ captures, loadImages = getCaptureImages }: { captures: CaptureListItem[]; loadImages?: Loader }) {
+export function PlatesGallery({
+  captures,
+  neighborExcluded = 0,
+  loadImages = getCaptureImages,
+}: {
+  captures: CaptureListItem[]
+  /** coverage.capturesWithNeighborFoodExcluded for the same days. */
+  neighborExcluded?: number
+  loadImages?: Loader
+}) {
+  const neighborTip = useId()
   const { entries, ensure, renew } = useCaptureImageCache(loadImages)
   const [showAll, setShowAll] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -295,6 +303,12 @@ export function PlatesGallery({ captures, loadImages = getCaptureImages }: { cap
         </p>
       </div>
       <p className="mt-1 text-sm">Pick a plate to see its photo next to what the AI outlined.</p>
+      {neighborExcluded > 0 && (
+        <p className="mt-1 text-sm">
+          Food on neighboring plates was left out of {formatNumber(neighborExcluded)} plate{neighborExcluded === 1 ? '' : 's'}.
+          <InfoTip id={neighborTip} text={NEIGHBOR_EXPLANATION} />
+        </p>
+      )}
 
       {captures.length === 0 ? (
         <p className="mt-3 rounded-card border border-dashed border-ink p-6 text-center">No plates were scanned in these days.</p>

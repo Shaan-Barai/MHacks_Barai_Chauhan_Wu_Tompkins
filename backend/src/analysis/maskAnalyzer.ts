@@ -2,9 +2,10 @@
  * Analyzer for the classification -> segmentation -> Pixels wasted pipeline
  * (contracts/measurement.md). Gemini classifies and boxes the leftovers;
  * the SAM 2.1 worker (vision/sam/worker.py) segments them; @scrap/vision
- * validates the masks and counts pixels, fits the plate rim for the
- * cm²/px calibration, and renders the segmented overlay. The backend stores
- * the returned masks and overlay in object storage (IngestionService).
+ * validates the masks and counts pixels (only food on the scanned target dish,
+ * BIG-PLAN v2 V3) and renders the segmented overlay. There is no plate
+ * calibration (v2). The backend stores the returned masks and overlay in
+ * object storage (IngestionService).
  */
 
 import { analyzeCaptureWithMasks, type GeminiGateway, type Segmenter } from '@scrap/vision';
@@ -15,8 +16,6 @@ export class MaskAnalyzer implements Analyzer {
   constructor(
     private readonly gateway: GeminiGateway,
     private readonly segmenter: Segmenter,
-    /** PLATE_DIAMETER_PX: fallback for the configured-default calibration (BIG-PLAN D2). */
-    private readonly options: { plateDiameterPx?: number } = {},
   ) {}
 
   async analyze(input: AnalyzerInput): Promise<AnalysisResult> {
@@ -32,14 +31,17 @@ export class MaskAnalyzer implements Analyzer {
         items: input.menu.items,
       },
       baselines: input.baselines,
-      ...(this.options.plateDiameterPx !== undefined
-        ? { calibration: { defaultPlateDiameterPx: this.options.plateDiameterPx } }
-        : {}),
     });
     const loc = result.localization;
     console.log(
       `[vision] ${input.event.eventId}: Gemini boxes ${loc.passBoxes.map((n, k) => `pass ${k + 1}=${n ?? 'failed'}`).join(', ')}, after merge=${loc.mergedBoxes}` +
         (loc.failedPasses.length ? ` (failed: ${loc.failedPasses.join(', ')})` : ''),
+    );
+    const dish = result.targetDish;
+    console.log(
+      `[vision] ${input.event.eventId}: target dish ${dish.found ? dish.dishType ?? 'found' : 'not found'}, ` +
+        (dish.clipApplied ? `clipped ${dish.clippedPx} px` : `no clip (${dish.clipUnavailableReason ?? 'n/a'})`) +
+        `, other-dish boxes ${dish.excludedBoxes}, other-dish px ${dish.otherDishPx}`,
     );
     return result;
   }

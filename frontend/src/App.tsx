@@ -55,7 +55,7 @@ export default function App() {
           ))}
         </ul>
         <p className="mt-auto hidden pt-6 text-xs leading-snug lg:block">
-          Waste numbers are AI estimates from plate photos. Meal swipes are simulated for the demo.
+          Pixels wasted come from AI outlines of plate photos. Impact points are relative. Meal swipes are simulated for the demo.
         </p>
       </nav>
 

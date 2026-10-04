@@ -32,7 +32,9 @@ export type QualityFlag =
   /** A region's segmentation failed or produced an invalid mask (no pixels counted for it). */
   | 'segmentation_failed'
   /** Masks of different foods overlapped; shared pixels went to the unclassified bucket. */
-  | 'overlapping_masks';
+  | 'overlapping_masks'
+  | 'neighbor_food_excluded'
+  | 'target_dish_unavailable';
 
 export interface CaptureEvent {
   /** Idempotency key: retries update this event, never duplicate it. */

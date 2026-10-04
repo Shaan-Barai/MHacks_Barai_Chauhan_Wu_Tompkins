@@ -1,7 +1,8 @@
 /**
- * Real @scrap/vision pipeline (scripted Gemini + fake SAM) on a real PNG:
- * the configured PLATE_DIAMETER_PX reaches the default calibration, and the
- * rendered overlay JPEG lands in object storage as an `overlay` image object.
+ * Real @scrap/vision pipeline (scripted Gemini + fake SAM) on a real PNG: the
+ * counted masks are stored, no plate calibration is persisted (BIG-PLAN v2),
+ * and the rendered overlay JPEG lands in object storage as an `overlay`
+ * image object.
  */
 
 import { test } from 'node:test';
@@ -60,8 +61,7 @@ const segmenter: Segmenter = {
   },
 };
 
-// Every Gemini call (food localize and plate locate) gets the food list; the
-// plate answer is therefore invalid and calibration falls back to the default.
+// Every Gemini call gets the same scripted food list.
 const gemini = createGeminiGateway({
   env: {},
   mockTransport: () => JSON.stringify([{ ingredient: 'scrambled eggs', menu_id: 1, box_2d: [0, 0, 250, 250] }]),
@@ -84,8 +84,8 @@ async function uploadPng(s: TestServer, eventId: string, bytes: Buffer): Promise
   return req.json.objectId;
 }
 
-test('vision pipeline: PLATE_DIAMETER_PX default calibration + overlay JPEG stored and served', async (t) => {
-  const s = await startTestServer(new MaskAnalyzer(gemini, segmenter, { plateDiameterPx: 700 }));
+test('vision pipeline: masks counted, no calibration persisted, overlay JPEG stored and served', async (t) => {
+  const s = await startTestServer(new MaskAnalyzer(gemini, segmenter));
   t.after(() => s.close());
   await s.seedMenuAndBaselines();
   const eventId = 'cap_vision_overlay';
@@ -101,11 +101,8 @@ test('vision pipeline: PLATE_DIAMETER_PX default calibration + overlay JPEG stor
   });
   assert.equal(res.status, 201, JSON.stringify(res.json));
   assert.equal(res.json.event.state, 'succeeded');
-  const cal = res.json.attempt.calibration;
-  assert.equal(cal.method, 'configured-default');
-  assert.equal(cal.plateDiameterPx, 700);
-  assert.ok(Math.abs(cal.cm2PerPx - (26.7 / 700) ** 2) < 1e-12);
-  assert.ok(cal.flags.includes('calibration_default'));
+  assert.equal(res.json.attempt.calibration, undefined, 'v2: no plate calibration');
+  assert.ok(res.json.attempt.segmentation.capturePixelsWasted > 0, 'pixels were counted');
 
   const overlayId = res.json.attempt.overlayObjectId;
   assert.match(overlayId, /^img_/, 'the rendered overlay was stored');
@@ -120,8 +117,41 @@ test('vision pipeline: PLATE_DIAMETER_PX default calibration + overlay JPEG stor
   assert.equal(images.json.masks[0].displayName, 'Scrambled Eggs');
 });
 
-test('PLATE_DIAMETER_PX is parsed as a positive number', () => {
-  assert.equal(loadConfig({ PLATE_DIAMETER_PX: '812.5' }).plateDiameterPx, 812.5);
-  assert.equal(loadConfig({}).plateDiameterPx, undefined);
-  assert.throws(() => loadConfig({ PLATE_DIAMETER_PX: '0' }), /PLATE_DIAMETER_PX/);
+test('PLATE_DIAMETER_PX is no longer read (BIG-PLAN v2: no plate calibration)', () => {
+  const config = loadConfig({ PLATE_DIAMETER_PX: '0' });
+  assert.equal('plateDiameterPx' in config, false);
+});
+
+// Target-dish answer (vision localize v4): eggs on the scanned plate, toast on a neighboring plate.
+const targetDishGemini = createGeminiGateway({
+  env: {},
+  mockTransport: () =>
+    JSON.stringify({
+      target_dish: { dish_type: 'plate', box_2d: [0, 0, 600, 600], fully_visible: true },
+      pieces: [
+        { ingredient: 'scrambled eggs', menu_id: 1, box_2d: [0, 0, 250, 250], on_target_dish: true },
+        { ingredient: 'toast', menu_id: 2, box_2d: [700, 700, 900, 900], on_target_dish: false },
+      ],
+    }),
+});
+
+test('target-dish counting: neighbor food is not counted and shows up in impact coverage', async (t) => {
+  const s = await startTestServer(new MaskAnalyzer(targetDishGemini, segmenter));
+  t.after(() => s.close());
+  await s.seedMenuAndBaselines();
+  const eventId = 'cap_target_dish';
+  const imageId = await uploadPng(s, eventId, png((x, y) => ((x >> 6) + (y >> 6)) % 2 ? 200 : 60));
+  const res = await s.api('POST', '/api/captures', {
+    eventId, hallId: HALL, serviceId: SERVICE, capturedAt: '2026-10-03T17:00:00Z', imageObjectId: imageId, geometry: GEOMETRY, source: 'replay',
+  });
+  assert.equal(res.status, 201, JSON.stringify(res.json));
+  assert.equal(res.json.event.state, 'succeeded');
+  assert.ok(res.json.attempt.qualityFlags.includes('neighbor_food_excluded'), JSON.stringify(res.json.attempt.qualityFlags));
+  const counted = res.json.measurements.map((m: any) => m.itemId);
+  assert.deepEqual(counted, ['item_eggs'], 'only the target dish food is counted');
+
+  const d = await s.api('GET', `/api/dashboard/impact?start=2026-10-03&end=2026-10-03&hallId=${HALL}`);
+  assert.equal(d.status, 200, JSON.stringify(d.json));
+  assert.equal(d.json.coverage.capturesWithNeighborFoodExcluded, 1);
+  assert.equal(d.json.totals.pixels, res.json.attempt.segmentation.capturePixelsWasted);
 });

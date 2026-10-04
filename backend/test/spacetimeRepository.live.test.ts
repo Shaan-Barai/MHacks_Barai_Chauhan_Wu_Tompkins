@@ -1,10 +1,15 @@
 /**
  * Live SpacetimeDB check of SpacetimeRepository + the module's reducers.
- * Skipped unless SPACETIMEDB_URI is set (CI has no database):
+ * OPT-IN: skipped unless SCRAP_LIVE_REPO_TEST=1 and SPACETIMEDB_URI are set.
+ * It writes throwaway `hall-t…` rows, so it runs against a separate test
+ * database, SPACETIMEDB_TEST_MODULE (default `scrap-test`), publish the module
+ * there first. It never uses SPACETIMEDB_MODULE and refuses the real
+ * databases (`scrap`, `scrap-bigplan`):
  *
- *   SPACETIMEDB_URI=http://127.0.0.1:3000 SPACETIMEDB_TOKEN=… npm test
+ *   spacetime publish --module-path db/spacetimedb --server local scrap-test
+ *   SCRAP_LIVE_REPO_TEST=1 SPACETIMEDB_URI=http://127.0.0.1:3000 SPACETIMEDB_TOKEN=… npm test
  *
- * Every record uses a per-run prefix, so the demo hall's data is untouched.
+ * Every record uses a per-run prefix.
  */
 
 import { test } from 'node:test';
@@ -23,8 +28,11 @@ import type {
   PlateCalibration,
 } from '../src/types.js';
 
-const URI = process.env.SPACETIMEDB_URI;
-const config = { uri: URI ?? '', module: process.env.SPACETIMEDB_MODULE || 'scrap', token: process.env.SPACETIMEDB_TOKEN };
+/** Real databases this test must never write to. */
+const PROTECTED_DATABASES = new Set(['scrap', 'scrap-bigplan']);
+const TEST_MODULE = process.env.SPACETIMEDB_TEST_MODULE || 'scrap-test';
+const URI = process.env.SCRAP_LIVE_REPO_TEST === '1' && !PROTECTED_DATABASES.has(TEST_MODULE) ? process.env.SPACETIMEDB_URI : undefined;
+const config = { uri: URI ?? '', module: TEST_MODULE, token: process.env.SPACETIMEDB_TOKEN };
 const run = `t${Date.now().toString(36)}`;
 const hall = `hall-${run}`;
 const geometry = { widthPx: 1024, heightPx: 1024, coordinateSpace: 'topdown-normalized-v1' as const, plateShape: 'round' as const };
@@ -113,7 +121,7 @@ const measurements: FoodMeasurement[] = [
   },
 ];
 
-test('SpacetimeDB repository round-trips every entity through the reducers', { skip: !URI }, async (t) => {
+test('SpacetimeDB repository round-trips every entity through the reducers', { skip: URI ? false : 'opt-in: set SCRAP_LIVE_REPO_TEST=1 and SPACETIMEDB_URI (writes to SPACETIMEDB_TEST_MODULE, default scrap-test; never scrap)' }, async (t) => {
   const repo = new SpacetimeRepository(config);
 
   await t.test('menu: upsert, read by service / hall+date+meal, re-upload replaces items', async () => {

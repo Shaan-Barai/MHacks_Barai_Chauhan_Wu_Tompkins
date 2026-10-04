@@ -27,7 +27,7 @@ import type {
   PlateCalibration,
 } from '../types.js';
 import type { Repository } from './repository.js';
-import { conflict } from '../errors.js';
+import { conflict, menuVersionConflict } from '../errors.js';
 
 export interface SpacetimeConfig {
   /** e.g. http://127.0.0.1:3000 */
@@ -120,7 +120,15 @@ export class SpacetimeRepository implements Repository {
 
   // --- menus ---
   async upsertMenu(menu: MenuBundle): Promise<void> {
-    await this.call('upsert_menu', { menuJson: JSON.stringify(menu) });
+    try {
+      await this.call('upsert_menu', { menuJson: JSON.stringify(menu) });
+    } catch (error) {
+      // Reducer guard: a version older than the stored one is a client conflict, not a server fault.
+      if (error instanceof Error && /is older than the stored version/.test(error.message)) {
+        throw menuVersionConflict({ serviceId: menu.service.serviceId, menuVersion: menu.service.menuVersion });
+      }
+      throw error;
+    }
   }
   private async bundles(services: Row[]): Promise<MenuBundle[]> {
     const out: MenuBundle[] = [];
@@ -138,6 +146,21 @@ export class SpacetimeRepository implements Repository {
     let q = `SELECT * FROM meal_service WHERE hall_id = ${quote(hallId)} AND service_date = ${quote(serviceDate)}`;
     if (mealLabel !== undefined) q += ` AND meal_label = ${quote(mealLabel)}`;
     return this.bundles(await this.sql(q));
+  }
+  async getMenuItem(itemId: string): Promise<MenuItem | undefined> {
+    const rows = await this.sql(`SELECT * FROM menu_item WHERE item_id = ${quote(itemId)}`);
+    if (rows[0]) return clean(rows[0] as MenuItem);
+    // Items a later revision dropped are archived in menu_item_revision (newest version wins).
+    let revisions: Row[] = [];
+    try {
+      revisions = await this.sql(`SELECT * FROM menu_item_revision WHERE item_id = ${quote(itemId)}`);
+    } catch {
+      return undefined; // older schema without the archive table
+    }
+    const latest = revisions.sort((a, b) => Number(b.menuVersion) - Number(a.menuVersion))[0];
+    if (!latest) return undefined;
+    const { itemId: id, menuId, displayName, category, description } = latest;
+    return clean({ itemId: id, menuId, displayName, category, description } as MenuItem);
   }
   async listServices(hallId?: string): Promise<MealService[]> {
     const q = hallId === undefined ? 'SELECT * FROM meal_service' : `SELECT * FROM meal_service WHERE hall_id = ${quote(hallId)}`;

@@ -8,16 +8,23 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
- * BIG-PLAN live end-to-end (BIG-PLAN.md §5): simulated camera inbox →
- * bridge → R2 + SpacetimeDB → Gemini classify/boxes → SAM 2.1 masks →
- * overlay in R2 → impact dashboard, plate images, AI recommendation.
+ * Scrap v2 live end-to-end (BIG-PLAN.md §5 + §7): simulated camera inbox →
+ * bridge → R2 + SpacetimeDB `scrap` → Gemini classify/boxes + target dish →
+ * SAM 2.1 masks (clipped to the target dish) → overlay in R2 → pixel
+ * dashboard with relative impact points, plate images, AI recommendation.
+ *
+ * v2 rules asserted here: pixels are the only measurement (no plate
+ * calibration, no grams/kg/litres/dollars), relative impact points are
+ * unitless and labeled relative, and each capture counts only the target dish
+ * (counting rule `target-dish-v1`, attempt flags `neighbor_food_excluded` /
+ * `target_dish_unavailable`).
  *
  * Skipped unless SCRAP_E2E=1, so CI never claims a live path from fixtures.
  * Needs a RUNNING backend (Gemini key, OBJECT_STORAGE_PROVIDER=r2,
  * SpacetimeDB) and the SAM worker. Costs a few Gemini calls per photo, so the
  * photo count is capped at 4.
  *
- *   cd tests && SCRAP_E2E=1 SPACETIMEDB_MODULE=scrap-bigplan npm run test:e2e:bigplan
+ *   cd tests && SCRAP_E2E=1 npm run test:e2e:scrap
  *   (the script loads ../.env with --env-file; variables already set in the
  *   shell win over the file. Pass test FILES to node --test, never the
  *   e2e/ directory: `node --test tests/e2e` treats the folder as one script and fails.)
@@ -26,7 +33,7 @@ import { fileURLToPath } from 'node:url';
  *   API_URL                default http://localhost:8787
  *   SAM_WORKER_URL         default http://127.0.0.1:8790
  *   SCRAP_E2E_SERVICE      default svc_hall-main_2026-10-03_dinner (seeded with
- *                          `cd backend && npm run seed` when missing)
+ *                          `cd backend && npm run seed -- --live-dinner` when missing)
  *   SCRAP_E2E_PHOTOS       photos to send, 1-4 (default 3): the first N by name
  *   SCRAP_E2E_PHOTO_DIR    folder (or one JPEG) to take them from (default <repo>/test2)
  *   SCRAP_E2E_EVENT_IDS    comma-separated eventIds from an earlier run: skip the
@@ -34,12 +41,15 @@ import { fileURLToPath } from 'node:url';
  *                          (no new Gemini/SAM calls except the recommendation)
  *   SCRAP_E2E_DEDUPE=1     run the bridge with Gemini dish grouping instead of
  *                          --no-dedupe (see "Dedupe" below)
+ *   SCRAP_E2E_EXPECT_NEIGHBOR=1
+ *                          the photos include a neighbouring plate: at least one
+ *                          capture must carry `neighbor_food_excluded`
  *   SCRAP_E2E_TIMEOUT_S    max wait for analysis (default 900)
  *   SCRAP_E2E_START/END    dashboard window (YYYY-MM-DD; default covers the
  *                          service date and today)
  *   SPACETIMEDB_URI / SPACETIMEDB_MODULE / SPACETIMEDB_TOKEN
  *                          when set, image_object rows are checked by SQL
- *                          (module = the database the backend uses, e.g. scrap-bigplan)
+ *                          (module = the database the backend uses: scrap)
  *
  * Dedupe: the default is --no-dedupe. Every simulated photo is a distinct
  * manual capture (a different plate), so "one capture per photo" is the
@@ -60,6 +70,11 @@ const PHOTO_DIR = process.env.SCRAP_E2E_PHOTO_DIR;
 /** Comma-separated eventIds of an earlier run: re-check them without new captures. */
 const VERIFY_ONLY = process.env.SCRAP_E2E_EVENT_IDS?.split(',').map((s) => s.trim()).filter(Boolean) ?? null;
 const DEDUPE = process.env.SCRAP_E2E_DEDUPE === '1';
+const EXPECT_NEIGHBOR = process.env.SCRAP_E2E_EXPECT_NEIGHBOR === '1';
+/** BIG-PLAN v2 V3 (vision/src/masks.ts COUNTING_RULE_VERSION). */
+const COUNTING_RULE = 'target-dish-v1';
+/** Units v2 never reports (pixels + unitless relative points only). */
+const V1_UNIT_KEYS = ['grams', 'cm2', 'kgCo2e', 'waterM3', 'waterL', 'impactUsd'];
 const TIMEOUT_MS = Number(process.env.SCRAP_E2E_TIMEOUT_S ?? 900) * 1000;
 const STDB = process.env.SPACETIMEDB_URI
   ? {
@@ -138,7 +153,18 @@ function windowDates(serviceDate) {
   };
 }
 
-describe('BIG-PLAN live e2e: simulated camera → R2/SpacetimeDB → Gemini+SAM → dashboard', { skip: !LIVE_E2E }, () => {
+/** Points are unitless numbers or null (no factor / unknown item), never 0-for-missing. */
+function assertPoints(impact, where) {
+  for (const key of ['co2Points', 'waterPoints', 'impactPoints', 'nutritionPoints']) {
+    assert.ok(key in impact, `${where}: ${key} present`);
+    const v = impact[key];
+    assert.ok(v === null || (typeof v === 'number' && Number.isFinite(v) && v >= 0), `${where}: ${key} is a finite number or null`);
+  }
+  for (const key of V1_UNIT_KEYS) assert.ok(!(key in impact), `${where}: v2 reports no ${key}`);
+  assert.ok(impact.wasteFactorsVersion, `${where}: wasteFactorsVersion`);
+}
+
+describe('Scrap v2 live e2e: simulated camera → R2/scrap → Gemini+SAM (target dish) → dashboard', { skip: !LIVE_E2E }, () => {
   let tmp;
   let service;
   let window;
@@ -146,10 +172,12 @@ describe('BIG-PLAN live e2e: simulated camera → R2/SpacetimeDB → Gemini+SAM 
   let eventIds = [];
   /** eventId → CaptureImages */
   const images = new Map();
+  /** eventIds whose counted attempt flagged neighbor_food_excluded. */
+  const neighborExcluded = new Set();
 
   before(async () => {
     assert.ok(Number.isInteger(PHOTO_COUNT) && PHOTO_COUNT >= 1 && PHOTO_COUNT <= 4, 'SCRAP_E2E_PHOTOS must be 1-4 (Gemini cost cap)');
-    tmp = await mkdtemp(path.join(tmpdir(), 'scrap-bigplan-e2e-'));
+    tmp = await mkdtemp(path.join(tmpdir(), 'scrap-e2e-'));
   });
 
   after(async () => {
@@ -173,7 +201,7 @@ describe('BIG-PLAN live e2e: simulated camera → R2/SpacetimeDB → Gemini+SAM 
     const find = async () => (list((await api('GET', '/api/services')).body, 'services') ?? []).find((s) => s.serviceId === SERVICE);
     service = await find();
     if (!service) {
-      const seed = run(process.execPath, [path.join(repo, 'backend', 'scripts', 'seed.mjs')]);
+      const seed = run(process.execPath, [path.join(repo, 'backend', 'scripts', 'seed.mjs'), '--live-dinner']);
       assert.equal(seed.status, 0, `seed failed:\n${seed.out.slice(-1500)}`);
       service = await find();
     }
@@ -225,7 +253,7 @@ describe('BIG-PLAN live e2e: simulated camera → R2/SpacetimeDB → Gemini+SAM 
     assert.doesNotMatch(again.out, /✓ dish/, 'a rerun must not ingest any dish again');
   });
 
-  it('analysis finishes for every capture; each is a simulated (replay) capture with a calibration', { timeout: TIMEOUT_MS }, async () => {
+  it('analysis finishes for every capture: replay source, target-dish counting, pixels only', { timeout: TIMEOUT_MS }, async () => {
     assert.ok(eventIds.length > 0, 'previous step produced the captures');
     const deadline = Date.now() + TIMEOUT_MS;
     const details = new Map();
@@ -253,16 +281,32 @@ describe('BIG-PLAN live e2e: simulated camera → R2/SpacetimeDB → Gemini+SAM 
       assert.ok(attempt, `${id}: an analysis attempt exists`);
       assert.notEqual(d.event.state, 'failed', `${id} failed: ${JSON.stringify(attempt.error ?? {}).slice(0, 400)}`);
       assert.ok(attempt.segmentation, `${id}: Gemini → SAM segmentation result present`);
-      const cal = attempt.calibration;
-      assert.ok(cal, `${id}: plate calibration persisted (BIG-PLAN D2)`);
-      assert.ok(['plate-fit-v1', 'configured-default'].includes(cal.method));
-      assert.ok(cal.cm2PerPx > 0 && cal.plateDiameterPx > 0);
-      assert.equal(cal.method === 'configured-default', cal.flags.includes('calibration_default'));
+      const seg = attempt.segmentation;
+      assert.equal(seg.countingRuleVersion, COUNTING_RULE, `${id}: counted with the target-dish rule (BIG-PLAN v2 V3)`);
+      assert.ok(!attempt.calibration, `${id}: v2 produces no plate calibration`);
+      if (seg.countStatus === 'complete' || seg.countStatus === 'empty') {
+        assert.ok(Number.isInteger(seg.capturePixelsWasted) && seg.capturePixelsWasted >= 0, `${id}: integer pixel count`);
+        assert.ok(seg.capturePixelsWasted <= seg.widthPx * seg.heightPx, `${id}: count within the image`);
+      }
+      const flags = attempt.qualityFlags ?? [];
+      if (flags.includes('neighbor_food_excluded')) neighborExcluded.add(id);
+      const counted = d.measurements.filter((m) => m.attemptId === attempt.attemptId);
+      for (const m of counted) {
+        assert.equal(m.method, 'mask_pixel_count', `${id}: measurements are mask pixel counts`);
+        assert.ok(Number.isInteger(m.remainingAreaPx) && m.remainingAreaPx >= 0, `${id}: integer pixels per food`);
+      }
+      // Exclusive assignment (overlaps go to the unclassified bucket), so the parts sum to the union.
+      const itemPixels = counted.reduce((sum, m) => sum + m.remainingAreaPx, 0);
+      if (seg.countStatus === 'complete') {
+        assert.equal(itemPixels, seg.capturePixelsWasted, `${id}: per-food pixels add up to the capture union (each pixel once)`);
+      }
       console.log(
-        `# ${id}: ${d.event.state}, ${attempt.segmentation.countStatus}, ` +
-          `${attempt.segmentation.capturePixelsWasted ?? '–'} px, calibration ${cal.method} ` +
-          `(${cal.plateDiameterPx} px plate), ${d.measurements.length} measurements`,
+        `# ${id}: ${d.event.state}, ${seg.countStatus}, ${seg.capturePixelsWasted ?? '–'} px, ` +
+          `${counted.length} measurements, flags [${flags.join(', ')}]`,
       );
+    }
+    if (EXPECT_NEIGHBOR) {
+      assert.ok(neighborExcluded.size >= 1, 'a photo with a neighbouring plate excluded the off-dish food (neighbor_food_excluded)');
     }
 
     // GET /api/captures lists each of them exactly once (CaptureListItem).
@@ -275,6 +319,11 @@ describe('BIG-PLAN live e2e: simulated camera → R2/SpacetimeDB → Gemini+SAM 
       assert.equal(mine.length, 1, `${id} listed exactly once`);
       assert.ok(TERMINAL.has(mine[0].state));
       assert.equal(typeof mine[0].hasOverlay, 'boolean');
+      assert.ok(mine[0].pixelsWasted === null || Number.isInteger(mine[0].pixelsWasted), `${id}: pixelsWasted is an integer or null`);
+      for (const item of mine[0].items) {
+        assert.ok(Number.isInteger(item.pixels) && item.pixels >= 0, `${id}: item pixels`);
+        assert.ok(!('grams' in item), `${id}: no grams in the capture list`);
+      }
     }
   });
 
@@ -300,7 +349,7 @@ describe('BIG-PLAN live e2e: simulated camera → R2/SpacetimeDB → Gemini+SAM 
     }
   });
 
-  it('SpacetimeDB holds image_object references (provider r2) for photo, overlay and masks — no bytes', { skip: !STDB && 'SPACETIMEDB_URI not set' }, async () => {
+  it('SpacetimeDB scrap holds image_object references (provider r2) for photo, overlay and masks — no bytes', { skip: !STDB && 'SPACETIMEDB_URI not set' }, async () => {
     assert.equal(images.size, eventIds.length, 'previous step loaded the image sets');
     for (const [id, imgs] of images) {
       const events = await sql(`SELECT * FROM capture_event WHERE event_id = ${quote(id)}`);
@@ -324,38 +373,59 @@ describe('BIG-PLAN live e2e: simulated camera → R2/SpacetimeDB → Gemini+SAM 
       }
       const attempts = await sql(`SELECT * FROM analysis_attempt WHERE event_id = ${quote(id)}`);
       assert.ok(attempts.length >= 1, `${id}: analysis_attempt row`);
-      // attempt_calibration (db/README.md): AnalysisAttempt.calibration + overlayObjectId.
+      // attempt_calibration (db/README.md) carries the overlay association; v2 stores no calibration.
       const cals = await sql(`SELECT * FROM attempt_calibration WHERE event_id = ${quote(id)}`);
-      assert.ok(cals.some((c) => isSome(c.calibration)), `${id}: attempt_calibration row with a calibration`);
+      assert.ok(cals.every((c) => !isSome(c.calibration)), `${id}: no plate calibration stored (v2)`);
       assert.ok(
         cals.some((c) => JSON.stringify(c.overlay_object_id ?? null).includes(imgs.overlay.objectId)),
         `${id}: attempt_calibration.overlay_object_id references the overlay image_object`,
       );
+      const counts = await sql(`SELECT * FROM capture_count WHERE event_id = ${quote(id)}`);
+      assert.ok(counts.some((c) => c.counting_rule_version === COUNTING_RULE), `${id}: capture_count row with counting rule ${COUNTING_RULE}`);
       const measurements = await sql(`SELECT * FROM food_measurement WHERE event_id = ${quote(id)}`);
-      console.log(`# ${id}: capture_event + ${expected.length} image_object (r2) + ${attempts.length} attempt + ${cals.length} attempt_calibration + ${measurements.length} food_measurement rows`);
+      for (const m of measurements) assert.equal(m.method, 'mask_pixel_count');
+      console.log(`# ${id}: capture_event + ${expected.length} image_object (r2) + ${attempts.length} attempt + ${cals.length} attempt_calibration + ${counts.length} capture_count + ${measurements.length} food_measurement rows`);
     }
   });
 
-  it('GET /api/dashboard/impact has totals, foods to target and most wasted', async () => {
+  it('GET /api/dashboard/impact: pixel totals, relative impact points, foods to target (px/portion), most wasted (px)', async () => {
     const res = await api('GET', `/api/dashboard/impact?start=${window.start}&end=${window.end}&hallId=${service.hallId}`);
     assert.equal(res.status, 200, JSON.stringify(res.body).slice(0, 300));
     const d = res.body;
     assert.ok(d.totals.captures >= eventIds.length, 'totals count this run');
     assert.ok(d.totals.analyzedCaptures >= 1);
     assert.ok(Number.isInteger(d.totals.pixels) && d.totals.pixels > 0, 'Pixels wasted total');
-    assert.ok(d.totals.grams === null || d.totals.grams > 0);
-    assert.ok(d.totals.wasteFactorsVersion);
-    assert.ok(Array.isArray(d.targets) && d.targets.length > 0, 'foods to target');
+    assertPoints(d.totals, 'totals');
+    assert.equal(d.labels.relativeImpact, true, 'impact points are labeled relative');
+    assert.equal(typeof d.labels.demoPortions, 'boolean');
+
     assert.ok(Array.isArray(d.mostWasted) && d.mostWasted.length > 0, 'most wasted');
-    assert.ok(d.mostWasted.some((r) => r.impact.grams !== null), 'at least one item has an estimated weight');
-    assert.ok(d.targets.some((r) => r.perPortion !== null), 'at least one per-portion rate');
-    assert.equal(d.labels.estimate, true);
-    // Nutrition is reported separately and never inside impactUsd (D1): only shape here.
-    assert.ok('nutrientDaysLost' in d.totals);
+    for (let i = 1; i < d.mostWasted.length; i++) {
+      assert.ok(d.mostWasted[i - 1].impact.pixels >= d.mostWasted[i].impact.pixels, 'most wasted is ranked by pixels');
+    }
+    assert.ok(Array.isArray(d.targets) && d.targets.length > 0, 'foods to target');
+    const rates = d.targets.filter((r) => r.perPortion !== null);
+    assert.ok(rates.length > 0, 'at least one per-portion rate');
+    for (let i = 1; i < rates.length; i++) {
+      assert.ok(rates[i - 1].perPortion.pixels >= rates[i].perPortion.pixels, 'foods to target is ranked by pixels per portion');
+    }
+    for (const row of [...d.targets, ...d.mostWasted]) {
+      assertPoints(row.impact, row.displayName);
+      if (row.perPortion !== null) {
+        assert.ok(row.portionsServed > 0, `${row.displayName}: a rate needs portions served`);
+        // Sum then divide (AGENTS.md §7): the rate is the row's pixels over its portions.
+        assert.ok(Math.abs(row.perPortion.pixels - row.impact.pixels / row.portionsServed) <= 0.5,`${row.displayName}: px/portion`);
+        assert.ok(!('grams' in row.perPortion) && !('impactUsd' in row.perPortion), `${row.displayName}: no grams/dollars per portion`);
+      }
+      if (row.itemId === null) assert.equal(row.perPortion, null, 'unknown food has no per-portion rate');
+    }
+    assert.ok(Number.isInteger(d.coverage.capturesWithNeighborFoodExcluded), 'coverage counts neighbour-food exclusions');
+    assert.ok(d.coverage.capturesWithNeighborFoodExcluded >= neighborExcluded.size, "this run's neighbour exclusions are counted");
     const top = d.mostWasted[0];
     console.log(
       `# impact: ${d.totals.captures} captures, ${d.totals.pixels} px, ` +
-        `${d.totals.grams === null ? '–' : d.totals.grams.toFixed(0)} g est.; most wasted ${top.displayName}`,
+        `${d.totals.impactPoints === null ? '–' : d.totals.impactPoints.toFixed(1)} impact points (relative); ` +
+        `most wasted ${top.displayName}; ${d.coverage.capturesWithNeighborFoodExcluded} captures with neighbour food excluded`,
     );
   });
 
@@ -368,6 +438,10 @@ describe('BIG-PLAN live e2e: simulated camera → R2/SpacetimeDB → Gemini+SAM 
     assert.ok(['gemini', 'fallback'].includes(r.source));
     assert.ok(Array.isArray(r.bullets));
     assert.ok(r.generatedAt && r.inputVersion);
+    if (r.source === 'fallback') {
+      // The rule-based text is ours: it must speak in pixels/points only (v2).
+      assert.doesNotMatch(r.text, /\b(grams?|kg|kilograms?|litres?|liters?|CO2e)\b|\$\d/i, 'fallback recommendation uses pixels/points only');
+    }
     console.log(`# recommendation source: ${r.source}, ${r.bullets.length} bullets`);
   });
 });

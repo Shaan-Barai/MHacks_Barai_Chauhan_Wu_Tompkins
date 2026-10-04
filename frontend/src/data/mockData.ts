@@ -194,17 +194,17 @@ export function mockMealDetail(date: IsoDate, meal: MealLabel, menu: DayMenu | n
 }
 
 // ===========================================================================
-// Waste impact demo (BIG-PLAN D1-D7): the dinner menu from
-// menu_waste_factors.csv, estimated grams, CO2e, water, impact $, nutrition
-// lost (separate), seeded demo portions, recent plates and their images.
-// All of it is mock, deterministic per date.
+// Waste impact demo (BIG-PLAN v2): the dinner menu from
+// menu_waste_factors.csv, Pixels wasted, relative impact points
+// (points = pixels/1000 x weight_g_per_cm2 x factor), relative nutrition
+// points (separate), seeded demo portions, recent plates and their images.
+// All of it is mock, deterministic per date. No grams, kg, litres or dollars.
 // ===========================================================================
 
 export const WASTE_FACTORS_VERSION = 'waste-factors-v2'
-/** D1: dollars per kg CO2e and per m3 freshwater. No nutrition term. */
-export const CARBON_USD_PER_KG = 0.19
-export const WATER_USD_PER_M3 = 1.5
-const PLATE_DIAMETER_CM = 26.7
+/** Impact score weights (BIG-PLAN v2 V2): impactPoints = 0.19 C + 1.50 W. No nutrition term. */
+export const CO2_WEIGHT = 0.19
+export const WATER_WEIGHT = 1.5
 
 interface MockFactorFood {
   food: string
@@ -243,7 +243,7 @@ export const MOCK_DINNER_FOODS: MockFactorFood[] = [
   { food: 'Strawberry Shortcake Bar', station: 'MBakery', weight: 1.5, c: 2.49, w: 0.442, o: 0.55 },
 ]
 
-/** A menu item with no factor row (exercises the "no weight estimate" state). */
+/** A menu item with no factor row (exercises the "no impact data" state). */
 const NO_FACTOR_FOOD = "Chef's Soup of the Day"
 /** Demo menu item whose portions were never entered (exercises "no portions entered"). */
 const NO_PORTIONS_FOOD = 'Farro'
@@ -268,8 +268,8 @@ interface MockDinnerService {
   serviceId: string
   plates: number
   excluded: number
-  defaultCalibration: number
-  cm2PerPx: number
+  /** Plates where food on a neighboring plate was left out (target-dish counting). */
+  neighborExcluded: number
   items: MockServiceItem[]
   unknownPixels: number
 }
@@ -280,9 +280,7 @@ export function mockDinnerService(date: IsoDate, today: IsoDate): MockDinnerServ
   const r = rng(`impact:${date}`)
   const plates = 120 + Math.floor(r() * 140)
   const excluded = Math.floor(r() * 6)
-  const defaultCalibration = r() < 0.3 ? 1 : 0
-  const plateDiameterPx = 880 + r() * 60
-  const cm2PerPx = (PLATE_DIAMETER_CM / plateDiameterPx) ** 2
+  const neighborExcluded = Math.floor(r() * 4)
   const picked = [...MOCK_DINNER_FOODS].sort(() => r() - 0.5).slice(0, 14)
   const names: { name: string; factor: MockFactorFood | null }[] = picked.map((f) => ({ name: f.food, factor: f }))
   if (r() < 0.5) names.push({ name: NO_FACTOR_FOOD, factor: null })
@@ -300,44 +298,26 @@ export function mockDinnerService(date: IsoDate, today: IsoDate): MockDinnerServ
     serviceId: `svc_${MOCK_HALL_ID}_${date}_dinner`,
     plates,
     excluded,
-    defaultCalibration,
-    cm2PerPx,
+    neighborExcluded,
     items,
     unknownPixels: Math.round(plates * 600 * (0.5 + r())),
   }
 }
 
-function gramsOf(pixels: number, cm2PerPx: number, factor: MockFactorFood | null): number | null {
-  return factor ? pixels * cm2PerPx * factor.weight : null
+/** Relative points for counted pixels: pixels/1000 x weight_g_per_cm2 x factor. */
+function pointsOf(pixels: number, factor: MockFactorFood | null, pick: (f: MockFactorFood) => number): number | null {
+  return factor ? (pixels / 1000) * factor.weight * pick(factor) : null
 }
 
-/** Estimated grams for one day's dinner (daily chart). */
-export function mockDailyGrams(date: IsoDate, today: IsoDate): number | null {
-  const svc = mockDinnerService(date, today)
-  if (!svc) return null
-  return svc.items.reduce((s, i) => s + (gramsOf(i.pixels, svc.cm2PerPx, i.factor) ?? 0), 0)
-}
-
-interface ImpactAcc {
-  pixels: number
-  cm2: number
-  grams: number | null
-  factor: MockFactorFood | null
-}
-
-function impactFrom(acc: ImpactAcc, unavailable?: 'no_factor' | 'unknown_item') {
-  const kg = acc.grams === null ? null : acc.grams / 1000
-  const f = acc.factor
-  const kgCo2e = kg !== null && f ? kg * f.c : null
-  const waterM3 = kg !== null && f ? kg * f.w : null
+function impactFrom(pixels: number, factor: MockFactorFood | null, unavailable?: 'no_factor' | 'unknown_item') {
+  const co2Points = pointsOf(pixels, factor, (f) => f.c)
+  const waterPoints = pointsOf(pixels, factor, (f) => f.w)
   return {
-    pixels: acc.pixels,
-    cm2: acc.cm2,
-    grams: acc.grams,
-    kgCo2e,
-    waterM3,
-    impactUsd: kgCo2e !== null && waterM3 !== null ? CARBON_USD_PER_KG * kgCo2e + WATER_USD_PER_M3 * waterM3 : null,
-    nutrientDaysLost: kg !== null && f ? kg * f.o : null,
+    pixels,
+    co2Points,
+    waterPoints,
+    impactPoints: co2Points !== null && waterPoints !== null ? CO2_WEIGHT * co2Points + WATER_WEIGHT * waterPoints : null,
+    nutritionPoints: pointsOf(pixels, factor, (f) => f.o),
     wasteFactorsVersion: WASTE_FACTORS_VERSION,
     ...(unavailable ? { unavailableReason: unavailable } : {}),
   }
@@ -345,27 +325,21 @@ function impactFrom(acc: ImpactAcc, unavailable?: 'no_factor' | 'unknown_item') 
 
 /** Mock GET /api/dashboard/impact over a window of dinner services. */
 export function mockImpactDashboard(start: IsoDate, end: IsoDate, today: IsoDate): ImpactDashboard {
-  const byItem = new Map<string, ImpactAcc & { name: string; portions: number | null; portionsMissing: boolean }>()
-  const unknown: ImpactAcc = { pixels: 0, cm2: 0, grams: null, factor: null }
+  const byItem = new Map<string, { name: string; factor: MockFactorFood | null; pixels: number; portions: number | null; portionsMissing: boolean }>()
+  let unknownPixels = 0
   let captures = 0
   let excluded = 0
-  let defaultCal = 0
+  let neighborExcluded = 0
   for (const date of eachDayInclusive(start, end)) {
     const svc = mockDinnerService(date, today)
     if (!svc) continue
     captures += svc.plates
     excluded += svc.excluded
-    defaultCal += svc.defaultCalibration
-    unknown.pixels += svc.unknownPixels
-    unknown.cm2 += svc.unknownPixels * svc.cm2PerPx
+    neighborExcluded += svc.neighborExcluded
+    unknownPixels += svc.unknownPixels
     for (const it of svc.items) {
-      const acc = byItem.get(it.name) ?? {
-        name: it.name, factor: it.factor, pixels: 0, cm2: 0, grams: it.factor ? 0 : null, portions: 0, portionsMissing: false,
-      }
+      const acc = byItem.get(it.name) ?? { name: it.name, factor: it.factor, pixels: 0, portions: 0, portionsMissing: false }
       acc.pixels += it.pixels
-      acc.cm2 += it.pixels * svc.cm2PerPx
-      const g = gramsOf(it.pixels, svc.cm2PerPx, it.factor)
-      if (g !== null && acc.grams !== null) acc.grams += g
       if (it.portions === null) acc.portionsMissing = true
       else acc.portions = (acc.portions ?? 0) + it.portions
       byItem.set(it.name, acc)
@@ -373,14 +347,14 @@ export function mockImpactDashboard(start: IsoDate, end: IsoDate, today: IsoDate
   }
 
   const rows: ItemImpactRow[] = [...byItem.values()].map((acc) => {
-    const impact = impactFrom(acc, acc.factor ? undefined : 'no_factor')
+    const impact = impactFrom(acc.pixels, acc.factor, acc.factor ? undefined : 'no_factor')
     const portionsServed = acc.portionsMissing ? null : acc.portions
+    // Sum then divide (pixels over the window / portions over the window).
     const perPortion =
       portionsServed && portionsServed > 0
         ? {
-            grams: impact.grams === null ? null : impact.grams / portionsServed,
             pixels: impact.pixels / portionsServed,
-            impactUsd: impact.impactUsd === null ? null : impact.impactUsd / portionsServed,
+            impactPoints: impact.impactPoints === null ? null : impact.impactPoints / portionsServed,
           }
         : null
     return {
@@ -393,12 +367,12 @@ export function mockImpactDashboard(start: IsoDate, end: IsoDate, today: IsoDate
       perPortion,
     }
   })
-  if (unknown.pixels > 0) {
+  if (unknownPixels > 0) {
     rows.push({
       itemId: null,
       displayName: 'Food not on the menu',
       factorKey: null,
-      impact: impactFrom(unknown, 'unknown_item'),
+      impact: impactFrom(unknownPixels, null, 'unknown_item'),
       portionsServed: null,
       portionsSource: null,
       perPortion: null,
@@ -417,32 +391,23 @@ export function mockImpactDashboard(start: IsoDate, end: IsoDate, today: IsoDate
     }
     return any ? total : null
   }
-  const rankTarget = (r: ItemImpactRow) => (r.perPortion === null ? 2 : r.perPortion.grams === null ? 1 : 0)
   const targets = [...rows].sort(
     (a, b) =>
-      rankTarget(a) - rankTarget(b) ||
-      (b.perPortion?.grams ?? 0) - (a.perPortion?.grams ?? 0) ||
+      (a.perPortion === null ? 1 : 0) - (b.perPortion === null ? 1 : 0) ||
       (b.perPortion?.pixels ?? 0) - (a.perPortion?.pixels ?? 0) ||
       b.impact.pixels - a.impact.pixels,
   )
-  const mostWasted = [...rows].sort(
-    (a, b) =>
-      (a.impact.grams === null ? 1 : 0) - (b.impact.grams === null ? 1 : 0) ||
-      (b.impact.grams ?? 0) - (a.impact.grams ?? 0) ||
-      b.impact.pixels - a.impact.pixels,
-  )
+  const mostWasted = [...rows].sort((a, b) => b.impact.pixels - a.impact.pixels)
   const named = rows.filter((r) => r.itemId !== null)
 
   return {
     window: { start, end, hallId: MOCK_HALL_ID },
     totals: {
       pixels: rows.reduce((s, r) => s + r.impact.pixels, 0),
-      cm2: sum((r) => r.impact.cm2),
-      grams: sum((r) => r.impact.grams),
-      kgCo2e: sum((r) => r.impact.kgCo2e),
-      waterM3: sum((r) => r.impact.waterM3),
-      impactUsd: sum((r) => r.impact.impactUsd),
-      nutrientDaysLost: sum((r) => r.impact.nutrientDaysLost),
+      co2Points: sum((r) => r.impact.co2Points),
+      waterPoints: sum((r) => r.impact.waterPoints),
+      impactPoints: sum((r) => r.impact.impactPoints),
+      nutritionPoints: sum((r) => r.impact.nutritionPoints),
       wasteFactorsVersion: WASTE_FACTORS_VERSION,
       captures,
       analyzedCaptures: captures - excluded,
@@ -454,9 +419,9 @@ export function mockImpactDashboard(start: IsoDate, end: IsoDate, today: IsoDate
       itemsWithFactor: named.filter((r) => r.factorKey !== null).length,
       itemsWithoutFactor: named.filter((r) => r.factorKey === null).length,
       itemsWithPortions: named.filter((r) => r.portionsServed !== null).length,
-      capturesWithDefaultCalibration: defaultCal,
+      capturesWithNeighborFoodExcluded: neighborExcluded,
     },
-    labels: { estimate: true, demoPortions: true },
+    labels: { relativeImpact: true, demoPortions: true },
   }
 }
 
@@ -484,21 +449,18 @@ export function mockCapture(date: IsoDate, n: number, today: IsoDate): CaptureLi
   const clean = n === 6
   const eventId = `cap_${date}_${n}`
   const base = { eventId, capturedAt: at.toISOString(), serviceId: svc.serviceId, source: (n === 7 ? 'replay' : 'camera') as CaptureListItem['source'] }
-  if (state === 'failed') return { ...base, state, pixelsWasted: null, grams: null, items: [], hasOverlay: false }
-  if (clean) return { ...base, state, pixelsWasted: 0, grams: 0, items: [], hasOverlay: true }
+  if (state === 'failed') return { ...base, state, pixelsWasted: null, items: [], hasOverlay: false }
+  if (clean) return { ...base, state, pixelsWasted: 0, items: [], hasOverlay: true }
   const count = 1 + Math.floor(r() * 3)
   const pool = [...svc.items].sort(() => r() - 0.5).slice(0, count)
   const items = pool.map((it) => {
     const pixels = 6_000 + Math.floor(r() * 52_000)
-    const g = gramsOf(pixels, svc.cm2PerPx, it.factor)
-    return { itemId: itemIdFor(it.name), displayName: it.name, pixels, grams: g === null ? null : Math.round(g * 10) / 10 }
+    return { itemId: itemIdFor(it.name), displayName: it.name, pixels }
   })
-  const withGrams = items.filter((i) => i.grams !== null)
   return {
     ...base,
     state,
     pixelsWasted: items.reduce((s, i) => s + i.pixels, 0),
-    grams: withGrams.length ? withGrams.reduce((s, i) => s + (i.grams ?? 0), 0) : null,
     items,
     hasOverlay: true,
   }
@@ -568,7 +530,18 @@ export function mockCaptureImages(eventId: string, today: IsoDate, now: Date): C
   if (!capture) return null
   const expiresAt = new Date(now.getTime() + 15 * 60_000).toISOString()
   const blobs = blobsFor(capture)
-  const photo = plateSvg(blobs)
+  const plate = plateSvg(blobs)
+  // One plate per dinner has a neighboring dish at the edge of the photo
+  // (target-dish counting: outlined as not counted, BIG-PLAN v2 V3).
+  const neighbor = Number(m![2]) === 3
+  const neighborSvg = neighbor
+    ? '<circle cx="490" cy="470" r="120" fill="#f4f1ea" stroke="#d8d2c4" stroke-width="6"/><ellipse cx="430" cy="430" rx="34" ry="24" fill="#8a5a3c"/>'
+    : ''
+  const neighborOutline = neighbor
+    ? '<ellipse cx="430" cy="430" rx="34" ry="24" fill="none" stroke="#ffffff" stroke-width="3" stroke-dasharray="6 4"/>' +
+      '<text x="470" y="474" text-anchor="end" font-family="Times New Roman, serif" font-size="15" fill="#ffffff">Other dish (not counted)</text>'
+    : ''
+  const photo = plate + neighborSvg
   const original = { objectId: `img_${eventId}`, url: svgUrl(photo), expiresAt }
   if (!capture.hasOverlay) return { eventId, original, overlay: null, masks: [] }
   const overlayBody =
@@ -586,7 +559,8 @@ export function mockCaptureImages(eventId: string, today: IsoDate, now: Date): C
         (it, i) =>
           `<rect x="12" y="${12 + i * 26}" width="16" height="16" fill="${OVERLAY_TINTS[i % OVERLAY_TINTS.length]}"/><text x="34" y="${25 + i * 26}" font-family="Times New Roman, serif" font-size="15" fill="#ffffff">${escapeXml(it.displayName)}</text>`,
       )
-      .join('')
+      .join('') +
+    neighborOutline
   return {
     eventId,
     original,
@@ -608,29 +582,30 @@ export function mockCaptureImages(eventId: string, today: IsoDate, now: Date): C
 // ---------------------------------------------------------------------------
 
 export function mockRecommendation(dash: ImpactDashboard, now: Date): Recommendation {
-  const ranked = dash.targets.filter((r) => r.perPortion?.grams != null)
+  const ranked = dash.targets.filter((r) => r.perPortion != null)
   const top = ranked[0]
   const second = ranked[1]
-  const most = dash.mostWasted.find((r) => r.impact.grams !== null)
+  const most = dash.mostWasted[0]
   const missing = dash.targets.filter((r) => r.itemId !== null && r.portionsServed === null)
   const bullets: Recommendation['bullets'] = []
-  const g = (n: number) => `${Math.round(n)} g`
-  if (top?.perPortion?.grams != null) {
+  const px = (n: number) => `${Math.round(n).toLocaleString()} pixels`
+  if (top?.perPortion) {
     bullets.push({
       text: `Try a smaller serving of ${top.displayName} for a week and compare.`,
-      metric: `${g(top.perPortion.grams)} per portion over ${(top.portionsServed ?? 0).toLocaleString()} portions`,
+      metric: `${px(top.perPortion.pixels)} wasted per portion over ${(top.portionsServed ?? 0).toLocaleString()} portions`,
     })
   }
-  if (second?.perPortion?.grams != null) {
+  if (second?.perPortion) {
     bullets.push({
       text: `Cook ${second.displayName} in smaller batches and refill more often.`,
-      metric: `${g(second.perPortion.grams)} per portion`,
+      metric: `${px(second.perPortion.pixels)} wasted per portion`,
     })
   }
-  if (most?.impact.grams != null && most.impact.kgCo2e != null) {
+  if (most) {
+    const pts = most.impact.impactPoints
     bullets.push({
       text: `${most.displayName} had the most food left overall.`,
-      metric: `${(most.impact.grams / 1000).toFixed(1)} kg, ${Math.round(most.impact.kgCo2e)} kg CO2e`,
+      metric: `${px(most.impact.pixels)} wasted${pts == null ? '' : `, ${Math.round(pts).toLocaleString()} relative impact points`}`,
     })
   }
   if (missing.length > 0) {

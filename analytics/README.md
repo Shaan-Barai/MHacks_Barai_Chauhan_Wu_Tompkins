@@ -58,29 +58,48 @@ On missing gateway or provider failure, returns `source: 'fallback_rules'` text 
 still cites the top leftover item, AI-estimate labeling, limited coverage, and
 simulated attendance. Cache by `dataVersion` and regenerate when aggregates change.
 
-## Waste impact and waste per portion (BIG-PLAN D2, D3, D5)
+## Waste impact in pixels and relative impact points (BIG-PLAN v2, V1/V2)
 
-`src/wasteImpact.ts`, pure. Grams and impact are labeled **estimates**; Pixels wasted stays the raw measurement.
+`src/wasteImpact.ts`, pure. **Pixels wasted** is the measurement and the headline unit. There is no plate
+calibration and there are no grams, kg CO2e, litres or dollars anywhere in the app.
 
-- `computeWasteImpact(pixels, calibration, factor, nutrition, { unknownItem? })` returns a contract `WasteImpact`:
-  `cm² = px × cm2PerPx`, `g = cm² × weightGPerCm2`, then `kg × C`, `kg × W` and `kg × impactUsdPerKg` (0.19·C + 1.50·W).
-  `nutrientDaysLost = kg × nutrientDaysPerKg` is reported separately and never added to `impactUsd`.
-  The `unavailableReason` precedence is `unknown_item` (area kept), then `no_calibration`, then `no_factor` (area kept).
-- `sumImpacts(list)`: `pixels` sums every input. Each estimate field sums only the inputs that have it, and is null only when no input has it.
-  Unavailable inputs are never counted as zero. `impactCoverage(list)` counts them by reason.
-- `buildImpactDashboard(input)` returns the contract `ImpactDashboard`. It has one row per food seen in the window. A food served on several days is grouped by factorKey, and its `itemId` is the latest one.
-  The unknown-food row has `itemId: null`. Per portion is computed as Σ grams ÷ Σ portions over the (service, menuVersion, item) snapshots that contributed measurements.
-  A missing or ambiguous snapshot makes `portionsServed` null. A zero count makes `perPortion` null. Gram/$ rates require every photo in the row to have grams.
-  `targets` holds named foods ordered by grams per portion. `mostWasted` holds all rows ordered by total grams, then pixels.
-  Factor tables come in through `factors: { findWasteFactor, findNutritionFactor }` (from `scrap-data`).
-- `selectImpactMeasurements({ services, captures, measurements, menuItems })` chooses eligible mask measurements with `validMaskCount` and returns the capture counts.
+- `computeWasteImpact(pixels, factor, nutrition, { unknownItem? })` returns a contract `WasteImpact`.
+  With `base = pixels / 1000 × weightGPerCm2`: `co2Points = base × C`, `waterPoints = base × W`,
+  `impactPoints = base × impactUsdPerKg` (0.19·C + 1.50·W), and `nutritionPoints = base × nutrientDaysPerKg`,
+  which is separate and never added to `impactPoints`. Points are **unitless and relative**: they compare foods with
+  each other (beef outweighs rice for the same pixels) and are never kg, litres or dollars. Always label them
+  "relative impact points". Unknown food → points null with `unavailableReason: 'unknown_item'`; no factor row →
+  null with `'no_factor'`. Missing is never 0; a measured clean mask (0 px) scores 0.
+- `sumImpacts(list)`: `pixels` sums every input. Each points field sums only the inputs that have it, and is null
+  only when no input has it, so a total's points cover the foods with a factor while its pixels cover everything.
+  `impactCoverage(list)` counts `withPoints` and the unavailable inputs by reason.
+- `buildImpactDashboard(input)` returns the contract `ImpactDashboard`. One row per food seen in the window; a food
+  served on several days is grouped by factorKey and its `itemId` is the latest one. The unknown-food row has
+  `itemId: null`. Per portion is sum-then-divide: Σ pixels ÷ Σ portions over the (service, menuVersion, item)
+  snapshots that contributed measurements (`perPortion = { pixels, impactPoints }`). A missing or ambiguous snapshot
+  makes `portionsServed` null; a zero count makes `perPortion` null. `targets` holds named foods ranked by pixels per
+  portion (no rate last); `mostWasted` holds all rows ranked by total pixels. `coverage.capturesWithNeighborFoodExcluded`
+  counts entries of `attemptQualityFlags` (eventId → counted attempt's flags) carrying
+  `NEIGHBOR_FOOD_EXCLUDED_FLAG` (`'neighbor_food_excluded'`, set by vision's target-dish counting).
+  `labels = { relativeImpact: true, demoPortions }`. Factor tables come in through
+  `factors: { findWasteFactor, findNutritionFactor }` (from `scrap-data`).
+- `selectImpactMeasurements({ services, captures, measurements, menuItems })` chooses eligible mask measurements with
+  `validMaskCount` and returns the capture counts. Pass `attemptMenuVersions` (eventId → the menuVersion the counted
+  attempt froze) so a capture analyzed before a menu revision is validated against, and paired with the portions of, its
+  own version; `menuItems` should then include the superseded items too.
 
-## AI recommendation (BIG-PLAN D8)
+Worked example (pepperoni pizza, 10,000 px, 1.0 g/cm², C 16.06, W 1.94, score 5.96): base 10 → 160.6 CO2 points,
+19.4 water points, 59.6 relative impact points, 6.9 nutrition points (separate).
 
-`src/recommendation.ts`: `recommendationFacts(dashboard)` produces compact facts plus `allowedMetrics`, the exact metric strings the dashboard shows, e.g.
-`Ancho Flank Steak: 5.2 g wasted per portion`. `buildRecommendationPrompt(facts)` asks for JSON.
-`generateRecommendation(gateway | null, dashboard, now)` validates the model output. It requires 2–4 bullets, each citing an allowed metric, with no causal claims and no markdown.
-Otherwise it returns `fallbackRecommendation(dashboard, now)` (`source: 'fallback'`). `inputVersion = impact-rec-v1|waste-factors-v2|<facts hash>`.
+## AI recommendation (BIG-PLAN D8, v2)
+
+`src/recommendation.ts`: `recommendationFacts(dashboard)` produces compact facts plus `allowedMetrics`, the exact metric
+strings the dashboard shows, e.g. `Ancho Flank Steak: 1,750 pixels wasted per portion`,
+`Ancho Flank Steak: 10,500 pixels wasted in total`, `Ancho Flank Steak: 352 relative impact points`.
+`buildRecommendationPrompt(facts)` asks for JSON. `generateRecommendation(gateway | null, dashboard, now)` validates the
+model output: 2–4 bullets, each citing an allowed metric; no causal claims, no markdown, no physical units (kg, grams,
+litres, dollars, CO2e) and no bare "points" (always "relative impact points"). Otherwise it returns
+`fallbackRecommendation(dashboard, now)` (`source: 'fallback'`). `inputVersion = impact-rec-v2|waste-factors-v2|<facts hash>`.
 
 ## Handoff
 

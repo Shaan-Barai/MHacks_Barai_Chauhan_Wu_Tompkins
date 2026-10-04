@@ -13,10 +13,9 @@ function capture(over: Partial<CaptureListItem> & { eventId: string }): CaptureL
     source: 'camera',
     state: 'succeeded',
     pixelsWasted: 30_000,
-    grams: 42.5,
     items: [
-      { itemId: 'item_pepperoni-pizza', displayName: 'Pepperoni Pizza', pixels: 20_000, grams: 30 },
-      { itemId: null, displayName: 'Unknown food', pixels: 10_000, grams: null },
+      { itemId: 'item_pepperoni-pizza', displayName: 'Pepperoni Pizza', pixels: 20_000 },
+      { itemId: null, displayName: 'Unknown food', pixels: 10_000 },
     ],
     hasOverlay: true,
     ...over,
@@ -33,12 +32,12 @@ function images(eventId: string, n = 1, overlay = true): CaptureImages {
 }
 
 describe('PlatesGallery', () => {
-  it('opens a plate with photo and AI outlines side by side, toggles views, and lists foods with pixels and grams', async () => {
+  it('opens a plate with photo and AI outlines side by side, toggles views, and lists foods with pixels only', async () => {
     const load = vi.fn(async (id: string) => images(id))
     render(<PlatesGallery captures={[capture({ eventId: 'a' })]} loadImages={load} />)
-    expect(screen.getByText('43 g left (estimate)')).toBeInTheDocument()
+    expect(screen.getByText('30,000 pixels wasted')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /Plate at .*43 g left/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Plate at .*30,000 pixels wasted/ }))
     expect(await screen.findByAltText(/Photo of the plate/)).toHaveAttribute('src', 'https://img.test/a/photo-1.jpg')
     expect(screen.getByAltText(/leftover food the AI outlined/)).toHaveAttribute('src', 'https://img.test/a/overlay-1.jpg')
 
@@ -52,8 +51,11 @@ describe('PlatesGallery', () => {
     expect(screen.queryByAltText(/leftover food the AI outlined/)).toBeNull()
 
     const table = screen.getByRole('table')
-    expect(table).toHaveTextContent('Pepperoni Pizza20,00030 g')
-    expect(table).toHaveTextContent('Unknown food (not on the menu)10,000No weight estimate')
+    expect(table.querySelectorAll('thead th')).toHaveLength(2)
+    expect(table).toHaveTextContent('FoodPixels wasted')
+    expect(table).toHaveTextContent('Pepperoni Pizza20,000')
+    expect(table).toHaveTextContent('Unknown food (not on the menu)10,000')
+    expect(table).not.toHaveTextContent(/weight|estimate|\d g\b/i)
     // one request per plate, shared by the thumbnail and the viewer
     expect(load).toHaveBeenCalledTimes(1)
   })
@@ -92,9 +94,9 @@ describe('PlatesGallery', () => {
     const { unmount } = render(
       <PlatesGallery
         captures={[
-          capture({ eventId: 'f', state: 'failed', pixelsWasted: null, grams: null, items: [], hasOverlay: false }),
-          capture({ eventId: 'c', pixelsWasted: 0, grams: 0, items: [] }),
-          capture({ eventId: 'p', state: 'processing', pixelsWasted: null, grams: null, items: [], hasOverlay: false }),
+          capture({ eventId: 'f', state: 'failed', pixelsWasted: null, items: [], hasOverlay: false }),
+          capture({ eventId: 'c', pixelsWasted: 0, items: [] }),
+          capture({ eventId: 'p', state: 'processing', pixelsWasted: null, items: [], hasOverlay: false }),
         ]}
         loadImages={load}
       />,
@@ -114,11 +116,26 @@ describe('PlatesGallery', () => {
     render(<PlatesGallery captures={[]} loadImages={load} />)
     expect(screen.getByText('No plates were scanned in these days.')).toBeInTheDocument()
   })
+
+  it('notes when food on neighboring plates was left out, and stays quiet when none was', () => {
+    const load = vi.fn(async (id: string) => images(id))
+    const { unmount } = render(<PlatesGallery captures={[capture({ eventId: 'n' })]} neighborExcluded={3} loadImages={load} />)
+    expect(screen.getByText(/Food on neighboring plates was left out of 3 plates\./)).toBeInTheDocument()
+    expect(screen.getByText(/outlined as "Other dish \(not counted\)"/)).toBeInTheDocument()
+    unmount()
+    render(<PlatesGallery captures={[capture({ eventId: 'n' })]} neighborExcluded={1} loadImages={load} />)
+    expect(screen.getByText(/left out of 1 plate\./)).toBeInTheDocument()
+  })
+
+  it('shows no neighbor note by default', () => {
+    render(<PlatesGallery captures={[capture({ eventId: 'z' })]} loadImages={vi.fn(async (id: string) => images(id))} />)
+    expect(screen.queryByText(/neighboring plates/)).toBeNull()
+  })
 })
 
 const rec: Recommendation = {
   text: 'Ancho Flank Steak had the most food left per portion — try a smaller serving.',
-  bullets: [{ text: 'Serve a smaller steak portion.', metric: '30 g per portion over 140 portions' }],
+  bullets: [{ text: 'Serve a smaller steak portion.', metric: '2,857 pixels wasted per portion over 140 portions' }],
   source: 'gemini',
   generatedAt: '2026-10-03T22:15:00.000Z',
   inputVersion: 'v1',
@@ -130,7 +147,9 @@ describe('RecommendationCard', () => {
     expect(screen.getByText('AI')).toBeInTheDocument()
     expect(screen.getByText('Ancho Flank Steak had the most food left per portion, try a smaller serving.')).toBeInTheDocument()
     expect(screen.getByText('Serve a smaller steak portion.')).toBeInTheDocument()
-    expect(screen.getByText('30 g per portion over 140 portions').closest('p')).toHaveTextContent('Based on: 30 g per portion over 140 portions')
+    expect(screen.getByText('2,857 pixels wasted per portion over 140 portions').closest('p')).toHaveTextContent(
+      'Based on: 2,857 pixels wasted per portion over 140 portions',
+    )
     expect(screen.getByText(/^Written by AI on/)).toBeInTheDocument()
   })
 

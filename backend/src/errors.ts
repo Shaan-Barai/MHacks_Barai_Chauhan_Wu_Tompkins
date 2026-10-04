@@ -42,6 +42,19 @@ export function conflict(code: string, message: string, details?: Record<string,
   return new HttpError(409, apiError(code, message, true, details));
 }
 
+/** A menu save older than the stored version (POST /api/menus): reload and plan a revision, not retryable as-is. */
+export function menuVersionConflict(details?: Record<string, unknown>): HttpError {
+  return new HttpError(
+    409,
+    apiError(
+      'MENU_VERSION_CONFLICT',
+      'A newer version of this menu is already saved. Reload the menu and edit that version, or re-upload it as a revision.',
+      false,
+      details,
+    ),
+  );
+}
+
 /** Coerce any thrown value into an HttpError with an ApiError body. */
 export function toHttpError(err: unknown): HttpError {
   if (err instanceof HttpError) return err;

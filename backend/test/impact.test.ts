@@ -1,29 +1,32 @@
 /**
- * Waste-impact endpoints (BIG-PLAN D2–D8) over hand-calculated fixtures:
- * GET /api/dashboard/impact, GET /api/captures, GET /api/recommendation.
- * Offline: mock analyzer, local-dev storage, in-memory repo, no live Gemini.
+ * Waste-impact endpoints (BIG-PLAN v2: pixels + relative impact points, no
+ * plate calibration, no grams) over hand-calculated fixtures:
+ * GET /api/dashboard/impact, GET /api/captures, GET /api/recommendation,
+ * GET /api/dashboard/daily. Offline: mock analyzer, local-dev storage,
+ * in-memory repo, no live Gemini.
  *
  * Factor rows (menu_waste_factors.csv via scrap-data):
- *   Baked Boneless Ham            0.9 g/cm²
- *   Oven Roasted Garlic Potatoes  1.6 g/cm²
+ *   Baked Boneless Ham            0.9 g/cm², C 12.39, W 1.808, score 5.07
+ *   Oven Roasted Garlic Potatoes  1.6 g/cm², C 0.62,  W 0.117, score 0.29
  *   Mystery Stew                  no factor row
  *
- * cap_a (plate fit, 267 px plate -> 0.01 cm²/px):
- *   ham 10,000 px -> 100 cm² -> 90 g; potatoes 5,000 px -> 50 cm² -> 80 g
- * cap_b (configured default, 534 px -> 0.0025 cm²/px):
- *   ham 4,000 px -> 10 cm² -> 9 g; unknown food 1,000 px (no factor)
+ * points = pixels / 1000 × weight × factor
+ * cap_a: ham 10,000 px -> base 9 -> 45.63 points; potatoes 5,000 px -> base 8 -> 2.32 points.
+ *        Its attempt carries 'neighbor_food_excluded' (food on another dish was dropped).
+ * cap_b: ham 4,000 px -> base 3.6 -> 18.252 points; unknown food 1,000 px (no points)
  * cap_c: analysis failed (excluded, never zero)
  * Portions (manual): ham 30, potatoes 100.
- *   ham 99 g / 30 = 3.3 g/portion; potatoes 80 g / 100 = 0.8 g/portion.
+ *   ham 14,000 px / 30 = 466.67 px/portion (63.882 / 30 = 2.1294 points/portion)
+ *   potatoes 5,000 px / 100 = 50 px/portion (0.0232 points/portion)
  */
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { WASTE_FACTORS, findWasteFactor } from 'scrap-data';
 import { startTestServer, type TestServer } from './helpers.js';
-import type { GeminiGateway } from '@scrap/vision';
-import { recommendationFacts, recommendationInputVersion } from '@scrap/analytics';
-import type { MenuBundle, PlateCalibration } from '../src/types.js';
+import { NEIGHBOR_FOOD_EXCLUDED, type GeminiGateway } from '@scrap/vision';
+import { NEIGHBOR_FOOD_EXCLUDED_FLAG, recommendationFacts, recommendationInputVersion } from '@scrap/analytics';
+import type { MenuBundle, QualityFlag } from '../src/types.js';
 
 const HALL = 'hall-impact';
 const DATE = '2026-10-02';
@@ -42,17 +45,12 @@ const MENU: MenuBundle = {
   ],
 };
 
-const FIT: PlateCalibration = { method: 'plate-fit-v1', plateDiameterCm: 26.7, plateDiameterPx: 267, cm2PerPx: (26.7 / 267) ** 2, flags: [] };
-const DEFAULT_CAL: PlateCalibration = {
-  method: 'configured-default',
-  plateDiameterCm: 26.7,
-  plateDiameterPx: 534,
-  cm2PerPx: (26.7 / 534) ** 2,
-  flags: ['calibration_default'],
-};
 const GEOMETRY = { widthPx: 1024, heightPx: 1024, coordinateSpace: 'topdown-normalized-v1' as const };
+/** Vision's target-dish flag; matched as a string until it joins contracts QualityFlag. */
+const NEIGHBOR = NEIGHBOR_FOOD_EXCLUDED_FLAG as QualityFlag;
 const close = (actual: number | null | undefined, expected: number, msg?: string) =>
   assert.ok(actual !== null && actual !== undefined && Math.abs(actual - expected) < 1e-6, `${msg ?? ''} expected ${expected}, got ${actual}`);
+const GRAM_KEYS = /"(grams|cm2|kgCo2e|waterM3|impactUsd|nutrientDaysLost|calibration|capturesWithDefaultCalibration|estimate)"/;
 
 async function capture(s: TestServer, eventId: string, capturedAt: string) {
   const imageObjectId = await s.uploadImage(eventId);
@@ -69,16 +67,15 @@ async function seeded(opts: Parameters<typeof startTestServer>[1] = {}): Promise
       { itemId: HAM, remainingAreaPx: 10000 },
       { itemId: POTATOES, remainingAreaPx: 5000 },
     ],
-    calibration: FIT,
+    qualityFlags: [NEIGHBOR],
   };
   s.fixtures.cap_b = {
     measurements: [
       { itemId: HAM, remainingAreaPx: 4000 },
       { itemId: null, remainingAreaPx: 1000 },
     ],
-    calibration: DEFAULT_CAL,
   };
-  s.fixtures.cap_c = { status: 'failed', errorCode: 'GEMINI_TIMEOUT' };
+  s.fixtures.cap_c = { status: 'failed', errorCode: 'GEMINI_TIMEOUT', qualityFlags: [NEIGHBOR] };
   await capture(s, 'cap_a', `${DATE}T22:00:00.000Z`);
   await capture(s, 'cap_b', `${DATE}T22:30:00.000Z`);
   await capture(s, 'cap_c', `${DATE}T23:00:00.000Z`);
@@ -94,56 +91,69 @@ async function seeded(opts: Parameters<typeof startTestServer>[1] = {}): Promise
   return s;
 }
 
+test('analytics counts the same neighbor flag that vision emits', () => {
+  assert.equal(NEIGHBOR_FOOD_EXCLUDED, NEIGHBOR_FOOD_EXCLUDED_FLAG);
+});
+
 test('fixture factor rows exist as the hand calculation assumes', () => {
-  assert.equal(findWasteFactor('Baked Boneless Ham')?.weightGPerCm2, 0.9);
-  assert.equal(findWasteFactor('Oven Roasted Garlic Potatoes')?.weightGPerCm2, 1.6);
+  const ham = findWasteFactor('Baked Boneless Ham');
+  const potatoes = findWasteFactor('Oven Roasted Garlic Potatoes');
+  assert.deepEqual([ham?.weightGPerCm2, ham?.kgCo2ePerKg, ham?.waterM3PerKg, ham?.impactUsdPerKg], [0.9, 12.39, 1.808, 5.07]);
+  assert.deepEqual([potatoes?.weightGPerCm2, potatoes?.impactUsdPerKg], [1.6, 0.29]);
   assert.equal(findWasteFactor('Mystery Stew'), null);
   assert.ok(WASTE_FACTORS.length >= 23);
 });
 
-test('GET /api/dashboard/impact: totals, per-portion targets, most wasted, coverage', async (t) => {
+test('GET /api/dashboard/impact: pixel totals, relative points, px-per-portion targets, coverage', async (t) => {
   const s = await seeded();
   t.after(() => s.close());
   const res = await s.api('GET', `/api/dashboard/impact?start=${DATE}&end=${DATE}&hallId=${HALL}`);
   assert.equal(res.status, 200, JSON.stringify(res.json));
   const d = res.json;
+  assert.doesNotMatch(JSON.stringify(d), GRAM_KEYS, 'no grams or calibration in the v2 payload');
   assert.deepEqual(d.window, { start: DATE, end: DATE, hallId: HALL });
   assert.equal(d.totals.pixels, 20000);
+  close(d.totals.impactPoints, 45.63 + 18.252 + 2.32, 'total impact points'); // 66.202
+  close(d.totals.co2Points, 12.6 * 12.39 + 8 * 0.62, 'total co2 points');
+  close(d.totals.waterPoints, 12.6 * 1.808 + 8 * 0.117, 'total water points');
+  close(d.totals.nutritionPoints, 12.6 * 0.38 + 8 * 0.56, 'total nutrition points (separate)');
+  assert.equal(d.totals.unavailableReason, 'unknown_item');
   assert.equal(d.totals.captures, 3);
   assert.equal(d.totals.analyzedCaptures, 2);
   assert.equal(d.totals.excludedCaptures, 1);
   assert.equal(typeof d.totals.wasteFactorsVersion, 'string');
-  assert.equal(d.labels.estimate, true);
-  assert.equal(d.labels.demoPortions, false, 'manual counts are not demo');
-  assert.equal(d.coverage.capturesWithDefaultCalibration, 1);
+  assert.deepEqual(d.labels, { relativeImpact: true, demoPortions: false });
+  // cap_a's counted attempt is flagged; cap_c's failed attempt is not counted.
+  assert.deepEqual(d.coverage, { itemsWithFactor: 2, itemsWithoutFactor: 0, itemsWithPortions: 2, capturesWithNeighborFoodExcluded: 1 });
 
   const ham = d.mostWasted.find((r: any) => r.itemId === HAM);
   const potatoes = d.mostWasted.find((r: any) => r.itemId === POTATOES);
   assert.equal(ham.impact.pixels, 14000);
-  close(ham.impact.grams, 99, 'ham grams');
-  close(potatoes.impact.grams, 80, 'potato grams');
+  close(ham.impact.impactPoints, 63.882, 'ham points');
+  close(potatoes.impact.impactPoints, 2.32, 'potato points');
   assert.equal(ham.factorKey, 'baked-boneless-ham');
   assert.equal(ham.portionsServed, 30);
   assert.equal(ham.portionsSource, 'manual');
-  close(ham.perPortion.grams, 3.3, 'ham g/portion');
-  close(potatoes.perPortion.grams, 0.8, 'potato g/portion');
-  assert.ok(ham.impact.impactUsd > 0 && ham.impact.kgCo2e > 0 && ham.impact.waterM3 > 0);
-  assert.deepEqual(d.mostWasted.slice(0, 2).map((r: any) => r.itemId), [HAM, POTATOES], 'most wasted by grams');
-  assert.deepEqual(d.targets.slice(0, 2).map((r: any) => r.itemId), [HAM, POTATOES], 'targets by grams per portion');
+  close(ham.perPortion.pixels, 14000 / 30, 'ham px/portion');
+  close(ham.perPortion.impactPoints, 63.882 / 30, 'ham points/portion');
+  assert.equal(potatoes.perPortion.pixels, 50);
+  close(potatoes.perPortion.impactPoints, 0.0232, 'potato points/portion');
+  assert.deepEqual(d.mostWasted.map((r: any) => r.itemId), [HAM, POTATOES, null], 'most wasted by pixels');
+  assert.deepEqual(d.targets.map((r: any) => r.itemId), [HAM, POTATOES], 'targets by pixels per portion');
 
-  // Unknown food keeps its pixels, never invented grams or a per-portion rate.
-  const unknown = [...d.mostWasted, ...d.targets].find((r: any) => r.itemId === null);
-  if (unknown) {
-    assert.equal(unknown.impact.pixels, 1000);
-    assert.equal(unknown.impact.grams, null);
-    assert.equal(unknown.perPortion, null);
-  }
+  // Unknown food keeps its pixels, never invented points or a per-portion rate.
+  const unknown = d.mostWasted[2];
+  assert.equal(unknown.impact.pixels, 1000);
+  assert.equal(unknown.impact.impactPoints, null);
+  assert.equal(unknown.impact.unavailableReason, 'unknown_item');
+  assert.equal(unknown.perPortion, null);
 
   // An empty window is a valid, empty dashboard; a bad window is a 400 envelope.
   const empty = await s.api('GET', '/api/dashboard/impact?start=2026-09-01&end=2026-09-02');
   assert.equal(empty.status, 200);
   assert.equal(empty.json.totals.pixels, 0);
   assert.equal(empty.json.totals.captures, 0);
+  assert.equal(empty.json.coverage.capturesWithNeighborFoodExcluded, 0);
   for (const q of ['', '?start=2026-10-02', '?start=10/02/2026&end=2026-10-02', `?start=${DATE}&end=2026-10-01`]) {
     const bad = await s.api('GET', `/api/dashboard/impact${q}`);
     assert.equal(bad.status, 400, q);
@@ -152,32 +162,28 @@ test('GET /api/dashboard/impact: totals, per-portion targets, most wasted, cover
   }
 });
 
-test('GET /api/captures: newest first, item grams, failed captures null (never zero), capped', async (t) => {
+test('GET /api/captures: newest first, item pixels, failed captures null (never zero), capped', async (t) => {
   const s = await seeded();
   t.after(() => s.close());
   const res = await s.api('GET', `/api/captures?start=${DATE}&end=${DATE}`);
   assert.equal(res.status, 200, JSON.stringify(res.json));
   const list = res.json;
+  assert.doesNotMatch(JSON.stringify(list), GRAM_KEYS);
   assert.deepEqual(list.map((c: any) => c.eventId), ['cap_c', 'cap_b', 'cap_a']);
   const [c, b, a] = list;
-  assert.equal(c.state, 'failed');
-  assert.equal(c.pixelsWasted, null);
-  assert.equal(c.grams, null);
-  assert.deepEqual(c.items, []);
+  assert.deepEqual(c, { eventId: 'cap_c', capturedAt: `${DATE}T23:00:00.000Z`, serviceId: SERVICE, source: 'replay', state: 'failed', pixelsWasted: null, items: [], hasOverlay: false });
   assert.equal(a.state, 'succeeded');
   assert.equal(a.pixelsWasted, 15000);
-  close(a.grams, 170, 'cap_a grams');
   assert.equal(a.hasOverlay, false);
-  assert.equal(a.serviceId, SERVICE);
-  assert.equal(a.source, 'replay');
-  const ham = a.items.find((i: any) => i.itemId === HAM);
-  assert.equal(ham.displayName, 'Baked Boneless Ham');
-  assert.equal(ham.pixels, 10000);
-  close(ham.grams, 90);
+  assert.deepEqual(
+    [...a.items].sort((x: any, y: any) => y.pixels - x.pixels),
+    [
+      { itemId: HAM, displayName: 'Baked Boneless Ham', pixels: 10000 },
+      { itemId: POTATOES, displayName: 'Oven Roasted Garlic Potatoes', pixels: 5000 },
+    ],
+  );
   assert.equal(b.pixelsWasted, 5000);
-  const unknown = b.items.find((i: any) => i.itemId === null);
-  assert.equal(unknown.pixels, 1000);
-  assert.equal(unknown.grams, null);
+  assert.deepEqual(b.items.find((i: any) => i.itemId === null), { itemId: null, displayName: 'Food not on the menu', pixels: 1000 });
 
   const capped = await s.api('GET', `/api/captures?start=${DATE}&end=${DATE}&limit=1`);
   assert.deepEqual(capped.json.map((x: any) => x.eventId), ['cap_c']);
@@ -186,18 +192,21 @@ test('GET /api/captures: newest first, item grams, failed captures null (never z
   assert.equal(bad.json.error.code, 'INVALID_PARAMETER');
 });
 
-test('GET /api/recommendation: labeled fallback without Gemini, grounded in shown numbers', async (t) => {
+test('GET /api/recommendation: labeled fallback without Gemini, grounded in pixels and relative points', async (t) => {
   const s = await seeded();
   t.after(() => s.close());
   const res = await s.api('GET', `/api/recommendation?start=${DATE}&end=${DATE}`);
   assert.equal(res.status, 200, JSON.stringify(res.json));
   const r = res.json;
   assert.equal(r.source, 'fallback');
-  assert.equal(typeof r.text, 'string');
-  assert.ok(r.text.length > 0);
-  assert.ok(Array.isArray(r.bullets));
-  for (const b of r.bullets) assert.equal(typeof b.metric, 'string');
-  assert.equal(typeof r.inputVersion, 'string');
+  assert.match(r.text, /^Baked Boneless Ham had the most food left per portion/);
+  assert.deepEqual(r.bullets.map((b: any) => b.metric), [
+    'Baked Boneless Ham: 467 pixels wasted per portion',
+    'Oven Roasted Garlic Potatoes: 50 pixels wasted per portion',
+    '2 of 3 plates analyzed',
+  ]);
+  assert.doesNotMatch(JSON.stringify(r), /\b(g|kg|grams?|litres?|liters?)\b|\$/);
+  assert.match(r.inputVersion, /^impact-rec-v2\|/);
   assert.ok(Number.isFinite(Date.parse(r.generatedAt)));
   assert.equal((await s.api('GET', '/api/recommendation?start=x&end=y')).status, 400);
 });
@@ -231,7 +240,7 @@ test('GET /api/recommendation: provider failure -> labeled fallback; results cac
   assert.equal(calls.n, callsAfterFirst, 'no second provider call for identical input');
 
   // New data changes the input, so a new recommendation is generated.
-  s.fixtures.cap_d = { measurements: [{ itemId: POTATOES, remainingAreaPx: 2000 }], calibration: FIT };
+  s.fixtures.cap_d = { measurements: [{ itemId: POTATOES, remainingAreaPx: 2000 }] };
   await capture(s, 'cap_d', `${DATE}T23:30:00.000Z`);
   const third = await s.api('GET', `/api/recommendation?start=${DATE}&end=${DATE}`);
   assert.equal(third.json.source, 'fallback');
@@ -245,10 +254,10 @@ test('GET /api/recommendation: valid Gemini answer is served as source gemini an
     gateway: liveGateway(
       async () =>
         JSON.stringify({
-          text: 'Ham leaves the most waste per portion; try a smaller ham portion for a week.',
+          text: 'Ham leaves the most pixels per portion and the highest relative impact points; try a smaller ham portion for a week.',
           bullets: [
-            { text: 'Ham waste per portion.', metric: metrics[0] },
-            { text: 'Plates analyzed.', metric: metrics[1] },
+            { text: 'Ham waste per portion.', metric: metrics.find((m) => m.includes('per portion')) },
+            { text: 'Plates analyzed.', metric: metrics[0] },
           ],
         }),
       calls,
@@ -257,55 +266,55 @@ test('GET /api/recommendation: valid Gemini answer is served as source gemini an
   t.after(() => s.close());
   const dash = await s.api('GET', `/api/dashboard/impact?start=${DATE}&end=${DATE}`);
   metrics = recommendationFacts(dash.json).allowedMetrics;
-  assert.ok(metrics.length >= 2);
+  assert.ok(metrics.includes('Total: 66 relative impact points'), metrics.join(' | '));
+  assert.ok(metrics.includes('Baked Boneless Ham: 64 relative impact points'));
   const first = await s.api('GET', `/api/recommendation?start=${DATE}&end=${DATE}`);
   assert.equal(first.status, 200, JSON.stringify(first.json));
   assert.equal(first.json.source, 'gemini');
-  assert.deepEqual(first.json.bullets.map((b: any) => b.metric), metrics.slice(0, 2));
+  assert.deepEqual(first.json.bullets.map((b: any) => b.metric), ['Baked Boneless Ham: 467 pixels wasted per portion', '2 of 3 plates analyzed']);
   assert.equal(first.json.inputVersion, recommendationInputVersion(recommendationFacts(dash.json)));
   const second = await s.api('GET', `/api/recommendation?start=${DATE}&end=${DATE}`);
   assert.deepEqual(second.json, first.json);
   assert.equal(calls.n, 1, 'one Gemini call for identical statistics');
 });
 
-test('GET /api/dashboard/daily: estimated grams per day; null (never 0) when nothing is estimable', async (t) => {
+test('GET /api/dashboard/daily: pixels per day, no grams; null (never 0) without counted plates', async (t) => {
   const s = await seeded();
   t.after(() => s.close());
   const res = await s.api('GET', `/api/dashboard/daily?hallId=${HALL}&start=2026-10-01&end=2026-10-02`);
   assert.equal(res.status, 200, JSON.stringify(res.json));
   const [before, day] = res.json.days;
-  assert.equal(before.grams, null, 'no captures that day');
-  assert.equal(before.pixelsWasted, null);
-  // cap_a 90 g ham + 80 g potatoes; cap_b 9 g ham (unknown food has no grams); cap_c failed.
-  close(day.grams, 179, 'day grams');
+  assert.deepEqual(before, { date: '2026-10-01', pixelsWasted: null, capturedDishes: 0, countedDishes: 0, plateWastePercents: [] });
   assert.equal(day.pixelsWasted, 20000);
+  assert.equal(day.capturedDishes, 3);
+  assert.equal(day.countedDishes, 2);
+  assert.equal('grams' in day, false);
 });
 
-test('impact totals, capture list, daily: missing estimates stay null, clean plates are 0 g', async (t) => {
+test('impact totals, capture list, daily: missing points stay null, clean plates are a measured 0', async (t) => {
   const s = await startTestServer();
   t.after(() => s.close());
   assert.equal((await s.api('POST', '/api/menus', MENU)).status, 201);
   const none = await s.api('GET', `/api/dashboard/impact?start=${DATE}&end=${DATE}`);
-  assert.equal(none.json.totals.pixels, 0);
   const t0 = none.json.totals;
-  assert.deepEqual([t0.grams, t0.cm2, t0.kgCo2e, t0.waterM3, t0.impactUsd, t0.nutrientDaysLost], [null, null, null, null, null, null]);
+  assert.deepEqual([t0.pixels, t0.co2Points, t0.waterPoints, t0.impactPoints, t0.nutritionPoints], [0, null, null, null, null]);
 
   s.fixtures.cap_failed = { status: 'failed' };
   await capture(s, 'cap_failed', `${DATE}T21:00:00.000Z`);
   const failed = await s.api('GET', `/api/dashboard/impact?start=${DATE}&end=${DATE}`);
-  assert.equal(failed.json.totals.grams, null, 'a failed capture is not zero waste');
+  assert.equal(failed.json.totals.impactPoints, null, 'a failed capture is not zero waste');
   const failedDay = await s.api('GET', `/api/dashboard/daily?hallId=${HALL}&start=${DATE}&end=${DATE}`);
-  assert.equal(failedDay.json.days[0].grams, null);
+  assert.equal(failedDay.json.days[0].pixelsWasted, null);
 
-  s.fixtures.cap_clean = { measurements: [], calibration: FIT };
+  s.fixtures.cap_clean = { measurements: [] };
   await capture(s, 'cap_clean', `${DATE}T21:30:00.000Z`);
   const clean = await s.api('GET', `/api/dashboard/impact?start=${DATE}&end=${DATE}`);
   assert.equal(clean.json.totals.analyzedCaptures, 1);
-  assert.equal(clean.json.totals.grams, 0, 'an analyzed clean plate is a measured zero');
+  assert.equal(clean.json.totals.pixels, 0);
+  assert.equal(clean.json.totals.impactPoints, 0, 'an analyzed clean plate is a measured zero');
   const list = await s.api('GET', `/api/captures?start=${DATE}&end=${DATE}`);
   const cleanItem = list.json.find((c: any) => c.eventId === 'cap_clean');
   assert.equal(cleanItem.pixelsWasted, 0);
-  assert.equal(cleanItem.grams, 0);
   const cleanDay = await s.api('GET', `/api/dashboard/daily?hallId=${HALL}&start=${DATE}&end=${DATE}`);
-  assert.equal(cleanDay.json.days[0].grams, 0);
+  assert.equal(cleanDay.json.days[0].pixelsWasted, 0);
 });

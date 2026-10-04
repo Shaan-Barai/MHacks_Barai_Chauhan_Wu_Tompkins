@@ -12,6 +12,7 @@ import { dirname } from 'node:path';
 import type {
   MenuBundle,
   MealService,
+  MenuItem,
   ReferencePortion,
   ImageObject,
   CaptureEvent,
@@ -22,10 +23,13 @@ import type {
   Insight,
 } from '../types.js';
 import type { Repository } from './repository.js';
+import { menuVersionConflict } from '../errors.js';
 import { conflict } from '../errors.js';
 
 interface Snapshot {
   menus: MenuBundle[];
+  /** Items dropped by a later menu revision (mirrors menu_item_revision). */
+  archivedMenuItems?: Array<MenuItem & { menuVersion: number }>;
   referencePortions: ReferencePortion[];
   imageObjects: ImageObject[];
   captureEvents: CaptureEvent[];
@@ -38,6 +42,8 @@ interface Snapshot {
 
 export class JsonFileRepository implements Repository {
   private menus = new Map<string, MenuBundle>(); // key: serviceId
+  /** Superseded items by itemId, newest version last (mirrors menu_item_revision). */
+  private archivedMenuItems = new Map<string, Array<MenuItem & { menuVersion: number }>>();
   private referencePortions = new Map<string, ReferencePortion>(); // key: baselineId
   private imageObjects = new Map<string, ImageObject>();
   private captureEvents = new Map<string, CaptureEvent>();
@@ -53,6 +59,15 @@ export class JsonFileRepository implements Repository {
 
   // --- menus ---
   async upsertMenu(menu: MenuBundle): Promise<void> {
+    // Same guard as the upsert_menu reducer: never overwrite a newer version;
+    // a newer version archives the superseded items.
+    const existing = this.menus.get(menu.service.serviceId);
+    if (existing && menu.service.menuVersion < existing.service.menuVersion) {
+      throw menuVersionConflict({ serviceId: menu.service.serviceId, menuVersion: menu.service.menuVersion, storedVersion: existing.service.menuVersion });
+    }
+    if (existing && menu.service.menuVersion > existing.service.menuVersion) {
+      for (const item of existing.items) this.archiveItem({ ...structuredClone(item), menuVersion: existing.service.menuVersion });
+    }
     this.menus.set(menu.service.serviceId, structuredClone(menu));
     this.persist();
   }
@@ -69,6 +84,22 @@ export class JsonFileRepository implements Repository {
           (mealLabel === undefined || m.service.mealLabel === mealLabel),
       )
       .map((m) => structuredClone(m));
+  }
+  private archiveItem(item: MenuItem & { menuVersion: number }): void {
+    const list = (this.archivedMenuItems.get(item.itemId) ?? []).filter((i) => i.menuVersion !== item.menuVersion);
+    list.push(item);
+    list.sort((a, b) => a.menuVersion - b.menuVersion);
+    this.archivedMenuItems.set(item.itemId, list);
+  }
+  async getMenuItem(itemId: string): Promise<MenuItem | undefined> {
+    for (const m of this.menus.values()) {
+      const item = m.items.find((i) => i.itemId === itemId);
+      if (item) return structuredClone(item);
+    }
+    const archived = this.archivedMenuItems.get(itemId)?.at(-1);
+    if (!archived) return undefined;
+    const { menuVersion: _v, ...item } = archived;
+    return structuredClone(item);
   }
   async listServices(hallId?: string): Promise<MealService[]> {
     return [...this.menus.values()]
@@ -211,6 +242,7 @@ export class JsonFileRepository implements Repository {
     if (!this.dataFile) return;
     const snapshot: Snapshot = {
       menus: [...this.menus.values()],
+      archivedMenuItems: [...this.archivedMenuItems.values()].flat(),
       referencePortions: [...this.referencePortions.values()],
       imageObjects: [...this.imageObjects.values()],
       captureEvents: [...this.captureEvents.values()],
@@ -229,6 +261,7 @@ export class JsonFileRepository implements Repository {
   private load(dataFile: string): void {
     const snapshot = JSON.parse(readFileSync(dataFile, 'utf8')) as Snapshot;
     for (const m of snapshot.menus ?? []) this.menus.set(m.service.serviceId, m);
+    for (const i of snapshot.archivedMenuItems ?? []) this.archiveItem(i);
     for (const r of snapshot.referencePortions ?? []) this.referencePortions.set(r.baselineId, r);
     for (const o of snapshot.imageObjects ?? []) this.imageObjects.set(o.objectId, o);
     for (const e of snapshot.captureEvents ?? []) this.captureEvents.set(e.eventId, e);

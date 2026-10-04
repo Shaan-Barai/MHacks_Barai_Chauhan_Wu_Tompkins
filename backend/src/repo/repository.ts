@@ -21,6 +21,7 @@
 import type {
   MenuBundle,
   MealService,
+  MenuItem,
   ReferencePortion,
   ImageObject,
   CaptureEvent,
@@ -38,6 +39,8 @@ export interface Repository {
   /** Resolve by hall + local service date (+ optional meal label). */
   findMenus(hallId: string, serviceDate: string, mealLabel?: string): Promise<MenuBundle[]>;
   listServices(hallId?: string): Promise<MealService[]>;
+  /** Any stored menu_item row with this stable itemId (display-name lookup for older menu versions). */
+  getMenuItem(itemId: string): Promise<MenuItem | undefined>;
 
   // Replace one version's full snapshot atomically; retain earlier menu versions.
   replacePortionsServed(serviceId: string, menuVersion: number, portions: PortionsServed[]): Promise<void>;

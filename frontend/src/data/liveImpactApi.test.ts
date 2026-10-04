@@ -23,16 +23,16 @@ describe('liveApi waste-impact endpoints', () => {
   })
 
   it('accepts the capture list as an array or wrapped', async () => {
-    const item = { eventId: 'e1', capturedAt: '2026-10-03T23:00:00Z', serviceId: 's', source: 'camera', state: 'succeeded', pixelsWasted: 5, grams: 1, items: [], hasOverlay: true }
+    const item = { eventId: 'e1', capturedAt: '2026-10-03T23:00:00Z', serviceId: 's', source: 'camera', state: 'succeeded', pixelsWasted: 5, items: [], hasOverlay: true }
     vi.stubGlobal('fetch', respond(200, [item]))
     expect(await getCaptures('2026-10-03', '2026-10-03')).toEqual([item])
     vi.stubGlobal('fetch', respond(200, { captures: [item] }))
     expect(await getCaptures('2026-10-03', '2026-10-03')).toEqual([item])
   })
 
-  it('keeps grams on daily points only when the backend sends them', async () => {
+  it('keeps only pixels on daily points, ignoring any other field', async () => {
     vi.stubGlobal('fetch', respond(200, { days: [{ date: '2026-10-03', pixelsWasted: 100, grams: 12.5 }] }))
-    expect(await getDailyWaste('2026-10-03', '2026-10-03')).toEqual([{ date: '2026-10-03', pixelsWasted: 100, grams: 12.5 }])
+    expect(await getDailyWaste('2026-10-03', '2026-10-03')).toEqual([{ date: '2026-10-03', pixelsWasted: 100 }])
   })
 
   it('surfaces image-link errors (e.g. missing object) with the server message', async () => {

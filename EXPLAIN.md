@@ -4,7 +4,7 @@ ScrapSaver keeps data in **two places**:
 
 | Place | What it holds | Analogy |
 | --- | --- | --- |
-| **SpacetimeDB** (the database) | Small text-and-number records: menus, which plates were scanned, what the AI found, how many pixels of each food were left, portions served | A filing cabinet of index cards |
+| **SpacetimeDB** (the database, named `scrap`) | Small text-and-number records: menus, which plates were scanned, what the AI found, how many pixels of each food were left, portions served | A filing cabinet of index cards |
 | **Cloudflare R2** (the image bucket) | The actual pictures: each plate photo, the AI's mask for each food, and the colored "segmented" image | A photo album |
 
 The database never stores pictures. It stores an **address** for each picture (its R2 "object key", like `captures/2026-10-03/cap_123_ab12cd.jpg`). When the dashboard wants to show a picture, the backend gives it a short-lived link to that address in R2.
@@ -18,13 +18,16 @@ The database never stores pictures. It stores an **address** for each picture (i
 4. Photo is uploaded to R2                       → R2: captures/...jpg
 5. Database gets an image_object card for it     → SpacetimeDB: image_object
 6. Database gets a capture_event card            → SpacetimeDB: capture_event
-7. Gemini names each food and draws a box around it
-8. SAM traces the exact outline (mask) of each food
+7. Gemini picks the dish being scanned (the one in the middle), names each food
+   on it and draws a box around it. Food on neighboring plates is marked "other dish"
+8. SAM traces the exact outline (mask) of each food and of the scanned dish;
+   outlines are trimmed to the scanned dish so neighbors never count
 9. Masks + colored overlay are uploaded to R2    → R2: masks/...png, overlays/...jpg
 10. Database records what was found               → analysis_attempt, food_measurement,
                                                     capture_count, segmentation_region,
-                                                    attempt_calibration
-11. Dashboard adds it all up (grams, CO2, water, $ per portion) when you open it
+                                                    attempt_calibration (overlay link)
+11. Dashboard adds it all up (pixels, pixels per portion, relative impact points)
+    when you open it
 ```
 
 ## The tables, one by one
@@ -37,6 +40,7 @@ Think of each table as a stack of cards, one card per thing.
 | --- | --- | --- |
 | `meal_service` | one meal at one hall on one day (e.g. hall-main, Oct 3, dinner) | hall, local date, meal, which menu, menu version |
 | `menu_item` | one food on that menu (e.g. "Ancho Flank Steak") | name, station, a short description of how it looks (helps Gemini recognize it) |
+| `menu_item_revision` | an archived food from an older version of a menu | kept so old results still show the right food name after a menu changes |
 | `portions_served` | how many portions of one food were served at one meal | count, and where the number came from: `manual`, `csv`, or `demo` (the current numbers are **demo** numbers) |
 | `attendance` | how many people ate at one meal | count. Always labeled **simulated** for now |
 | `reference_portion` | optional: how big one untouched serving looks, in pixels | used only for side comparisons; not needed for the main numbers |
@@ -56,7 +60,7 @@ Think of each table as a stack of cards, one card per thing.
 | `segmentation_region` | one food box Gemini drew on the photo | the food it thinks it is (or unknown), the box, and the id of SAM's mask picture in R2 |
 | `food_measurement` | one food's leftover amount on one dish | the food (or unknown), **pixels wasted** counted from the mask (column `remainingAreaPx`, with the mask's provenance in `maskCountJson`), quality flags |
 | `capture_count` | the whole-plate total for one attempt | total pixels wasted on the plate (overlaps counted once), which SAM model/settings were used |
-| `attempt_calibration` | the "ruler" for one attempt | how wide the plate looked in pixels (plate = 26.7 cm), so each pixel = so many cm²; plus the id of the colored overlay picture |
+| `attempt_calibration` | extra outputs of one attempt | the id of the colored overlay picture. (It also has an old "plate ruler" column from an earlier version; it is no longer used, because plates come in different sizes) |
 | `insight` | one saved AI suggestion | the advice text, the numbers it was based on, and whether it came from Gemini or the rule-based fallback |
 
 ## How the cards connect
@@ -77,24 +81,23 @@ Cards point at each other by **id** (like `svc_hall-main_2026-10-03_dinner` or `
 
 ## What is *not* stored, and why
 
-The dashboard's grams, CO2, water and dollar numbers are **not** saved in the database. They are worked out fresh each time from three stored things:
+The dashboard's per-portion rates and impact points are **not** saved in the database. They are worked out fresh each time from stored things:
 
 1. **Pixels wasted** for a food (from `food_measurement`)
-2. **The ruler** for that photo (from `attempt_calibration`)
+2. **Portions served** of that food at that meal (from `portions_served`)
 3. **That food's factors** (from `menu_waste_factors.csv`: grams per cm², CO2 per kg, water per kg)
 
 ```text
-cm²    = pixels × cm² per pixel                 (the ruler)
-grams  = cm² × grams per cm²                    (the food's weight factor)
-CO2e   = kg × kg CO2e per kg
-water  = kg × m³ water per kg
-impact = kg × (0.19 × CO2e per kg + 1.50 × m³ water per kg)   dollars
-waste per portion = grams wasted ÷ portions served
+waste per portion  = pixels wasted ÷ portions served
+base               = pixels ÷ 1000 × the food's density (grams per cm²)
+CO2 points         = base × the food's CO2 factor
+water points       = base × the food's water factor
+impact points      = base × (0.19 × CO2 factor + 1.50 × water factor)
 ```
 
-Nutrition lost (from `menu_nutrition_factors.csv`) is shown separately and is **not** part of the impact score.
+Points are **relative**: they say "this leftover matters about twice as much as that one", not a number of kilograms, litres or dollars. They let a leftover of steak (high CO2) count for more than the same area of rice. Nutrition points (from `menu_nutrition_factors.csv`) are shown separately and are **not** part of the impact score.
 
-Because these numbers are calculated, fixing a factor in the CSV updates every past result without touching the database. All of them are **estimates**: the AI's outline can be off, a top-down photo can't see how tall food is, and the weight factors are typical values.
+Because these numbers are calculated, fixing a factor in the CSV updates every past result without touching the database. Pixels themselves come from the AI's outline, so they can be off when the outline is off.
 
 ## R2 folders
 
@@ -102,7 +105,7 @@ Because these numbers are calculated, fixing a factor in the CSV updates every p
 | --- | --- |
 | `captures/<date>/` | plate photos (1024 × 1024 JPEG, as uploaded by the bridge) |
 | `masks/<date>/` | one black-and-white PNG per food outline (white = food) |
-| `overlays/<date>/` | the colored segmented image with a legend, one per analysis attempt |
+| `overlays/<date>/` | the colored segmented image with a legend, one per analysis attempt (scanned dish outlined; food on other dishes shown as "Other dish (not counted)") |
 | `references/<date>/` | optional reference-serving photos |
 
 The bucket is private. Links the dashboard gets expire after a short time and are renewed automatically.
@@ -113,5 +116,6 @@ Tables marked public (`meal_service`, `menu_item`, `capture_event`, `food_measur
 
 ## Local databases
 
-- `scrap`: the original local database. Left untouched by the BIG-PLAN work.
-- `scrap-bigplan`: the database for this version (it has the new `attempt_calibration` table). Start the backend with `SPACETIMEDB_MODULE=scrap-bigplan`.
+- `scrap`: **the** database. All new work goes here. Schema changes are added in place, never by wiping it.
+- `scrap-bigplan`: a leftover test database from the first version of this plan. Not used anymore.
+- `scrap-test`: only for the backend's opt-in live database test (`SCRAP_LIVE_REPO_TEST=1`).

@@ -195,12 +195,18 @@ the cached photo without requiring FFmpeg or the camera to be available.
   once at startup. Use one program per output folder and monitor laptop disk
   space during long runs.
 - Photos are raw and unnormalized. Keep the full plate within the centered
-  square crop used by the existing 1024 x 1024 normalization adapter.
+  square crop used by the existing 1024 x 1024 normalization adapter, and keep
+  the camera height fixed: waste is measured in pixels (no plate-size
+  calibration), so a closer plate reads as more waste.
+- Center one plate at a time. The analysis counts only the target dish (the
+  most centered, most fully visible plate); food on a neighbouring plate in
+  view is dropped and counted when that plate is centered in its own capture.
 - This operation ends at local files. It does not upload to R2, mutate
   SpacetimeDB, call Gemini, or calculate waste. To ingest the photos, run the
   inbox bridge (`cd capture && npm run ingest-inbox -- --service <id> --watch`),
-  which groups frames into dishes with Gemini so each dish is counted once.
-  See [BRIDGE.md](../../BRIDGE.md).
+  which groups frames into dishes with Gemini so each dish is counted once and
+  stores them in SpacetimeDB database `scrap`. Tonight's service is
+  `svc_hall-main_<today>_dinner`. See [BRIDGE.md](../../BRIDGE.md).
 - The only transport addition is an automatic stream envelope containing the
   bundle length and capture UUID; the JPEG/metadata bundle remains protocol v1.
   No shared application contract or package dependency changed.

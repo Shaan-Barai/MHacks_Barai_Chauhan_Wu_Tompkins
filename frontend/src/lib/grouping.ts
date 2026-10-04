@@ -8,27 +8,17 @@ export interface ChartBucket {
   label: string
   /** Full label for the tooltip. */
   tooltipLabel: string
-  /** Value in the chart's unit; null = no data that day. */
+  /** Pixels wasted; null = no data that day. */
   value: number | null
 }
 
-export type ChartUnit = 'grams' | 'pixels'
-
-/**
- * Estimated grams when every day with counted plates has them (the backend
- * may not send grams yet); otherwise Pixels wasted, the raw measurement.
- */
-export function chartUnit(points: DailyWastePoint[]): ChartUnit {
-  const withData = points.filter((p) => p.pixelsWasted !== null)
-  return withData.length > 0 && withData.every((p) => typeof p.grams === 'number') ? 'grams' : 'pixels'
-}
-
-export function dailyBuckets(points: DailyWastePoint[], unit: ChartUnit = 'pixels'): ChartBucket[] {
+/** One bar per day of Pixels wasted (the chart is pixels only, BIG-PLAN v2). */
+export function dailyBuckets(points: DailyWastePoint[]): ChartBucket[] {
   return points.map((p) => ({
     key: p.date,
     label: formatShort(p.date),
     tooltipLabel: formatMedium(p.date),
-    value: unit === 'grams' ? (p.pixelsWasted === null ? null : (p.grams ?? null)) : p.pixelsWasted,
+    value: p.pixelsWasted,
   }))
 }
 

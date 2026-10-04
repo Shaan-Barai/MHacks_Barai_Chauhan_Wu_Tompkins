@@ -183,11 +183,13 @@ scanned plate. Update all context docs.
 
 | WS | Owns | Task | State |
 | --- | --- | --- | --- |
-| V | `vision/` | target-dish counting (V3), stop producing calibration, overlay shows the target dish + excluded food, tests, live check when Gemini billing works | running |
-| M | `analytics/`, `backend/` services/endpoints, `menu_waste_factors_README.md` | V1/V2 metrics + recommendation in pixels/points, endpoint payloads per the new contract, tests, docs | running |
-| U | `frontend/`, `UI.md` | pixel headline cards, relative impact card(s), per-portion pixels, labels, tests | running |
-| S | `db/`, `backend/scripts`, `capture/`, `tests/`, `docs/`, `.env.example` | publish to `scrap`, seed with menu revision, switch defaults to `scrap`; then the real Uno Q live run once SSH + Gemini billing are ready | running |
+| V | `vision/` | target-dish counting (V3), stop producing calibration, overlay shows the target dish + excluded food, tests, live check when Gemini billing works | **done**: `639ce19` `16650b7` `5b5e526` `578ef13` `4016fd9`; 74/74. Live on IMG_2697/2701: neighbor food excluded (13,918 / 13,707 px), every hand-labeled food counted, nothing extra; 2 Gemini calls per capture |
+| M | `analytics/`, `backend/` services/endpoints, `menu_waste_factors_README.md` | V1/V2 metrics + recommendation in pixels/points, endpoint payloads per the new contract, tests, docs | **done**: `f12d10a` `01ed2c7` `6a507e8` `d7138fb` `9dc4b82` `baf8441`; analytics 61, backend 55 |
+| U | `frontend/`, `UI.md` | pixel headline cards, relative impact card(s), per-portion pixels, labels, tests | **done**: `bcefe45`; 49/49 |
+| S | `db/`, `backend/scripts`, `capture/`, `tests/`, `docs/`, `.env.example` | publish to `scrap`, seed with menu revision, switch defaults to `scrap`; then the real Uno Q live run once SSH + Gemini billing are ready | phase A **done**: `e7d0ebb` `1b9ba2a` `3f597bb` (`scrap` published in place, nothing wiped; seeded with revisions; 10-04 dinner ready). Phase B (real camera) waits on the user |
 
 **User blockers:** (1) Gemini key returns HTTP 402 (prepaid credits depleted): top up billing. (2) SSH to
 `arduino@35.1.88.76` needs a key: `ssh-copy-id -i ~/.ssh/scrap_unoq.pub arduino@35.1.88.76` (the key was
 generated on the laptop).
+
+**v2 status (2026-10-04):** code merged to `main`. The backend on :8787 runs v2 against `scrap` with R2. Gemini credits ran out again after the vision live check, so the 2 simulated captures (10-03 dinner) failed with `GEMINI_BILLING`. Re-run them with `backend/scripts/retry-failed.mjs` once billing is topped up. The real Uno Q run waits on the SSH key and Gemini billing.

@@ -20,7 +20,16 @@ import { PNG } from 'pngjs';
 import type { RegionBox } from './contracts.js';
 
 export const BOX_CONVENTION = 'gemini-yxyx-1000_to_xyxy-px_v1' as const;
-export const COUNTING_RULE_VERSION = 'smallest-first-v1';
+/** The overlap rule implemented by countPixels below. */
+export const SMALLEST_FIRST_RULE = 'smallest-first-v1';
+/**
+ * The capture counting rule recorded on attempts and mask counts (BIG-PLAN
+ * v2, V3): food boxes Gemini puts on another dish are dropped, the remaining
+ * masks are clipped to the target-dish region when one is available
+ * (targetDish.ts), then smallest-first-v1 assigns every pixel to at most one
+ * bucket. Capture total = union of the clipped masks = sum of the buckets.
+ */
+export const COUNTING_RULE_VERSION = 'target-dish-v1';
 
 export type BoxResult = { ok: true; box: RegionBox } | { ok: false; reason: string };
 

@@ -23,46 +23,55 @@ fresh `hall-e2e-<timestamp>` so demo numbers are untouched:
 
 Restart persistence is checked by hand (docs/runbook.md).
 
-## BIG-PLAN live flow (`bigplan-live.test.mjs`)
+## Scrap v2 live flow (`scrap-live.test.mjs`)
 
-Also skipped unless `SCRAP_E2E=1`. Against a running backend (Gemini key, `OBJECT_STORAGE_PROVIDER=r2`,
-SpacetimeDB) plus the SAM worker (`SAM_WORKER_URL`, default `http://127.0.0.1:8790`):
+Also skipped unless `SCRAP_E2E=1`. Against a running backend on database **`scrap`** (Gemini key,
+`OBJECT_STORAGE_PROVIDER=r2`) plus the SAM worker (`SAM_WORKER_URL`, default `http://127.0.0.1:8790`).
+It asserts the v2 rules (BIG-PLAN §7): pixels only, relative impact points, target-dish counting.
 
 1. `GET /api/health` (provider `r2`) and SAM `GET /health`.
-2. The demo dinner service (`SCRAP_E2E_SERVICE`, default `svc_hall-main_2026-10-03_dinner`) exists;
-   otherwise `backend/scripts/seed.mjs` runs once.
+2. The dinner service (`SCRAP_E2E_SERVICE`, default `svc_hall-main_2026-10-03_dinner`) exists;
+   otherwise `backend/scripts/seed.mjs --live-dinner` runs once.
 3. `simulate-camera` writes `SCRAP_E2E_PHOTOS` (1–4, default 3) `test2/` photos into a temp inbox;
    `ingest-inbox --no-dedupe --state-dir <tmp>` runs once → exactly one capture per photo; a rerun
    ingests nothing. (`--no-dedupe` because every simulated photo is a different plate: deterministic
    count, no same-dish Gemini calls. `SCRAP_E2E_DEDUPE=1` uses Gemini grouping instead.)
 4. Polls `GET /api/captures/:id` until analysis is terminal: not `failed`, source `replay`, 1024²
-   geometry, segmentation present, `attempt.calibration` (`PlateCalibration`) present.
-   `GET /api/captures` lists each event once (`CaptureListItem`).
+   geometry, segmentation with `countingRuleVersion = target-dish-v1`, **no** `attempt.calibration`,
+   integer per-food pixels (`mask_pixel_count`) that add up to the capture union when the count is
+   complete. Attempts flagged `neighbor_food_excluded` are collected (`SCRAP_E2E_EXPECT_NEIGHBOR=1`
+   requires at least one). `GET /api/captures` lists each event once with integer `pixelsWasted` and no
+   grams.
 5. `GET /api/captures/:id/images` (`CaptureImages`): original + overlay + masks; every read URL
    fetches with HTTP 200 and an image content type (URLs are never printed).
 6. With `SPACETIMEDB_URI` set: `capture_event`, `image_object` (provider `r2`, `finalized`,
-   association kinds `capture`/`overlay`/`mask`, keys not URLs, no blobs), `analysis_attempt`, `attempt_calibration` (calibration + overlay id), and
-   `food_measurement` rows — via the SpacetimeDB SQL HTTP API.
-7. `GET /api/dashboard/impact` (`ImpactDashboard`): totals, `targets`, `mostWasted` populated.
-8. `GET /api/recommendation` (`Recommendation`): non-empty text, source `gemini` or `fallback`.
+   association kinds `capture`/`overlay`/`mask`, keys not URLs, no blobs), `analysis_attempt`,
+   `attempt_calibration` (overlay id, calibration empty), `capture_count` (`target-dish-v1`) and
+   `food_measurement` rows via the SpacetimeDB SQL HTTP API.
+7. `GET /api/dashboard/impact` (`ImpactDashboard`): integer pixel total; `co2Points`/`waterPoints`/
+   `impactPoints`/`nutritionPoints` numbers or null; no `grams`/`kgCo2e`/`impactUsd` keys;
+   `labels.relativeImpact = true`; `mostWasted` ranked by pixels; `targets` ranked by pixels per portion
+   (= pixels ÷ portions served); unknown food has no rate; `coverage.capturesWithNeighborFoodExcluded`.
+8. `GET /api/recommendation` (`Recommendation`): non-empty text, source `gemini` or `fallback`; the
+   fallback text never mentions grams, kg, litres, CO2e or dollars.
 
 ```bash
 cd tests
-SCRAP_E2E=1 SPACETIMEDB_MODULE=scrap-bigplan npm run test:e2e:bigplan   # loads ../.env; shell vars win
-# worktree without ../.env: node --env-file=/path/to/.env --test e2e/bigplan-live.test.mjs
+SCRAP_E2E=1 npm run test:e2e:scrap   # loads ../.env (SPACETIMEDB_MODULE=scrap); shell vars win
+# worktree without ../.env: node --env-file=/path/to/.env --test e2e/scrap-live.test.mjs
 # SCRAP_E2E_PHOTO_DIR=<dir> picks the photos; SCRAP_E2E_EVENT_IDS=cap_…,cap_… re-checks an earlier
 # run without new captures; SCRAP_E2E_START/END=2026-10-03 pins the dashboard window
 ```
 
-Last live run: 2026-10-03. Three `test2` photos (IMG_2695/2697/2701) against R2 + `scrap-bigplan` +
-Gemini + SAM. The first run passed 7/8: the SQL check failed because of a test-helper bug, now fixed.
-A re-check of the same events then passed 8/8. Results are in `docs/verification-report.md`.
+Last live run: 2026-10-03, as the v1 `bigplan-live.test.mjs` against the retired `scrap-bigplan`
+(8/8 after a helper fix; see `docs/verification-report.md`). The v2 version has not run live yet: it
+needs the v2 vision/backend code and working Gemini billing.
 
 The real-hardware counterpart is `capture/scripts/live_camera_test.py` (board + C920 + bridge
 `--watch`, `source = camera`); this E2E swaps only the board for `simulate-camera` and goes on to
 assert the analysis, storage, and dashboard results.
 
-`test:e2e:bigplan` uses `node --env-file-if-exists` (Node ≥ 22.9). Always pass test **files** to
+`test:e2e:scrap` uses `node --env-file-if-exists` (Node ≥ 22.9). Always pass test **files** to
 `node --test`: `node --test tests/e2e` treats the folder as one script and fails; use
 `node --test tests/e2e/*.test.mjs` or the npm scripts.
 

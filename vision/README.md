@@ -1,25 +1,34 @@
 # vision — Agent 4: Gemini classification and waste measurement
 
 Self-contained Node 20 + TypeScript package. Turns a capture image plus its
-menu/baseline context into a contract-valid `AnalysisAttempt` +
-`FoodMeasurement[]` (see `contracts/types.ts`; AGENTS.md §7 math is canonical),
-and owns the server-side Gemini gateway that Agent 6 reuses for suggestions.
+menu context into a contract-valid `AnalysisAttempt` + `FoodMeasurement[]`
+in **pixels** (see `contracts/types.ts`; AGENTS.md §7 math is canonical),
+counting only the dish being scanned (BIG-PLAN v2, target-dish counting), and
+owns the server-side Gemini gateway that Agent 6 reuses for suggestions.
+There is no plate-size calibration and there are no grams: relative impact
+points are derived from pixels by `analytics/`, not here.
 
 ```
 vision/
   src/
+    maskPipeline.ts analyzeCaptureWithMasks(): the measurement path (below)
+    localize.ts     Gemini prompt v4: numbered menu, per-piece boxes, target dish
+    targetDish.ts   dish region (box cut, speck removal, convex-hull fill, dilation) + clip
+    masks.ts        box conversion, mask validation, smallest-first pixel counting
+    overlay.ts      segmented overlay JPEG (pixels-only legend)
+    samClient.ts    SAM 2.1 worker client (vision/sam/)
     gateway.ts      Gemini transport (live/mock, timeout, bounded retries, ApiError)
-    prompt.ts       versioned classification prompt + structured-output schema
-    validate.ts     strict validation of untrusted model output
-    measurement.ts  canonical §7 pixel-area math and flags
-    analyze.ts      analyzeCapture() orchestration
+    dishMatch.ts    same-dish judgment for the capture bridge
+    prompt.ts       menu sanitizing + legacy classification prompt
+    validate.ts / measurement.ts / analyze.ts / leftovers.ts   legacy/research helpers
     image.ts        bytes / read-URL -> Gemini inline-data formatting
-    contracts.ts    verbatim copy of consumed contracts/types.ts types
+    contracts.ts    copy of consumed contracts/types.ts types
+  scripts/                  live smoke + research scripts (real Gemini calls)
   fixtures/responses.json   canned model responses (mock mode + tests)
-  test/                     node --test suite (fixtures only, no live calls)
+  test/                     node --test suite (fixtures and fakes only, no live calls)
 ```
 
-## Usage
+## Legacy usage (`analyzeCapture`, Gemini area estimates; not the measurement path)
 
 ```ts
 import { createGeminiGateway, analyzeCapture } from '@scrap/vision';
@@ -73,8 +82,9 @@ bounded retries. Suggestion prompts and business logic stay in `analytics/`.
 | `GEMINI_TIMEOUT_MS` | `30000` | Per-request timeout (AbortSignal). |
 | `GEMINI_MAX_RETRIES` | `2` | Bounded retries after the first attempt (retryable errors only). |
 | `GEMINI_RETRY_BASE_DELAY_MS` | `500` | Exponential backoff base (500, 1000, …). |
-| `PLATE_DIAMETER_PX` | `900` | Fallback plate diameter (px of the analyzed image) for `configured-default` calibration. |
+| `GEMINI_PASSES` | `2` | Localization passes per capture (`1` or `2`); equals the Gemini calls per capture. |
 | `SAM_WORKER_URL` | `http://127.0.0.1:8790` | SAM 2.1 worker (`vision/sam/`). |
+| `SAM_TIMEOUT_MS` | `60000` | Per-request SAM worker timeout. |
 
 All options can also be passed to `createGeminiGateway()` directly; explicit
 options win over env.
@@ -88,9 +98,12 @@ classification and clearly labeled fixture text; tests inject responses from
 
 ## Prompt versioning
 
-`PROMPT_VERSION` (currently `scrap-classify-v1`, `src/prompt.ts`) is stamped on
-every `AnalysisAttempt` together with the model id and the menu/baseline
-versions used. Bump it whenever the prompt text or response schema changes
+The measurement path stamps `LOCALIZE_PROMPT_VERSION` (currently
+`scrap-localize-v4`, `src/localize.ts`; `+closeup` for two passes) on every
+`AnalysisAttempt` together with the model id, the menu version, the SAM
+model/settings, and the counting rule (`target-dish-v1`). The legacy
+`analyzeCapture` uses `PROMPT_VERSION` (`scrap-classify-v1`, `src/prompt.ts`).
+Bump a version whenever its prompt text or response schema changes
 meaningfully, so stored results remain traceable.
 
 Untrusted-input handling: menu names/descriptions are sanitized (control
@@ -112,82 +125,125 @@ All fixture-driven (no credentials needed, no live Gemini or SAM calls).
 
 ## Classification → segmentation → Pixels wasted (`analyzeCaptureWithMasks`)
 
-The primary pipeline (contracts/measurement.md, MVP_AI.md):
-
-1. `localize.ts` — Gemini returns menu item IDs (or `unknown`), visual
-   labels, and `[ymin, xmin, ymax, xmax]` 0–1000 boxes; explicit
-   `plateEmpty`/`ambiguous`; no quantities. Invented IDs are rejected.
-2. `masks.ts` `geminiBoxToPixels` — convert to pixel XYXY on the exact image.
-3. `samClient.ts` — the SAM 2.1 worker (`vision/sam/`) segments every box in
-   one call (`Segmenter` seam; tests inject a fake).
-4. `masks.ts` `decodeBinaryMask` — exact size, strictly 0/255, nonempty.
-5. `masks.ts` `countPixels` (rule `union-v1`) — per-item unions; pixels
-   contested by two items go to the unclassified bucket; capture total = union.
-
-Returns the attempt (with `segmentation` and `calibration`),
-`mask_pixel_count` measurements, the mask PNGs for the backend to store,
-and (BIG-PLAN D2/D7) `calibration`, `overlay`, and `diagnostics`. Stage outcomes
-(classification failure, explicit empty plate, partial, worker down) are
-distinct and never become zero pixels. `analyzeCapture` (Gemini-guessed
-areas) and `assessLeftovers` (counts/percents) remain as legacy/research
-helpers, not the measurement path.
-
-### Plate calibration and segmented overlay (BIG-PLAN D2, D7)
+The measurement path (contracts/measurement.md, MVP_AI.md, BIG-PLAN v2 §7):
 
 ```ts
 const r = await analyzeCaptureWithMasks(gateway, createSamWorkerClient(), {
-  ...input,
-  calibration: { defaultPlateDiameterPx: 900 }, // optional; { enabled: false } skips the fit
-  renderOverlay: true,                           // optional, default true
+  eventId, attemptId,
+  image: { bytes, mimeType: 'image/jpeg' },     // the normalized capture (1024² center crop)
+  geometry: { widthPx: 1024, heightPx: 1024, coordinateSpace: 'topdown-normalized-v1' },
+  menu: { menuId, menuVersion, items },         // this hall/date/service only
+  geminiPasses: 2,                              // optional; default env GEMINI_PASSES, else 2
+  renderOverlay: true,                          // optional, default true
 });
-r.calibration;   // PlateCalibration (contracts/types.ts), also r.attempt.calibration
-r.overlay;       // { jpeg: Uint8Array, widthPx, heightPx, mimeType: 'image/jpeg', version: 'overlay-v1' } | null
-r.diagnostics;   // { calibrationError?, plateRimPoints?, pixelsOutsideDish?, overlayError?, ... }
+r.attempt;       // AnalysisAttempt with `segmentation` (regions, countStatus, capturePixelsWasted)
+r.measurements;  // FoodMeasurement[] (method 'mask_pixel_count', remainingAreaPx = pixels)
+r.masks;         // [{ regionId, png }] counted region masks (after the dish clip) to store
+r.itemMasks;     // [{ measurementId, png, count }] exclusive per-bucket masks (back maskCount)
+r.targetDish;    // TargetDishInfo (below)
+r.overlay;       // { jpeg, widthPx, heightPx, mimeType: 'image/jpeg', version: 'overlay-v2' } | null
+r.diagnostics;   // { overlayError? }
+r.localization;  // { passes, geminiCalls, passBoxes, failedPasses, mergedBoxes }
 ```
 
-- **`plate-fit-v1`** (`src/calibration.ts`, ported from
-  `scripts/waste-impact.mjs`): Gemini boxes the single plate/bowl holding the
-  food (prompt `scrap-plate-v1`, requested concurrently with classification),
-  SAM masks that box, a circle is fitted to the mask's outer rim (outermost
-  pixel per row/column, frame-edge points ignored, one robust refit dropping
-  points > 4% of r away), `plateDiameterPx = round(2r)`,
-  `cm2PerPx = (26.7 / plateDiameterPx)^2`. Flags: `plate_cut_off` (Gemini
-  says the rim is cut off or the circle leaves the frame),
-  `bowl_size_assumed` (bowl). Plausibility: >= 1% of the image masked,
-  >= 20 rim inliers and >= 30% of rim points, centre inside the frame,
-  diameter between 25% of the short side and 2.5x the long side.
-- **Fallback `configured-default`** with flag `calibration_default` whenever
-  Gemini/SAM fail, the answer is invalid, the fit is implausible, analysis was
-  unavailable, or calibration is disabled. Diameter = option
-  `defaultPlateDiameterPx` > env `PLATE_DIAMETER_PX` > **900 px** (the
-  normalized capture is a 1024² center crop; 900 px is the plate size the
-  vision fixtures assume). Calibration never throws and never drops a capture.
-- **Counts are unchanged.** Pixels wasted still uses `smallest-first-v1` on
-  the full canvas; food outside the fitted dish is NOT subtracted (the script
-  did clip). It is reported as `diagnostics.pixelsOutsideDish` so the effect
-  can be checked before any rule change (which would bump the counting rule
-  version). Rationale: a mis-fitted circle would silently delete real food,
-  and the camera frames one dish per capture.
-- **Overlay** (`src/overlay.ts`, `overlay-v1`): the analyzed image at its own
-  size with each exclusive food bucket tinted in a fixed per-menu-position
-  colour (unclassified = grey), the fitted rim in cyan, and a legend strip
-  below (calibration header + total, then `food: N px`). JPEG quality 88.
-  `sharp` is loaded lazily; a missing module or undecodable image gives
-  `overlay: null` + `diagnostics.overlayError`. Rendered for complete,
-  partial, and empty-plate captures; null when nothing was countable.
-- Two localization passes (user change, `menu-source-experiment` fef1065):
-  by default Gemini localizes twice in parallel (base prompt, and base +
-  a "look closely at mixed piles" line); boxes are merged by IoU > 0.5
-  keeping the smaller box. `GEMINI_PASSES=1` / `geminiPasses: 1` uses one
-  pass. `promptVersion` is `scrap-localize-v3+closeup` for two passes,
-  `scrap-localize-v3` for one; `result.localization` reports boxes per pass.
-  With calibration on, a capture makes **3 Gemini calls** (2 localize + 1
-  plate box, all concurrent) and 2 SAM calls (food, then plate).
-- Localize prompt `scrap-localize-v3`: every numbered menu line is
-  `n. name — description` (the demo menu's descriptions are Gemini
-  visible-component text); descriptions are sanitized (control chars,
-  newlines, backticks stripped; 300-char cap) and the system instruction
-  states that menu text is data, not instructions.
+1. **Gemini (`localize.ts`, prompt `scrap-localize-v4`).** One structured
+   call per pass returns `{ target_dish, pieces }`. The **target dish** is the
+   plate or bowl being scanned: the one most centered and most fully in frame
+   (the camera is overhead), with `dish_type`, a 0–1000 `box_2d` around its
+   rim, and `fully_visible`. Each piece has `ingredient`, `menu_id` (1..N from
+   the numbered menu `n. name — visible components`, 0 = no match), a
+   per-piece `box_2d` (each carrot slice / pepper strip / floret; rice one box
+   per clump), and `on_target_dish`. The prompt states: *"Count food only on
+   the target dish. Food on other plates, bowls, trays or the table belongs to
+   other dishes and must be marked as not on the target dish. Each dish is
+   counted in its own photo."* Menu text is sanitized and declared data, not
+   instructions. Gemini never reports quantities. A v3 bare-array answer is
+   still accepted (no target dish; every piece counts as on it).
+2. **Two passes (default, `fef1065`).** Pass 2 adds a "look closely at mixed
+   piles" line; both run in parallel. Boxes from both passes are merged: where
+   two overlap by IoU > 0.5 they are one piece and the smaller box (with its
+   on/off-dish mark) is kept (`d24ce1b`). The target dish comes from pass 1
+   (pass 2 if pass 1 has none); `targetDish.passAgreementIoU` reports how well
+   the two passes agree. **Gemini calls per capture = passes (2 by default)**;
+   the old separate plate-box call is gone (it was 3).
+3. **Other-dish food is dropped.** Boxes marked `on_target_dish: false` become
+   skipped regions with `error.code = 'OTHER_DISH'` (`details.reason =
+   'other_dish'`). They never count toward any item or the capture total.
+4. **SAM 2.1, one request** (`samClient.ts`): target-food boxes, other-dish
+   boxes (for the overlay and diagnostics only), and the target-dish box, on
+   the same image (one embedding; split into 128-box chunks only if needed).
+   Masks are validated: exact size, strictly 0/255, nonempty, count matches.
+5. **Target-dish clip (`targetDish.ts`, `dish-region-v2`).** The SAM dish
+   mask is cut to the Gemini dish box plus a margin (max(dilation, 5% of the
+   box's longer side)), so a mask that bled onto a neighbour cannot grow the
+   region. Specks are dropped, but **every significant piece is kept**
+   (≥ max(0.05% of the frame, 2% of the largest piece)): a fork or food lying
+   across the dish splits the dish mask into several large pieces. The
+   **convex hull** of those pieces fills the holes food leaves in the dish mask
+   and the rim notches where food crosses the rim (plates and bowls are
+   convex). Then it is **dilated by max(2, round(1% of the longer image side))
+   px = 10 px on 1024²** (square). The region must cover 2–95% of the frame
+   and at least 50% of the frame-clamped dish box (a round dish fills ~78%).
+   Every food mask is clipped to it; a mask left empty becomes a skipped region
+   `OUTSIDE_TARGET_DISH`. **No dish, no valid dish mask, SAM failure, or an
+   implausible/incomplete region ⇒ no clipping, attempt flag
+   `target_dish_unavailable`, counts kept.**
+6. **Counting rule `target-dish-v1`** (`COUNTING_RULE_VERSION`): steps 3 and 5,
+   then `smallest-first-v1` (`masks.ts countPixels`): smallest masks claim
+   their pixels first, every pixel goes to at most one bucket (menu item or
+   the unclassified bucket), capture total = union of the clipped masks = sum
+   of the buckets.
+7. **Overlay (`overlay.ts`, `overlay-v2`).** The analyzed image at its own
+   size: counted food tinted per item (fixed colour per menu position,
+   unclassified grey), not-counted other-dish food hatched neutral grey, the
+   target dish outlined in cyan (or its Gemini box dashed amber when no region
+   was usable). Legend in pixels only: `Pixels wasted N px (AI masks) · target
+   dish outlined`, one `food: N px` line per item, and `Other dish (not
+   counted): N px`. `sharp` loads lazily; failure gives `overlay: null` +
+   `diagnostics.overlayError`.
+
+### Target-dish result fields (stable)
+
+| Field | Meaning |
+| --- | --- |
+| `targetDish.found` | Gemini named a target dish with a usable box |
+| `targetDish.dishType`, `fullyVisible`, `box` | `plate` / `bowl` / `other`, rim cut off or not, `RegionBox` (Gemini 0–1000 + pixel XYXY) |
+| `targetDish.passAgreementIoU` | IoU of the two passes' dish boxes (two-pass, both found) |
+| `targetDish.clipApplied` | food masks were clipped to the dish region |
+| `targetDish.clipUnavailableReason` | `no_food`, `not_found`, `bad_target_dish`, `bad_dish_type`, `legacy_array`, `dish_box_invalid`, `segmentation_failed`, `dish_mask_invalid`, `dish_mask_empty`, `region_too_small`, `region_too_large`, `region_incomplete` |
+| `targetDish.regionPx`, `dilatePx` | dish region size and dilation (px) |
+| `targetDish.excludedBoxes` | food boxes Gemini placed on another dish (after the merge) |
+| `targetDish.otherDishPx` | not-counted food pixels outside the target dish (other-dish masks + clipped-off pixels, minus counted pixels) |
+| `targetDish.clippedPx` | target-food mask pixels the clip removed (part of `otherDishPx`) |
+
+Persistable without schema changes: `attempt.qualityFlags` carries
+`neighbor_food_excluded` (other-dish boxes were dropped, or the clip removed
+≥ 0.1% of the frame) and `target_dish_unavailable`; excluded boxes are
+`segmentation.regions` with `segmentationStatus: 'skipped'` and error code
+`OTHER_DISH` / `OUTSIDE_TARGET_DISH`. Neither flag excludes a capture from
+aggregates. The two flag values are **pending in `contracts/types.ts`**;
+until the coordinator adds them, vision emits them via the exported
+constants `NEIGHBOR_FOOD_EXCLUDED` / `TARGET_DISH_UNAVAILABLE`.
+
+### Stage outcomes
+
+- Classification failure (every pass failed/invalid): `failed`,
+  `countStatus: 'unavailable'`, no SAM call. One failed pass falls back to
+  the other.
+- Explicit empty plate (every usable pass returned no pieces): `succeeded`,
+  `empty`, 0 px, `empty_plate`, no SAM call.
+- All food on other dishes: `succeeded`, `empty`, 0 px, `empty_plate` +
+  `neighbor_food_excluded` (a real zero for this dish; the neighbour counts
+  in its own capture).
+- All target food clipped away (Gemini and the clip disagree): `needs_review`,
+  `empty`, 0 px.
+- Some masks invalid: `needs_review`, `partial` (lower bound). Worker down /
+  every mask invalid: `failed`, `unavailable`. Never silently zero.
+- `calibration` is no longer produced (BIG-PLAN v2, V1); the `calibration`
+  input option is accepted and ignored for compatibility.
+
+`analyzeCapture` (Gemini-guessed areas) and `assessLeftovers`
+(counts/percents) remain as legacy/research helpers, not the measurement path.
 
 ## Countable vs uncountable leftovers (`assessLeftovers`)
 
@@ -223,25 +279,39 @@ but burger50/60 read ~20–30 points high and are not told apart; fries are
 overcounted by ~30%. By eye, fries10 shows about 13 fries, so the labels may
 be approximate. Not yet wired into the backend pipeline or dashboard.
 
-## Live calibration/overlay smoke (2026-10-04)
+## Live target-dish check (2026-10-04)
 
-`node --env-file=../.env scripts/calibration-smoke.mjs <outDir> [images]`
-(needs the SAM worker). Defaults: 4 `test2/` photos normalized like capture
+`node --env-file=../.env scripts/target-dish-smoke.mjs <outDir> [images]`
+(needs `GEMINI_API_KEY` and the SAM worker). Defaults: `test2/IMG_2697` and
+`IMG_2701` (both have neighbouring plates in frame) normalized like capture
 (1024² center crop), the demo dinner menu with Gemini descriptions, two-pass
-localization, `gemini-3.5-flash`, and SAM 2.1 Small on MPS. All 4 succeeded
-with `plate-fit-v1`, and every ground-truth food was found:
+localization. Prints the target dish, whether the clip applied, other-dish
+boxes/pixels, counted pixels per food and the Gemini calls used; writes
+`<name>_overlay.jpg` + `results.json`. `MAX_GEMINI_CALLS` (default 2 per
+image + 1) aborts a runaway run.
 
-| Photo | Calibration | Foods (Pixels wasted) | vs ground_truth.csv |
-| --- | --- | --- | --- |
-| IMG_2695 | plate, 1236 px, `plate_cut_off` (plate wider than the crop) | Vegetable Stir Fry Blend 111,303; Sticky Rice 54,401 | both correct |
-| IMG_2697 | plate, 963 px, `plate_cut_off` | Sweet Potatoes 83,589; Roasted Cauliflower 72,529; Ham 28,827; Shaved Brussel Sprouts 13,919 | 3/3 correct; the sprouts are on a neighbouring plate (all 13,919 px outside the dish) |
-| IMG_2701 | plate, 844 px | 4 Bean Stew 17,560; Cheese Bread 13,707 | stew correct; the bread is outside the dish (13,707 px) |
-| IMG_2706 | bowl, 574 px, `bowl_size_assumed` | Chocolate Coconut Cream Pie 93,822; unclassified 20,143 | pie + unknown correct |
+Run on 2026-10-04 (`GEMINI_MODEL` from `.env`, SAM 2.1 Small on MPS, 2 Gemini
+calls per photo):
 
-Food on neighbouring dishes is the main error, and `diagnostics.pixelsOutsideDish`
-measures exactly that. Clipping counts to the fitted dish would remove it, but
-clipping is not enabled (see above). These fixture photos are phone shots
-with several dishes in frame, not images from the mounted camera.
+| Photo | Target dish | Other dish (not counted) | Counted (Pixels wasted) | vs ground_truth.csv |
+| --- | --- | --- | --- | --- |
+| IMG_2697 | plate (cut off), clip applied, region 686,220 px | 1 box, 13,918 px (Brussels sprouts on the neighbouring plate) | Sweet Potatoes 83,656; Roasted Cauliflower 77,338; Ham 28,802 = 189,796 | 3/3 correct, nothing extra |
+| IMG_2701 | plate, clip applied (first run, `dish-region-v1`; the v2 region, checked SAM-only, is the full bowl, 595,990 px, and still contains the stew) | 1 box, 13,707 px (cheese bread on the neighbouring plate) | 4 Bean Stew 17,472 | 1/1 correct, nothing extra |
+
+Before v2 these photos counted the neighbours' sprouts (13,919 px) and bread
+(13,707 px). The first v2 run exposed a bug in `dish-region-v1` (kept only
+the largest piece of the dish mask; on IMG_2697 the fork split the plate, so
+the half-plate region clipped 216,760 px of real ham and sweet potato);
+`dish-region-v2` keeps every significant piece and rejects regions under 50%
+of the dish box. These are phone photos with several dishes in frame, not
+images from the mounted camera.
+
+`scripts/waste-impact.mjs <imagesDir> <menu_waste_factors.csv> [outDir]`
+(research only) runs the same pipeline on a folder of photos and prints
+pixels and **relative impact points** (`points = px/1000 × weight_g_per_cm2 ×
+factor`; co2Points C, waterPoints W, impactPoints 0.19C + 1.50W;
+nutritionPoints separate). Points are unitless, not grams, kg CO2e, litres or
+dollars.
 
 ## Live smoke test
 

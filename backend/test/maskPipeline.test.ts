@@ -82,7 +82,7 @@ test('capture -> masks stored in object storage -> Pixels wasted on the dashboar
     assert.equal(m.method, 'mask_pixel_count');
     assert.equal(m.maskCount.pixelsWasted, m.remainingAreaPx);
     assert.equal(m.maskCount.assignment, 'exclusive');
-    assert.equal(m.maskCount.processingVersion, 'smallest-first-v1');
+    assert.equal(m.maskCount.processingVersion, 'target-dish-v1'); // BIG-PLAN v2 counting rule
     const access = await s.api('GET', `/api/images/${m.maskCount.maskObjectId}/access`);
     assert.equal(access.status, 200, 'exclusive mask is a finalized object in storage');
     const png = PNG.sync.read(Buffer.from(await (await fetch(`${s.baseUrl}${access.json.url}`)).arrayBuffer()));
@@ -133,7 +133,7 @@ test('capture -> masks stored in object storage -> Pixels wasted on the dashboar
   assert.equal(meal.json.insight.metrics.topItemId, 'item_toast');
 
   const daily = await s.api('GET', `/api/dashboard/daily?hallId=${HALL}&start=2026-10-03&end=2026-10-03`);
-  assert.deepEqual(daily.json.days[0], { date: '2026-10-03', pixelsWasted: 131072, capturedDishes: 1, countedDishes: 1, plateWastePercents: [100], grams: null }); // Scrambled Eggs / Toast have no factor row
+  assert.deepEqual(daily.json.days[0], { date: '2026-10-03', pixelsWasted: 131072, capturedDishes: 1, countedDishes: 1, plateWastePercents: [100] });
 });
 
 test('segmentation worker down: capture fails retryably and nothing is counted', async (t) => {

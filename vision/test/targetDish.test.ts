@@ -15,6 +15,7 @@ import { LOCALIZE_PROMPT_VERSION, LOCALIZE_SYSTEM_INSTRUCTION, TARGET_DISH_LINE,
 import { buildDishRegion, convexHullFill, dilateSquare, dishDilatePx, largestComponent } from '../src/targetDish.js';
 import { legendLines } from '../src/overlay.js';
 import type { Segmenter } from '../src/samClient.js';
+import { NEIGHBOR_FOOD_EXCLUDED, TARGET_DISH_UNAVAILABLE } from '../src/contracts.js';
 
 const W = 200;
 const H = 200;
@@ -136,8 +137,10 @@ test('two plates in frame: only the target dish food is counted; other-dish box 
   assert.equal(seg.countingRuleVersion, 'target-dish-v1');
   assert.equal(seg.capturePixelsWasted, BURGER_PX, 'neighbour fries never count');
   assert.deepEqual(r.measurements.map((m) => [m.itemId, m.remainingAreaPx]), [['burger', BURGER_PX]]);
-  assert.ok(r.attempt.qualityFlags.includes('neighbor_food_excluded'));
-  assert.ok(!r.attempt.qualityFlags.includes('target_dish_unavailable'));
+  assert.equal(NEIGHBOR_FOOD_EXCLUDED, 'neighbor_food_excluded');
+  assert.equal(TARGET_DISH_UNAVAILABLE, 'target_dish_unavailable');
+  assert.ok(r.attempt.qualityFlags.includes(NEIGHBOR_FOOD_EXCLUDED));
+  assert.ok(!r.attempt.qualityFlags.includes(TARGET_DISH_UNAVAILABLE));
   assert.ok(!r.attempt.qualityFlags.includes('multiple_dishes'), 'never an aggregate-exclusion flag');
   // The excluded box is a skipped region with reason other_dish; no mask is stored for it.
   const other = seg.regions.find((x) => x.itemId === 'fries')!;
@@ -183,7 +186,7 @@ test('pixel-level safety: food Gemini wrongly puts on the target dish is clipped
   assert.equal(r.targetDish.excludedBoxes, 0);
   assert.equal(r.targetDish.clippedPx, NEIGHBOR_PX);
   assert.equal(r.targetDish.otherDishPx, NEIGHBOR_PX);
-  assert.ok(r.attempt.qualityFlags.includes('neighbor_food_excluded'), '900 px >= 0.1% of the frame');
+  assert.ok(r.attempt.qualityFlags.includes(NEIGHBOR_FOOD_EXCLUDED), '900 px >= 0.1% of the frame');
   assert.equal(r.attempt.status, 'succeeded');
 });
 
@@ -210,7 +213,7 @@ test('mask spilling outside the dish is clipped to the filled, dilated dish regi
       if (d > 60 + 2 * Math.SQRT2 + 1) assert.ok(!on, `pixel ${x},${y} beyond the rim was kept`);
     }
   // A small spill (< 0.1% of the frame) does not flag the capture as having neighbour food.
-  assert.equal(r.attempt.qualityFlags.includes('neighbor_food_excluded'), td.clippedPx >= 40);
+  assert.equal(r.attempt.qualityFlags.includes(NEIGHBOR_FOOD_EXCLUDED), td.clippedPx >= 40);
 });
 
 test('dish not found: no clip, target_dish_unavailable, counts kept (spill not clipped)', async () => {
@@ -223,7 +226,7 @@ test('dish not found: no clip, target_dish_unavailable, counts kept (spill not c
     const r = await analyzeCaptureWithMasks(gemini(answer([piece('rice spill', 3, SPILL_G)], target)), sam, await input());
     assert.equal(r.attempt.status, 'succeeded', name);
     assert.equal(r.attempt.segmentation!.capturePixelsWasted, 900, `${name}: full spill counted`);
-    assert.ok(r.attempt.qualityFlags.includes('target_dish_unavailable'), name);
+    assert.ok(r.attempt.qualityFlags.includes(TARGET_DISH_UNAVAILABLE), name);
     assert.equal(r.targetDish.found, false, name);
     assert.equal(r.targetDish.clipApplied, false, name);
     assert.equal(r.targetDish.clipUnavailableReason, reason, name);
@@ -244,7 +247,7 @@ test('implausible or invalid dish region: no clip + flag, counts kept', async ()
     assert.equal(r.targetDish.found, true, name);
     assert.equal(r.targetDish.clipApplied, false, name);
     assert.equal(r.targetDish.clipUnavailableReason, reason, name);
-    assert.ok(r.attempt.qualityFlags.includes('target_dish_unavailable'), name);
+    assert.ok(r.attempt.qualityFlags.includes(TARGET_DISH_UNAVAILABLE), name);
     assert.equal(r.attempt.status, 'succeeded', name);
   }
 });
@@ -257,8 +260,8 @@ test('all food on other dishes: the target dish is a real zero (empty), overlay 
   assert.equal(seg.capturePixelsWasted, 0);
   assert.deepEqual(r.measurements, []);
   assert.ok(r.attempt.qualityFlags.includes('empty_plate'));
-  assert.ok(r.attempt.qualityFlags.includes('neighbor_food_excluded'));
-  assert.ok(!r.attempt.qualityFlags.includes('target_dish_unavailable'), 'nothing to clip is not a missing dish');
+  assert.ok(r.attempt.qualityFlags.includes(NEIGHBOR_FOOD_EXCLUDED));
+  assert.ok(!r.attempt.qualityFlags.includes(TARGET_DISH_UNAVAILABLE), 'nothing to clip is not a missing dish');
   assert.equal(r.targetDish.clipUnavailableReason, 'no_food');
   assert.equal(r.targetDish.otherDishPx, NEIGHBOR_PX);
   assert.ok(r.overlay, r.diagnostics.overlayError);
@@ -269,7 +272,7 @@ test('explicit empty plate: no SAM call, no flags about the dish', async () => {
   const r = await analyzeCaptureWithMasks(gemini(answer([])), sam, await input());
   assert.equal(r.attempt.segmentation!.countStatus, 'empty');
   assert.equal(sam.calls.length, 0);
-  assert.ok(!r.attempt.qualityFlags.includes('target_dish_unavailable'));
+  assert.ok(!r.attempt.qualityFlags.includes(TARGET_DISH_UNAVAILABLE));
   assert.equal(r.targetDish.found, true);
   assert.equal(r.targetDish.clipUnavailableReason, 'no_food');
 });

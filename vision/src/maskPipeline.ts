@@ -51,6 +51,7 @@ import type {
   RegionBox,
   SegmentationResult,
 } from './contracts.js';
+import { NEIGHBOR_FOOD_EXCLUDED, TARGET_DISH_UNAVAILABLE } from './contracts.js';
 import { GatewayError, makeApiError } from './errors.js';
 import type { GeminiGateway } from './gateway.js';
 import { imageInputToPart } from './image.js';
@@ -457,7 +458,7 @@ async function runStages(gateway: GeminiGateway, segmenter: Segmenter, input: Ma
   }));
   regions.push(...excluded);
   targetDish.excludedBoxes = excluded.length;
-  if (excluded.length > 0) flags.add('neighbor_food_excluded');
+  if (excluded.length > 0) flags.add(NEIGHBOR_FOOD_EXCLUDED);
 
   // 3. Segmentation: target food + other-dish food + the target dish, one request.
   const dishIndex = dishBoxPx ? toSegment.length + excluded.length : -1;
@@ -544,7 +545,7 @@ async function runStages(gateway: GeminiGateway, segmenter: Segmenter, input: Ma
       } else targetDish.clipUnavailableReason = built.reason;
     }
   }
-  if (hasFood && !targetDish.clipApplied) flags.add('target_dish_unavailable');
+  if (hasFood && !targetDish.clipApplied) flags.add(TARGET_DISH_UNAVAILABLE);
 
   const masks: MaskAnalysisResult['masks'] = [];
   const counted: CountedRegion[] = [];
@@ -577,7 +578,7 @@ async function runStages(gateway: GeminiGateway, segmenter: Segmenter, input: Ma
     counted.push({ regionId: region.regionId, itemId: region.itemId, bitmap: use });
     masks.push({ regionId: region.regionId, png: usePng });
   }
-  if (targetDish.clippedPx >= NEIGHBOR_CLIP_MIN_FRACTION * W * H) flags.add('neighbor_food_excluded');
+  if (targetDish.clippedPx >= NEIGHBOR_CLIP_MIN_FRACTION * W * H) flags.add(NEIGHBOR_FOOD_EXCLUDED);
   // Not-counted pixels: other-dish masks + clipped-off pixels, minus anything counted.
   const settleOther = (countedUnion: Uint8Array | null) => {
     if (!anyOther) return;

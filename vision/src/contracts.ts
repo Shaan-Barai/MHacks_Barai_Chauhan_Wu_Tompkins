@@ -50,20 +50,25 @@ export type QualityFlag =
   /** A region's segmentation failed or produced an invalid mask (no pixels counted for it). */
   | 'segmentation_failed'
   /** Masks of different foods overlapped; shared pixels went to the unclassified bucket. */
-  | 'overlapping_masks'
-  /**
-   * Attempt-level (BIG-PLAN v2, V3). Food outside the scanned (target) dish
-   * was found and not counted: Gemini marked boxes as on another dish, or the
-   * target-dish clip removed at least 0.1% of the frame. Not an exclusion
-   * reason. PENDING in contracts/types.ts (coordinator).
-   */
-  | 'neighbor_food_excluded'
-  /**
-   * Attempt-level (BIG-PLAN v2, V3). The target dish could not be found or
-   * segmented plausibly, so food masks were not clipped; counts are kept.
-   * Not an exclusion reason. PENDING in contracts/types.ts (coordinator).
-   */
-  | 'target_dish_unavailable';
+  | 'overlapping_masks';
+
+/*
+ * Attempt-level target-dish flags (BIG-PLAN v2, V3). PENDING in
+ * contracts/types.ts QualityFlag (coordinator). Until they are added there,
+ * vision emits them through these constants (typed as QualityFlag) so
+ * consumers typed against contracts/types.ts keep compiling; the values are
+ * plain strings in `analysis_attempt.qualityFlags`. Neither is an
+ * aggregate-exclusion reason. Once contracts lists them, add them to the
+ * union above and drop the casts.
+ */
+/**
+ * Food outside the scanned (target) dish was found and not counted: Gemini
+ * marked boxes as on another dish, or the target-dish clip removed at least
+ * 0.1% of the frame.
+ */
+export const NEIGHBOR_FOOD_EXCLUDED = 'neighbor_food_excluded' as string as QualityFlag;
+/** The target dish could not be found or segmented plausibly, so food masks were not clipped; counts are kept. */
+export const TARGET_DISH_UNAVAILABLE = 'target_dish_unavailable' as string as QualityFlag;
 
 export type AnalysisStatus = 'succeeded' | 'needs_review' | 'failed';
 

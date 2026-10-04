@@ -101,3 +101,4 @@ export { validateClassificationText, maxPlausibleAreaPx } from './validate.js';
 export type { ClassificationResult, ClassifiedItem, UnknownFood, ValidationOutcome } from './validate.js';
 
 export type * from './contracts.js';
+export { NEIGHBOR_FOOD_EXCLUDED, TARGET_DISH_UNAVAILABLE } from './contracts.js';

@@ -1,6 +1,6 @@
 /**
  * IT_4 I8: estimated grams / kg CO2e / litres of water on the headline cards,
- * the food rows and the plate viewer. Estimates are labeled (est.); missing
+ * the food rows and the plate viewer. No "est." labels (2026-10-04); missing
  * estimates are never 0.
  */
 import { describe, expect, it, vi } from 'vitest'
@@ -27,7 +27,7 @@ function calibrated(over: Partial<ImpactDashboard['totals']> = {}): ImpactDashbo
 }
 
 describe('HeadlineCards with estimates', () => {
-  it('shows carbon, water and food wasted as estimates (est.) and plates scanned as a count', () => {
+  it('shows carbon, water and food wasted with no est. label, and plates scanned as a count', () => {
     render(<HeadlineCards data={calibrated()} />)
     const titles = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
     expect(titles).toEqual(['Carbon emissions', 'Water', 'Food wasted', 'Plates scanned'])
@@ -35,8 +35,8 @@ describe('HeadlineCards with estimates', () => {
     expect(screen.getByLabelText('Water: 19,000 L')).toBeInTheDocument()
     expect(screen.getByLabelText('Food wasted: 42 kg')).toBeInTheDocument()
     expect(screen.getByLabelText(/^Plates scanned: [\d,]+ plates$/)).toBeInTheDocument()
-    // the three estimates carry est.; the plate count is a count, not an estimate
-    expect(screen.getAllByText('est.')).toHaveLength(3)
+    // no est. labels anywhere (product owner, 2026-10-04)
+    expect(screen.queryByText('est.')).toBeNull()
     // no method breakdown: area from the calibration is the only method
     expect(screen.queryByText(/depth|volume|mixed/i)).toBeNull()
   })
@@ -77,7 +77,7 @@ describe('food rows with estimates', () => {
     render(<MostWasted rows={rows} initialRank="pixels" />)
     const items = within(screen.getByRole('list', { name: 'Foods ranked by total pixels wasted' })).getAllByRole('listitem')
     expect(items[0]).toHaveTextContent('Pepperoni Pizza')
-    expect(items[0]).toHaveTextContent('1,200 g19 kg CO2e2,300 L waterest.')
+    expect(items[0]).toHaveTextContent('1,200 g19 kg CO2e2,300 L water')
     expect(items[1]).toHaveTextContent('Estimated: 38 g, 1.1 kg CO2e, 18 L water.')
     expect(items[2]).toHaveTextContent('no estimate for this food')
     expect(items[3]).toHaveTextContent('not calibrated')
@@ -90,7 +90,7 @@ describe('food rows with estimates', () => {
     const body = within(screen.getByRole('table')).getAllByRole('row').slice(1)
     expect(body[0]).toHaveTextContent('Ancho Flank Steak')
     expect(body[0]).toHaveTextContent('2,857 pixels')
-    expect(body[0]).toHaveTextContent('about 0.27 g est.')
+    expect(body[0]).toHaveTextContent('about 0.27 g')
     // the food's total estimate chips stay in Most wasted, not here
     expect(body[0]).not.toHaveTextContent('38 g')
     expect(body[0]).not.toHaveTextContent('kg CO2e')
@@ -146,7 +146,7 @@ describe('plate viewer with estimates', () => {
     ])
     const rowsEl = within(table).getAllByRole('row').slice(1)
     expect(rowsEl[0]).toHaveTextContent('Ancho Flank Steak20,000')
-    expect(rowsEl[0]).toHaveTextContent('38 g1.1 kg CO2e18 L waterest.')
+    expect(rowsEl[0]).toHaveTextContent('38 g1.1 kg CO2e18 L water')
     expect(rowsEl[1]).toHaveTextContent('no estimate for this food')
     expect(rowsEl[1]).not.toHaveTextContent(/\b0 g/)
   })

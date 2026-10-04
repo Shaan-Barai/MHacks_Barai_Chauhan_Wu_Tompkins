@@ -23,13 +23,13 @@ describe('estimate formatting', () => {
 })
 
 describe('PhysicalChips', () => {
-  it('shows grams, CO2e with a cloud and water with a droplet, marked est., with a screen-reader sentence', () => {
+  it('shows grams, CO2e with a cloud and water with a droplet, with no est. mark, and a screen-reader sentence', () => {
     const { container } = render(<PhysicalChips amounts={{ grams: 38, kgCo2e: 1.1, waterLitres: 18 }} />)
     expect(screen.getByText('Estimated: 38 g, 1.1 kg CO2e, 18 L water.')).toHaveClass('sr-only')
     expect(screen.getByText('38 g')).toBeInTheDocument()
     expect(screen.getByText('1.1 kg CO2e')).toBeInTheDocument()
     expect(screen.getByText('18 L water')).toBeInTheDocument()
-    expect(screen.getByText('est.')).toBeInTheDocument()
+    expect(screen.queryByText('est.')).toBeNull()
     // two inline SVG icons, hidden from screen readers; no icon font or CDN
     const svgs = container.querySelectorAll('svg')
     expect(svgs).toHaveLength(2)

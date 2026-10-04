@@ -57,7 +57,7 @@ export function FoodsToTarget({ rows, demoPortions }: { rows: ItemImpactRow[]; d
                   <td className="py-1.5 pr-2 font-semibold">
                     {formatNumber(r.perPortion!.pixels)} pixels
                     {r.perPortion!.grams != null && (
-                      <span className="block text-sm font-normal">about {formatMass(r.perPortion!.grams)} est.</span>
+                      <span className="block text-sm font-normal">about {formatMass(r.perPortion!.grams)}</span>
                     )}
                   </td>
                   <td className="py-1.5 pr-2 text-sm">

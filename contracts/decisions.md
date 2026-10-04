@@ -549,3 +549,6 @@ calibrated-estimate decisions above; Pixels wasted stays the primary measured me
 - No staff sign-in in the UI. Editors are always shown; the backend still enforces
   `SCRAP_ADMIN_PASSCODE` when set (a 401 opens a passcode prompt). `/admin` is unlisted and unlocks
   inline with the passcode.
+- Later the same day: the dashboard's Take photo button and every "est." label are removed at the
+  product owner's request. Carbon, water and food weight are still calibrated estimates (null, shown
+  as "—", without calibration); photos are taken with `npm run take-photo`.

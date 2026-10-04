@@ -29,7 +29,7 @@ describe('StatisticsPage (mock data)', () => {
 
     // the mock calibrated the camera 20 days ago, so the last 30 days have estimates
     expect(await screen.findByLabelText(/^Carbon emissions: \d[\d,.]* (kg|g) CO2e$/)).toBeInTheDocument()
-    expect(screen.getAllByText('est.').length).toBeGreaterThan(0)
+    expect(screen.queryByText('est.')).toBeNull()
     expect(screen.getByLabelText(/^Plates scanned: [\d,]+ plates$/)).toBeInTheDocument()
     expect(totals).toHaveBeenCalledWith(addDays(today, -29), today)
 

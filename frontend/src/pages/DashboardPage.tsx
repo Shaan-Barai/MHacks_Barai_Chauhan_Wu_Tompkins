@@ -10,14 +10,11 @@ import { useAsync } from '../lib/useAsync'
 import { CarbonByDay } from '../components/CarbonByDay'
 import { DASHBOARD_PRESETS, DateRangePicker, rangeForDays, type DateRange } from '../components/DateRangePicker'
 import { HeadlineCards } from '../components/HeadlineCards'
-import { TakePhotoButton } from '../components/TakePhotoButton'
 import { Badge, EmptyState, LoadingBlock } from '../components/ui'
 
 export function DashboardPage() {
   const [range, setRange] = useState<DateRange>(() => rangeForDays(1))
-  // Bumped after a new photo so every section reloads.
-  const [refresh, setRefresh] = useState(0)
-  const impact = useAsync(() => getImpactDashboard(range.start, range.end), [range.start, range.end, refresh])
+  const impact = useAsync(() => getImpactDashboard(range.start, range.end), [range.start, range.end])
   // A one-day chart is a single bar, so "Today" charts the last 7 days.
   const chartRange = range.start === range.end ? rangeForDays(7) : range
 
@@ -28,17 +25,14 @@ export function DashboardPage() {
           <h1 className="font-display text-3xl font-bold tracking-tight text-ink">Dashboard</h1>
           {impact.data?.labels.sampleData && <Badge>Sample data</Badge>}
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <DateRangePicker value={range} onChange={setRange} presets={DASHBOARD_PRESETS} />
-          <TakePhotoButton onTaken={() => setRefresh((n) => n + 1)} />
-        </div>
+        <DateRangePicker value={range} onChange={setRange} presets={DASHBOARD_PRESETS} />
       </div>
 
       {impact.status === 'loading' && !impact.data && <LoadingBlock label="Loading totals" />}
       {impact.status === 'error' && <EmptyState title="Couldn't load the totals." />}
       {impact.data && <HeadlineCards data={impact.data} />}
 
-      <CarbonByDay range={chartRange} refresh={refresh} />
+      <CarbonByDay range={chartRange} />
     </div>
   )
 }

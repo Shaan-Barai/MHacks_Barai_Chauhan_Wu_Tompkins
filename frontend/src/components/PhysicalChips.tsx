@@ -105,9 +105,6 @@ export function PhysicalChips({
           {formatLitres(amounts.waterLitres)} water
         </span>
       )}
-      <span aria-hidden="true" className="italic">
-        est.
-      </span>
     </span>
   )
 }

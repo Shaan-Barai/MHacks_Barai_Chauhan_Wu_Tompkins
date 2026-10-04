@@ -98,13 +98,13 @@ origin). Pages have their own paths (`/`, `/schedule`, `/menus`, `/portions`,
 
 Pixels wasted stay the stored measurement (shown on Behind the scenes); the
 dashboard leads with estimated carbon emissions. Grams, kg CO2e and litres
-of water come from calibrated plates only, carry an "est." badge, and show
-"—" when unavailable (never 0).
+of water come from calibrated plates only and show "—" when unavailable
+(never 0). They are not marked "est." in the UI (product owner, 2026-10-04).
 
 - **Dashboard** (Today / This week): cards for Carbon emissions, Water, Food
   wasted (estimates) and Plates scanned; **Carbon emissions by day** chart
-  (`GET /api/dashboard/impact/daily`; "Today" charts the last 7 days); Take
-  photo.
+  (`GET /api/dashboard/impact/daily`; "Today" charts the last 7 days). No
+  camera button: take photos with `npm run take-photo` in backend/.
 - **Statistics** (Last 30 / Last 90 days): the same cards and chart,
   **Recommendations** (AI or rule-based fallback badge, each bullet with its
   supporting number, Ask again), **Foods to target** (pixels per portion,

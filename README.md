@@ -215,7 +215,7 @@ python3 capture/scripts/live_camera_test.py --target arduino@<board-ip> --identi
 | `GET /api/dashboard/daily` | per-day Pixels wasted |
 | `GET /api/dashboard/totals?today&hallId` | Pixels wasted today, this week (Mon-today), this month (1st-today) |
 | `POST /api/recommendation/regenerate` | asks Gemini again for `{start,end,hallId}`; every recommendation is saved (insight table) with its inputs |
-| `GET /api/camera/status`, `POST /api/camera/take-photo` | the dashboard's Take photo button (same path as `npm run take-photo`) |
+| `GET /api/camera/status`, `POST /api/camera/take-photo` | `npm run take-photo` (the dashboard has no camera button) |
 | `POST /api/demo/seed`, `POST /api/demo/clear` | labeled sample history (DEMO_SEED=1) and removing it |
 
 See [`docs/`](docs/) for the [demo walkthrough](docs/demo-walkthrough.md),

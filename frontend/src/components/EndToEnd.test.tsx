@@ -1,51 +1,16 @@
 /**
- * End-to-end pipeline additions: Take photo, regenerating the recommendation,
+ * End-to-end pipeline additions: regenerating the recommendation,
  * the raw photo + enlarge in the gallery, and sample data left out of it.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import * as api from '../data/api'
 import { PlatesGallery } from './PlatesGallery'
 import { RecommendationCard } from './RecommendationCard'
-import { TakePhotoButton } from './TakePhotoButton'
 import type { CaptureImages, CaptureListItem, Recommendation } from '../data/types'
 
 afterEach(() => vi.restoreAllMocks())
 
 const future = () => new Date(Date.now() + 10 * 60_000).toISOString()
-
-describe('TakePhotoButton', () => {
-  it('is disabled with a hint when no camera is set up', async () => {
-    render(<TakePhotoButton onTaken={() => {}} />)
-    expect(await screen.findByText('No camera set up.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Take photo' })).toBeDisabled()
-  })
-
-  it('takes a photo, reports the result and refreshes the dashboard', async () => {
-    vi.spyOn(api, 'getCameraStatus').mockResolvedValue({ configured: true, host: '35.1.88.76', busy: false })
-    const take = vi.spyOn(api, 'takePhoto').mockResolvedValue({
-      ok: true, eventId: 'cap_1', serviceId: 'svc_1', state: 'succeeded', triggeredAt: 't0', receivedAt: 't1',
-    })
-    const onTaken = vi.fn()
-    render(<TakePhotoButton onTaken={onTaken} />)
-    const button = await screen.findByRole('button', { name: 'Take photo' })
-    await waitFor(() => expect(button).toBeEnabled())
-    fireEvent.click(button)
-    expect(await screen.findByText('Photo taken and checked.')).toBeInTheDocument()
-    expect(take).toHaveBeenCalledTimes(1)
-    expect(onTaken).toHaveBeenCalledTimes(1)
-  })
-
-  it('shows the camera error in plain words', async () => {
-    vi.spyOn(api, 'getCameraStatus').mockResolvedValue({ configured: true, busy: false })
-    vi.spyOn(api, 'takePhoto').mockRejectedValue(new Error('Key login to arduino@35.1.88.76 was refused.'))
-    render(<TakePhotoButton onTaken={() => {}} />)
-    const button = await screen.findByRole('button', { name: 'Take photo' })
-    await waitFor(() => expect(button).toBeEnabled())
-    fireEvent.click(button)
-    expect(await screen.findByText('Key login to arduino@35.1.88.76 was refused.')).toBeInTheDocument()
-  })
-})
 
 const REC: Recommendation = {
   text: 'Baked Sweet Potatoes had the most food left per portion.',

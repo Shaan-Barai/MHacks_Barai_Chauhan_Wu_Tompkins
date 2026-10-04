@@ -294,13 +294,19 @@ remaining work.
 
 | WS | State | Last update | Notes |
 | --- | --- | --- | --- |
-| C | **done** (phase 1) | 2026-10-04 | `d40c771`: IT_4.md, contracts IT_4 section, decisions, AGENTS.md §2 |
+| C | **done** | 2026-10-04 | `d40c771` contracts/decisions; `beda71f` .env.example/README; `5c3a610` volume guard (mean height < 1 mm ⇒ area); demo.py restores hall settings after a simulated synthetic calibration. Final: all suites green, `deploy/local.sh` stack on :8787 from main, smoke 16/16, `demo.py --simulate --yes` 24 PASS / 1 WARN / 0 FAIL |
 | A | **done** | 2026-10-04 | `b031707` `b7cd23f` `ca764d5`: density column (26 foods, FAO/INFOODS + USDA, analogues labeled; pizzas + cheese bread null → area method), waste-factors-v3, grams/kgCo2e/waterLitres, coverage, `formatPhysicalLabel`; analytics 74/74, data 39/39 (fixtures). Backend impact test assertion needs B |
 | V | **done** | 2026-10-04 | `6fc5d9a` `ea9ebd6` `8afadc5` `369ff6c`; vision 100/100. DAv2 worker live on MPS (~170 ms/1024² warm). Calibration must use the 1024² normalized crop (f ≈ 1289.7 px). **Live on 3 phone photos: DAv2 depth 3–5× too far and food reads at/below the plate ⇒ all foods fell back to area (`depth_invalid`). Volume unvalidated; keep depth off until a C920s known-volume check passes** |
 | B | **done** | 2026-10-04 | `05d2fd9` `750c21d` `f33b4f3` `6fcbbcb` `2739f93` `bf2a2ce`; backend 67/67; schema published in place to local `scrap` (no wipe); live prod-mode run on :8797: auth 401s, calibration on K's synthetic card (N_ref 42,516, height 44.8 cm vs 45 designed, `depth_scale_disagrees`), area + volume captures, legend suffix in overlay. Test rows left under `hall-it4-test` |
 | U | **done** | 2026-10-04 | `be3636a` `cb31b18` `fea8dfd`; frontend 93/93, build OK. Staff sign-in, calibration panel (browser normalizes to 1024²; DAv2 toggle experimental, off), estimate chips + CO2e/water cards. Live in headless Chrome against `scrap`. Browser calibration upload blocked by R2 CORS (user must apply `deploy/r2-cors.local.json`; the R2 token can't set CORS) |
-| K | running | 2026-10-04 | launched (client side + docs first) |
+| K | **done** | 2026-10-04 | `c328260` `e8004fb` `8d091d7` `a22034e` `cf72775` `1c264bb` `53e5324` `27b082e`; capture 53, uno-q 66, tests 22; live calibration E2E 4/4; focus lock verified on the real Uno Q C920 (two v4l2-ctl calls). Board still runs the old camera script (copy per ARDUINO.md §7). No real card calibration yet |
 | P | **done** | 2026-10-04 | `f9a7496`: `deploy/local.sh up/down/status/smoke/seed`, `smoke.mjs` 16/16 on test ports (live Gemini+SAM capture on `hall-smoke`), `docs/deploy.md` (tunnel documented only), r2-cors.local.json (not applied). Main checkout still runs the old dev backend on :8787; restart from main after A/V land |
+
+### Final state (2026-10-04)
+- Running locally from `main`: SpacetimeDB `scrap` :3000, SAM 2.1 :8790, DAv2 :8791, backend + dashboard :8787 (production mode, auth on). Start/stop: `deploy/local.sh up|down|status|smoke`.
+- Tests: data 39, analytics 74, vision 101, capture 53, uno-q 66, backend 67 (+1 opt-in live), frontend 93, tests 22. All pass.
+- hall-main: no active calibration, depth off. Physical numbers appear after a real calibration.
+- **Open (user):** (1) a real credit-card calibration and a known-volume check under the mounted C920s; DAv2 volume stays experimental until then. (2) Apply `deploy/r2-cors.local.json` to the bucket for browser calibration uploads (the R2 token can't set CORS). (3) Copy the new `uno_q_camera.py` to the board. (4) Domain + Cloudflare Tunnel (`docs/deploy.md`) when wanted.
 
 ### Log
 - 2026-10-04: plan written. User chose Fly.io and will buy a domain.

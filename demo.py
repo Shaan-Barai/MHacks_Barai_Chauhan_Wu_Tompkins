@@ -151,6 +151,7 @@ class Demo:
         self.step = ""
         self.started = []            # services this run started
         self.calibration = None      # active CameraCalibration (calibration step)
+        self.restore_settings = None # hall settings to put back after a --simulate synthetic calibration
 
     def check(self, status, message):
         self.results.append((status, self.step, message))
@@ -459,6 +460,11 @@ def step_calibration(demo):
     if not active or demo.args.recalibrate:
         why = "--recalibrate" if active else "No active calibration for this hall"
         if ask(f"{why}. Calibrate now ({'synthetic fixture' if demo.args.simulate else 'camera'})?"):
+            if demo.args.simulate and settings is not None:
+                # The synthetic card's scale doesn't match real camera frames: put the hall's
+                # previous settings back when the run ends so later real plates aren't mis-scaled.
+                demo.restore_settings = {k: settings.get(k) for k in
+                                         ("hallId", "activeCalibrationId", "depthEnabled", "plateThicknessCm")}
             ok = run_calibration_capture(demo)
             demo.check("PASS" if ok else "FAIL", "Calibration capture uploaded and measured" if ok
                        else "Calibration failed (see output above)")
@@ -1022,6 +1028,10 @@ def main():
                 break
         if not args.yes and index < len(selected) and sys.stdin.isatty():
             input(dim("\n  Press Enter for the next step… "))
+
+    if demo.restore_settings is not None:
+        status, _ = demo.request("PUT", "/api/settings/measurement", demo.restore_settings)
+        print(dim(f"\n  Restored {HALL_ID}'s measurement settings (the synthetic calibration is no longer active): HTTP {status}"))
 
     print(f"\n{cyan('━' * 4)} {bold('Summary')} {cyan('━' * 4)}")
     counts = {s: sum(1 for r in demo.results if r[0] == s) for s in ("PASS", "WARN", "FAIL")}

@@ -33,6 +33,26 @@ version; re-imports replace counts. See [the portion-count guide](docs/portions-
 Attendance is **simulated**. Pixels are counted from AI masks of visible
 leftovers; they are not a weight. Impact points are relative estimates.
 
+## Calibrated area, volume, CO2e and water (IT_4)
+
+With an active **camera calibration**, each food also gets an **estimated**
+area (cm²) and grams, plus kg CO2e and litres of water. These are shown next to
+the food's label on the plate image and on the dashboard.
+
+1. Lay a credit card (46.21 cm²) or any flat object of measured area where the
+   plates go, with the camera locked in place.
+2. Run `npm run calibrate -- --known-area-cm2 46.21` in `capture/`, or use
+   Settings → Camera calibration.
+3. Depth Anything V2 is an **experimental** switch: it estimates volume from a
+   depth map; otherwise grams come from area. See
+   [docs/calibration.md](docs/calibration.md) and [IT_4.md](IT_4.md).
+
+Pixels wasted stays the primary measurement. Without a calibration, the
+physical numbers are blank, never zero.
+
+**Run the whole stack locally in production mode:**
+`deploy/local.sh up | status | smoke | down` ([docs/deploy.md](docs/deploy.md)).
+
 ## Demo
 
 One command runs and narrates the whole product: the Uno Q takes a photo, sends it to the laptop,

@@ -55,7 +55,7 @@ export function DashboardPage({ range, onRangeChange }: { range: DateRange; onRa
       {rec.data && !noPlates && <RecommendationCard rec={rec.data} />}
 
       {impact.data && !noPlates && (
-        <div className="grid gap-5 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
           <FoodsToTarget rows={impact.data.targets} demoPortions={impact.data.labels.demoPortions} />
           <MostWasted rows={impact.data.mostWasted} />
         </div>

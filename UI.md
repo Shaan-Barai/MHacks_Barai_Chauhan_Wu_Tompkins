@@ -12,6 +12,18 @@ is a breakdown statistic, not percentage of food originally served. Camera
 placement/conveyor work is deferred. See `contracts/measurement.md`; runtime
 and dashboard migration remain separate implementation work.
 
+## WASTE IMPACT (2026-10-03, BIG-PLAN D1-D8)
+
+Pixels wasted stays the measured value. With a plate-size calibration and a
+typical weight per area for each food, the dashboard also shows **estimated
+grams**, greenhouse gases (kg CO2e), freshwater (litres / cubic meters) and a
+**Waste impact** dollar value = $0.19 per kg CO2e + $1.50 per cubic meter of
+water. Every one of these is labeled "estimate"; none is a scale reading or
+the food's cost. Nutrition lost is shown on its own and is never part of the
+impact score. Portions served that are demo numbers are labeled "demo numbers".
+On screen, say "the AI outlines the leftover food" rather than mask or
+segmentation; "Pixels wasted" is the one technical label kept.
+
 ## WRITING RULES (2026-10-03)
 - Plain words a chef would use. No technical terms on screen (API, pixels, baseline, mask, benchmark, CSV as a noun; say "spreadsheet (.csv)").
 - No em dashes, no emoji, and none of: leverage, seamless, robust, unlock, elevate, "in today's fast-paced", "at the end of the day", "in conclusion".
@@ -36,8 +48,19 @@ and dashboard migration remain separate implementation work.
 - Settings
 
 ### DASHBOARD
-- Three summary cards: Today, This week, This month. Each shows Pixels wasted, the average percent of a serving left per plate (clean plates count as 0%, a food left above a full serving counts as 100%), how many plates that averages, and the change from the same days before.
-- One chart, one bar per day. Lookback buttons only: Today, Last 7 days, Last 30 days, Last 90 days. No weekly/monthly grouping and no custom date range.
+Everything follows the lookback buttons at the top: Today, Last 7 days, Last 30 days, Last 90 days (no custom range). Under them, one short line on how waste is measured (AI outlines of visible leftovers, turned into grams with the plate size and a typical weight per food; estimates, not a scale reading).
+1. Four headline cards, each marked "estimate" with a "?" explanation:
+   - **Total waste**: estimated grams/kg as the big number; under it the measured Pixels wasted, how many plates it covers, and plates not counted.
+   - **Greenhouse gases**: kg CO2e.
+   - **Freshwater**: litres, or cubic meters with litres under it.
+   - **Waste impact**: dollars, with "$0.19 per kg CO2e + $1.50 per m3 water. Not the food cost."
+   A line under the cards says when foods have no weight estimate or plates used the standard plate size.
+2. **What to try next**: the AI suggestion, labeled "AI" or "Rule-based fallback", each point with the number it is based on, and when it was written.
+3. **Foods to target**: finding heading ("X had the most food left per portion."), a table ranked by estimated grams left per portion served, with Pixels wasted per portion, impact per portion, and portions served ("demo numbers" badge when they are demo). Foods that can't be ranked are listed with the reason: no portions entered, no weight estimate for this food, or not on the menu.
+4. **Most wasted**: finding heading, foods ranked by estimated total weight as a bar list with greenhouse gases and water on each row; foods with only Pixels wasted listed after with the reason.
+5. One chart, one bar per day: estimated food left when the server sends grams, Pixels wasted otherwise.
+6. **Plates**: recent plate photos as a grid (time and grams left, or check failed / needs a person to look / being checked / clean plate). Picking one shows the photo and the AI outline image side by side, or one at a time, with each food's Pixels wasted and estimated weight. Expired photo links are renewed once; then "Photo unavailable".
+7. **Nutrition lost**: a small, separate card marked "not part of the impact score", in nutrient-days (enough nutrients for one adult for one day).
 
 ### SCHEDULE
 - Month calendar; special events from Settings show on their dates.
@@ -55,7 +78,7 @@ and dashboard migration remain separate implementation work.
 ## COLOR AND TYPE (2026-10-03)
 - Black and white only, including form controls. Styling comes later.
 - Font: "Times New Roman" (Times, serif fallback) everywhere.
-- Body text at least 16px; summary card numbers large (40px+).
+- Body text at least 16px; headline card numbers large (40px+).
 - Flat: small 4px corners, black borders, no shadows, no fades.
 - The Tailwind token names from the earlier palette are kept so components didn't change; every color token is black or white.
 

@@ -10,7 +10,8 @@ import { niceCeil, type ChartBucket, type ChartUnit } from '../lib/grouping'
 function tickLabel(v: number, unit: ChartUnit): string {
   if (unit === 'pixels') return formatCompact(v)
   if (v === 0) return '0'
-  return v >= 1000 ? `${formatCompact(v / 1000)} kg` : `${formatCompact(v)} g`
+  // 6.3 kg / 12.5 kg: one decimal at most so quarter ticks stay distinct.
+  return v >= 1000 ? `${Number((v / 1000).toFixed(1))} kg` : `${Number(v.toFixed(1))} g`
 }
 
 function valueText(v: number, unit: ChartUnit): string {

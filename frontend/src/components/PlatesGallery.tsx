@@ -105,7 +105,7 @@ function tileSummary(c: CaptureListItem): string {
   if (c.pixelsWasted === 0) return 'Clean plate'
   if (c.grams !== null) return `${formatGrams(c.grams)} left (estimate)`
   if (c.pixelsWasted !== null) return `${formatNumber(c.pixelsWasted)} Pixels wasted`
-  return 'No numbers yet'
+  return 'Only partly checked. Not in the totals.'
 }
 
 function ImageBox({

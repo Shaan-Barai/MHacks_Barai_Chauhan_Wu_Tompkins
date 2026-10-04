@@ -8,7 +8,7 @@
  * processed until the next pass, so frames are never grouped out of order.
  */
 
-import { stat } from 'node:fs/promises';
+import { readFile, rename, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { ApiError } from './contract-types.js';
@@ -52,7 +52,7 @@ export class InboxBridge {
 
   async pass(): Promise<PassResult> {
     const { grouper, hallId, serviceId } = this.options;
-    const skip = new Set([...grouper.processedIds(), ...this.calibrationIds]);
+    const skip = new Set([...grouper.processedIds(), ...this.calibrationIds, ...(await this.readClaims())]);
     const scan = await scanInbox(this.options.inbox, skip);
     for (const issue of scan.issues) {
       const key = `${issue.captureId}:${issue.error.code}`;
@@ -84,6 +84,37 @@ export class InboxBridge {
     return { newFrames: scan.frames.length, paused };
   }
 
+  /**
+   * Frames already ingested from this inbox by ANY bridge run (D3). Dedupe
+   * state is per service and per --state-dir, so without this a second run
+   * (other service or state dir) would ingest the same frames again and count
+   * one physical dish twice. The claims file lives in the inbox itself.
+   */
+  private get claimsFile(): string {
+    return path.join(this.options.inbox, '.ingest-claims.json');
+  }
+
+  private async readClaims(): Promise<string[]> {
+    try {
+      return Object.keys(JSON.parse(await readFile(this.claimsFile, 'utf8')) as Record<string, unknown>);
+    } catch {
+      return [];
+    }
+  }
+
+  private async claim(frameIds: string[], serviceId: string, eventId: string): Promise<void> {
+    let claims: Record<string, unknown> = {};
+    try {
+      claims = JSON.parse(await readFile(this.claimsFile, 'utf8')) as Record<string, unknown>;
+    } catch {
+      // first claim
+    }
+    for (const id of frameIds) claims[id] = { serviceId, eventId };
+    const tmp = `${this.claimsFile}.tmp`;
+    await writeFile(tmp, JSON.stringify(claims, null, 2));
+    await rename(tmp, this.claimsFile);
+  }
+
   /** Close the open dish (idle timeout or shutdown) and ingest it. */
   async close(reason: 'idle' | 'flush'): Promise<void> {
     for (const event of this.options.grouper.close(reason)) this.emit(event);
@@ -108,7 +139,10 @@ export class InboxBridge {
         ...(rep.sha256 ? { expectedSha256: rep.sha256 } : {}),
       });
       // A failed dish stays 'closed' and is retried with the same eventId next pass.
-      if (result.ok) grouper.markIngested(group.groupId, result.event.eventId);
+      if (result.ok) {
+        grouper.markIngested(group.groupId, result.event.eventId);
+        await this.claim(group.members, group.serviceId, result.event.eventId);
+      }
       this.emit({ kind: 'ingested', group, result });
     }
   }

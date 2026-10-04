@@ -120,7 +120,7 @@ async function setup(options: { stateDir?: string; noDedupe?: boolean } = {}) {
   return { inbox, ...build(inbox, options.stateDir ?? dir, options.noDedupe) };
 }
 
-function build(inbox: Inbox, stateDir: string, noDedupe = false, matcher = new FakeMatcher(inbox)) {
+function build(inbox: Inbox, stateDir: string, noDedupe = false, matcher = new FakeMatcher(inbox), serviceId = SERVICE) {
   const uploader = new InMemoryUploader();
   const sink = new InMemoryIngestionSink();
   const grouper = new DishGrouper({ matcher, stateFile: path.join(stateDir, 'groups.json'), noDedupe });
@@ -129,7 +129,7 @@ function build(inbox: Inbox, stateDir: string, noDedupe = false, matcher = new F
   const bridge = new InboxBridge({
     inbox: inbox.dir,
     hallId: HALL,
-    serviceId: SERVICE,
+    serviceId,
     grouper,
     adapter,
     onEvent: (e) => events.push(e),
@@ -303,4 +303,17 @@ test('the inbox reader reports bad captures and ignores in-progress transfers', 
   await runAll(s.bridge);
   assert.equal(s.sink.events().length, 1);
   assert.equal((await readFile(path.join(s.inbox.dir, tampered, 'photo.jpg'), 'utf8')), 'not the camera bytes');
+});
+
+test('D3: one inbox frame is ingested once even when a second bridge run targets another service', async () => {
+  const s = await setup();
+  await s.inbox.add({ t: 0, plate: 'A' });
+  await runAll(s.bridge);
+  assert.equal(s.sink.events().length, 1);
+  // Second run: different service AND a different state dir, same inbox.
+  const other = await makeFixtureDir();
+  const b = build(s.inbox, other, false, new FakeMatcher(s.inbox), `${SERVICE}-other`);
+  await runAll(b.bridge);
+  assert.equal(b.sink.events().length, 0, 'the frame was already ingested for another service');
+  assert.equal(b.uploader.finalizedOfKind('capture').length, 0);
 });

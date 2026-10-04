@@ -35,6 +35,33 @@ describe('liveApi waste-impact endpoints', () => {
     expect(await getDailyWaste('2026-10-03', '2026-10-03')).toEqual([{ date: '2026-10-03', pixelsWasted: 100, grams: 12.5 }])
   })
 
+  it('shows one hall by hallId and every hall by leaving hallId out', async () => {
+    const f = respond(200, { ok: true })
+    vi.stubGlobal('fetch', f)
+    await getImpactDashboard('2026-09-04', '2026-10-03', ['hall-b'])
+    await getImpactDashboard('2026-09-04', '2026-10-03', ['hall-main', 'hall-b'])
+    await getCaptures('2026-09-04', '2026-10-03', ['hall-main', 'hall-b'])
+    await getRecommendation('2026-09-04', '2026-10-03', ['hall-main', 'hall-b'])
+    const urls = f.mock.calls.map((c) => String(c[0]))
+    expect(urls[0]).toBe('/api/dashboard/impact?hallId=hall-b&start=2026-09-04&end=2026-10-03')
+    expect(urls[1]).toBe('/api/dashboard/impact?start=2026-09-04&end=2026-10-03')
+    expect(urls[2]).toBe('/api/captures?start=2026-09-04&end=2026-10-03')
+    expect(urls[3]).toBe('/api/recommendation?start=2026-09-04&end=2026-10-03')
+  })
+
+  it('adds up daily waste across halls by date, keeping no-data days empty', async () => {
+    const byHall: Record<string, unknown> = {
+      'hall-main': { days: [{ date: '2026-10-02', pixelsWasted: 100 }, { date: '2026-10-03', pixelsWasted: null }, { date: '2026-10-04', pixelsWasted: null }] },
+      'hall-b': { days: [{ date: '2026-10-02', pixelsWasted: 50 }, { date: '2026-10-03', pixelsWasted: 20 }, { date: '2026-10-04', pixelsWasted: null }] },
+    }
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(byHall[new URL(url, 'http://x').searchParams.get('hallId')!]), { status: 200 })))
+    expect(await getDailyWaste('2026-10-02', '2026-10-04', ['hall-main', 'hall-b'])).toEqual([
+      { date: '2026-10-02', pixelsWasted: 150 },
+      { date: '2026-10-03', pixelsWasted: 20 },
+      { date: '2026-10-04', pixelsWasted: null },
+    ])
+  })
+
   it('surfaces image-link errors (e.g. missing object) with the server message', async () => {
     vi.stubGlobal('fetch', respond(404, { error: { code: 'OBJECT_NOT_FOUND', message: 'Image not found', retryable: false } }))
     await expect(getCaptureImages('e1')).rejects.toThrow('Image not found')

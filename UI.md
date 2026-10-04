@@ -25,7 +25,8 @@ On screen, say "the AI outlines the leftover food" rather than mask or
 segmentation; "Pixels wasted" is the one technical label kept.
 
 ## WRITING RULES (2026-10-03)
-- Plain words a chef would use. No technical terms on screen (API, pixels, baseline, mask, benchmark, CSV as a noun; say "spreadsheet (.csv)").
+- Plain words a chef would use. No technical terms on screen (pixels, baseline, mask, benchmark, CSV as a noun; say "spreadsheet (.csv)").
+- Exception: the menu "API" option keeps that word, with a "?" that explains it in plain words.
 - No em dashes, no emoji, and none of: leverage, seamless, robust, unlock, elevate, "in today's fast-paced", "at the end of the day", "in conclusion".
 - Brief. Cut text before adding it; not every card needs a paragraph.
 - Headings that report a finding are full sentences ("Teriyaki Salmon was the most wasted food at dinner."), not labels.
@@ -34,7 +35,7 @@ segmentation; "Pixels wasted" is the one technical label kept.
 
 ## FIRST-TIME SETUP (2 steps, shown once)
 1. Dining hall names: one box to start, and "Add another location" adds another box (each extra box can be removed). Meal times start from defaults (weekdays and weekends) and are edited in Settings.
-2. Add menus: pick a date, type foods under Breakfast / Lunch / Dinner, or upload a spreadsheet (.csv). Then go to the Dashboard.
+2. Add menus: pick a date and "Repeat:" (Never, Every day, Every week, Every other week; repeats ask for an end date), type foods under Breakfast / Lunch / Dinner, or upload a spreadsheet (.csv). Or choose "API" (with a "?" explaining it) to see the address, dining hall codes and an example for sending menus from other software. Then go to the Dashboard.
 
 ## LAYOUT
 [ Left: Nav ] [ Page ]. There is no right-hand panel; day details live on the Schedule page.
@@ -42,12 +43,13 @@ segmentation; "Pixels wasted" is the one technical label kept.
 ### NAV
 - Dashboard
 - Schedule
-- Menus: add a day's menu; a calendar marks days with "No menu".
+- Menus: add a day's menu (same options as setup step 2); a calendar marks days with "No menu". Menus are saved for the first dining hall.
 - Portions served
 - Behind the scenes
 - Settings
 
 ### DASHBOARD
+With more than one dining hall, a dropdown next to the "Dashboard" title picks "All dining halls" (every hall added together) or one hall; everything on the page follows it.
 Everything follows the lookback buttons at the top: Today, Last 7 days, Last 30 days, Last 90 days (no custom range). Under them, one short line on how waste is measured (AI outlines of visible leftovers, turned into grams with the plate size and a typical weight per food; estimates, not a scale reading).
 1. Four headline cards, each marked "estimate" with a "?" explanation:
    - **Total waste**: estimated grams/kg as the big number; under it the measured Pixels wasted, how many plates it covers, and plates not counted.

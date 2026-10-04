@@ -1,6 +1,6 @@
 /** Hall settings, persisted to localStorage (setup is shown once per browser). */
 import { useCallback, useState } from 'react'
-import type { HallSettings, IsoDate, MealHours, MealLabel, MealTimeSet, Weekday } from '../data/types'
+import type { HallLocation, HallSettings, IsoDate, MealHours, MealLabel, MealTimeSet, Weekday } from '../data/types'
 import { WEEKDAYS } from '../data/types'
 import { fromIso } from '../lib/dates'
 
@@ -13,8 +13,7 @@ const WEEKDAY_MEALS: Record<MealLabel, MealHours> = {
 }
 
 export const DEFAULT_SETTINGS: HallSettings = {
-  hallId: 'hall-main',
-  locations: [''],
+  locations: [{ id: 'hall-main', name: '' }],
   timeSets: [
     { id: 'weekdays', name: 'Weekdays', days: ['mon', 'tue', 'wed', 'thu', 'fri'], meals: WEEKDAY_MEALS },
     {
@@ -35,14 +34,24 @@ export const DEFAULT_SETTINGS: HallSettings = {
  * Settings saved before time sets existed had one `mealTimes` for every day;
  * settings saved before multiple locations had one `name`.
  */
-function migrate(raw: Partial<HallSettings> & { mealTimes?: Record<MealLabel, MealHours>; name?: string }): HallSettings {
+function migrate(
+  raw: Omit<Partial<HallSettings>, 'locations'> & {
+    mealTimes?: Record<MealLabel, MealHours>
+    hallId?: string
+    name?: string
+    locations?: (HallLocation | string)[]
+  },
+): HallSettings {
   const timeSets =
     raw.timeSets ??
     (raw.mealTimes
       ? [{ id: 'every-day', name: 'Every day', days: [...WEEKDAYS], meals: raw.mealTimes }]
       : DEFAULT_SETTINGS.timeSets)
-  const locations = raw.locations?.length ? raw.locations : [raw.name ?? '']
-  return { hallId: raw.hallId ?? 'hall-main', locations, timeSets, events: raw.events ?? [] }
+  const firstId = raw.hallId ?? 'hall-main'
+  const locations = (raw.locations?.length ? raw.locations : [raw.name ?? '']).map((l, i) =>
+    typeof l === 'string' ? { id: i === 0 ? firstId : newId('hall'), name: l } : l,
+  )
+  return { locations, timeSets, events: raw.events ?? [] }
 }
 
 export function loadSettings(): HallSettings | null {
@@ -66,6 +75,11 @@ export function weekdayOf(date: IsoDate): Weekday {
 export function timeSetFor(settings: HallSettings, date: IsoDate): MealTimeSet | undefined {
   const day = weekdayOf(date)
   return settings.timeSets.find((t) => t.days.includes(day))
+}
+
+/** The hall new menus are saved for. */
+export function primaryHallId(settings: HallSettings | null): string {
+  return settings?.locations[0]?.id ?? 'hall-main'
 }
 
 export function newId(prefix: string): string {

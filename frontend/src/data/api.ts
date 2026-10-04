@@ -15,6 +15,7 @@ const impl = USE_MOCK ? mock : live
 export const getMenu = impl.getMenu
 export const getMenuDays = impl.getMenuDays
 export const saveUserMenu = impl.saveUserMenu
+export const saveUserMenuDays = impl.saveUserMenuDays
 export const getDailyWaste = impl.getDailyWaste
 export const getMealDetail = impl.getMealDetail
 export const getSummaryCards = impl.getSummaryCards
@@ -28,6 +29,9 @@ export const getImpactDashboard = impl.getImpactDashboard
 export const getCaptures = impl.getCaptures
 export const getCaptureImages = impl.getCaptureImages
 export const getRecommendation = impl.getRecommendation
+
+/** Timezone sent with menu uploads (also shown in the menu API example). */
+export const HALL_TIMEZONE = live.HALL_TIMEZONE
 
 /** Artificial latency for mock mode so loading states are visible; tests set 0. */
 export const setApiLatency = mock.setApiLatency

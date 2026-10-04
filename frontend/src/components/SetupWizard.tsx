@@ -47,7 +47,7 @@ export function SetupWizard({ onComplete }: { onComplete: (settings: HallSetting
           <h1 className="font-display text-3xl font-semibold">Add this week's menus</h1>
           <p className="mt-1 text-base">We match leftovers to the foods on your menu. You can skip this and add menus later.</p>
           <div className="mt-5">
-            <MenuSource />
+            <MenuSource locations={cleanLocations(draft.locations)} />
           </div>
           <div className="mt-8 flex gap-3">
             <GhostButton type="button" onClick={() => setStep(1)}>

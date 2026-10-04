@@ -102,8 +102,13 @@ export async function saveUserMenu(date: IsoDate, meals: Record<MealLabel, MenuI
   return menu
 }
 
+/** The same menu on several dates (Repeat). */
+export async function saveUserMenuDays(dates: IsoDate[], meals: Record<MealLabel, MenuItemLite[]>): Promise<void> {
+  for (const date of dates) await saveUserMenu(date, meals)
+}
+
 /** Daily waste series for the chart; null pixelsWasted = no data that day. */
-export async function getDailyWaste(start: IsoDate, end: IsoDate): Promise<DailyWastePoint[]> {
+export async function getDailyWaste(start: IsoDate, end: IsoDate, _hallIds?: string[]): Promise<DailyWastePoint[]> {
   await wait()
   const today = todayIso()
   return eachDay(start, end).map((date) => {
@@ -250,15 +255,16 @@ export async function getImageUrl(_objectId: string): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
-// Waste impact dashboard (BIG-PLAN D1-D8)
+// Waste impact dashboard (BIG-PLAN D1-D8). Demo data is one hall, so the
+// dashboard's hall choice (_hallIds) does not change it.
 // ---------------------------------------------------------------------------
 
-export async function getImpactDashboard(start: IsoDate, end: IsoDate): Promise<ImpactDashboard> {
+export async function getImpactDashboard(start: IsoDate, end: IsoDate, _hallIds?: string[]): Promise<ImpactDashboard> {
   await wait()
   return mockImpactDashboard(start, end, todayIso())
 }
 
-export async function getCaptures(start: IsoDate, end: IsoDate): Promise<CaptureListItem[]> {
+export async function getCaptures(start: IsoDate, end: IsoDate, _hallIds?: string[]): Promise<CaptureListItem[]> {
   await wait()
   return mockCaptures(start, end, todayIso())
 }
@@ -270,7 +276,7 @@ export async function getCaptureImages(eventId: string): Promise<CaptureImages> 
   return images
 }
 
-export async function getRecommendation(start: IsoDate, end: IsoDate): Promise<Recommendation> {
+export async function getRecommendation(start: IsoDate, end: IsoDate, _hallIds?: string[]): Promise<Recommendation> {
   await wait()
   return mockRecommendation(mockImpactDashboard(start, end, todayIso()), new Date())
 }

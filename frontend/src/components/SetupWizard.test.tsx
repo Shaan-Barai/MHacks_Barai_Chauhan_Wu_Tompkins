@@ -26,13 +26,15 @@ describe('Setup step 1', () => {
 
     fireEvent.click(next)
     fireEvent.click(screen.getByRole('button', { name: 'Go to the dashboard' }))
-    expect(onComplete).toHaveBeenCalledWith(expect.objectContaining({ locations: ['South Quad', 'East Quad'] }))
+    const saved = onComplete.mock.calls[0][0].locations
+    expect(saved.map((l: { name: string }) => l.name)).toEqual(['South Quad', 'East Quad'])
+    expect(saved[0].id).toBe('hall-main')
   })
 })
 
 describe('Saved settings', () => {
-  it('turns a single saved hall name into one location', () => {
+  it('turns a single saved hall name into one location that keeps its hall', () => {
     localStorage.setItem('scrap.hallSettings.v1', JSON.stringify({ hallId: 'hall-main', name: 'South Quad' }))
-    expect(loadSettings()?.locations).toEqual(['South Quad'])
+    expect(loadSettings()?.locations).toEqual([{ id: 'hall-main', name: 'South Quad' }])
   })
 })

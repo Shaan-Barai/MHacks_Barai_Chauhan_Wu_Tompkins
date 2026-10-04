@@ -18,13 +18,28 @@ import { PlatesGallery } from '../components/PlatesGallery'
 import { RecommendationCard } from '../components/RecommendationCard'
 import { WasteChart } from '../components/WasteChart'
 import { Card, EmptyState, LoadingBlock } from '../components/ui'
+import type { HallLocation } from '../data/types'
 
-export function DashboardPage({ range, onRangeChange }: { range: DateRange; onRangeChange: (r: DateRange) => void }) {
-  const deps = [range.start, range.end]
-  const impact = useAsync(() => getImpactDashboard(range.start, range.end), deps)
-  const rec = useAsync(() => getRecommendation(range.start, range.end), deps)
-  const plates = useAsync(() => getCaptures(range.start, range.end), deps)
-  const series = useAsync(() => getDailyWaste(range.start, range.end), deps)
+/** `hall` is a location id, or 'all' for every location added together. */
+export function DashboardPage({
+  range,
+  onRangeChange,
+  locations,
+  hall,
+  onHallChange,
+}: {
+  range: DateRange
+  onRangeChange: (r: DateRange) => void
+  locations: HallLocation[]
+  hall: string
+  onHallChange: (hall: string) => void
+}) {
+  const hallIds = hall === 'all' ? locations.map((l) => l.id) : [hall]
+  const deps = [range.start, range.end, hallIds.join()]
+  const impact = useAsync(() => getImpactDashboard(range.start, range.end, hallIds), deps)
+  const rec = useAsync(() => getRecommendation(range.start, range.end, hallIds), deps)
+  const plates = useAsync(() => getCaptures(range.start, range.end, hallIds), deps)
+  const series = useAsync(() => getDailyWaste(range.start, range.end, hallIds), deps)
 
   const unit = useMemo(() => (series.data ? chartUnit(series.data) : 'pixels'), [series.data])
   const buckets = useMemo(() => (series.data ? dailyBuckets(series.data, unit) : []), [series.data, unit])
@@ -34,7 +49,24 @@ export function DashboardPage({ range, onRangeChange }: { range: DateRange; onRa
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-display text-3xl font-semibold text-ink">Dashboard</h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="font-display text-3xl font-semibold text-ink">Dashboard</h1>
+          {locations.length > 1 && (
+            <select
+              aria-label="Dining hall"
+              value={hall}
+              onChange={(e) => onHallChange(e.target.value)}
+              className="rounded-btn border border-ink bg-cream px-3 py-2 text-base text-ink"
+            >
+              <option value="all">All dining halls</option>
+              {locations.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
         <DateRangePicker value={range} onChange={onRangeChange} />
       </div>
       <p className="max-w-3xl text-sm">{HOW_MEASURED}</p>

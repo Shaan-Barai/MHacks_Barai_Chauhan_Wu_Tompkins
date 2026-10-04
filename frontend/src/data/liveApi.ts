@@ -7,7 +7,7 @@
  * "waste units" scaling). Totals, shares, and exclusions are computed
  * server-side by analytics/; components never redo canonical math.
  */
-import { loadSettings } from '../state/settings'
+import { loadSettings, primaryHallId } from '../state/settings'
 import type {
   CaptureImages,
   CaptureListItem,
@@ -30,12 +30,12 @@ import { MEALS } from './types'
 import { todayIso } from '../lib/dates'
 
 /** contracts/decisions.md: hall timezone until a hall config says otherwise. */
-const HALL_TIMEZONE = 'America/Detroit'
+export const HALL_TIMEZONE = 'America/Detroit'
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
 
 function hallId(): string {
-  return loadSettings()?.hallId ?? 'hall-main'
+  return primaryHallId(loadSettings())
 }
 
 interface ApiErrorBody {
@@ -77,6 +77,13 @@ async function orNull<T>(p: Promise<T>): Promise<T | null> {
 }
 
 const q = (params: Record<string, string>) => new URLSearchParams(params).toString()
+
+/**
+ * Dashboard reads take the halls to show. One hall is sent as `hallId`;
+ * several are left out so impact/recommendation/captures total every hall.
+ */
+const hallParam = (hallIds: string[]): Record<string, string> =>
+  hallIds.length === 1 ? { hallId: hallIds[0] } : {}
 
 // ---------------------------------------------------------------------------
 // Menus
@@ -123,16 +130,53 @@ export async function saveUserMenu(date: IsoDate, meals: Record<MealLabel, MenuI
   return (await getMenu(date)) ?? { date, menuId: '', source: 'user', meals }
 }
 
+/** The same menu on several dates (Repeat), sent as one upload. */
+export async function saveUserMenuDays(dates: IsoDate[], meals: Record<MealLabel, MenuItemLite[]>): Promise<void> {
+  const days = dates.map((date) => {
+    const day: Record<string, unknown> = { date }
+    for (const meal of MEALS) if (meals[meal].length > 0) day[meal] = meals[meal].map((i) => i.displayName)
+    return day
+  })
+  await call('/api/menus/upload', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hallId: hallId(), hallTimezone: HALL_TIMEZONE, days }),
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 
-export async function getDailyWaste(start: IsoDate, end: IsoDate): Promise<DailyWastePoint[]> {
+export async function getDailyWaste(start: IsoDate, end: IsoDate, hallIds: string[] = [hallId()]): Promise<DailyWastePoint[]> {
+  // The daily endpoint is per hall, so several halls are fetched and added up by date.
+  const perHall = await Promise.all(hallIds.map((id) => dailyForHall(id, start, end)))
+  if (perHall.length === 1) return perHall[0]
+  const byDate = new Map<IsoDate, DailyWastePoint>()
+  for (const points of perHall) {
+    for (const p of points) {
+      const acc = byDate.get(p.date)
+      byDate.set(p.date, acc ? { date: p.date, pixelsWasted: addNullable(acc.pixelsWasted, p.pixelsWasted), ...sumGrams(acc, p) } : p)
+    }
+  }
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date))
+}
+
+async function dailyForHall(id: string, start: IsoDate, end: IsoDate): Promise<DailyWastePoint[]> {
   const { days } = await call<{ days: { date: IsoDate; pixelsWasted: number | null; grams?: number | null }[] }>(
-    `/api/dashboard/daily?${q({ hallId: hallId(), start, end })}`,
+    `/api/dashboard/daily?${q({ hallId: id, start, end })}`,
   )
   // grams is optional: when the backend sends it the chart shows estimated grams.
   return days.map((d) => ({ date: d.date, pixelsWasted: d.pixelsWasted, ...(d.grams !== undefined ? { grams: d.grams } : {}) }))
+}
+
+/** null means "no data", so it only wins when every hall has none. */
+function addNullable(a: number | null, b: number | null): number | null {
+  return a === null && b === null ? null : (a ?? 0) + (b ?? 0)
+}
+
+function sumGrams(a: DailyWastePoint, b: DailyWastePoint): { grams?: number | null } {
+  return a.grams === undefined && b.grams === undefined ? {} : { grams: addNullable(a.grams ?? null, b.grams ?? null) }
 }
 
 interface MealResponse {
@@ -270,14 +314,14 @@ export async function getImageUrl(objectId: string): Promise<string> {
 // Waste impact dashboard (BIG-PLAN D1-D8, contracts/types.ts waste-impact section)
 // ---------------------------------------------------------------------------
 
-export async function getImpactDashboard(start: IsoDate, end: IsoDate): Promise<ImpactDashboard> {
-  return call<ImpactDashboard>(`/api/dashboard/impact?${q({ hallId: hallId(), start, end })}`)
+export async function getImpactDashboard(start: IsoDate, end: IsoDate, hallIds: string[] = [hallId()]): Promise<ImpactDashboard> {
+  return call<ImpactDashboard>(`/api/dashboard/impact?${q({ ...hallParam(hallIds), start, end })}`)
 }
 
 /** Accepts a bare array or `{ captures: [...] }`. */
-export async function getCaptures(start: IsoDate, end: IsoDate): Promise<CaptureListItem[]> {
+export async function getCaptures(start: IsoDate, end: IsoDate, hallIds: string[] = [hallId()]): Promise<CaptureListItem[]> {
   const body = await call<CaptureListItem[] | { captures: CaptureListItem[] }>(
-    `/api/captures?${q({ hallId: hallId(), start, end })}`,
+    `/api/captures?${q({ ...hallParam(hallIds), start, end })}`,
   )
   return Array.isArray(body) ? body : body.captures ?? []
 }
@@ -287,6 +331,6 @@ export async function getCaptureImages(eventId: string): Promise<CaptureImages> 
   return call<CaptureImages>(`/api/captures/${encodeURIComponent(eventId)}/images`)
 }
 
-export async function getRecommendation(start: IsoDate, end: IsoDate): Promise<Recommendation> {
-  return call<Recommendation>(`/api/recommendation?${q({ hallId: hallId(), start, end })}`)
+export async function getRecommendation(start: IsoDate, end: IsoDate, hallIds: string[] = [hallId()]): Promise<Recommendation> {
+  return call<Recommendation>(`/api/recommendation?${q({ ...hallParam(hallIds), start, end })}`)
 }

@@ -3,10 +3,12 @@
  * and Settings. Empty boxes are dropped when saving (see cleanLocations).
  */
 import { useEffect, useRef } from 'react'
+import type { HallLocation } from '../data/types'
+import { newId } from '../state/settings'
 import { FieldLabel, GhostButton, inputClass } from './ui'
 
-export function cleanLocations(names: string[]): string[] {
-  return names.map((n) => n.trim()).filter(Boolean)
+export function cleanLocations(locations: HallLocation[]): HallLocation[] {
+  return locations.map((l) => ({ ...l, name: l.name.trim() })).filter((l) => l.name)
 }
 
 export function LocationFields({
@@ -15,8 +17,8 @@ export function LocationFields({
   onChange,
 }: {
   idPrefix: string
-  locations: string[]
-  onChange: (next: string[]) => void
+  locations: HallLocation[]
+  onChange: (next: HallLocation[]) => void
 }) {
   // Focus a box only when the manager adds it, not on first render.
   const focusIndex = useRef<number | null>(null)
@@ -32,8 +34,8 @@ export function LocationFields({
 
   return (
     <div className="space-y-4">
-      {locations.map((name, i) => (
-        <div key={i}>
+      {locations.map((location, i) => (
+        <div key={location.id}>
           <FieldLabel htmlFor={`${idPrefix}-${i}`}>{several ? `Dining hall ${i + 1}` : 'Dining hall name'}</FieldLabel>
           <div className="flex gap-2">
             <input
@@ -42,8 +44,8 @@ export function LocationFields({
                 inputs.current[i] = el
               }}
               placeholder={i === 0 ? 'e.g. South Quad Dining' : 'e.g. Bursley Dining'}
-              value={name}
-              onChange={(e) => onChange(locations.map((n, j) => (j === i ? e.target.value : n)))}
+              value={location.name}
+              onChange={(e) => onChange(locations.map((l, j) => (j === i ? { ...l, name: e.target.value } : l)))}
               className={inputClass}
             />
             {several && (
@@ -62,7 +64,7 @@ export function LocationFields({
         type="button"
         onClick={() => {
           focusIndex.current = locations.length
-          onChange([...locations, ''])
+          onChange([...locations, { id: newId('hall'), name: '' }])
         }}
       >
         Add another location

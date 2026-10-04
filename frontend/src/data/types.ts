@@ -47,11 +47,16 @@ export interface SpecialEvent {
   end: string
 }
 
+/** One dining hall; `id` is the backend hallId its menus and plates are saved under. */
+export interface HallLocation {
+  id: string
+  name: string
+}
+
 /** Saved by first-time setup and Settings (localStorage). */
 export interface HallSettings {
-  hallId: string
-  /** Dining hall names, at least one. Display only: data is still for one hallId. */
-  locations: string[]
+  /** At least one. Menus are saved for the first; the dashboard can show any or all. */
+  locations: HallLocation[]
   timeSets: MealTimeSet[]
   events: SpecialEvent[]
 }

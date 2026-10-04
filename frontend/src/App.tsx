@@ -25,6 +25,7 @@ export default function App() {
   const [page, setPage] = useState<Page>('dashboard')
   const [range, setRange] = useState<DateRange>(defaultRange)
   const [dataRevision, setDataRevision] = useState(0)
+  const [hall, setHall] = useState('all')
 
   if (!settings) {
     return <SetupWizard onComplete={update} />
@@ -35,9 +36,9 @@ export default function App() {
       {/* Left: narrow nav, black with white text */}
       <nav className="flex w-full shrink-0 flex-col bg-ink p-4 text-cream lg:w-48" aria-label="Main">
         <p className="font-display text-2xl font-semibold">ScrapSaver</p>
-        {settings.locations.map((name, i) => (
-          <p key={i} className="mt-0.5 truncate text-sm" title={name}>
-            {name}
+        {settings.locations.map((l) => (
+          <p key={l.id} className="mt-0.5 truncate text-sm" title={l.name}>
+            {l.name}
           </p>
         ))}
         <ul className="mt-3 flex flex-wrap gap-1 lg:mt-6 lg:block lg:space-y-1">
@@ -62,9 +63,18 @@ export default function App() {
       </nav>
 
       <main className="min-w-0 flex-1 overflow-y-auto bg-cream p-4 sm:p-6">
-        {page === 'dashboard' && <DashboardPage range={range} onRangeChange={setRange} />}
+        {page === 'dashboard' && (
+          <DashboardPage
+            range={range}
+            onRangeChange={setRange}
+            locations={settings.locations}
+            // A hall removed in Settings falls back to all halls.
+            hall={settings.locations.some((l) => l.id === hall) ? hall : 'all'}
+            onHallChange={setHall}
+          />
+        )}
         {page === 'schedule' && <SchedulePage settings={settings} dataRevision={dataRevision} />}
-        {page === 'menus' && <MenusPage />}
+        {page === 'menus' && <MenusPage locations={settings.locations} />}
         {page === 'portions' && <PortionsPage onSaved={() => setDataRevision((r) => r + 1)} />}
         {page === 'behind' && <BehindScenesPage />}
         {page === 'settings' && <SettingsPage settings={settings} onSave={update} />}

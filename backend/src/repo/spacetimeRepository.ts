@@ -25,8 +25,9 @@ import type {
   ClassificationRegion,
   SegmentationResult,
   PlateCalibration,
+  ScanInfo,
 } from '../types.js';
-import type { Repository } from './repository.js';
+import type { DemoMarker, Repository } from './repository.js';
 import { conflict, menuVersionConflict } from '../errors.js';
 
 export interface SpacetimeConfig {
@@ -222,6 +223,35 @@ export class SpacetimeRepository implements Repository {
     const existed = (await this.getImageObject(objectId)) !== undefined;
     if (existed) await this.call('delete_image_object', { objectId });
     return existed;
+  }
+
+  async findImageObjectsByAssociation(kind: ImageObject['association']['kind'], id: string): Promise<ImageObject[]> {
+    const rows = await this.sql(
+      `SELECT * FROM image_object WHERE association_kind = ${quote(kind)} AND association_id = ${quote(id)}`,
+    );
+    return rows.map((r) => this.toImageObject(r));
+  }
+
+  // --- scans ---
+  async upsertScanInfo(scan: ScanInfo): Promise<void> {
+    await this.call('upsert_scan_info', { scanJson: JSON.stringify(scan) });
+  }
+  async getScanInfo(eventId: string): Promise<ScanInfo | undefined> {
+    const [row] = await this.sql(`SELECT * FROM scan_info WHERE event_id = ${quote(eventId)}`);
+    return row ? clean(row as ScanInfo) : undefined;
+  }
+
+  // --- sample data ---
+  async recordDemoMarkers(markers: DemoMarker[]): Promise<void> {
+    // Chunked so one reducer argument stays small.
+    for (let i = 0; i < markers.length; i += 500) {
+      await this.call('record_demo_markers', { markersJson: JSON.stringify(markers.slice(i, i + 500)) });
+    }
+  }
+  async clearDemoData(): Promise<number> {
+    const marked = (await this.sql('SELECT * FROM demo_marker')).length;
+    await this.call('clear_demo_data', {});
+    return marked;
   }
 
   // --- capture events ---

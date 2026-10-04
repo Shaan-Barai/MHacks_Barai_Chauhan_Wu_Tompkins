@@ -19,7 +19,6 @@ import type {
 } from '../types.js';
 
 const MEAL_LABELS: MealLabel[] = ['breakfast', 'lunch', 'dinner'];
-const CAPTURE_SOURCES: CaptureSource[] = ['camera', 'replay', 'manual_upload'];
 const REFERENCE_SOURCES = ['reference_photo', 'manual_area', 'gemini_estimate'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -117,7 +116,20 @@ export interface CaptureSubmission {
   geometry: ImageGeometry;
   source: CaptureSource;
   qualityFlags?: QualityFlag[];
+  /** Per-scan details (contracts ScanInfo minus eventId/demo). */
+  scan?: ScanSubmission;
 }
+
+export interface ScanSubmission {
+  deviceId: string;
+  timestampBasis: 'laptop_trigger' | 'laptop_ingest';
+  originalImageObjectId?: string;
+  originalSha256?: string;
+  sourceName?: string;
+}
+
+/** Sources a client may submit; 'demo' rows come only from the demo-history seed. */
+const SUBMITTABLE_SOURCES: CaptureSource[] = ['camera', 'replay', 'manual_upload'];
 
 export function validateCaptureSubmission(body: unknown): CaptureSubmission {
   const c = body as Partial<CaptureSubmission> | undefined;
@@ -129,7 +141,7 @@ export function validateCaptureSubmission(body: unknown): CaptureSubmission {
     !isNonEmptyString(c.capturedAt) ||
     Number.isNaN(Date.parse(c.capturedAt)) ||
     !isNonEmptyString(c.imageObjectId) ||
-    !CAPTURE_SOURCES.includes(c.source as CaptureSource)
+    !SUBMITTABLE_SOURCES.includes(c.source as CaptureSource)
   ) {
     throw badRequest(
       'INVALID_CAPTURE',
@@ -140,7 +152,27 @@ export function validateCaptureSubmission(body: unknown): CaptureSubmission {
   if (c.qualityFlags !== undefined && !Array.isArray(c.qualityFlags)) {
     throw badRequest('INVALID_CAPTURE', 'qualityFlags must be a list when present.');
   }
+  if (c.scan !== undefined) validateScan(c.scan);
   return c as CaptureSubmission;
+}
+
+function validateScan(scan: unknown): void {
+  const s = scan as Partial<ScanSubmission> | null;
+  const optionalString = (v: unknown) => v === undefined || isNonEmptyString(v);
+  if (
+    !s ||
+    typeof s !== 'object' ||
+    !isNonEmptyString(s.deviceId) ||
+    (s.timestampBasis !== 'laptop_trigger' && s.timestampBasis !== 'laptop_ingest') ||
+    !optionalString(s.originalImageObjectId) ||
+    !optionalString(s.sourceName) ||
+    (s.originalSha256 !== undefined && !/^[0-9a-f]{64}$/.test(String(s.originalSha256)))
+  ) {
+    throw badRequest(
+      'INVALID_SCAN',
+      "scan needs deviceId, timestampBasis ('laptop_trigger' or 'laptop_ingest'), and optional originalImageObjectId, originalSha256 (64 hex), sourceName.",
+    );
+  }
 }
 
 export function validateAttendance(body: unknown): Attendance {

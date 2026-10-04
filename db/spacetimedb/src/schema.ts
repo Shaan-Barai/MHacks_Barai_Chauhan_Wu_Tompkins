@@ -363,6 +363,40 @@ const attemptCalibration = table(
   },
 );
 
+/**
+ * contracts ScanInfo — per-scan capture details, one row per capture_event
+ * (eventId). The raw original photo lives in object storage (image_object
+ * association kind 'original'); only its object id and SHA-256 are here.
+ * timestampBasis records which clock stamped capturedAt (always the
+ * computer's for real scans). Private: the dashboard reads it via the backend.
+ */
+const scanInfo = table(
+  { name: 'scan_info' },
+  {
+    eventId: t.string().primaryKey(),
+    deviceId: t.string(),
+    timestampBasis: t.string(), // 'laptop_trigger' | 'laptop_ingest' | 'demo'
+    originalImageObjectId: t.option(t.string()),
+    originalSha256: t.option(t.string()),
+    sourceName: t.option(t.string()),
+    demo: t.bool(),
+  },
+);
+
+/**
+ * Sample-data bookkeeping (DEMO_SEED). Every row the demo-history seed
+ * creates is listed here by table + primary key, so clear_demo_data removes
+ * exactly those rows and never touches real scans, menus, or portions.
+ */
+const demoMarker = table(
+  { name: 'demo_marker' },
+  {
+    markerId: t.string().primaryKey(), // `${tableName}:${rowKey}`
+    tableName: t.string(),
+    rowKey: t.string(),
+  },
+);
+
 // ---------------------------------------------------------------------------
 // Schema assembly
 // ---------------------------------------------------------------------------
@@ -382,6 +416,8 @@ const spacetimedb = schema({
   captureCount,
   segmentationRegion,
   attemptCalibration,
+  scanInfo,
+  demoMarker,
 });
 
 export default spacetimedb;

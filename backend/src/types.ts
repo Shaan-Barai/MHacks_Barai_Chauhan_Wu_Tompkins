@@ -27,6 +27,7 @@ export type {
   Attendance,
   Insight,
   ApiError,
+  ScanInfo,
   DishMatchImage,
   DishMatchRequest,
   DishMatchResult,

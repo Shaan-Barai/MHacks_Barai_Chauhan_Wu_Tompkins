@@ -526,3 +526,73 @@ export const upsert_insight = spacetimedb.reducer({ insightJson: t.string() }, (
   if (ctx.db.insight.insightId.find(row.insightId)) ctx.db.insight.insightId.update(row);
   else ctx.db.insight.insert(row);
 });
+
+// --- scans (per-capture details; contracts ScanInfo) -------------------------
+
+const TIMESTAMP_BASES = ['laptop_trigger', 'laptop_ingest', 'demo'];
+
+export const upsert_scan_info = spacetimedb.reducer({ scanJson: t.string() }, (ctx, { scanJson }) => {
+  const s = parse(scanJson, 'scanInfo');
+  const timestampBasis = str(s, 'timestampBasis', 'scanInfo');
+  if (!TIMESTAMP_BASES.includes(timestampBasis)) throw new SenderError(`scanInfo.timestampBasis must be one of ${TIMESTAMP_BASES.join(', ')}`);
+  const sha = optStr(s, 'originalSha256');
+  if (sha !== undefined && !/^[0-9a-f]{64}$/.test(sha)) throw new SenderError('scanInfo.originalSha256 must be 64 lowercase hex characters');
+  const row = {
+    eventId: str(s, 'eventId', 'scanInfo'),
+    deviceId: str(s, 'deviceId', 'scanInfo'),
+    timestampBasis,
+    originalImageObjectId: optStr(s, 'originalImageObjectId'),
+    originalSha256: sha,
+    sourceName: optStr(s, 'sourceName'),
+    demo: s.demo === true,
+  };
+  if (ctx.db.scanInfo.eventId.find(row.eventId)) ctx.db.scanInfo.eventId.update(row);
+  else ctx.db.scanInfo.insert(row);
+});
+
+// --- sample data (DEMO_SEED) -------------------------------------------------
+
+/** Tables the demo-history seed may create rows in, keyed by primary key. */
+const DEMO_TABLES = [
+  'meal_service', 'menu_item', 'portions_served', 'capture_event', 'scan_info',
+  'analysis_attempt', 'food_measurement', 'capture_count',
+] as const;
+
+export const record_demo_markers = spacetimedb.reducer({ markersJson: t.string() }, (ctx, { markersJson }) => {
+  let list: unknown;
+  try {
+    list = JSON.parse(markersJson);
+  } catch {
+    throw new SenderError('markers: invalid JSON');
+  }
+  if (!Array.isArray(list)) throw new SenderError('markers must be an array');
+  for (const m of list as Json[]) {
+    const tableName = str(m, 'tableName', 'marker');
+    const rowKey = str(m, 'rowKey', 'marker');
+    if (!(DEMO_TABLES as readonly string[]).includes(tableName)) throw new SenderError(`marker table ${tableName} is not a demo table`);
+    const markerId = `${tableName}:${rowKey}`;
+    if (!ctx.db.demoMarker.markerId.find(markerId)) ctx.db.demoMarker.insert({ markerId, tableName, rowKey });
+  }
+});
+
+/**
+ * Remove every row the demo-history seed created (and only those), in one
+ * transaction. Real scans, menus, and portions have no marker and are untouched.
+ */
+export const clear_demo_data = spacetimedb.reducer({}, (ctx) => {
+  for (const marker of [...ctx.db.demoMarker.iter()]) {
+    const key = marker.rowKey;
+    switch (marker.tableName) {
+      case 'meal_service': ctx.db.mealService.serviceId.delete(key); break;
+      case 'menu_item': ctx.db.menuItem.itemId.delete(key); break;
+      case 'portions_served': ctx.db.portionsServed.recordId.delete(key); break;
+      case 'capture_event': ctx.db.captureEvent.eventId.delete(key); break;
+      case 'scan_info': ctx.db.scanInfo.eventId.delete(key); break;
+      case 'analysis_attempt': ctx.db.analysisAttempt.attemptId.delete(key); break;
+      case 'food_measurement': ctx.db.foodMeasurement.measurementId.delete(key); break;
+      case 'capture_count': ctx.db.captureCount.attemptId.delete(key); break;
+      default: break;
+    }
+    ctx.db.demoMarker.markerId.delete(marker.markerId);
+  }
+});

@@ -30,7 +30,22 @@ import type {
   PortionsServed,
   Attendance,
   Insight,
+  ScanInfo,
 } from '../types.js';
+
+/** A row created by the demo-history seed: SpacetimeDB table name + primary key. */
+export interface DemoMarker {
+  tableName:
+    | 'meal_service'
+    | 'menu_item'
+    | 'portions_served'
+    | 'capture_event'
+    | 'scan_info'
+    | 'analysis_attempt'
+    | 'food_measurement'
+    | 'capture_count';
+  rowKey: string;
+}
 
 export interface Repository {
   // --- menus (MealService + MenuItem[], joined as MenuBundle) ---
@@ -58,6 +73,17 @@ export interface Repository {
   getImageObject(objectId: string): Promise<ImageObject | undefined>;
   listImageObjects(state?: ImageObject['state']): Promise<ImageObject[]>;
   deleteImageObject(objectId: string): Promise<boolean>;
+  /** Image objects registered for one association (e.g. a capture's 'original'). */
+  findImageObjectsByAssociation(kind: ImageObject['association']['kind'], id: string): Promise<ImageObject[]>;
+
+  // --- scans (one ScanInfo per capture event) ---
+  upsertScanInfo(scan: ScanInfo): Promise<void>;
+  getScanInfo(eventId: string): Promise<ScanInfo | undefined>;
+
+  // --- sample data (DEMO_SEED): every row the demo seed creates is marked ---
+  recordDemoMarkers(markers: DemoMarker[]): Promise<void>;
+  /** Delete exactly the marked rows (and their markers); returns how many rows were marked. */
+  clearDemoData(): Promise<number>;
 
   // --- capture events (idempotency key: eventId) ---
   upsertCaptureEvent(event: CaptureEvent): Promise<void>;

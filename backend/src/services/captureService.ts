@@ -60,9 +60,12 @@ export class CaptureService {
       const signed = await this.sign(ref.objectId);
       if (signed) masks.push({ ...signed, itemId: ref.itemId, displayName: nameOf(ref.itemId) });
     }
+    const scan = await this.repo.getScanInfo(eventId);
     return {
       eventId,
       original: await this.sign(event.imageObjectId),
+      raw: scan?.originalImageObjectId ? await this.sign(scan.originalImageObjectId) : null,
+      ...(scan ? { scan } : {}),
       overlay: attempt?.overlayObjectId ? await this.sign(attempt.overlayObjectId) : null,
       masks,
     };

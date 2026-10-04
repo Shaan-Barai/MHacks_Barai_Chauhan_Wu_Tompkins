@@ -260,7 +260,8 @@ export function createApp(deps: AppDeps): express.Express {
         widthPx,
         heightPx,
       });
-      res.status(201).json(result);
+      // 200 for an idempotent retry of an upload that already finished.
+      res.status(result.alreadyFinalized ? 200 : 201).json(result);
     }),
   );
 

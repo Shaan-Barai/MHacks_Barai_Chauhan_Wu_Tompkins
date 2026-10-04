@@ -26,12 +26,16 @@
 import { randomBytes } from 'node:crypto';
 import { badRequest } from '../errors.js';
 
+export type UploadAssociationKind = 'capture' | 'original' | 'reference';
+
 export interface UploadRequest {
-  /** 'capture' or 'reference' association drives the object-key prefix. */
-  associationKind: 'capture' | 'reference';
+  /** The association drives the object-key folder (captures/, originals/, references/). */
+  associationKind: UploadAssociationKind;
   associationId: string;
   mimeType: string;
   declaredSizeBytes: number;
+  /** Prepended to the key, e.g. 'test/' (config.objectStorage.keyPrefix). */
+  keyPrefix?: string;
 }
 
 export interface UploadAuthorization {
@@ -115,12 +119,25 @@ export function validateUploadRequest(req: UploadRequest, policy: UploadPolicy):
   }
 }
 
-/** Stable, provider-independent key: <captures|references>/<date>/<associationId>_<random>.<ext>. */
+const KEY_FOLDER: Record<UploadAssociationKind, string> = {
+  capture: 'captures',
+  original: 'originals',
+  reference: 'references',
+};
+
+/**
+ * Stable, provider-independent key: `<keyPrefix><folder>/<date>/<associationId>.<ext>`.
+ * A capture event has exactly one normalized image and one original, so their
+ * keys are deterministic: a retried upload overwrites the same object instead
+ * of leaving a duplicate. Reference images keep a random suffix (a baseline
+ * may be re-photographed).
+ */
 export function makeObjectKey(req: UploadRequest, nowMs: number): string {
   const ext = EXT_BY_MIME[req.mimeType] ?? 'bin';
-  const prefix = req.associationKind === 'capture' ? 'captures' : 'references';
   const date = new Date(nowMs).toISOString().slice(0, 10);
-  return `${prefix}/${date}/${req.associationId}_${randomBytes(6).toString('hex')}.${ext}`;
+  const name =
+    req.associationKind === 'reference' ? `${req.associationId}_${randomBytes(6).toString('hex')}` : req.associationId;
+  return `${req.keyPrefix ?? ''}${KEY_FOLDER[req.associationKind]}/${date}/${name}.${ext}`;
 }
 
 export function mimeForKey(objectKey: string): string {

@@ -1,7 +1,7 @@
 # vision/sam — SAM 2.1 segmentation worker (Agent 4)
 
 Local HTTP service for the segmentation stage of
-**Gemini classification + boxes → SAM 2.1 masks → counted Pixels wasted**
+**Gemini classification + boxes + target dish → SAM 2.1 masks → target-dish clip → counted Pixels wasted**
 ([MVP_AI.md](../../MVP_AI.md), [measurement contract](../../contracts/measurement.md)).
 The TypeScript side (`vision/src/maskPipeline.ts`) calls it through
 `createSamWorkerClient()`; the backend selects it automatically when
@@ -58,11 +58,18 @@ harmless `torch.jit.script` FutureWarning.
 - Masks: lossless 8-bit PNG at the image's exact size, **255 = food, 0 =
   background**. The TypeScript side re-validates size and binarity before
   counting (never trusts `foregroundPx` alone).
-- Limits: 25 MB body, 4096² pixels, 1–32 boxes. `GET /health` reports the
+- Per capture (BIG-PLAN v2, target-dish counting) the pipeline sends ONE
+  request whose boxes are: the target-dish food pieces, the food Gemini put
+  on other dishes (segmented only for the overlay and the "other dish, not
+  counted" pixel count), and last the target dish itself (its mask becomes
+  the clip region in `vision/src/targetDish.ts`). More than 128 boxes are
+  split into several requests.
+- Limits: 25 MB body, 4096² pixels, 1–128 boxes (`MAX_BOXES`). `GET /health` reports the
   model, device, code revision, and settings.
 
 **Settings `sam2-box-v1`:** `multimask_output=False`; binary threshold at
-logit 0.0 (the predictor's `mask_threshold`); no hole filling; no
+logit 0.0 (the predictor's `mask_threshold`); no hole filling in the worker
+(the dish region's fill happens in TypeScript, `dish-region-v2`); no
 small-component removal; float32 on MPS/CPU (no CUDA autocast).
 
 ## Measured on the team MacBook (M1 Max, MPS)

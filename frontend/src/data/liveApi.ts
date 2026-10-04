@@ -531,7 +531,6 @@ export async function takePhoto(): Promise<TakePhotoResult> {
   })
 }
 
-/** Asks the AI for a new recommendation for these days (saved with its inputs). */
 // Try an Image: one-off analysis of an uploaded photo (nothing is added to the dashboard).
 export async function getTryImageStatus(): Promise<TryImageStatus> {
   return call<TryImageStatus>('/api/try-image/status')
@@ -561,6 +560,7 @@ export async function getTryImageJob(id: string): Promise<TryImageJob> {
   return call<TryImageJob>(`/api/try-image/${encodeURIComponent(id)}`)
 }
 
+/** Asks the AI for a new recommendation for these days (saved with its inputs). */
 export async function regenerateRecommendation(start: IsoDate, end: IsoDate): Promise<Recommendation> {
   return call<Recommendation>('/api/recommendation/regenerate', {
     method: 'POST',

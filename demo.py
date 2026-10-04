@@ -963,6 +963,25 @@ def step_deploy(demo):
         webbrowser.open(url + "/")
 
 
+def step_try_image(demo):
+    """Try an Image: Behind the scenes → Try an Image runs one visitor photo through Gemini + SAM 2.1 (not stored)."""
+    status, body = demo.get("/api/try-image/status", timeout=10, anonymous=True)
+    if status != 200 or not isinstance(body, dict):
+        demo.check("FAIL", f"GET /api/try-image/status: HTTP {status} (restart the backend: deploy/local.sh restart)")
+        return
+    if body.get("available"):
+        demo.check("PASS", f"Try an Image is open to visitors without sign-in: {body.get('hourlyRemaining')} analyses left "
+                           f"this hour, {body.get('waiting')} waiting (each photo costs 2 Gemini calls; nothing is stored)")
+    else:
+        demo.check("WARN", f"Try an Image is unavailable: {body.get('reason')}")
+    ok, sample = http_ok(demo.api + "/api/try-image/sample.jpg")
+    demo.check("PASS" if ok and sample[:2] == b"\xff\xd8" else "FAIL", "Sample photo served at /api/try-image/sample.jpg")
+    url = demo.args.dashboard_url.rstrip("/") + "/behind-the-scenes/try-an-image"
+    print(f"  Open {url}  (Upload a photo, or Use the sample photo)")
+    if not demo.args.no_open:
+        webbrowser.open(url)
+
+
 STEPS = [
     ("services", "Services", step_services),
     ("menu", "Menu, waste factors and portions served", step_menu),
@@ -978,6 +997,7 @@ STEPS = [
     ("dashboard", "Dashboard", step_dashboard),
     ("admin", "Admin: choose which plates are shown", step_admin),
     ("upload_site", "Upload website: photo → results page", step_upload_site),
+    ("try_image", "Try an Image (dashboard → Behind the scenes)", step_try_image),
     ("deploy", "Production URL", step_deploy),
 ]
 NEEDS_EVENTS = {"analysis", "area", "storage", "images"}

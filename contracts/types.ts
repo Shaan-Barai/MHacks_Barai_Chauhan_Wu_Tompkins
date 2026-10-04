@@ -129,7 +129,7 @@ export interface AnalysisAttempt {
    * `promptVersion` above describe the classification stage.
    */
   segmentation?: SegmentationResult;
-  /** Per-capture pixel→cm² calibration (BIG-PLAN D2). Absent on legacy attempts. */
+  /** DEPRECATED (BIG-PLAN v2): no longer produced. Legacy attempts only. */
   calibration?: PlateCalibration;
   /** Object id of the segmented overlay JPEG in object storage (BIG-PLAN D7). */
   overlayObjectId?: string;
@@ -323,15 +323,18 @@ export type DishMatchResult = (
 };
 
 // ---------------------------------------------------------------------------
-// Waste impact (BIG-PLAN.md D1–D8, 2026-10-03). Pixels wasted stays the raw
-// stored measurement; grams and impact are labeled ESTIMATES derived at read
-// time by analytics from a per-capture plate calibration and the factor
-// tables (menu_waste_factors.csv, menu_nutrition_factors.csv).
+// Waste impact (BIG-PLAN.md; v2 2026-10-04). Pixels wasted is the measurement
+// and the headline unit. Relative impact points are derived at read time by
+// analytics from pixels and the factor tables (menu_waste_factors.csv,
+// menu_nutrition_factors.csv). No plate-size calibration, no grams.
 // ---------------------------------------------------------------------------
 
 export type CalibrationFlag = 'calibration_default' | 'plate_cut_off' | 'bowl_size_assumed';
 
-/** Per-capture pixel→area calibration. Persisted with the analysis attempt. */
+/**
+ * Per-capture pixel→area calibration. DEPRECATED 2026-10-04 (BIG-PLAN v2):
+ * not produced or used; kept only so legacy attempts still parse.
+ */
 export interface PlateCalibration {
   /** 'plate-fit-v1' = Gemini plate box → SAM plate mask → outer-rim circle fit. */
   method: 'plate-fit-v1' | 'configured-default';
@@ -368,28 +371,31 @@ export interface NutritionFactor {
   kcalPerKg: number;
 }
 
-export type ImpactUnavailableReason = 'no_calibration' | 'no_factor' | 'unknown_item';
+export type ImpactUnavailableReason = 'no_factor' | 'unknown_item';
 
-/** Derived (never stored) estimate for a set of counted pixels. */
+/**
+ * Derived (never stored) relative impact for a set of counted pixels
+ * (BIG-PLAN v2, 2026-10-04: pixels only, no plate-size calibration).
+ * "Points" are UNITLESS and only comparable with each other:
+ *   points = (pixels / 1000) × weight_g_per_cm2 × factor
+ * co2Points uses C, waterPoints uses W, impactPoints uses 0.19·C + 1.50·W.
+ * They are never kg, litres or dollars.
+ */
 export interface WasteImpact {
   pixels: number;
-  cm2: number | null;
-  grams: number | null;
-  kgCo2e: number | null;
-  waterM3: number | null;
-  /** 0.19·C + 1.50·W applied to kg wasted. */
-  impactUsd: number | null;
-  /** Separate statistic. NOT part of impactUsd. */
-  nutrientDaysLost: number | null;
+  co2Points: number | null;
+  waterPoints: number | null;
+  impactPoints: number | null;
+  /** Separate statistic from nutrient-days/kg. NOT part of impactPoints. */
+  nutritionPoints: number | null;
   wasteFactorsVersion: string;
   unavailableReason?: ImpactUnavailableReason;
 }
 
-/** Per-portion rates over the same hall/date/service/menu version (D5). */
+/** Per-portion rates over the same hall/date/service/menu version. */
 export interface PerPortion {
-  grams: number | null;
   pixels: number;
-  impactUsd: number | null;
+  impactPoints: number | null;
 }
 
 export interface ItemImpactRow {
@@ -409,17 +415,18 @@ export interface ItemImpactRow {
 export interface ImpactDashboard {
   window: { start: string; end: string; hallId?: string };
   totals: WasteImpact & { captures: number; analyzedCaptures: number; excludedCaptures: number };
-  /** Ranked by perPortion.grams desc ("Foods to target"); unavailable rates last. */
+  /** Ranked by perPortion.pixels desc ("Foods to target"); unavailable rates last. */
   targets: ItemImpactRow[];
-  /** Ranked by impact.grams desc, then pixels ("Most wasted"). */
+  /** Ranked by impact.pixels desc ("Most wasted"). */
   mostWasted: ItemImpactRow[];
   coverage: {
     itemsWithFactor: number;
     itemsWithoutFactor: number;
     itemsWithPortions: number;
-    capturesWithDefaultCalibration: number;
+    /** Captures where food outside the scanned (target) dish was excluded. */
+    capturesWithNeighborFoodExcluded: number;
   };
-  labels: { estimate: true; demoPortions: boolean };
+  labels: { relativeImpact: true; demoPortions: boolean };
 }
 
 /** GET /api/captures?start&end — recent plates for the dashboard gallery. */
@@ -430,8 +437,7 @@ export interface CaptureListItem {
   source: CaptureSource;
   state: ProcessingState;
   pixelsWasted: number | null;
-  grams: number | null;
-  items: Array<{ itemId: string | null; displayName: string; pixels: number; grams: number | null }>;
+  items: Array<{ itemId: string | null; displayName: string; pixels: number }>;
   hasOverlay: boolean;
 }
 

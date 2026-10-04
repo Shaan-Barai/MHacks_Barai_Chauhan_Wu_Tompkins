@@ -1,5 +1,10 @@
 # BIG-PLAN: camera → R2/SpacetimeDB → Gemini+SAM → waste impact → dashboard
 
+> **v2 (2026-10-04) supersedes D2, D3, D5 and the database choice below.** Decisions:
+> pixels only (no plate-size calibration, no grams); relative impact points;
+> target-dish counting for neighboring plates; everything in the `scrap` database;
+> live run on the real Uno Q (35.1.88.76). See §7 and `contracts/decisions.md` (2026-10-04).
+
 **Started:** 2026-10-03 · **Integration branch:** `big-plan` (merged into `main` when done)
 **Coordinator:** Agent 1 (main session). This file is the live tracker; the coordinator updates the
 status table below as agents report back.
@@ -160,3 +165,29 @@ once D lands → C does the final review, updates README/AGENTS, and merges `big
 - Open judgement calls: (1) clip food counts to the fitted dish? Not enabled: a bad fit would delete real food; `diagnostics.pixelsOutsideDish` reports it instead (it matters for multi-dish phone photos, less so for the single-plate camera). (2) The 900 px default plate diameter should be measured from a real C920s frame. (3) `scrap-bigplan` has one stray test capture (hall `hall-tmuta9xkt`); the dashboard always passes `hallId=hall-main`. Wiping it is the user's call.
 - 2026-10-04 live E2E result: 3 captures, 413,044 px ≈ 337 g, 0.59 kg CO2e, 132 L water, $0.31 impact; top target Baked Sweet Potatoes 1.4 g/portion (demo portions). After the run, the Gemini key's prepaid credits were depleted (HTTP 402). New captures will fail classification and the recommendation shows the labeled fallback until billing is topped up.
 - Not verified live: the real Uno Q board with this pipeline (`capture/scripts/live_camera_test.py`), Gemini same-dish dedupe (E2E used `--no-dedupe`).
+
+## 7. v2 (2026-10-04): pixels only, relative impact, target dish, `scrap`, real camera
+
+**User direction:** run the real Arduino (35.1.88.76) and use the current Gemini settings (two-pass IoU
+localization `fef1065`, numbered per-piece boxes `d24ce1b`, Gemini menu descriptions). Put everything in
+`scrap`. Drop the plate size and use pixels. Fix neighboring plates by having Gemini count only the
+scanned plate. Update all context docs.
+
+| Decision | Rule |
+| --- | --- |
+| V1 pixels only | Total waste, waste per portion (px ÷ portions) and most wasted are in pixels. No calibration, no grams |
+| V2 relative impact | `points = px/1000 × weight_g_per_cm2 × factor`: co2Points (C), waterPoints (W), impactPoints (0.19C + 1.50W). Unitless and labeled relative. nutritionPoints are separate |
+| V3 target dish | Gemini marks the target dish and assigns each food box to target or other. Other-dish food is dropped, then masks are clipped to the dish region (filled, dilated SAM mask). No dish found ⇒ no clip + flag. Counting rule `target-dish-v1` |
+| V4 `scrap` | Additive publish to `scrap`. The seed adds a menu revision for dinners whose items changed. Configs and docs default to `scrap` |
+| V5 context | Every doc (README, AGENTS, EXPLAIN, BIG-PLAN, UI.md, menu_waste_factors_README, contracts, docs/, package READMEs) describes v2 |
+
+| WS | Owns | Task | State |
+| --- | --- | --- | --- |
+| V | `vision/` | target-dish counting (V3), stop producing calibration, overlay shows the target dish + excluded food, tests, live check when Gemini billing works | running |
+| M | `analytics/`, `backend/` services/endpoints, `menu_waste_factors_README.md` | V1/V2 metrics + recommendation in pixels/points, endpoint payloads per the new contract, tests, docs | running |
+| U | `frontend/`, `UI.md` | pixel headline cards, relative impact card(s), per-portion pixels, labels, tests | running |
+| S | `db/`, `backend/scripts`, `capture/`, `tests/`, `docs/`, `.env.example` | publish to `scrap`, seed with menu revision, switch defaults to `scrap`; then the real Uno Q live run once SSH + Gemini billing are ready | running |
+
+**User blockers:** (1) Gemini key returns HTTP 402 (prepaid credits depleted): top up billing. (2) SSH to
+`arduino@35.1.88.76` needs a key: `ssh-copy-id -i ~/.ssh/scrap_unoq.pub arduino@35.1.88.76` (the key was
+generated on the laptop).

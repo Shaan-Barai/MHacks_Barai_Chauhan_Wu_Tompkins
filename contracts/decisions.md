@@ -411,3 +411,32 @@ impact → dashboard. Full plan and tracker: [BIG-PLAN.md](../BIG-PLAN.md).
   `WasteImpact`, `PerPortion`, `ItemImpactRow`, `ImpactDashboard`,
   `CaptureListItem`, `SignedImage`, `CaptureImages`, `Recommendation`;
   `AnalysisAttempt.calibration` / `overlayObjectId`; association kind `overlay`.
+
+## 2026-10-04: BIG-PLAN v2: pixels only, relative impact, target-dish counting, `scrap` database
+
+User direction (2026-10-04):
+
+- **No plate-size calibration.** Plates come in several sizes, so a 26.7 cm
+  plate fit can't give a reliable scale. `PlateCalibration` /
+  `AnalysisAttempt.calibration` are deprecated (kept so legacy rows parse).
+  There are no grams, kg CO2e, litres or dollars.
+- **Pixels are the headline unit.** Total waste, waste per portion (pixels ÷
+  portions served, sum then divide) and most wasted are all in pixels.
+- **Relative impact points** (user-chosen option): `points = pixels/1000 ×
+  weight_g_per_cm2 × factor`, with `co2Points` (C), `waterPoints` (W) and
+  `impactPoints` (0.19·C + 1.50·W). They are unitless, comparable only with
+  each other, and always labeled relative. They let beef weigh more than rice.
+  `nutritionPoints` (nutrient-days/kg) stays separate and is never in the score.
+- **Neighboring plates (target-dish counting).** Each capture counts only the
+  dish being scanned. Gemini identifies the target dish (the plate or bowl
+  most centered and most fully in frame) and assigns each food box to the
+  target or to another dish. Food on other dishes is dropped. As a pixel-level
+  safety, the remaining food masks are clipped to the target dish's region
+  (SAM mask of the dish, holes filled, slightly dilated). If the dish can't be
+  found, nothing is clipped and the attempt carries a flag. A neighboring
+  plate gets counted when it is the centered dish in its own capture. The
+  bridge's same-dish judgment still makes sure each physical plate is counted
+  once.
+- **Database:** everything lives in the `scrap` database (additive schema
+  publish in place, menu revision for the dinners whose items changed).
+  `scrap-bigplan` is retired.

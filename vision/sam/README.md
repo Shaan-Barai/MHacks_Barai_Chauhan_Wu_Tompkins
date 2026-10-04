@@ -16,12 +16,21 @@ from source). Checkpoints download from Hugging Face on first start.
 ```bash
 # from the repo root; .venv/ is gitignored
 python3 -m venv .venv
-.venv/bin/pip install torch torchvision pillow numpy huggingface_hub
-git clone --depth 1 https://github.com/facebookresearch/sam2 ../sam2   # outside the repo
-(cd ../sam2 && SAM2_BUILD_CUDA=0 ../mhacks/.venv/bin/pip install -e .)
+SAM2_BUILD_CUDA=0 .venv/bin/pip install -r vision/sam/requirements.txt   # pinned; sam2 from git @ 2b90b9f
 .venv/bin/python vision/sam/worker.py        # http://127.0.0.1:8790
 curl -s http://127.0.0.1:8790/health          # {"ok": true, "model": "sam2.1-hiera-small", ...}
 ```
+
+`requirements.txt` pins the versions verified on the team Mac and installs
+`sam2` from source at commit `2b90b9f5ceec907a1c18123530e92e794ad901a4`. The
+existing Mac setup instead uses an editable clone at that commit
+(`git clone https://github.com/facebookresearch/sam2 ../sam2 && (cd ../sam2 &&
+git checkout 2b90b9f && SAM2_BUILD_CUDA=0 ../mhacks/.venv/bin/pip install -e .)`).
+Both give `codeRevision` `sam2@2b90b9f` (the editable clone reports the git
+revision; a non-editable install reports the package version). The depth
+worker (`vision/depth/`) shares this venv. `transformers` 5.18 pins
+`huggingface_hub` to 1.33.0, which the SAM worker was re-verified with
+(2026-10-04).
 
 `huggingface_hub` is required by `SAM2ImagePredictor.from_pretrained` but is
 not installed by `sam2` itself. To keep the worker running after the shell
@@ -41,7 +50,8 @@ harmless `torch.jit.script` FutureWarning.
 | --- | --- | --- |
 | `SAM_MODEL_ID` | `facebook/sam2.1-hiera-small` | Checkpoint (MVP default: SAM 2.1 Small) |
 | `SAM_DEVICE` | `mps` if available, else `cpu` | Falls back to CPU if MPS fails at startup |
-| `SAM_HOST` / `SAM_PORT` | `127.0.0.1` / `8790` | Bind address (local only) |
+| `WORKER_HOST` (or `SAM_HOST`) / `SAM_PORT` | `127.0.0.1` / `8790` | Bind address (local only); an address with `:` binds IPv6 |
+| `WORKER_TOKEN` | _unset_ | When set, `POST /segment` requires `X-Worker-Token: <token>`; missing/wrong ⇒ 401. `/health` stays open. The backend client sends it from its own `WORKER_TOKEN` |
 | `SAM_WORKER_URL` (backend) | `http://127.0.0.1:8790` | Where the backend finds the worker |
 
 ## Interface

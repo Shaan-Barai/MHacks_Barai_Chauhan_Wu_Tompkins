@@ -1,22 +1,22 @@
 /**
- * Waste-impact read models (BIG-PLAN D2–D8): the impact dashboard, the
- * recent-plates list, and the AI recommendation. The backend only gathers
- * records for a reporting window — each capture's counted (latest succeeded)
- * attempt with its persisted plate calibration, that attempt's mask
+ * Waste-impact read models (BIG-PLAN v2): the impact dashboard, the
+ * recent-plates list, and the AI recommendation, in Pixels wasted plus
+ * relative impact points. The backend only gathers records for a reporting
+ * window: each capture's counted (latest succeeded) attempt (its quality
+ * flags feed the neighbor-food coverage count), that attempt's mask
  * measurements, the service menus, and portions served. Every formula
- * (grams, CO2e, water, impact $, per-portion rates, rankings, the
- * recommendation prompt and its fallback) lives in `@scrap/analytics`
- * (AGENTS.md 5.6, D3).
+ * (points, per-portion rates, rankings, the recommendation prompt and its
+ * fallback) lives in `@scrap/analytics` (AGENTS.md 5.6). There is no plate
+ * calibration and there are no grams; a legacy attempt's `calibration` is
+ * ignored.
  */
 
 import {
   buildImpactDashboard,
-  computeWasteImpact,
   generateRecommendation,
   recommendationFacts,
   recommendationInputVersion,
   selectImpactMeasurements,
-  sumImpacts,
   UNKNOWN_FOOD_LABEL,
   type TextGateway,
 } from '@scrap/analytics';
@@ -26,7 +26,6 @@ import type { Repository } from '../repo/repository.js';
 import type { IngestionService } from './ingestionService.js';
 import type {
   AnalysisAttempt,
-  PlateCalibration,
   CaptureEvent,
   CaptureListItem,
   FoodMeasurement,
@@ -47,7 +46,7 @@ export interface ImpactWindow {
 export interface ServiceRecords {
   menu: MenuBundle;
   captures: CaptureEvent[];
-  /** eventId -> the counted (latest succeeded) attempt, carrying `calibration`. */
+  /** eventId -> the counted (latest succeeded) attempt. */
   countedAttempts: Map<string, AnalysisAttempt>;
   /** eventId -> latest attempt of any status (exclusion reasons). */
   latestAttempts: Map<string, AnalysisAttempt>;
@@ -76,32 +75,6 @@ export function parseWindow(query: Record<string, unknown>): ImpactWindow {
     throw badRequest('INVALID_PARAMETER', "'hallId' must be a non-empty string when given.");
   }
   return { start, end, ...(typeof hallId === 'string' ? { hallId } : {}) };
-}
-
-/**
- * Estimated grams wasted for one service's counted captures (analytics
- * eligibility + computeWasteImpact + sumImpacts). null when nothing could be
- * estimated (no analyzed capture, or no calibration/factor for any pixel);
- * 0 only when analyzed plates were measured clean.
- */
-export function estimatedGrams(
-  menu: MenuBundle,
-  captures: CaptureEvent[],
-  countedAttempts: Map<string, AnalysisAttempt>,
-  measurements: FoodMeasurement[],
-): number | null {
-  const selected = selectImpactMeasurements({ services: [menu.service], captures, measurements, menuItems: menu.items });
-  const impacts = selected.measurements.map((m) =>
-    computeWasteImpact(
-      m.pixels,
-      countedAttempts.get(m.eventId)?.calibration ?? null,
-      m.itemId === null ? null : findWasteFactor(m.displayName),
-      m.itemId === null ? null : findNutritionFactor(m.displayName),
-      { unknownItem: m.itemId === null, wasteFactorsVersion: WASTE_FACTORS_VERSION },
-    ),
-  );
-  if (impacts.length === 0) return selected.captures.analyzed > 0 ? 0 : null;
-  return sumImpacts(impacts, WASTE_FACTORS_VERSION).grams;
 }
 
 export class ImpactService {
@@ -158,14 +131,17 @@ export class ImpactService {
       measurements: records.flatMap((r) => r.measurements),
       menuItems: records.flatMap((r) => r.menu.items),
     });
-    const calibrations = new Map<string, PlateCalibration | null>();
+    // Counted attempts' quality flags: vision's target-dish counting marks an
+    // attempt that dropped food from a neighboring dish (analytics
+    // NEIGHBOR_FOOD_EXCLUDED_FLAG) -> coverage.capturesWithNeighborFoodExcluded.
+    const attemptQualityFlags = new Map<string, readonly string[]>();
     for (const r of records) {
-      for (const [eventId, attempt] of r.countedAttempts) calibrations.set(eventId, attempt.calibration ?? null);
+      for (const [eventId, attempt] of r.countedAttempts) attemptQualityFlags.set(eventId, attempt.qualityFlags ?? []);
     }
     return buildImpactDashboard({
       window,
       measurements: selected.measurements,
-      calibrations,
+      attemptQualityFlags,
       captures: selected.captures,
       menuItems: records.flatMap((r) => r.menu.items),
       portions: records.flatMap((r) => r.portions),
@@ -183,18 +159,6 @@ export class ImpactService {
       for (const event of r.captures) {
         const attempt = r.countedAttempts.get(event.eventId);
         const rows = attempt ? r.measurements.filter((m) => m.attemptId === attempt.attemptId) : [];
-        const impacts = rows.map((m) => {
-          const unknown = m.itemId === null;
-          const displayName = unknown ? UNKNOWN_FOOD_LABEL : names.get(m.itemId!) ?? m.itemId!;
-          const impact = computeWasteImpact(
-            m.remainingAreaPx,
-            attempt?.calibration ?? null,
-            unknown ? null : findWasteFactor(displayName),
-            unknown ? null : findNutritionFactor(displayName),
-            { unknownItem: unknown, wasteFactorsVersion: WASTE_FACTORS_VERSION },
-          );
-          return { m, displayName, impact };
-        });
         const seg = attempt?.segmentation;
         const counted = seg?.countStatus === 'complete' || seg?.countStatus === 'empty';
         const latest = r.latestAttempts.get(event.eventId);
@@ -204,15 +168,13 @@ export class ImpactService {
           serviceId: event.serviceId,
           source: event.source,
           state: event.state,
+          // null (never 0) unless the counted attempt has a complete or empty count;
+          // a counted clean plate is a measured 0.
           pixelsWasted: counted ? seg!.capturePixelsWasted ?? null : null,
-          // analytics sumImpacts rule: grams of the pixels that have a calibration + factor.
-          // A counted clean plate is a measured 0 g; otherwise null when nothing is estimable.
-          grams: !counted ? null : impacts.length === 0 ? 0 : sumImpacts(impacts.map((x) => x.impact), WASTE_FACTORS_VERSION).grams,
-          items: impacts.map(({ m, displayName, impact }) => ({
+          items: rows.map((m) => ({
             itemId: m.itemId,
-            displayName,
+            displayName: m.itemId === null ? UNKNOWN_FOOD_LABEL : names.get(m.itemId) ?? m.itemId,
             pixels: m.remainingAreaPx,
-            grams: impact.grams,
           })),
           hasOverlay: Boolean((attempt ?? latest)?.overlayObjectId),
         });

@@ -1,18 +1,22 @@
 /**
- * BIG-PLAN D2/D7 persistence: per-capture plate calibration and the segmented
- * overlay JPEG. Offline (mock analyzer, local-dev storage, in-memory repo).
+ * BIG-PLAN D7 persistence: the segmented overlay JPEG. BIG-PLAN v2: there is no
+ * plate calibration; a stale analyzer's calibration is never persisted, while
+ * legacy rows that carry one still parse. Offline (mock analyzer, local-dev
+ * storage, in-memory repo).
  */
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JsonFileRepository } from '../src/repo/jsonFileRepository.js';
-import { validCalibration } from '../src/services/ingestionService.js';
+import { MockAnalyzer, type MockFixture } from '../src/analysis/mockAnalyzer.js';
+import type { Analyzer } from '../src/analysis/analyzer.js';
 import { startTestServer } from './helpers.js';
 import type { PlateCalibration } from '../src/types.js';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+/** A legacy (pre-v2) calibration, as old rows may still carry. */
 const FIT: PlateCalibration = {
   method: 'plate-fit-v1',
   plateDiameterCm: 26.7,
@@ -26,7 +30,7 @@ const FIT: PlateCalibration = {
 /** A tiny byte string with a JPEG SOI marker: enough for storage + the type check. */
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4, 0xff, 0xd9]);
 
-test('ingestion stores the overlay JPEG in object storage and persists calibration on the attempt', async (t) => {
+test('ingestion stores the overlay JPEG in object storage; no calibration on the attempt', async (t) => {
   const s = await startTestServer();
   t.after(() => s.close());
   await s.seedMenuAndBaselines();
@@ -36,14 +40,13 @@ test('ingestion stores the overlay JPEG in object storage and persists calibrati
       { itemId: 'item_eggs', remainingAreaPx: 12000 },
       { itemId: null, remainingAreaPx: 500 },
     ],
-    calibration: FIT,
     overlay: { jpeg: JPEG, widthPx: 1024, heightPx: 1024 },
   };
   const imageId = await s.uploadImage(eventId);
   const res = await s.submitCapture(eventId, imageId);
   assert.equal(res.status, 201, JSON.stringify(res.json));
   const attempt = res.json.attempt;
-  assert.deepEqual(attempt.calibration, FIT);
+  assert.equal(attempt.calibration, undefined);
   assert.match(attempt.overlayObjectId, /^img_/);
 
   const overlay = await s.repo.getImageObject(attempt.overlayObjectId);
@@ -56,7 +59,7 @@ test('ingestion stores the overlay JPEG in object storage and persists calibrati
 
   // Round-trip through the repository read path used by every endpoint.
   const [stored] = await s.repo.listAnalysisAttempts(eventId);
-  assert.deepEqual(stored?.calibration, FIT);
+  assert.equal(stored?.calibration, undefined);
   assert.equal(stored?.overlayObjectId, attempt.overlayObjectId);
 
   // Images endpoint: original + overlay + one mask per food, all short-lived URLs.
@@ -85,7 +88,7 @@ test('ingestion stores the overlay JPEG in object storage and persists calibrati
   assert.equal((await s.repo.listAnalysisAttempts(eventId)).length, 1);
 });
 
-test('missing overlay and calibration: counts still stored, images endpoint returns overlay null', async (t) => {
+test('missing overlay: counts still stored, images endpoint returns overlay null', async (t) => {
   const s = await startTestServer();
   t.after(() => s.close());
   await s.seedMenuAndBaselines();
@@ -108,41 +111,38 @@ test('missing overlay and calibration: counts still stored, images endpoint retu
   assert.equal(missing.json.error.code, 'CAPTURE_NOT_FOUND');
 });
 
-test('a malformed overlay or invalid calibration never fails a valid count', async (t) => {
-  const s = await startTestServer();
+/** A pre-v2 analyzer that still reports a plate calibration on its attempt. */
+function staleCalibrationAnalyzer(fixtures: Record<string, MockFixture>): Analyzer {
+  const mock = new MockAnalyzer(fixtures);
+  return {
+    async analyze(input) {
+      const result = await mock.analyze(input);
+      return { ...result, attempt: { ...result.attempt, calibration: FIT } };
+    },
+  };
+}
+
+test('a malformed overlay never fails a valid count; a stale calibration is ignored, not persisted', async (t) => {
+  const fixtures: Record<string, MockFixture> = {};
+  const s = await startTestServer(staleCalibrationAnalyzer(fixtures));
   t.after(() => s.close());
   await s.seedMenuAndBaselines();
   const eventId = 'cap_bad_overlay';
-  s.fixtures[eventId] = {
+  fixtures[eventId] = {
     measurements: [{ itemId: 'item_eggs', remainingAreaPx: 100 }],
-    calibration: { ...FIT, cm2PerPx: 1 }, // inconsistent with the diameter
     overlay: { jpeg: new Uint8Array([1, 2, 3, 4]), widthPx: 1024, heightPx: 1024 }, // not a JPEG
   };
   const res = await s.submitCapture(eventId, await s.uploadImage(eventId));
   assert.equal(res.status, 201);
   assert.equal(res.json.event.state, 'succeeded');
-  assert.equal(res.json.attempt.calibration, undefined, 'invalid calibration is dropped, not guessed');
+  assert.equal(res.json.measurements[0].remainingAreaPx, 100);
+  assert.equal(res.json.attempt.calibration, undefined, 'v2 never persists a calibration');
+  assert.equal((await s.repo.listAnalysisAttempts(eventId))[0]?.calibration, undefined);
   assert.equal(res.json.attempt.overlayObjectId, undefined);
   assert.equal((await s.repo.listImageObjects()).filter((o) => o.association.kind === 'overlay').length, 0);
 });
 
-test('validCalibration: configured default is always flagged; bad shapes are rejected', () => {
-  const def: PlateCalibration = {
-    method: 'configured-default',
-    plateDiameterCm: 26.7,
-    plateDiameterPx: 700,
-    cm2PerPx: (26.7 / 700) ** 2,
-    flags: [],
-  };
-  assert.deepEqual(validCalibration(def)?.flags, ['calibration_default']);
-  assert.deepEqual(validCalibration(FIT), FIT);
-  assert.equal(validCalibration(undefined), undefined);
-  assert.equal(validCalibration({ ...FIT, plateDiameterPx: 0 }), undefined);
-  assert.equal(validCalibration({ ...FIT, method: 'guess' as any }), undefined);
-  assert.equal(validCalibration({ ...FIT, flags: ['made_up' as any] }), undefined);
-});
-
-test('JSON snapshot repository round-trips calibration and overlayObjectId', async () => {
+test('JSON snapshot repository round-trips overlayObjectId and a legacy calibration', async () => {
   const file = join(mkdtempSync(join(tmpdir(), 'scrap-json-')), 'db.json');
   const repo = new JsonFileRepository(file);
   const attempt = {

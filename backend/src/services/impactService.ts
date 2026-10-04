@@ -78,6 +78,32 @@ export function parseWindow(query: Record<string, unknown>): ImpactWindow {
   return { start, end, ...(typeof hallId === 'string' ? { hallId } : {}) };
 }
 
+/**
+ * Estimated grams wasted for one service's counted captures (analytics
+ * eligibility + computeWasteImpact + sumImpacts). null when nothing could be
+ * estimated (no analyzed capture, or no calibration/factor for any pixel);
+ * 0 only when analyzed plates were measured clean.
+ */
+export function estimatedGrams(
+  menu: MenuBundle,
+  captures: CaptureEvent[],
+  countedAttempts: Map<string, AnalysisAttempt>,
+  measurements: FoodMeasurement[],
+): number | null {
+  const selected = selectImpactMeasurements({ services: [menu.service], captures, measurements, menuItems: menu.items });
+  const impacts = selected.measurements.map((m) =>
+    computeWasteImpact(
+      m.pixels,
+      countedAttempts.get(m.eventId)?.calibration ?? null,
+      m.itemId === null ? null : findWasteFactor(m.displayName),
+      m.itemId === null ? null : findNutritionFactor(m.displayName),
+      { unknownItem: m.itemId === null, wasteFactorsVersion: WASTE_FACTORS_VERSION },
+    ),
+  );
+  if (impacts.length === 0) return selected.captures.analyzed > 0 ? 0 : null;
+  return sumImpacts(impacts, WASTE_FACTORS_VERSION).grams;
+}
+
 export class ImpactService {
   private readonly recommendations = new Map<string, { value: Recommendation; storedAt: number }>();
 
@@ -180,7 +206,8 @@ export class ImpactService {
           state: event.state,
           pixelsWasted: counted ? seg!.capturePixelsWasted ?? null : null,
           // analytics sumImpacts rule: grams of the pixels that have a calibration + factor.
-          grams: counted ? sumImpacts(impacts.map((x) => x.impact), WASTE_FACTORS_VERSION).grams : null,
+          // A counted clean plate is a measured 0 g; otherwise null when nothing is estimable.
+          grams: !counted ? null : impacts.length === 0 ? 0 : sumImpacts(impacts.map((x) => x.impact), WASTE_FACTORS_VERSION).grams,
           items: impacts.map(({ m, displayName, impact }) => ({
             itemId: m.itemId,
             displayName,

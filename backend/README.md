@@ -148,7 +148,7 @@ Every error returns the shared envelope `{ "error": { code, message, details?, r
 - `GET /api/menus/days?hallId=…&start=…&end=…` — `{ dates }` that have a menu (Menus calendar).
 
 ### Dashboard read models — Pixels wasted (formulas from `@scrap/analytics`)
-- `GET /api/dashboard/daily?hallId=…&start=…&end=…` — per local date: `pixelsWasted` (null = no counted plate), `capturedDishes`, `countedDishes`.
+- `GET /api/dashboard/daily?hallId=…&start=…&end=…` — per local date: `pixelsWasted` (null = no counted plate), `capturedDishes`, `countedDishes`, and `grams` (estimated grams of the counted captures via analytics `computeWasteImpact`/`sumImpacts`; null when nothing is estimable, 0 only for analyzed clean plates).
 - `GET /api/dashboard/cards?hallId=…&today=…` — today / this week (Mon start) / this month `pixelsWasted` and `previousPixelsWasted` for the same-length previous window (null = no data).
 - `GET /api/dashboard/meal?hallId=…&date=…&meal=…` — analytics `PixelServiceSummary` (total, per-item pixels and share, unclassified pixels, counted/empty/excluded plates with reasons), the persisted simulated attendance (generated once on first read), and an `Insight` citing measured pixels (Gemini, or labeled `fallback_rules`; null when no food pixels are attributed). Insights are stored per data version; a stored fallback is retried with Gemini.
 - `GET /api/dashboard/summary` — legacy baseline-percentage summary (`SummaryService`); auxiliary only.
@@ -163,7 +163,8 @@ pixels + per-capture plate calibration + the factor tables in `scrap-data`
 
 - `GET /api/dashboard/impact?start&end[&hallId]` → contracts `ImpactDashboard`
   (`totals`, `targets` ranked by grams per portion, `mostWasted` ranked by
-  grams, `coverage`, `labels`). Only counted (latest succeeded) mask
+  grams, `coverage`, `labels`). With no analyzed capture the totals' estimate
+  fields are `null` (pixels 0); analyzed clean plates only give 0. Only counted (latest succeeded) mask
   measurements enter; portions are the services' current-version snapshots.
 - `GET /api/captures?start&end[&hallId][&limit]` → `CaptureListItem[]`,
   newest first, default 50, max 200. `pixelsWasted`/`grams` are `null` for

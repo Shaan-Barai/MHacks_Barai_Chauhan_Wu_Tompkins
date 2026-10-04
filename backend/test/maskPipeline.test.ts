@@ -133,7 +133,7 @@ test('capture -> masks stored in object storage -> Pixels wasted on the dashboar
   assert.equal(meal.json.insight.metrics.topItemId, 'item_toast');
 
   const daily = await s.api('GET', `/api/dashboard/daily?hallId=${HALL}&start=2026-10-03&end=2026-10-03`);
-  assert.deepEqual(daily.json.days[0], { date: '2026-10-03', pixelsWasted: 131072, capturedDishes: 1, countedDishes: 1, plateWastePercents: [100] });
+  assert.deepEqual(daily.json.days[0], { date: '2026-10-03', pixelsWasted: 131072, capturedDishes: 1, countedDishes: 1, plateWastePercents: [100], grams: null }); // Scrambled Eggs / Toast have no factor row
 });
 
 test('segmentation worker down: capture fails retryably and nothing is counted', async (t) => {

@@ -117,7 +117,7 @@ test('sumImpacts sums available values and keeps unavailable ones out (not zero)
   assert.equal(none.grams, null);
   assert.equal(none.pixels, 2000);
   const empty = sumImpacts([]);
-  assert.deepEqual([empty.pixels, empty.grams, empty.impactUsd], [0, 0, 0]);
+  assert.deepEqual([empty.pixels, empty.grams, empty.impactUsd, empty.kgCo2e, empty.nutrientDaysLost], [0, null, null, null, null]);
 });
 
 // ---- dashboard fixture --------------------------------------------------
@@ -254,8 +254,16 @@ test('dashboard: a capture without calibration keeps pixels but blocks the gram 
 
 test('dashboard: empty window', () => {
   const d = buildImpactDashboard(dashInput({ measurements: [], calibrations: {}, captures: { captures: 0, analyzed: 0, excluded: 0 } }));
-  assert.deepEqual([d.targets.length, d.mostWasted.length, d.totals.pixels, d.totals.grams], [0, 0, 0, 0]);
+  assert.deepEqual([d.targets.length, d.mostWasted.length, d.totals.pixels, d.totals.grams], [0, 0, 0, null]);
+  assert.deepEqual([d.totals.cm2, d.totals.kgCo2e, d.totals.waterM3, d.totals.impactUsd, d.totals.nutrientDaysLost], [null, null, null, null, null]);
   assert.equal(d.labels.demoPortions, false);
+});
+
+test('dashboard: only analyzed clean plates is a measured zero', () => {
+  const d = buildImpactDashboard(dashInput({ measurements: [], calibrations: {}, captures: { captures: 2, analyzed: 2, excluded: 0 } }));
+  assert.deepEqual([d.totals.pixels, d.totals.grams, d.totals.impactUsd], [0, 0, 0]);
+  const failedOnly = buildImpactDashboard(dashInput({ measurements: [], calibrations: {}, captures: { captures: 1, analyzed: 0, excluded: 1 } }));
+  assert.equal(failedOnly.totals.grams, null, 'excluded captures never become zero waste');
 });
 
 // ---- eligibility helper -------------------------------------------------

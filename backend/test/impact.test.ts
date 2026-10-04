@@ -267,3 +267,45 @@ test('GET /api/recommendation: valid Gemini answer is served as source gemini an
   assert.deepEqual(second.json, first.json);
   assert.equal(calls.n, 1, 'one Gemini call for identical statistics');
 });
+
+test('GET /api/dashboard/daily: estimated grams per day; null (never 0) when nothing is estimable', async (t) => {
+  const s = await seeded();
+  t.after(() => s.close());
+  const res = await s.api('GET', `/api/dashboard/daily?hallId=${HALL}&start=2026-10-01&end=2026-10-02`);
+  assert.equal(res.status, 200, JSON.stringify(res.json));
+  const [before, day] = res.json.days;
+  assert.equal(before.grams, null, 'no captures that day');
+  assert.equal(before.pixelsWasted, null);
+  // cap_a 90 g ham + 80 g potatoes; cap_b 9 g ham (unknown food has no grams); cap_c failed.
+  close(day.grams, 179, 'day grams');
+  assert.equal(day.pixelsWasted, 20000);
+});
+
+test('impact totals, capture list, daily: missing estimates stay null, clean plates are 0 g', async (t) => {
+  const s = await startTestServer();
+  t.after(() => s.close());
+  assert.equal((await s.api('POST', '/api/menus', MENU)).status, 201);
+  const none = await s.api('GET', `/api/dashboard/impact?start=${DATE}&end=${DATE}`);
+  assert.equal(none.json.totals.pixels, 0);
+  const t0 = none.json.totals;
+  assert.deepEqual([t0.grams, t0.cm2, t0.kgCo2e, t0.waterM3, t0.impactUsd, t0.nutrientDaysLost], [null, null, null, null, null, null]);
+
+  s.fixtures.cap_failed = { status: 'failed' };
+  await capture(s, 'cap_failed', `${DATE}T21:00:00.000Z`);
+  const failed = await s.api('GET', `/api/dashboard/impact?start=${DATE}&end=${DATE}`);
+  assert.equal(failed.json.totals.grams, null, 'a failed capture is not zero waste');
+  const failedDay = await s.api('GET', `/api/dashboard/daily?hallId=${HALL}&start=${DATE}&end=${DATE}`);
+  assert.equal(failedDay.json.days[0].grams, null);
+
+  s.fixtures.cap_clean = { measurements: [], calibration: FIT };
+  await capture(s, 'cap_clean', `${DATE}T21:30:00.000Z`);
+  const clean = await s.api('GET', `/api/dashboard/impact?start=${DATE}&end=${DATE}`);
+  assert.equal(clean.json.totals.analyzedCaptures, 1);
+  assert.equal(clean.json.totals.grams, 0, 'an analyzed clean plate is a measured zero');
+  const list = await s.api('GET', `/api/captures?start=${DATE}&end=${DATE}`);
+  const cleanItem = list.json.find((c: any) => c.eventId === 'cap_clean');
+  assert.equal(cleanItem.pixelsWasted, 0);
+  assert.equal(cleanItem.grams, 0);
+  const cleanDay = await s.api('GET', `/api/dashboard/daily?hallId=${HALL}&start=${DATE}&end=${DATE}`);
+  assert.equal(cleanDay.json.days[0].grams, 0);
+});

@@ -28,6 +28,7 @@ import {
   readableItemName,
 } from '@scrap/analytics';
 import { notFound } from '../errors.js';
+import { estimatedGrams } from './impactService.js';
 import type { BackendConfig } from '../config.js';
 import type { Repository } from '../repo/repository.js';
 import type { IngestionService } from './ingestionService.js';
@@ -43,6 +44,12 @@ export interface DailyPoint {
   countedDishes: number;
   /** One entry per scanned plate: its waste percent, or null when unavailable. */
   plateWastePercents: (number | null)[];
+  /**
+   * Estimated grams wasted that day (BIG-PLAN D2, labeled estimate): counted
+   * captures' pixels x plate calibration x factor weight. null when nothing
+   * could be estimated (never 0 for missing).
+   */
+  grams: number | null;
 }
 
 export interface PeriodTotal {
@@ -197,6 +204,7 @@ export class DashboardService {
         capturedDishes: 0,
         countedDishes: 0,
         plateWastePercents: [],
+        grams: null,
       };
       for (const capture of obs.captures) point.plateWastePercents.push(plateWastePercent(capture, obs.measurements));
       point.capturedDishes += summary.captureCount;
@@ -204,10 +212,12 @@ export class DashboardService {
       if (summary.countedCaptureCount > 0) {
         point.pixelsWasted = (point.pixelsWasted ?? 0) + summary.pixelsWasted;
       }
+      const grams = estimatedGrams(menu, obs.captures, obs.countedAttempts, obs.measurements);
+      if (grams !== null) point.grams = (point.grams ?? 0) + grams;
       byDate.set(service.serviceDate, point);
     }
     return eachDay(start, end).map(
-      (date) => byDate.get(date) ?? { date, pixelsWasted: null, capturedDishes: 0, countedDishes: 0, plateWastePercents: [] },
+      (date) => byDate.get(date) ?? { date, pixelsWasted: null, capturedDishes: 0, countedDishes: 0, plateWastePercents: [], grams: null },
     );
   }
 

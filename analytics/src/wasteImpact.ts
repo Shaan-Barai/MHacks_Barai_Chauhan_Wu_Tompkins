@@ -135,7 +135,7 @@ const NULLABLE_KEYS: NullableKey[] = ['cm2', 'grams', 'kgCo2e', 'waterM3', 'impa
  * without grams (ties: unknown_item, no_calibration, no_factor), and callers
  * report how many were unavailable via `impactCoverage` / dashboard coverage.
  * So a total's grams cover only the pixels that had a calibration and factor.
- * An empty list is a true zero (nothing observed).
+ * An empty list has pixels 0 and null estimates (nothing to estimate).
  */
 export function sumImpacts(list: readonly WasteImpact[], wasteFactorsVersion?: string): WasteImpact {
   const version = wasteFactorsVersion ?? list[0]?.wasteFactorsVersion ?? WASTE_FACTORS_VERSION;
@@ -149,10 +149,10 @@ export function sumImpacts(list: readonly WasteImpact[], wasteFactorsVersion?: s
     nutrientDaysLost: null,
     wasteFactorsVersion: version,
   };
-  if (list.length === 0) {
-    for (const k of NULLABLE_KEYS) out[k] = 0;
-    return out;
-  }
+  // Nothing to estimate: pixels are a true 0, but every estimate stays null
+  // (missing is never zero). A caller that KNOWS zero was measured (e.g.
+  // analyzed clean plates) sets the zeros itself.
+  if (list.length === 0) return out;
   for (const impact of list) {
     out.pixels += impact.pixels;
     for (const k of NULLABLE_KEYS) {
@@ -363,6 +363,11 @@ export function buildImpactDashboard(input: ImpactDashboardInput): ImpactDashboa
 
   const named = rows.filter((r) => r.itemId !== null);
   const totalsImpact = sumImpacts(allImpacts, version);
+  // Only analyzed clean plates make an empty total a measured zero; with no
+  // analyzed capture the estimates stay null (never zero for missing).
+  if (allImpacts.length === 0 && input.captures.analyzed > 0) {
+    for (const k of NULLABLE_KEYS) totalsImpact[k] = 0;
+  }
   return {
     window: { ...input.window },
     totals: {

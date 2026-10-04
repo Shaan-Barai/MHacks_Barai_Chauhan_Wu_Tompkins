@@ -440,3 +440,34 @@ User direction (2026-10-04):
 - **Database:** everything lives in the `scrap` database (additive schema
   publish in place, menu revision for the dinners whose items changed).
   `scrap-bigplan` is retired.
+
+## 2026-10-04: end-to-end pipeline (branch `end-to-end-pipeline`, from `big-plan-v2`)
+
+- **Pixels only** (user): no cm², grams, kg CO2e, m³ or dollars anywhere; impact
+  stays in relative points. No plate-size calibration stage and no "% of
+  portion wasted". Waste per portion = pixels per portion served.
+- **One ingest path:** `ReplayCaptureAdapter.ingestPhoto` (capture/src/adapter.ts)
+  is used by take-photo, the `--auto` inbox bridge, test2/ replays and tests. It
+  uploads the raw original (image kind `original`) and the normalized image
+  (`capture`), then submits the event with a `ScanInfo` (device, timestamp basis,
+  original id + SHA-256), stored in the new `scan_info` table.
+- **Transfer:** the existing SSH stream (laptop_capture.py, SHA-256 checked) is
+  kept; no scp. `npm run take-photo` and `POST /api/camera/take-photo` share it.
+  Camera settings live in `.env` (CAMERA_HOST, CAMERA_USER, CAMERA_SSH_KEY);
+  SSH is key-only (BatchMode); the C920 node is found by name.
+- **Scan time = this computer's clock** (`laptop_trigger`, `laptop_received`,
+  `laptop_ingest`); the board clock is never used.
+- **R2 keys** `<R2_KEY_PREFIX><captures|originals|references>/<date>/<eventId>.<ext>`
+  are deterministic for captures/originals; a retried upload reuses its record.
+- **Sample history** (DEMO_SEED): ~14 days of captures with source `demo`, own
+  `svc_demo_*` services, every row listed in `demo_marker`;
+  `clear_demo_data` removes exactly those. Labeled "sample data" on the dashboard.
+- **Dummy portions** by role: pizza slices 200-400, entrees 80-200, sides and
+  soup 60-150, desserts 50-150 (source `demo`, seed `demo-portions-v2`).
+- **Recommendations** (prompt `impact-rec-v3`): 2-3 bullets, each naming the dish
+  behind its cited metric, plus a pixels-per-plate trend fact; saved in the
+  `insight` table with window, inputs and input version; regenerate on demand;
+  on Gemini failure the last saved one is shown marked stale.
+- **Waste Impact points** = 0.19 × CO2 points + 1.50 × water points from the
+  unrounded C and W (the CSV score column is the same value rounded to cents).
+- Nutrition stays in `menu_nutrition_factors.csv`, reported separately.

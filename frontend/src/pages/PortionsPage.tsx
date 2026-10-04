@@ -8,7 +8,7 @@ import { downloadCsv } from '../lib/csv'
 import { Card, EmptyState, FieldLabel, GhostButton, inputClass, LoadingBlock, PrimaryButton } from '../components/ui'
 import { PortionBenchmarkView } from '../components/PortionBenchmark'
 
-export function PortionsPage({ onSaved }: { onSaved: () => void }) {
+export function PortionsPage({ onSaved }: { onSaved?: () => void }) {
   const [date, setDate] = useState(todayIso)
   const [meal, setMeal] = useState<MealLabel>('lunch')
   const [revision, setRevision] = useState(0)
@@ -28,8 +28,8 @@ export function PortionsPage({ onSaved }: { onSaved: () => void }) {
     {selected.status === 'loading' && <LoadingBlock label="Loading counts" />}
     {selected.status === 'error' && <EmptyState title="Couldn't load portions.">{selected.error}</EmptyState>}
     {selected.status === 'ready' && (selected.data
-      ? <PortionsEditor key={`${date}-${meal}-${revision}`} service={selected.data} onSaved={() => { setRevision(r => r + 1); setSavedNote(true); onSaved() }} />
-      : <EmptyState title="Add this meal’s menu first.">Go to Menus and add the foods served on this date.</EmptyState>)}
+      ? <PortionsEditor key={`${date}-${meal}-${revision}`} service={selected.data} onSaved={() => { setRevision(r => r + 1); setSavedNote(true); onSaved?.() }} />
+      : <EmptyState title="Add this meal’s menu first.">Go to Menu Schedule and add the foods served on this date.</EmptyState>)}
   </div>
 }
 

@@ -1,34 +1,30 @@
 /**
- * Menu Schedule: add a menu (typed, spreadsheet, or API) at the top, then the
- * month calendar below it. Picking a day shows that day's meals, waste, and
- * suggestions, and points the menu form at that date.
+ * Menu Schedule: (1) add a menu (typed, spreadsheet, or API), (2) when
+ * breakfast, lunch, and dinner run, (3) portions forecasted, then the month
+ * calendar. Picking a day points the menu form and the forecast at it.
  */
 import { useState } from 'react'
-import { DayDetails } from '../components/DayDetails'
+import { MealTimesCard } from '../components/MealTimesCard'
 import { MenuSource } from '../components/MenuSource'
 import { MonthCalendar, useMonth } from '../components/MonthCalendar'
+import { PortionsForecast } from '../components/PortionsForecast'
 import { FieldLabel } from '../components/ui'
 import { getMenuDays } from '../data/api'
 import type { HallSettings, IsoDate } from '../data/types'
 import { todayIso } from '../lib/dates'
 import { useAsync } from '../lib/useAsync'
 
-export function MenuSchedulePage({ settings, dataRevision }: { settings: HallSettings; dataRevision: number }) {
+export function MenuSchedulePage({ settings, onSettingsChange }: { settings: HallSettings; onSettingsChange: (next: HallSettings) => void }) {
   const [hallId, setHallId] = useState(settings.hallId)
-  const [picked, setPicked] = useState<IsoDate>(todayIso())
   const [menuDate, setMenuDate] = useState<IsoDate>(todayIso())
   const [savedTick, setSavedTick] = useState(0)
-  const { monthStart, monthEnd, shift } = useMonth(picked)
+  const { monthStart, monthEnd, shift } = useMonth(menuDate)
   const days = useAsync(() => getMenuDays(monthStart, monthEnd, hallId), [monthStart, monthEnd, hallId, savedTick])
 
   const note = (date: IsoDate) => {
     const events = settings.events.filter((e) => e.date === date).map((e) => e.name)
     if (events.length) return events.join(', ')
     return days.data && !days.data[date] ? 'No menu' : undefined
-  }
-  const pickDay = (date: IsoDate) => {
-    setPicked(date)
-    setMenuDate(date)
   }
 
   return (
@@ -54,8 +50,8 @@ export function MenuSchedulePage({ settings, dataRevision }: { settings: HallSet
         )}
       </div>
       <p className="text-base">
-        Each day needs a menu so we know which foods were served. Add one below, then pick a day on the calendar to see what came
-        back on plates and what to try next.
+        Each day needs a menu so we know which foods were served. Add the menu, check when meals run, and forecast portions. Pick a
+        day on the calendar to work on it.
       </p>
 
       <MenuSource
@@ -67,17 +63,19 @@ export function MenuSchedulePage({ settings, dataRevision }: { settings: HallSet
         onMenuSaved={() => setSavedTick((t) => t + 1)}
       />
 
-      <h2 className="font-display text-2xl font-semibold text-ink">Schedule</h2>
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,26rem)_1fr]">
+      <MealTimesCard settings={settings} onSave={onSettingsChange} />
+
+      <PortionsForecast hallId={hallId} date={menuDate} menuRevision={savedTick} />
+
+      <div className="max-w-xl">
         <MonthCalendar
           monthStart={monthStart}
           onShift={shift}
-          selected={picked}
-          onPick={pickDay}
+          selected={menuDate}
+          onPick={setMenuDate}
           note={note}
           footer={days.status === 'loading' && !days.data ? 'Loading menus' : 'Days marked "No menu" still need one.'}
         />
-        <DayDetails date={picked} settings={settings} hallId={hallId} dataRevision={dataRevision + savedTick} />
       </div>
     </div>
   )

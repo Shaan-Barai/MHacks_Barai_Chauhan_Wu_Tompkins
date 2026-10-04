@@ -1,13 +1,13 @@
 /**
  * Dashboard (UI.md, BIG-PLAN v2): lookback buttons, two headline cards (Total
- * waste in Pixels wasted, Relative impact in points), the AI recommendation,
- * foods to target (pixels per portion), most wasted (pixels), the daily
- * pixels chart, recent plates with their AI outline images, and relative
- * nutrition points kept apart from the impact score. A dining hall picker next
+ * waste in Pixels wasted, Relative impact in points), the daily pixels chart,
+ * the AI recommendation, foods to target (pixels per portion), most wasted
+ * (pixels), and relative nutrition points kept apart from the impact score.
+ * Plate photos are on Behind the scenes. A dining hall picker next
  * to the title shows one location or all of them together.
  */
 import { useMemo } from 'react'
-import { getCaptures, getDailyWaste, getImpactDashboard, getRecommendation } from '../data/api'
+import { getDailyWaste, getImpactDashboard, getRecommendation } from '../data/api'
 import { dailyBuckets } from '../lib/grouping'
 import { useAsync } from '../lib/useAsync'
 import { DateRangePicker, type DateRange } from '../components/DateRangePicker'
@@ -16,7 +16,6 @@ import { HeadlineCards } from '../components/HeadlineCards'
 import { HOW_MEASURED } from '../components/impactCopy'
 import { MostWasted } from '../components/MostWasted'
 import { NutritionLost } from '../components/NutritionLost'
-import { PlatesGallery } from '../components/PlatesGallery'
 import { RecommendationCard } from '../components/RecommendationCard'
 import { WasteChart } from '../components/WasteChart'
 import { Card, EmptyState, LoadingBlock } from '../components/ui'
@@ -41,7 +40,6 @@ export function DashboardPage({
   const deps = [range.start, range.end, scope]
   const impact = useAsync(() => getImpactDashboard(range.start, range.end, scope), deps)
   const rec = useAsync(() => getRecommendation(range.start, range.end, scope), deps)
-  const plates = useAsync(() => getCaptures(range.start, range.end, scope), deps)
   const series = useAsync(() => getDailyWaste(range.start, range.end, scope), deps)
 
   const buckets = useMemo(() => (series.data ? dailyBuckets(series.data) : []), [series.data])
@@ -82,19 +80,6 @@ export function DashboardPage({
       )}
       {impact.data && !noPlates && <HeadlineCards data={impact.data} />}
 
-      {rec.status === 'loading' && !rec.data && <LoadingBlock label="Loading suggestion" />}
-      {rec.status === 'error' && (
-        <EmptyState title="No suggestion right now.">The suggestion could not be written. The numbers below are still current.</EmptyState>
-      )}
-      {rec.data && !noPlates && <RecommendationCard rec={rec.data} />}
-
-      {impact.data && !noPlates && (
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-          <FoodsToTarget rows={impact.data.targets} demoPortions={impact.data.labels.demoPortions} />
-          <MostWasted rows={impact.data.mostWasted} />
-        </div>
-      )}
-
       <Card>
         <h2 className="text-lg font-semibold text-ink">Pixels wasted by day</h2>
         <p className="mt-1 text-sm">Hover over or tab to a bar to see the exact number.</p>
@@ -112,11 +97,19 @@ export function DashboardPage({
         </div>
       </Card>
 
-      {plates.status === 'loading' && !plates.data && <LoadingBlock label="Loading plates" />}
-      {plates.status === 'error' && <EmptyState title="Couldn't load the plates.">{plates.error}</EmptyState>}
-      {plates.data && (
-        <PlatesGallery captures={plates.data} neighborExcluded={impact.data?.coverage.capturesWithNeighborFoodExcluded ?? 0} />
+      {rec.status === 'loading' && !rec.data && <LoadingBlock label="Loading suggestion" />}
+      {rec.status === 'error' && (
+        <EmptyState title="No suggestion right now.">The suggestion could not be written. The numbers below are still current.</EmptyState>
       )}
+      {rec.data && !noPlates && <RecommendationCard rec={rec.data} />}
+
+      {impact.data && !noPlates && (
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+          <FoodsToTarget rows={impact.data.targets} demoPortions={impact.data.labels.demoPortions} />
+          <MostWasted rows={impact.data.mostWasted} />
+        </div>
+      )}
+
 
       {impact.data && !noPlates && <NutritionLost data={impact.data} />}
     </div>

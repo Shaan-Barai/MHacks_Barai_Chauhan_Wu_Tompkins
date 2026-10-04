@@ -1,48 +1,10 @@
-/** Settings: dining hall names, meal times for different days, special events, and a download. */
+/** Settings: dining hall names, special events, and a download. Meal times live on the Menu Schedule page. */
 import { useState } from 'react'
-import { MealTimesFields } from '../components/MealTimesFields'
 import { Card, FieldLabel, GhostButton, PrimaryButton, inputClass } from '../components/ui'
-import type { HallSettings, MealTimeSet, SpecialEvent, Weekday } from '../data/types'
-import { WEEKDAYS, WEEKDAY_NAME } from '../data/types'
+import type { HallSettings, SpecialEvent } from '../data/types'
 import { buildWasteCsv, downloadCsv } from '../lib/csv'
 import { todayIso } from '../lib/dates'
-import { DEFAULT_SETTINGS, assignHallIds, newId, withHalls } from '../state/settings'
-
-function TimeSetEditor({
-  set,
-  onChange,
-  onRemove,
-}: {
-  set: MealTimeSet
-  onChange: (next: MealTimeSet) => void
-  onRemove?: () => void
-}) {
-  const toggle = (day: Weekday) =>
-    onChange({ ...set, days: set.days.includes(day) ? set.days.filter((d) => d !== day) : WEEKDAYS.filter((d) => d === day || set.days.includes(d)) })
-  return (
-    <fieldset className="space-y-3 border border-ink p-4">
-      <legend className="px-1 font-semibold">{set.name || 'Meal times'}</legend>
-      <div className="max-w-xs">
-        <FieldLabel htmlFor={`set-name-${set.id}`}>Name</FieldLabel>
-        <input id={`set-name-${set.id}`} className={inputClass} value={set.name} placeholder="e.g. Weekdays" onChange={(e) => onChange({ ...set, name: e.target.value })} />
-      </div>
-      <div role="group" aria-label={`Days for ${set.name || 'these meal times'}`} className="flex flex-wrap gap-2">
-        {WEEKDAYS.map((day) => (
-          <label key={day} className="flex items-center gap-1.5 border border-ink px-2 py-1">
-            <input type="checkbox" checked={set.days.includes(day)} onChange={() => toggle(day)} />
-            {WEEKDAY_NAME[day]}
-          </label>
-        ))}
-      </div>
-      <MealTimesFields value={set.meals} onChange={(meals) => onChange({ ...set, meals })} />
-      {onRemove && (
-        <GhostButton type="button" onClick={onRemove}>
-          Remove {set.name || 'these meal times'}
-        </GhostButton>
-      )}
-    </fieldset>
-  )
-}
+import { assignHallIds, newId, withHalls } from '../state/settings'
 
 function EventRow({ event, onChange, onRemove }: { event: SpecialEvent; onChange: (e: SpecialEvent) => void; onRemove: () => void }) {
   const id = event.id
@@ -81,11 +43,8 @@ export function SettingsPage({ settings, onSave }: { settings: HallSettings; onS
     setDraft(next)
     setSaved(false)
   }
-  const setTimeSet = (i: number, next: MealTimeSet) => edit({ ...draft, timeSets: draft.timeSets.map((t, j) => (j === i ? next : t)) })
   const setEvent = (i: number, next: SpecialEvent) => edit({ ...draft, events: draft.events.map((e, j) => (j === i ? next : e)) })
 
-  const unassigned = WEEKDAYS.filter((d) => !draft.timeSets.some((t) => t.days.includes(d)))
-  const doubled = WEEKDAYS.filter((d) => draft.timeSets.filter((t) => t.days.includes(d)).length > 1)
 
   // New locations get an ID on save; existing ones keep theirs so their data stays attached.
   const [hallDrafts, setHallDrafts] = useState<{ hallId?: string; name: string }[]>(settings.halls)
@@ -141,29 +100,7 @@ export function SettingsPage({ settings, onSave }: { settings: HallSettings; onS
             + Add another location
           </button>
           <p className="mt-1 text-sm">Removing a location here hides it from this browser. Its saved menus and plates are kept.</p>
-        </div>
-
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold">Meal times</h2>
-          <p>Set different hours for different days, like weekdays and weekends.</p>
-          {draft.timeSets.map((set, i) => (
-            <TimeSetEditor
-              key={set.id}
-              set={set}
-              onChange={(next) => setTimeSet(i, next)}
-              onRemove={draft.timeSets.length > 1 ? () => edit({ ...draft, timeSets: draft.timeSets.filter((_, j) => j !== i) }) : undefined}
-            />
-          ))}
-          {unassigned.length > 0 && <p>No meal times for: {unassigned.map((d) => WEEKDAY_NAME[d]).join(', ')}.</p>}
-          {doubled.length > 0 && <p>{doubled.map((d) => WEEKDAY_NAME[d]).join(', ')} {doubled.length === 1 ? 'is' : 'are'} in more than one set. The first set is used.</p>}
-          <GhostButton
-            type="button"
-            onClick={() =>
-              edit({ ...draft, timeSets: [...draft.timeSets, { id: newId('set'), name: '', days: unassigned, meals: DEFAULT_SETTINGS.timeSets[0].meals }] })
-            }
-          >
-            Add meal times for other days
-          </GhostButton>
+          <p className="mt-1 text-sm">Breakfast, lunch, and dinner times are set on the Menu Schedule page.</p>
         </div>
 
         <div className="space-y-3">

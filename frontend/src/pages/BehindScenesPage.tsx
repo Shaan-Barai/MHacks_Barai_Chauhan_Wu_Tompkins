@@ -1,10 +1,11 @@
 /**
- * Behind the scenes: every scanned plate photo for a meal, with the labels the
- * AI gave each food. Photo links are short-lived, so a broken image asks for a
- * fresh link once.
+ * Behind the scenes: the day's plate pictures (camera photo and AI outlines),
+ * then every scanned plate for a meal with the labels the AI gave each food.
+ * Photo links are short-lived, so a broken image asks for a fresh link once.
  */
 import { useEffect, useState } from 'react'
-import { getImageUrl, getPlates } from '../data/api'
+import { getCaptures, getImageUrl, getImpactDashboard, getPlates } from '../data/api'
+import { PlatesGallery } from '../components/PlatesGallery'
 import type { MealLabel, PlateFood, PlateRecord } from '../data/types'
 import { MEALS, MEAL_NAME } from '../data/types'
 import { todayIso } from '../lib/dates'
@@ -58,6 +59,9 @@ export function BehindScenesPage() {
   const [date, setDate] = useState(todayIso)
   const [meal, setMeal] = useState<MealLabel>('lunch')
   const plates = useAsync(() => getPlates(date, meal), [date, meal])
+  // Plate pictures for the whole day, every location (the dashboard used to show these).
+  const pictures = useAsync(() => getCaptures(date, date, null), [date])
+  const coverage = useAsync(() => getImpactDashboard(date, date, null), [date])
 
   return (
     <div className="space-y-5">
@@ -85,6 +89,13 @@ export function BehindScenesPage() {
         </div>
       </Card>
 
+      {pictures.status === 'loading' && !pictures.data && <LoadingBlock label="Loading plate pictures" />}
+      {pictures.status === 'error' && <EmptyState title="Couldn't load the plate pictures.">{pictures.error}</EmptyState>}
+      {pictures.data && (
+        <PlatesGallery captures={pictures.data} neighborExcluded={coverage.data?.coverage.capturesWithNeighborFoodExcluded ?? 0} />
+      )}
+
+      <h2 className="font-display text-2xl font-semibold text-ink">Foods found on each plate</h2>
       {plates.status === 'loading' && <LoadingBlock label="Loading plates" />}
       {plates.status === 'error' && <EmptyState title="Couldn't load plates.">{plates.error}</EmptyState>}
       {plates.status === 'ready' && plates.data.length === 0 && (

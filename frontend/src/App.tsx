@@ -22,7 +22,6 @@ export default function App() {
   const { settings, update } = useHallSettings()
   const [page, setPage] = useState<Page>('dashboard')
   const [range, setRange] = useState<DateRange>(defaultRange)
-  const [dataRevision, setDataRevision] = useState(0)
   /** Dashboard scope: one hallId, or 'all' for every location together. */
   const [dashboardHall, setDashboardHall] = useState<string>('all')
 
@@ -69,8 +68,8 @@ export default function App() {
             onHallChange={setDashboardHall}
           />
         )}
-        {page === 'menu-schedule' && <MenuSchedulePage settings={settings} dataRevision={dataRevision} />}
-        {page === 'portions' && <PortionsPage onSaved={() => setDataRevision((r) => r + 1)} />}
+        {page === 'menu-schedule' && <MenuSchedulePage settings={settings} onSettingsChange={update} />}
+        {page === 'portions' && <PortionsPage />}
         {page === 'behind' && <BehindScenesPage />}
         {page === 'settings' && <SettingsPage settings={settings} onSave={update} />}
       </main>

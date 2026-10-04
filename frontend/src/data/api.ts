@@ -8,6 +8,8 @@
 import * as live from './liveApi'
 import * as mock from './mockApi'
 import * as demo from './demoMetrics'
+import { demoImageUrl, demoPlatesFor } from './demoPlates'
+import type { IsoDate, MealLabel } from './types'
 
 export const USE_MOCK = import.meta.env.VITE_USE_MOCK === '1' || import.meta.env.MODE === 'test'
 
@@ -24,8 +26,14 @@ export const getPortionService = impl.getPortionService
 export const savePortions = impl.savePortions
 export const importPortionsCsv = impl.importPortionsCsv
 export const getPortionBenchmark = impl.getPortionBenchmark
-export const getPlates = impl.getPlates
-export const getImageUrl = impl.getImageUrl
+/** Real scanned plates, with demo plate photos (demoPlates.ts) first while demo numbers are on. */
+export async function getPlates(date: IsoDate, meal: MealLabel) {
+  const plates = await impl.getPlates(date, meal)
+  return DEMO_METRICS ? [...demoPlatesFor(date, meal), ...plates] : plates
+}
+export async function getImageUrl(objectId: string): Promise<string> {
+  return demoImageUrl(objectId) ?? impl.getImageUrl(objectId)
+}
 export const getImpactDashboard = impl.getImpactDashboard
 export const getCaptures = impl.getCaptures
 export const getCaptureImages = impl.getCaptureImages

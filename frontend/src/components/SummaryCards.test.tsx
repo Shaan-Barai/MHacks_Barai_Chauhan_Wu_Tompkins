@@ -21,8 +21,9 @@ describe('SummaryCardsRow', () => {
     expect(screen.getByText(/No plates scanned/)).toBeInTheDocument()
     expect(screen.getByText('Average of 5 plates')).toBeInTheDocument()
 
-    expect(screen.getByText('Up 20%').closest('p')).toHaveTextContent('Up 20% from the day before')
-    expect(screen.getByText('Down 20%').closest('p')).toHaveTextContent('from the same days last week')
+    expect(screen.getByRole('img', { name: 'Up 20% from the day before' })).toHaveTextContent('▲ 20%')
+    expect(screen.getByRole('img', { name: 'Down 20% from the same days last week' })).toHaveTextContent('▼ 20%')
+    expect(screen.getByText('vs. the day before')).toBeInTheDocument()
     expect(screen.getByText('Nothing to compare with the same days last month yet')).toBeInTheDocument()
   })
 
@@ -35,12 +36,11 @@ describe('SummaryCardsRow', () => {
     expect(screen.queryByText('Pixels wasted')).toBeNull()
   })
 
-  it('colors the number and change green when waste is down and red when it is up', () => {
+  it('keeps the main number black and colors the ticker beside it green when down and red when up', () => {
     render(<SummaryCardsRow data={data} />)
-    expect(screen.getByText('Up 20%')).toHaveClass('text-bad')
-    expect(screen.getByText('Down 20%')).toHaveClass('text-good')
-    expect(screen.getByTitle('Pixels wasted: 1,200')).toHaveClass('text-bad')
-    expect(screen.getByTitle('Pixels wasted: 8,000')).toHaveClass('text-good')
-    expect(screen.getByTitle('Pixels wasted: 3,000')).toHaveClass('text-ink')
+    expect(screen.getByRole('img', { name: /^Up 20%/ })).toHaveClass('text-bad')
+    expect(screen.getByRole('img', { name: /^Down 20%/ })).toHaveClass('text-good')
+    for (const n of ['1,200', '8,000', '3,000']) expect(screen.getByTitle(`Pixels wasted: ${n}`)).toHaveClass('text-ink')
+    expect(screen.getAllByRole('img', { name: /^(Up|Down)/ })).toHaveLength(2)
   })
 })

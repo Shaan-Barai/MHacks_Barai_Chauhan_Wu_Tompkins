@@ -22,22 +22,28 @@ function changePercent(summary: PeriodSummary): number | null {
   return prev === null || prev <= 0 ? null : Math.round(((summary.pixelsWasted - prev) / prev) * 100)
 }
 
-/** Less waste than before is green, more is red; no change or nothing to compare stays black. */
-function trendColor(pct: number | null): string {
-  return pct === null || pct === 0 ? 'text-ink' : pct < 0 ? 'text-good' : 'text-bad'
+/**
+ * Stock-ticker change beside the main number: "▼ 12%" in green when waste is
+ * down, "▲ 20%" in red when it is up. The arrow and the spoken label carry the
+ * meaning too, so color is never the only signal.
+ */
+function Ticker({ pct, before }: { pct: number; before: string }) {
+  const up = pct > 0
+  return (
+    <span
+      role="img"
+      aria-label={`${up ? 'Up' : 'Down'} ${Math.abs(pct)}% from ${before}`}
+      className={`text-2xl font-semibold leading-none ${up ? 'text-bad' : 'text-good'}`}
+    >
+      {up ? '▲' : '▼'} {Math.abs(pct)}%
+    </span>
+  )
 }
 
 function Change({ pct, before }: { pct: number | null; before: string }) {
   if (pct === null) return <p className="mt-1 text-sm">Nothing to compare with {before} yet</p>
   if (pct === 0) return <p className="mt-1 text-sm">Same as {before}</p>
-  return (
-    <p className="mt-1 text-sm">
-      <span className={`font-semibold ${trendColor(pct)}`}>
-        {pct > 0 ? 'Up' : 'Down'} {Math.abs(pct)}%
-      </span>{' '}
-      from {before}
-    </p>
-  )
+  return <p className="mt-1 text-sm">vs. {before}</p>
 }
 
 function SummaryCard({ label, before, summary, unit }: { label: string; before: string; summary: PeriodSummary; unit: SummaryUnit }) {
@@ -47,9 +53,12 @@ function SummaryCard({ label, before, summary, unit }: { label: string; before: 
   return (
     <Card>
       <h3 className="text-base font-semibold text-ink">{label}</h3>
-      <p className={`mt-2 font-display text-[44px] font-semibold leading-none ${trendColor(pct)}`} title={`${UNIT_NAME[unit]}: ${formatNumber(summary.pixelsWasted)}`}>
-        {formatCompact(summary.pixelsWasted)}
-      </p>
+      <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <p className="font-display text-[44px] font-semibold leading-none text-ink" title={`${UNIT_NAME[unit]}: ${formatNumber(summary.pixelsWasted)}`}>
+          {formatCompact(summary.pixelsWasted)}
+        </p>
+        {pct !== null && pct !== 0 && <Ticker pct={pct} before={before} />}
+      </div>
       <p className="mt-1 text-sm">
         {UNIT_NAME[unit]}
         <InfoTip id={unitsTip} text={UNIT_TIP[unit]} />

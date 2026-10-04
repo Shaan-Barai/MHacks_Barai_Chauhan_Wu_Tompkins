@@ -75,6 +75,8 @@ Below, under "More about these days" (follows the chart's lookback), with one sh
 
 ### BEHIND THE SCENES
 - Pick a date and meal. Every scanned plate photo with the AI's labels: food, units left, percent of a serving, and notes (AI estimate, more than a full serving, not on the menu). Clean plates say so. Photo links are temporary and renewed when they expire.
+- Photos show whole (not cropped) and open full size in a new tab.
+- With demo numbers on, demo plate photos are added (frontend/public/demo-plates/, listed in data/demoPlates.ts): IMG_2697 at dinner on 2026-10-04.
 
 ### SETTINGS
 - Dining hall names, with "Add another location". At least one is required.
@@ -83,7 +85,7 @@ Below, under "More about these days" (follows the chart's lookback), with one sh
 - Download the last 30 days as a spreadsheet.
 
 ## COLOR AND TYPE (2026-10-03)
-- Black and white only, including form controls. Styling comes later. One exception: on the summary cards, the waste number and its change are green (#15803D) when waste is down from the period before and red (#B91C1C) when it is up; no change or nothing to compare stays black. The words "Up"/"Down" always say the same thing, so color is never the only signal.
+- Black and white only, including form controls. Styling comes later. One exception: on the summary cards, the main number stays black and a stock-ticker change sits beside it, "▼ 12%" in green (#15803D) when waste is down from the period before and "▲ 20%" in red (#B91C1C) when it is up, with "vs. the day before" (or the matching period) under it. No change or nothing to compare shows no ticker. The arrows carry the meaning too, so color is never the only signal.
 - Font: "Times New Roman" (Times, serif fallback) everywhere.
 - Body text at least 16px; headline card numbers large (40px+).
 - Flat: small 4px corners, black borders, no shadows, no fades.

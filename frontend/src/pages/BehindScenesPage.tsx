@@ -51,7 +51,13 @@ function PlatePhoto({ objectId, alt }: { objectId: string; alt: string }) {
 
   if (failed) return <div className="flex aspect-square w-full items-center justify-center border border-dashed border-ink p-4 text-center">Photo unavailable</div>
   if (!url) return <div className="flex aspect-square w-full items-center justify-center border border-ink">Loading photo</div>
-  return <img src={url} alt={alt} onError={renew} className="aspect-square w-full border border-ink object-cover" />
+  // Whole photo (nothing cropped), and a click opens it full size in a new tab.
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="block" title="Open full size">
+      <img src={url} alt={alt} onError={renew} className="aspect-square w-full border border-ink bg-cream object-contain" />
+      <span className="mt-1 block text-sm underline">Open full size</span>
+    </a>
+  )
 }
 
 export function BehindScenesPage() {

@@ -85,3 +85,35 @@ test('meal times are hall-local, including across DST', () => {
   assert.equal(zonedToUtc('2026-10-03', '17:30', 'America/Detroit').toISOString(), '2026-10-03T21:30:00.000Z');
   assert.equal(zonedToUtc('2026-12-03', '17:30', 'America/Detroit').toISOString(), '2026-12-03T22:30:00.000Z');
 });
+
+test('GET /api/dashboard/totals: today, week (Mon-today), month (1st-today) equal the sum of their scan rows', async (t) => {
+  const s = await startTestServer();
+  t.after(() => s.close());
+  await new DemoService(s.repo).seedHistory({ hallId: HALL, endDate: END, days: 14 });
+  const res = await s.api('GET', `/api/dashboard/totals?hallId=${HALL}&today=${END}`);
+  assert.equal(res.status, 200, JSON.stringify(res.json));
+  // 2026-10-03 is a Saturday: the week starts Monday 2026-09-28.
+  assert.deepEqual([res.json.week.start, res.json.month.start], ['2026-09-28', '2026-10-01']);
+  const rowSum = async (start: string, end: string) => {
+    let sum = 0;
+    let plates = 0;
+    for (const svc of await s.repo.listServices(HALL)) {
+      if (svc.serviceDate < start || svc.serviceDate > end) continue;
+      for (const c of await s.repo.listCaptureEvents({ serviceId: svc.serviceId })) {
+        plates++;
+        for (const m of await s.repo.listMeasurementsByEvent(c.eventId)) sum += m.remainingAreaPx;
+      }
+    }
+    return { sum, plates };
+  };
+  for (const period of ['today', 'week', 'month'] as const) {
+    const p = res.json[period];
+    const expected = await rowSum(p.start, p.end);
+    assert.equal(p.pixels, expected.sum, period);
+    assert.equal(p.analyzedCaptures, expected.plates, period);
+    assert.equal(p.sampleCaptures, expected.plates, period);
+  }
+  // Here the week (Sep 28-Oct 3) is longer than the month so far (Oct 1-3).
+  assert.ok(res.json.today.pixels <= res.json.month.pixels && res.json.month.pixels <= res.json.week.pixels);
+  assert.equal((await s.api('GET', `/api/dashboard/totals?hallId=${HALL}&today=nope`)).status, 400);
+});

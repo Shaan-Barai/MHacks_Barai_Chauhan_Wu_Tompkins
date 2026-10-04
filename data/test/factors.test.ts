@@ -32,7 +32,7 @@ test('factors: factorKeyFor slugs display names', () => {
 });
 
 test('factors: generated waste table matches menu_waste_factors.csv', () => {
-  const rows = csvObjects('menu_waste_factors.csv');
+  const rows = csvObjects('menu_waste_factors_EastQuad.csv');
   assert.equal(rows.length, 26);
   assert.equal(WASTE_FACTORS.length, rows.length);
   rows.forEach((r, i) => {
@@ -52,7 +52,7 @@ test('factors: generated waste table matches menu_waste_factors.csv', () => {
 });
 
 test('factors: score is 0.19*C + 1.50*W with no nutrition term', () => {
-  const rows = csvObjects('menu_waste_factors.csv');
+  const rows = csvObjects('menu_waste_factors_EastQuad.csv');
   for (const f of WASTE_FACTORS) {
     const expected = 0.19 * f.kgCo2ePerKg + 1.5 * f.waterM3PerKg;
     assert.ok(Math.abs(f.impactUsdPerKg - expected) <= 0.005 + 1e-9, `${f.food}: ${f.impactUsdPerKg} vs ${expected}`);
@@ -66,7 +66,7 @@ test('factors: score is 0.19*C + 1.50*W with no nutrition term', () => {
 });
 
 test('factors: generated nutrition table matches menu_nutrition_factors.csv', () => {
-  const rows = csvObjects('menu_nutrition_factors.csv');
+  const rows = csvObjects('menu_nutrition_factors_EastQuad.csv');
   assert.equal(NUTRITION_FACTORS.length, rows.length);
   rows.forEach((r, i) => {
     assert.deepEqual(NUTRITION_FACTORS[i], {
@@ -87,8 +87,8 @@ test('factors: committed factors.generated.ts is up to date with the CSVs', asyn
   };
   const expected = gen.renderModule(
     gen.buildTables(
-      readFileSync(join(repoRoot, 'menu_waste_factors.csv'), 'utf8'),
-      readFileSync(join(repoRoot, 'menu_nutrition_factors.csv'), 'utf8'),
+      readFileSync(join(repoRoot, 'menu_waste_factors_EastQuad.csv'), 'utf8'),
+      readFileSync(join(repoRoot, 'menu_nutrition_factors_EastQuad.csv'), 'utf8'),
     ),
   );
   const actual = readFileSync(join(repoRoot, 'data', 'src', 'factors.generated.ts'), 'utf8');

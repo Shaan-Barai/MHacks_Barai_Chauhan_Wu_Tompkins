@@ -27,6 +27,7 @@ import type { MealLabel, MenuBundle } from '../types.js';
 import type { ReadinessService } from '../services/readinessService.js';
 import { validateCalibrationRequest, type CalibrationService } from '../services/calibrationService.js';
 import { log } from '../log.js';
+import { readBuildInfo } from '../buildInfo.js';
 import {
   authGate,
   issueSession,
@@ -130,8 +131,9 @@ export function createApp(deps: AppDeps): express.Express {
   }
 
   // ---- liveness / readiness ----
+  const build = readBuildInfo();
   app.get('/api/health', (_req, res) => {
-    res.json({ ok: true, provider: storage.provider });
+    res.json({ ok: true, provider: storage.provider, ...build });
   });
 
   app.get(

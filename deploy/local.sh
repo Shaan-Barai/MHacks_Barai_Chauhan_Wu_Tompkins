@@ -192,8 +192,13 @@ start_spacetimedb() {
 start_sam() {
   needs_start sam || return 0
   local py; py="$(python_bin)"
+  # D8 decision: no supervisor. caffeinate -i stops idle sleep from freezing
+  # SAM (lid close still sleeps; keep the lid open or use clamshell mode).
+  # If SAM exits, captures fail with a retryable SEGMENTATION_UNAVAILABLE and
+  # 'deploy/local.sh up' restarts it. Set SCRAP_CAFFEINATE=0 to disable.
+  local keep=(); if [ "${SCRAP_CAFFEINATE:-1}" = 1 ] && command -v caffeinate >/dev/null; then keep=(caffeinate -i); fi
   launch sam "$REPO" env SAM_HOST=127.0.0.1 WORKER_HOST=127.0.0.1 SAM_PORT="$SAM_PORT" \
-    PYTORCH_ENABLE_MPS_FALLBACK=1 "$py" vision/sam/worker.py
+    PYTORCH_ENABLE_MPS_FALLBACK=1 ${keep[@]+"${keep[@]}"} "$py" vision/sam/worker.py
   wait_healthy sam "$HEALTH_TIMEOUT_ML" || STACK_OK=0
 }
 
@@ -291,6 +296,15 @@ cmd_status() {
     fi
     printf '%-12s %-6s %-9s %s\n' "$name" "$port" "$health" "$owner"
   done
+  # D7: which build is the running backend? Flag it when the checkout moved on.
+  local head running
+  head="$(git -C "$REPO" rev-parse HEAD 2>/dev/null || true)"
+  running="$(curl -fsS -m 3 "http://127.0.0.1:$API_PORT/api/health" 2>/dev/null | sed -n 's/.*"commit":"\([^"]*\)".*/\1/p')"
+  if ! healthy api; then :
+  elif [ -z "$running" ]; then echo "backend build: unknown (old build without commit info): restart needed"
+  elif [ "$running" = "$head" ]; then echo "backend build: ${running:0:9} (matches checkout)"
+  else echo "backend build: ${running:0:9}, checkout is ${head:0:9}: restart needed ('deploy/local.sh restart')"
+  fi
   for name in $LEGACY_SERVICES; do
     if pid="$(our_pid "$name")"; then
       printf '%-12s %-6s %-9s %s\n' "$name" "$(port_of "$name")" removed "local.sh (pid $pid): no longer used; 'deploy/local.sh down' stops it"

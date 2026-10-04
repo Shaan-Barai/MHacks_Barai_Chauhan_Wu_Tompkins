@@ -13,6 +13,7 @@
  * The last RESULTS_KEPT results stay in memory so their pages can be reloaded.
  */
 
+import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import http from 'node:http';
@@ -20,6 +21,13 @@ import path from 'node:path';
 import { REPO, createGeminiGateway, createSamWorkerClient, loadFoodDatabase, runSteps } from './pipeline.mjs';
 
 try { process.loadEnvFile(path.join(REPO, '.env')); } catch {}
+
+// Build info for /api/health: which commit and factor table this process loaded.
+const STARTED_AT = new Date().toISOString();
+let COMMIT = process.env.GIT_COMMIT || 'unknown';
+try { if (COMMIT === 'unknown') COMMIT = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: REPO, encoding: 'utf8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch {}
+let FACTORS_VERSION = 'unknown';
+try { FACTORS_VERSION = (await import(path.join(REPO, 'data/dist/data/src/index.js'))).WASTE_FACTORS_VERSION ?? 'unknown'; } catch {}
 
 const PORT = Number(process.env.UPLOAD_DEMO_PORT ?? 8795);
 const HOST = process.env.HOST ?? '127.0.0.1';
@@ -81,6 +89,9 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && stored) {
       const result = results.get(stored[1]);
       return result ? send(res, 200, result) : apiError(res, 404, 'RESULT_NOT_FOUND', 'This result is no longer available. Upload the photo again.');
+    }
+    if (req.method === 'GET' && url.pathname === '/api/health') {
+      return send(res, 200, { ok: true, commit: COMMIT, startedAt: STARTED_AT, factorsVersion: FACTORS_VERSION });
     }
     if (req.method === 'GET' && url.pathname === '/sample.jpg') return send(res, 200, readFileSync(SAMPLE), 'image/jpeg');
     if (req.method === 'GET' && url.pathname === '/api/foods') return send(res, 200, { foods });

@@ -304,7 +304,7 @@ unitless and only compare foods with each other. A legacy attempt's stored
 - `POST /api/suggestions` — write path for Agent 6's suggestion service.
 
 ### Misc
-- `GET /api/health` — liveness.
+- `GET /api/health` — liveness plus build info: `commit` (git HEAD at start), `startedAt`, `factorsVersion`. `deploy/local.sh status` flags "restart needed" when `commit` differs from the checkout.
 - `GET /api/ready` — `{ ready, checks: { database, objectStorage, samWorker } }`,
   each `{ ok, required, latencyMs, error? }`; `503` when a required check fails
   (database and storage always; SAM only with live Gemini).

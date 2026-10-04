@@ -200,3 +200,13 @@ test('SERVE_FRONTEND serves the built dashboard with SPA fallback and asset cach
   assert.equal(api.status, 404);
   assert.equal(api.json.error.code, 'ROUTE_NOT_FOUND');
 });
+
+test('health reports commit, start time and factor table version', async (t) => {
+  const s = await startTestServer();
+  t.after(() => s.close());
+  const r = await raw(s.baseUrl, 'GET', '/api/health');
+  assert.equal(r.json.ok, true);
+  assert.match(r.json.commit, /^([0-9a-f]{40}|unknown)$/);
+  assert.ok(!Number.isNaN(Date.parse(r.json.startedAt)));
+  assert.match(r.json.factorsVersion, /^waste-factors-v\d+$/);
+});

@@ -82,6 +82,7 @@ export class InboxBridge {
         capturedAt: rep.capturedAt,
         hallId: group.hallId,
         serviceId: group.serviceId,
+        source: rep.simulated ? 'replay' : 'camera',
       });
       // A failed dish stays 'closed' and is retried with the same eventId next pass.
       if (result.ok) grouper.markIngested(group.groupId, result.event.eventId);

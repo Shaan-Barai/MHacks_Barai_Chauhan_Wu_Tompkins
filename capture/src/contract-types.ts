@@ -28,7 +28,11 @@ export type QualityFlag =
   | 'gemini_estimated_baseline'
   | 'ai_estimate'
   | 'empty_plate'
-  | 'ambiguous_items';
+  | 'ambiguous_items'
+  /** A region's segmentation failed or produced an invalid mask (no pixels counted for it). */
+  | 'segmentation_failed'
+  /** Masks of different foods overlapped; shared pixels went to the unclassified bucket. */
+  | 'overlapping_masks';
 
 export interface CaptureEvent {
   /** Idempotency key: retries update this event, never duplicate it. */

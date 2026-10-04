@@ -76,6 +76,11 @@ export interface CameraCaptureOptions {
   capturedAt: string;
   hallId: string;
   serviceId: string;
+  /**
+   * Source label. Default 'camera'; the bridge passes 'replay' for frames
+   * written by simulate-camera so simulated photos stay labeled (AGENTS.md 3.7).
+   */
+  source?: 'camera' | 'replay';
 }
 
 interface MintedIdentity {
@@ -196,13 +201,14 @@ export class ReplayCaptureAdapter {
   }
 
   /**
-   * Ingest one camera dish (source label: 'camera'). The bridge has already
+   * Ingest one camera dish (source label: 'camera', or 'replay' for a
+   * simulate-camera frame). The bridge has already
    * grouped frames so each dish arrives once; the groupId keeps retries on
    * the same eventId.
    */
   async ingestCameraCapture(options: CameraCaptureOptions): Promise<CaptureResult> {
     return this.ingestEntry({
-      source: 'camera',
+      source: options.source ?? 'camera',
       key: `camera:${options.serviceId}:${options.groupId}`,
       hallId: options.hallId,
       serviceId: options.serviceId,

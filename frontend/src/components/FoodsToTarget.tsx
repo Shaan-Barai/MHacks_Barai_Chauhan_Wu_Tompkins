@@ -1,0 +1,91 @@
+/**
+ * "Foods to target": foods ranked by estimated grams left per portion served
+ * (BIG-PLAN D5), with Pixels wasted per portion and impact $ per portion as
+ * secondary numbers. Foods without a rate are listed with the reason.
+ */
+import { useId, useState } from 'react'
+import type { ItemImpactRow } from '../data/types'
+import { formatGrams, formatNumber, formatUsd } from '../lib/format'
+import { PER_PORTION_EXPLANATION, perPortionUnavailableReason } from './impactCopy'
+import { Badge, Card, GhostButton, InfoTip } from './ui'
+
+const SHOW_FIRST = 8
+
+export function FoodsToTarget({ rows, demoPortions }: { rows: ItemImpactRow[]; demoPortions: boolean }) {
+  const [showAll, setShowAll] = useState(false)
+  const tipId = useId()
+  const ranked = rows.filter((r) => perPortionUnavailableReason(r) === null)
+  const unranked = rows.filter((r) => perPortionUnavailableReason(r) !== null)
+  const visible = showAll ? ranked : ranked.slice(0, SHOW_FIRST)
+  const top = ranked[0]
+
+  return (
+    <Card>
+      <p className="text-sm font-semibold uppercase tracking-wide">Foods to target</p>
+      <h2 className="mt-1 text-xl font-semibold text-ink">
+        {top ? `${top.displayName} had the most food left per portion.` : 'No food can be ranked per portion yet.'}
+      </h2>
+      <p className="mt-1 text-sm">
+        Ranked by estimated food left per portion served.
+        <InfoTip id={tipId} text={PER_PORTION_EXPLANATION} />
+      </p>
+
+      {ranked.length > 0 && (
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[34rem] text-left text-base">
+            <caption className="sr-only">Foods ranked by estimated grams left per portion served</caption>
+            <thead>
+              <tr className="border-b border-ink text-sm">
+                <th scope="col" className="py-1.5 pr-2">#</th>
+                <th scope="col" className="py-1.5 pr-2">Food</th>
+                <th scope="col" className="py-1.5 pr-2">
+                  Left per portion <span className="font-normal">(g, estimate)</span>
+                </th>
+                <th scope="col" className="py-1.5 pr-2 font-normal">Pixels wasted per portion</th>
+                <th scope="col" className="py-1.5 pr-2 font-normal">Impact per portion</th>
+                <th scope="col" className="py-1.5">
+                  <span className="font-normal">Portions served</span>
+                  {demoPortions && <span className="mt-1 block w-fit"><Badge>demo numbers</Badge></span>}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((r, i) => (
+                <tr key={r.itemId ?? r.displayName} className="border-b border-ink align-top">
+                  <td className="py-1.5 pr-2">{i + 1}</td>
+                  <th scope="row" className="py-1.5 pr-2 font-semibold">{r.displayName}</th>
+                  <td className="py-1.5 pr-2 font-semibold">{formatGrams(r.perPortion!.grams!)}</td>
+                  <td className="py-1.5 pr-2 text-sm">{formatNumber(r.perPortion!.pixels)} pixels</td>
+                  <td className="py-1.5 pr-2 text-sm">
+                    {r.perPortion!.impactUsd === null ? 'Not available' : formatUsd(r.perPortion!.impactUsd)}
+                  </td>
+                  <td className="py-1.5 text-sm">{r.portionsServed === null ? 'Not entered' : formatNumber(r.portionsServed)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {ranked.length > SHOW_FIRST && (
+        <GhostButton type="button" className="mt-3" onClick={() => setShowAll((s) => !s)} aria-expanded={showAll}>
+          {showAll ? 'Show fewer foods' : `Show all ${ranked.length} foods`}
+        </GhostButton>
+      )}
+
+      {unranked.length > 0 && (
+        <div className="mt-4">
+          <h3 className="text-base font-semibold">Can't rank yet</h3>
+          <ul className="mt-1 space-y-0.5 text-sm">
+            {unranked.map((r) => (
+              <li key={r.itemId ?? r.displayName}>
+                <span className="font-semibold">{r.displayName}:</span> {perPortionUnavailableReason(r)}
+                {r.perPortion && r.perPortion.grams === null && ` (${formatNumber(r.perPortion.pixels)} pixels per portion)`}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {demoPortions && <p className="mt-3 text-sm">Portions served are demo numbers until real counts are entered.</p>}
+    </Card>
+  )
+}

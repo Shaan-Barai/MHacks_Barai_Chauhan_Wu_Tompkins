@@ -252,7 +252,150 @@ function measurementRow(m: Json) {
   };
 }
 
-/** Append one attempt and its measurements in a single transaction. */
+const COUNT_STATUSES = new Set(['complete', 'empty', 'partial', 'unavailable']);
+const SEG_STATUSES = new Set(['succeeded', 'partial', 'failed', 'skipped']);
+const REGION_STATUSES = new Set(['succeeded', 'failed', 'skipped']);
+
+function boxArray(o: Json, key: string, what: string): number[] {
+  const v = o?.[key];
+  if (!Array.isArray(v) || v.length !== 4 || !v.every((n) => typeof n === 'number' && Number.isFinite(n))) {
+    throw new SenderError(`${what}.${key} must be 4 finite numbers`);
+  }
+  return v as number[];
+}
+
+function storedError(e: unknown) {
+  if (typeof e !== 'object' || e === null) return undefined;
+  const o = e as Json;
+  return {
+    code: str(o, 'code', 'error'),
+    message: str(o, 'message', 'error'),
+    detailsJson: o.details === undefined ? undefined : JSON.stringify(o.details),
+    retryable: o.retryable === true,
+  };
+}
+
+/**
+ * Segmentation provenance + Pixels wasted for one attempt
+ * (contracts/measurement.md). Enforces the counting invariants a bad write
+ * would break: integer counts within the canvas, and for complete/partial
+ * captures sum(item + unclassified pixels) == capture union (rule smallest-first-v1; any rule that assigns each pixel to one bucket).
+ */
+function insertSegmentation(ctx: any, attemptId: string, eventId: string, seg: Json, measuredPx: number) {
+  const width = num(seg, 'widthPx', 'segmentation', { exclusive: true });
+  const height = num(seg, 'heightPx', 'segmentation', { exclusive: true });
+  const status = str(seg, 'status', 'segmentation');
+  const countStatus = str(seg, 'countStatus', 'segmentation');
+  if (!SEG_STATUSES.has(status)) throw new SenderError(`segmentation.status '${status}' is not allowed`);
+  if (!COUNT_STATUSES.has(countStatus)) throw new SenderError(`segmentation.countStatus '${countStatus}' is not allowed`);
+  const capture = optNum(seg, 'capturePixelsWasted');
+  if (capture !== undefined && (!Number.isInteger(capture) || capture < 0 || capture > width * height)) {
+    throw new SenderError('segmentation.capturePixelsWasted must be an integer within the image');
+  }
+  if (countStatus === 'unavailable' && capture !== undefined) throw new SenderError('an unavailable count has no pixel total');
+  if (countStatus !== 'unavailable' && capture === undefined) throw new SenderError(`a ${countStatus} count needs capturePixelsWasted`);
+  if (countStatus === 'empty' && capture !== 0) throw new SenderError('an empty plate counts 0 pixels');
+  if ((countStatus === 'complete' || countStatus === 'partial') && capture !== measuredPx) {
+    throw new SenderError(`capture union ${capture} != sum of measured pixels ${measuredPx}`);
+  }
+  ctx.db.captureCount.insert({
+    attemptId,
+    eventId,
+    model: str(seg, 'model', 'segmentation'),
+    checkpoint: str(seg, 'checkpoint', 'segmentation'),
+    codeRevision: str(seg, 'codeRevision', 'segmentation'),
+    promptSource: str(seg, 'promptSource', 'segmentation'),
+    settingsVersion: str(seg, 'settingsVersion', 'segmentation'),
+    countingRuleVersion: str(seg, 'countingRuleVersion', 'segmentation'),
+    status,
+    countStatus,
+    capturePixelsWasted: capture,
+    widthPx: width,
+    heightPx: height,
+  });
+  const regions = Array.isArray(seg.regions) ? (seg.regions as Json[]) : [];
+  for (const r of regions) {
+    const regionStatus = str(r, 'segmentationStatus', 'region');
+    if (!REGION_STATUSES.has(regionStatus)) throw new SenderError(`region status '${regionStatus}' is not allowed`);
+    const maskPixels = optNum(r, 'maskPixels');
+    if (maskPixels !== undefined && (!Number.isInteger(maskPixels) || maskPixels < 0 || maskPixels > width * height)) {
+      throw new SenderError('region.maskPixels must be an integer within the image');
+    }
+    if (r.attemptId !== attemptId) throw new SenderError(`region ${r.regionId} is for another attempt`);
+    const box = typeof r.box === 'object' && r.box !== null ? (r.box as Json) : {};
+    ctx.db.segmentationRegion.insert({
+      regionId: str(r, 'regionId', 'region'),
+      attemptId,
+      eventId,
+      itemId: optStr(r, 'itemId'),
+      visualLabel: str(r, 'visualLabel', 'region'),
+      geminiBox: boxArray(box, 'gemini', 'region.box'),
+      pixelBox: boxArray(box, 'pixelXyxy', 'region.box'),
+      boxConvention: str(box, 'convention', 'region.box'),
+      segmentationStatus: regionStatus,
+      maskObjectId: optStr(r, 'maskObjectId'),
+      maskPixels,
+      score: optNum(r, 'score'),
+      error: storedError(r.error),
+    });
+  }
+}
+
+const CALIBRATION_METHODS = new Set(['plate-fit-v1', 'configured-default']);
+const CALIBRATION_FLAGS = new Set(['calibration_default', 'plate_cut_off', 'bowl_size_assumed']);
+const DISH_TYPES = new Set(['plate', 'bowl', 'other']);
+
+/**
+ * contracts PlateCalibration + overlayObjectId (BIG-PLAN D2/D7) for one
+ * attempt. Re-checks what a bad write would break: positive finite scale,
+ * cm2PerPx == (cm/px)^2, known method/flags, a default calibration flagged as
+ * such, and an overlay reference that is a registered overlay of THIS capture.
+ */
+function insertCalibration(ctx: any, attemptId: string, eventId: string, a: Json) {
+  const raw = a.calibration;
+  const overlayObjectId = optStr(a, 'overlayObjectId');
+  if (raw === undefined && overlayObjectId === undefined) return;
+  let calibration: Json | undefined;
+  if (raw !== undefined) {
+    if (typeof raw !== 'object' || raw === null) throw new SenderError('attempt.calibration must be an object');
+    const c = raw as Json;
+    const method = str(c, 'method', 'calibration');
+    if (!CALIBRATION_METHODS.has(method)) throw new SenderError(`calibration.method '${method}' is not allowed`);
+    const plateDiameterCm = num(c, 'plateDiameterCm', 'calibration', { exclusive: true });
+    const plateDiameterPx = num(c, 'plateDiameterPx', 'calibration', { exclusive: true });
+    const cm2PerPx = num(c, 'cm2PerPx', 'calibration', { exclusive: true });
+    const expected = (plateDiameterCm / plateDiameterPx) ** 2;
+    if (Math.abs(cm2PerPx - expected) > expected * 1e-3) {
+      throw new SenderError(`calibration.cm2PerPx ${cm2PerPx} != (plateDiameterCm / plateDiameterPx)^2`);
+    }
+    if (!Array.isArray(c.flags)) throw new SenderError('calibration.flags must be an array');
+    const flags = strArray(c, 'flags');
+    for (const f of flags) if (!CALIBRATION_FLAGS.has(f)) throw new SenderError(`calibration flag '${f}' is not allowed`);
+    if (method === 'configured-default' && !flags.includes('calibration_default')) {
+      throw new SenderError("a configured-default calibration must carry 'calibration_default'");
+    }
+    const dishType = optStr(c, 'dishType');
+    if (dishType !== undefined && !DISH_TYPES.has(dishType)) throw new SenderError(`calibration.dishType '${dishType}' is not allowed`);
+    calibration = {
+      method,
+      plateDiameterCm,
+      plateDiameterPx,
+      cm2PerPx,
+      dishType,
+      fullyVisible: typeof c.fullyVisible === 'boolean' ? c.fullyVisible : undefined,
+      flags,
+    };
+  }
+  if (overlayObjectId !== undefined) {
+    const overlay = ctx.db.imageObject.objectId.find(overlayObjectId);
+    if (!overlay || overlay.associationKind !== 'overlay' || overlay.associationId !== eventId) {
+      throw new SenderError(`overlay ${overlayObjectId} is not a registered overlay of capture ${eventId}`);
+    }
+  }
+  ctx.db.attemptCalibration.insert({ attemptId, eventId, calibration, overlayObjectId });
+}
+
+/** Append one attempt, its measurements, segmentation result, and calibration/overlay in a single transaction. */
 export const record_analysis = spacetimedb.reducer(
   { attemptJson: t.string(), measurementsJson: t.string() },
   (ctx, { attemptJson, measurementsJson }) => {
@@ -268,11 +411,22 @@ export const record_analysis = spacetimedb.reducer(
     }
     if (!Array.isArray(list)) throw new SenderError('measurements must be an array');
     ctx.db.analysisAttempt.insert(attempt);
+    let measuredPx = 0;
     for (const raw of list as Json[]) {
       const row = measurementRow(raw);
       if (row.attemptId !== attempt.attemptId) throw new SenderError(`measurement ${row.measurementId} is for another attempt`);
+      if (row.method === 'mask_pixel_count' && !Number.isInteger(row.remainingAreaPx)) {
+        throw new SenderError(`measurement ${row.measurementId}: mask pixel counts are integers`);
+      }
+      measuredPx += row.remainingAreaPx;
       ctx.db.foodMeasurement.insert(row);
     }
+    const seg = parse(attemptJson, 'attempt').segmentation;
+    if (seg !== undefined) {
+      if (typeof seg !== 'object' || seg === null) throw new SenderError('attempt.segmentation must be an object');
+      insertSegmentation(ctx, attempt.attemptId, attempt.eventId, seg as Json, measuredPx);
+    }
+    insertCalibration(ctx, attempt.attemptId, attempt.eventId, parse(attemptJson, 'attempt'));
   },
 );
 

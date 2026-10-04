@@ -24,6 +24,10 @@ export const importPortionsCsv = impl.importPortionsCsv
 export const getPortionBenchmark = impl.getPortionBenchmark
 export const getPlates = impl.getPlates
 export const getImageUrl = impl.getImageUrl
+export const getImpactDashboard = impl.getImpactDashboard
+export const getCaptures = impl.getCaptures
+export const getCaptureImages = impl.getCaptureImages
+export const getRecommendation = impl.getRecommendation
 
 /** Artificial latency for mock mode so loading states are visible; tests set 0. */
 export const setApiLatency = mock.setApiLatency

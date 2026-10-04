@@ -11,7 +11,7 @@ import { formatNumber, formatPercent } from '../lib/format'
 import { plainText } from '../lib/text'
 import { useAsync } from '../lib/useAsync'
 import { timeSetFor } from '../state/settings'
-import { Badge, Card, EmptyState, InfoTip, LoadingBlock, WASTE_UNITS_EXPLANATION } from './ui'
+import { Badge, Card, EmptyState, InfoTip, LoadingBlock, PIXELS_WASTED_EXPLANATION } from './ui'
 import { PortionBenchmarkView } from './PortionBenchmark'
 
 function clock(t: string): string {
@@ -87,29 +87,36 @@ function MealView({ detail }: { detail: MealDetail }) {
 
       <dl className="grid max-w-md grid-cols-[1fr_auto] gap-x-6 gap-y-1 text-base">
         <dt>
-          Waste units
-          <InfoTip id={unitsTip} text={WASTE_UNITS_EXPLANATION} />
+          Pixels wasted
+          <InfoTip id={unitsTip} text={PIXELS_WASTED_EXPLANATION} />
         </dt>
-        <dd className="text-right font-semibold">{formatNumber(detail.totalWasteUnits)}</dd>
+        <dd className="text-right font-semibold">{formatNumber(detail.pixelsWasted)}</dd>
         <dt>Plates scanned</dt>
         <dd className="text-right font-semibold">{formatNumber(detail.platesScanned)}</dd>
-        {(detail.coverage.platesLeftOut > 0 || detail.coverage.itemsLeftOut > 0) && (
+        {detail.coverage.emptyPlates > 0 && (
+          <>
+            <dt>Clean plates</dt>
+            <dd className="text-right font-semibold">{formatNumber(detail.coverage.emptyPlates)}</dd>
+          </>
+        )}
+        {detail.coverage.platesLeftOut > 0 && (
           <>
             <dt>
               Not counted
               <InfoTip
                 id={skippedTip}
-                text="Foods or plates the photo check could not match to the menu or measure reliably. They are left out, not counted as zero."
+                text="Plates the photo check could not finish, only partly outlined, or is still working on. They are left out, not counted as zero."
               />
             </dt>
             <dd className="text-right font-semibold">
-              {[
-                detail.coverage.platesLeftOut > 0 && `${detail.coverage.platesLeftOut} plate${detail.coverage.platesLeftOut === 1 ? '' : 's'}`,
-                detail.coverage.itemsLeftOut > 0 && `${detail.coverage.itemsLeftOut} food${detail.coverage.itemsLeftOut === 1 ? '' : 's'}`,
-              ]
-                .filter(Boolean)
-                .join(', ')}
+              {detail.coverage.platesLeftOut} plate{detail.coverage.platesLeftOut === 1 ? '' : 's'}
             </dd>
+          </>
+        )}
+        {detail.unclassifiedPixels > 0 && (
+          <>
+            <dt>Food not on the menu</dt>
+            <dd className="text-right font-semibold">{formatNumber(detail.unclassifiedPixels)} pixels</dd>
           </>
         )}
         <dt>
@@ -129,7 +136,7 @@ function MealView({ detail }: { detail: MealDetail }) {
               <li key={item.itemId} className="flex justify-between gap-3 py-2">
                 <span>{item.displayName}</span>
                 <span className="whitespace-nowrap">
-                  {formatNumber(item.wasteUnits)} units, {formatPercent(item.shareOfMealWastePercent)} of the meal's waste
+                  {formatNumber(item.pixelsWasted)} pixels, {formatPercent(item.shareOfMealPixelsPercent)} of the meal's wasted pixels
                 </span>
               </li>
             ))}

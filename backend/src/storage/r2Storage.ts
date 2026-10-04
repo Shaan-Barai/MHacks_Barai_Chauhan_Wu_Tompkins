@@ -150,6 +150,17 @@ export class R2Storage implements ObjectStorageAdapter {
     }
   }
 
+  async putBytes(objectKey: string, bytes: Uint8Array, mimeType: string): Promise<{ sizeBytes: number }> {
+    try {
+      await this.client.send(
+        new PutObjectCommand({ Bucket: this.opts.bucket, Key: objectKey, Body: bytes, ContentType: mimeType }),
+      );
+      return { sizeBytes: bytes.byteLength };
+    } catch (err) {
+      throw storageUnavailable('store the mask', err);
+    }
+  }
+
   async deleteObject(objectKey: string): Promise<void> {
     try {
       await this.client.send(new DeleteObjectCommand({ Bucket: this.opts.bucket, Key: objectKey }));

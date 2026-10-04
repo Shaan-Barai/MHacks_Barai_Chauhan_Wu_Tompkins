@@ -158,7 +158,7 @@ export function buildFallbackRecommendation(
   return `Not enough ${meal} plates checked to make a suggestion yet. Scan more plates and make sure this meal has a menu.`;
 }
 
-function sanitizeModelText(text: string): string {
+export function sanitizeModelText(text: string): string {
   const trimmed = text.replace(/\s+/g, ' ').trim();
   if (trimmed.length === 0) {
     throw new Error('Empty suggestion text from gateway.');

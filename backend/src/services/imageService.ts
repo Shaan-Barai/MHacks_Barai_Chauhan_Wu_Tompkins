@@ -159,6 +159,59 @@ export class ImageService {
     return { bytes, mimeType: record.mimeType };
   }
 
+  /**
+   * Store a segmentation mask the backend produced (lossless binary PNG,
+   * 255 = food) and register it as a finalized image object associated with
+   * its region. Masks never travel through SpacetimeDB rows.
+   */
+  async storeMask(regionId: string, png: Uint8Array, widthPx: number, heightPx: number): Promise<ImageObject> {
+    const date = new Date(this.now()).toISOString().slice(0, 10);
+    const objectKey = `masks/${date}/${regionId}.png`;
+    const { sizeBytes } = await this.storage.putBytes(objectKey, png, 'image/png');
+    const record: ImageObject = {
+      objectId: newId('img'),
+      provider: this.storage.provider as ImageObject['provider'],
+      container: this.storage.container,
+      objectKey,
+      mimeType: 'image/png',
+      sizeBytes,
+      widthPx,
+      heightPx,
+      uploadedAt: new Date(this.now()).toISOString(),
+      association: { kind: 'mask', id: regionId },
+      state: 'finalized',
+    };
+    await this.repo.upsertImageObject(record);
+    return record;
+  }
+
+  /**
+   * Store the segmented overlay JPEG for one capture (BIG-PLAN D7: masks
+   * tinted per food, plate rim outlined) and register it as a finalized image
+   * object associated with the capture event. The key carries the attempt id
+   * so a retried capture never overwrites an earlier attempt's overlay.
+   */
+  async storeOverlay(eventId: string, attemptId: string, jpeg: Uint8Array, widthPx: number, heightPx: number): Promise<ImageObject> {
+    const date = new Date(this.now()).toISOString().slice(0, 10);
+    const objectKey = `overlays/${date}/${eventId}_${attemptId}.jpg`;
+    const { sizeBytes } = await this.storage.putBytes(objectKey, jpeg, 'image/jpeg');
+    const record: ImageObject = {
+      objectId: newId('img'),
+      provider: this.storage.provider as ImageObject['provider'],
+      container: this.storage.container,
+      objectKey,
+      mimeType: 'image/jpeg',
+      sizeBytes,
+      widthPx,
+      heightPx,
+      uploadedAt: new Date(this.now()).toISOString(),
+      association: { kind: 'overlay', id: eventId },
+      state: 'finalized',
+    };
+    await this.repo.upsertImageObject(record);
+    return record;
+  }
+
   /** Uploads authorized/uploaded but never finalized, older than maxAgeMs. */
   async findOrphans(maxAgeMs: number): Promise<ImageObject[]> {
     const cutoff = this.now() - maxAgeMs;

@@ -129,7 +129,7 @@ const imageObject = table(
     widthPx: t.option(t.u32()),
     heightPx: t.option(t.u32()),
     uploadedAt: t.option(t.string()), // UTC ISO 8601
-    associationKind: t.string(), // 'capture' | 'reference'
+    associationKind: t.string(), // 'capture' | 'reference' | 'mask' | 'overlay' (overlay: id = capture eventId)
     associationId: t.string().index('btree'),
     // 'pending_upload' | 'uploaded' | 'finalized' | 'failed' | 'orphaned'
     state: t.string().index('btree'),
@@ -252,6 +252,92 @@ const insight = table(
   },
 );
 
+/**
+ * Segmentation stage + Pixels wasted per analysis attempt
+ * (contracts SegmentationResult minus its regions). One row per attempt that
+ * ran the mask pipeline; legacy Gemini-area attempts have none.
+ * capturePixelsWasted is the union of the attempt's valid food masks:
+ * present for 'complete', 'empty' (0), and 'partial' (a lower bound).
+ * Private, like analysis_attempt: the dashboard reads aggregates.
+ */
+const captureCount = table(
+  { name: 'capture_count' },
+  {
+    attemptId: t.string().primaryKey(),
+    eventId: t.string().index('btree'),
+    model: t.string(), // e.g. 'sam2.1-hiera-small'
+    checkpoint: t.string(),
+    codeRevision: t.string(),
+    promptSource: t.string(), // 'gemini_box'
+    settingsVersion: t.string(), // e.g. 'sam2-box-v1'
+    countingRuleVersion: t.string(), // e.g. 'smallest-first-v1'
+    status: t.string(), // 'succeeded' | 'partial' | 'failed' | 'skipped'
+    countStatus: t.string(), // 'complete' | 'empty' | 'partial' | 'unavailable'
+    capturePixelsWasted: t.option(t.u32()),
+    widthPx: t.u32(),
+    heightPx: t.u32(),
+  },
+);
+
+/**
+ * contracts ClassificationRegion — one food box from classification and its
+ * segmentation outcome. The mask itself lives in object storage
+ * (image_object with association kind 'mask'); only its id is here.
+ */
+const segmentationRegion = table(
+  { name: 'segmentation_region' },
+  {
+    regionId: t.string().primaryKey(),
+    attemptId: t.string().index('btree'),
+    eventId: t.string().index('btree'),
+    itemId: t.option(t.string()), // none = unclassified edible food
+    visualLabel: t.string(),
+    geminiBox: t.array(t.f64()), // [ymin, xmin, ymax, xmax] on 0-1000
+    pixelBox: t.array(t.f64()), // [x0, y0, x1, y1] on the analyzed image
+    boxConvention: t.string(),
+    segmentationStatus: t.string(), // 'succeeded' | 'failed' | 'skipped'
+    maskObjectId: t.option(t.string()),
+    maskPixels: t.option(t.u32()),
+    score: t.option(t.f64()),
+    error: t.option(StoredApiError),
+  },
+);
+
+/**
+ * contracts PlateCalibration (BIG-PLAN D2): per-capture pixel -> cm² scale.
+ * method: 'plate-fit-v1' | 'configured-default'; flags: contracts
+ * CalibrationFlag[] ('calibration_default' | 'plate_cut_off' | 'bowl_size_assumed').
+ */
+const PlateCalibration = t.object('PlateCalibration', {
+  method: t.string(),
+  plateDiameterCm: t.f64(),
+  plateDiameterPx: t.f64(),
+  cm2PerPx: t.f64(),
+  dishType: t.option(t.string()), // 'plate' | 'bowl' | 'other'
+  fullyVisible: t.option(t.bool()),
+  flags: t.array(t.string()),
+});
+
+/**
+ * Waste-impact outputs of one analysis attempt (BIG-PLAN D2/D7):
+ * contracts AnalysisAttempt.calibration and AnalysisAttempt.overlayObjectId.
+ * A separate small table (like capture_count) so the existing
+ * analysis_attempt rows stay untouched: additive, publishes in place.
+ * Grams/impact are NOT stored (D3: analytics derives them at read time).
+ * The overlay JPEG lives in object storage (image_object association kind
+ * 'overlay'); only its object id is here. Written in the same record_analysis
+ * transaction as its attempt. Legacy attempts have no row.
+ */
+const attemptCalibration = table(
+  { name: 'attempt_calibration' },
+  {
+    attemptId: t.string().primaryKey(),
+    eventId: t.string().index('btree'),
+    calibration: t.option(PlateCalibration),
+    overlayObjectId: t.option(t.string()),
+  },
+);
+
 // ---------------------------------------------------------------------------
 // Schema assembly
 // ---------------------------------------------------------------------------
@@ -267,6 +353,9 @@ const spacetimedb = schema({
   attendance,
   portionsServed,
   insight,
+  captureCount,
+  segmentationRegion,
+  attemptCalibration,
 });
 
 export default spacetimedb;

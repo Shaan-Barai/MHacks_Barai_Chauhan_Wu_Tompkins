@@ -61,8 +61,8 @@ export function InfoTip({ id, text }: { id: string; text: string }) {
   )
 }
 
-export const WASTE_UNITS_EXPLANATION =
-  'Waste units measure how much food is left on plates in the photos. They are an AI estimate, not weight or servings.'
+export const PIXELS_WASTED_EXPLANATION =
+  'Pixels wasted counts the leftover food in each plate photo, pixel by pixel, inside outlines the AI draws around the food. The counting is exact; the outlines are an AI estimate. It is not weight, servings, or the share of food first served.'
 
 export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
   return (

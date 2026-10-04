@@ -28,6 +28,9 @@ import type { ImageService } from './imageService.js';
 import type { CaptureSubmission } from './validation.js';
 import type {
   AnalysisAttempt,
+  AnalysisResult,
+  CalibrationFlag,
+  PlateCalibration,
   CaptureEvent,
   FoodMeasurement,
   MenuBundle,
@@ -130,7 +133,37 @@ export class IngestionService {
         getImage: () => this.images.readImageBytes(event.imageObjectId),
       });
       attempt = result.attempt;
-      measurements = this.validateMeasurements(result.measurements, menu, attemptId, event);
+      measurements = this.validateMeasurements(this.withMaskCounts(result), menu, attemptId, event);
+      this.validateSegmentation(attempt, measurements);
+      // Masks go to object storage; only their ids reach the database.
+      if (attempt.segmentation && result.masks?.length) {
+        const byRegion = new Map(attempt.segmentation.regions.map((r) => [r.regionId, r]));
+        for (const mask of result.masks) {
+          const region = byRegion.get(mask.regionId);
+          if (!region) throw new Error(`Analyzer returned a mask for unknown region ${mask.regionId}.`);
+          const stored = await this.images.storeMask(
+            mask.regionId,
+            mask.png,
+            attempt.segmentation.widthPx,
+            attempt.segmentation.heightPx,
+          );
+          region.maskObjectId = stored.objectId;
+        }
+      }
+      for (const mask of result.itemMasks ?? []) {
+        const m = measurements.find((x) => x.measurementId === mask.measurementId)!;
+        const stored = await this.images.storeMask(mask.measurementId, mask.png, event.geometry.widthPx, event.geometry.heightPx);
+        m.maskCount!.maskObjectId = stored.objectId;
+      }
+      // Plate calibration (BIG-PLAN D2): persisted only when valid. An
+      // invalid one is dropped (impact then reads "no calibration"), never
+      // guessed; the pixel counts stay valid either way.
+      const calibration = validCalibration(attempt.calibration ?? result.calibration);
+      if (calibration) attempt.calibration = calibration;
+      else delete attempt.calibration;
+      // Only the backend assigns storage references.
+      delete attempt.overlayObjectId;
+      if (result.overlay) attempt.overlayObjectId = await this.storeOverlay(event.eventId, attemptId, result.overlay);
     } catch (err) {
       // Infrastructure failure: record an explicit failed attempt, never
       // silence it and never leave the event stuck in `processing`.
@@ -169,6 +202,30 @@ export class IngestionService {
   }
 
   /**
+   * The overlay is a display artifact: if it is malformed or storage rejects
+   * it, the capture keeps its validated counts and simply has no overlay.
+   * Logs the code only, never keys or URLs.
+   */
+  private async storeOverlay(
+    eventId: string,
+    attemptId: string,
+    overlay: NonNullable<AnalysisResult['overlay']>,
+  ): Promise<string | undefined> {
+    const { jpeg, widthPx, heightPx } = overlay;
+    const isJpeg = jpeg instanceof Uint8Array && jpeg.length > 3 && jpeg[0] === 0xff && jpeg[1] === 0xd8;
+    if (!isJpeg || !Number.isInteger(widthPx) || !Number.isInteger(heightPx) || widthPx <= 0 || heightPx <= 0) {
+      console.warn(`[backend] OVERLAY_INVALID for capture ${eventId}; stored without an overlay`);
+      return undefined;
+    }
+    try {
+      return (await this.images.storeOverlay(eventId, attemptId, jpeg, widthPx, heightPx)).objectId;
+    } catch {
+      console.warn(`[backend] OVERLAY_STORE_FAILED for capture ${eventId}; stored without an overlay`);
+      return undefined;
+    }
+  }
+
+  /**
    * The measurements that count as THE observation for an event: those of the
    * latest succeeded attempt. Superseded/failed attempts stay stored as
    * history but are never double-counted.
@@ -196,6 +253,50 @@ export class IngestionService {
     return result;
   }
 
+  /**
+   * Attach each exclusive mask's count/provenance to its measurement. The
+   * mask object id is filled in once the PNG is stored, after validation.
+   */
+  private withMaskCounts(result: AnalysisResult): FoodMeasurement[] {
+    const byId = new Map((result.itemMasks ?? []).map((mask) => [mask.measurementId, mask]));
+    if (byId.size !== (result.itemMasks ?? []).length) throw new Error('Analyzer returned duplicate exclusive masks.');
+    const measurements = result.measurements.map((m) => {
+      const mask = byId.get(m.measurementId);
+      if (!mask) return m;
+      byId.delete(m.measurementId);
+      return { ...m, maskCount: { ...mask.count, maskObjectId: `pending:${m.measurementId}` } };
+    });
+    if (byId.size > 0) throw new Error(`Analyzer returned a mask for unknown measurement ${[...byId.keys()][0]}.`);
+    return measurements;
+  }
+
+  /**
+   * Pixels wasted invariants (contracts/measurement.md): integer mask counts
+   * within the canvas, and for complete/partial captures the item +
+   * unclassified pixels sum exactly to the capture's union total.
+   */
+  private validateSegmentation(attempt: AnalysisAttempt, measurements: FoodMeasurement[]): void {
+    const seg = attempt.segmentation;
+    const maskMeasurements = measurements.filter((m) => m.method === 'mask_pixel_count');
+    if (!seg) {
+      if (maskMeasurements.length > 0) throw new Error('Mask pixel counts were returned without a segmentation result.');
+      return;
+    }
+    const canvas = seg.widthPx * seg.heightPx;
+    for (const m of maskMeasurements) {
+      if (!Number.isInteger(m.remainingAreaPx) || m.remainingAreaPx > canvas) {
+        throw new Error(`Measurement ${m.measurementId} is not an integer pixel count within the image.`);
+      }
+    }
+    const sum = maskMeasurements.reduce((total, m) => total + m.remainingAreaPx, 0);
+    const capture = seg.capturePixelsWasted;
+    if ((seg.countStatus === 'complete' || seg.countStatus === 'partial') && capture !== sum) {
+      throw new Error(`Capture union ${capture} does not equal the measured pixels ${sum}.`);
+    }
+    if (seg.countStatus === 'empty' && (capture !== 0 || sum !== 0)) throw new Error('An empty plate must count 0 pixels.');
+    if (seg.countStatus === 'unavailable' && capture !== undefined) throw new Error('An unavailable count has no total.');
+  }
+
   /** Working rule 9: validate analyzer output before storing it. */
   private validateMeasurements(
     measurements: FoodMeasurement[],
@@ -217,7 +318,10 @@ export class IngestionService {
         throw new Error(`Analyzer returned an invalid remaining area for ${m.measurementId}.`);
       }
       if (m.method === 'mask_pixel_count') {
-        if (!validMaskCount(m, event, menu.service) || m.maskCount!.pixelsWasted !== m.remainingAreaPx) {
+        // Quality-flag eligibility is decided at aggregation time; here only the
+        // count and its provenance must be valid.
+        const unflagged = validMaskCount({ ...m, qualityFlags: [] }, { ...event, qualityFlags: [] }, menu.service);
+        if (!unflagged || m.maskCount!.pixelsWasted !== m.remainingAreaPx) {
           throw new Error(`Invalid mask count/provenance for ${m.measurementId}.`);
         }
         maskPixels += m.maskCount!.pixelsWasted;
@@ -249,4 +353,35 @@ export class IngestionService {
     }
     return normalized;
   }
+}
+
+const CALIBRATION_FLAGS = new Set<CalibrationFlag>(['calibration_default', 'plate_cut_off', 'bowl_size_assumed']);
+
+/**
+ * contracts PlateCalibration check (BIG-PLAN D2): known method, positive
+ * finite plate size, cm2PerPx = (plateDiameterCm / plateDiameterPx)², known
+ * flags. A configured default always carries 'calibration_default'.
+ * Returns a clean copy, or undefined when unusable.
+ */
+export function validCalibration(raw: PlateCalibration | undefined): PlateCalibration | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const { method, plateDiameterCm, plateDiameterPx, cm2PerPx } = raw;
+  if (method !== 'plate-fit-v1' && method !== 'configured-default') return undefined;
+  const positive = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0;
+  if (!positive(plateDiameterCm) || !positive(plateDiameterPx) || !positive(cm2PerPx)) return undefined;
+  const expected = (plateDiameterCm / plateDiameterPx) ** 2;
+  if (Math.abs(cm2PerPx - expected) > expected * 1e-3) return undefined;
+  if (!Array.isArray(raw.flags) || !raw.flags.every((f) => CALIBRATION_FLAGS.has(f))) return undefined;
+  const flags = [...new Set(raw.flags)];
+  if (method === 'configured-default' && !flags.includes('calibration_default')) flags.push('calibration_default');
+  if (raw.dishType !== undefined && !['plate', 'bowl', 'other'].includes(raw.dishType)) return undefined;
+  return {
+    method,
+    plateDiameterCm,
+    plateDiameterPx,
+    cm2PerPx,
+    ...(raw.dishType !== undefined ? { dishType: raw.dishType } : {}),
+    ...(typeof raw.fullyVisible === 'boolean' ? { fullyVisible: raw.fullyVisible } : {}),
+    flags,
+  };
 }

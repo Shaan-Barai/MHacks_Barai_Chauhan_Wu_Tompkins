@@ -6,6 +6,10 @@
  */
 
 export type {
+  AnalysisAttempt,
+  SegmentationResult,
+  ClassificationRegion,
+  CountStatus,
   PortionsServed,
   MaskPixelCount,
   MealLabel,
@@ -18,7 +22,54 @@ export type {
   QualityFlag,
   ProcessingState,
   ApiError,
+  PlateCalibration,
+  CalibrationFlag,
+  WasteFactor,
+  NutritionFactor,
+  WasteImpact,
+  ImpactUnavailableReason,
+  PerPortion,
+  ItemImpactRow,
+  ImpactDashboard,
+  CaptureListItem,
+  SignedImage,
+  CaptureImages,
+  Recommendation,
 } from './contracts.js';
+
+export {
+  computeWasteImpact,
+  sumImpacts,
+  impactCoverage,
+  buildImpactDashboard,
+  selectImpactMeasurements,
+  WASTE_FACTORS_VERSION,
+  UNKNOWN_FOOD_LABEL,
+  type ComputeImpactOptions,
+  type ImpactMeasurementInput,
+  type ImpactDashboardInput,
+  type FactorLookups,
+  type SelectImpactInput,
+  type SelectedImpactMeasurements,
+} from './wasteImpact.js';
+
+export {
+  recommendationFacts,
+  buildRecommendationPrompt,
+  fallbackRecommendation,
+  generateRecommendation,
+  parseRecommendationOutput,
+  recommendationInputVersion,
+  targetMetric,
+  mostWastedMetric,
+  formatGrams,
+  formatPixels,
+  formatUsd,
+  formatKgCo2e,
+  formatLiters,
+  RECOMMENDATION_PROMPT_VERSION,
+  type RecommendationFacts,
+} from './recommendation.js';
 
 export { summarizePortionBenchmarks, portionDataVersion, validMaskCount, type PortionBenchmark, type PortionBenchmarkItem } from './portions.js';
 export { generatePortionInsight } from './portionSuggestions.js';
@@ -72,3 +123,21 @@ export {
   type SuggestionRequest,
   type SuggestionOptions,
 } from './suggestions.js';
+
+export {
+  summarizePixels,
+  computePixelDataVersion,
+  PIXEL_LABELS,
+  type PixelServiceSummary,
+  type PixelItemTotal,
+  type PixelAggregateInput,
+  type PixelExclusionReason,
+} from './pixels.js';
+
+export {
+  generatePixelInsight,
+  buildPixelInsightMetrics,
+  buildPixelFallback,
+  PIXEL_SUGGESTION_PROMPT_VERSION,
+  type PixelSuggestionRequest,
+} from './pixelSuggestions.js';

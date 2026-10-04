@@ -22,6 +22,9 @@ import type {
   PortionsServed,
   Attendance,
   Insight,
+  ClassificationRegion,
+  SegmentationResult,
+  PlateCalibration,
 } from '../types.js';
 import type { Repository } from './repository.js';
 import { conflict } from '../errors.js';
@@ -225,8 +228,50 @@ export class SpacetimeRepository implements Repository {
       measurementsJson: JSON.stringify(measurements),
     });
   }
+  /** Rebuild contract SegmentationResults (capture_count + segmentation_region) for an event. */
+  private async segmentationsFor(eventId: string): Promise<Map<string, SegmentationResult>> {
+    const [counts, regions] = await Promise.all([
+      this.sql(`SELECT * FROM capture_count WHERE event_id = ${quote(eventId)}`),
+      this.sql(`SELECT * FROM segmentation_region WHERE event_id = ${quote(eventId)}`),
+    ]);
+    const out = new Map<string, SegmentationResult>();
+    for (const c of counts) {
+      const { attemptId, eventId: _e, ...rest } = c;
+      out.set(attemptId, clean({ ...rest, regions: [] } as unknown as SegmentationResult));
+    }
+    regions.sort((a, b) => String(a.regionId).localeCompare(String(b.regionId), undefined, { numeric: true }));
+    for (const r of regions) {
+      const seg = out.get(r.attemptId);
+      if (!seg) continue;
+      const { geminiBox, pixelBox, boxConvention, error, itemId, ...rest } = r;
+      seg.regions.push(
+        clean({
+          ...rest,
+          itemId: itemId ?? null,
+          box: { gemini: geminiBox, pixelXyxy: pixelBox, convention: boxConvention },
+          error: error
+            ? { code: error.code, message: error.message, details: error.detailsJson ? JSON.parse(error.detailsJson) : undefined, retryable: error.retryable }
+            : undefined,
+        } as ClassificationRegion),
+      );
+    }
+    return out;
+  }
+
+  /** Calibration + overlay reference per attempt (attempt_calibration, BIG-PLAN D2/D7). */
+  private async calibrationsFor(eventId: string): Promise<Map<string, Pick<AnalysisAttempt, 'calibration' | 'overlayObjectId'>>> {
+    const rows = await this.sql(`SELECT * FROM attempt_calibration WHERE event_id = ${quote(eventId)}`);
+    return new Map(
+      rows.map((r) => [
+        r.attemptId as string,
+        { calibration: r.calibration as PlateCalibration | undefined, overlayObjectId: r.overlayObjectId as string | undefined },
+      ]),
+    );
+  }
+
   async listAnalysisAttempts(eventId: string): Promise<AnalysisAttempt[]> {
     const rows = await this.sql(`SELECT * FROM analysis_attempt WHERE event_id = ${quote(eventId)}`);
+    const [segmentations, calibrations] = await Promise.all([this.segmentationsFor(eventId), this.calibrationsFor(eventId)]);
     return rows
       .map((r) => {
         const { baselineVersions, error, ...rest } = r;
@@ -243,6 +288,8 @@ export class SpacetimeRepository implements Repository {
                 retryable: error.retryable,
               }
             : undefined,
+          segmentation: segmentations.get(r.attemptId),
+          ...calibrations.get(r.attemptId),
         } as AnalysisAttempt);
       })
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
@@ -252,17 +299,37 @@ export class SpacetimeRepository implements Repository {
     // because SpacetimeDB can commit both in one transaction.
     throw new Error('SpacetimeRepository: write measurements via recordAnalysis(attempt, measurements)');
   }
-  private toMeasurement(row: Row): FoodMeasurement {
-    const { maskCountJson, ...rest } = row;
-    return clean({ ...rest, itemId: row.itemId ?? null, ...(maskCountJson ? { maskCount: JSON.parse(maskCountJson) } : {}) } as FoodMeasurement);
+  /**
+   * Mask measurements get their regionIds back from segmentation_region:
+   * an item's count is the union of its successfully segmented regions, and
+   * the unclassified bucket's regions are the unknown-food ones.
+   */
+  private async withRegionIds(rows: Row[], regionQuery: string): Promise<FoodMeasurement[]> {
+    const masked = rows.some((r) => r.method === 'mask_pixel_count');
+    const regions = masked ? await this.sql(regionQuery) : [];
+    regions.sort((a, b) => String(a.regionId).localeCompare(String(b.regionId), undefined, { numeric: true }));
+    return rows.map((row) => {
+      const { maskCountJson, ...rest } = row;
+      const m = {
+        ...rest,
+        itemId: row.itemId ?? null,
+        ...(maskCountJson ? { maskCount: JSON.parse(maskCountJson as string) } : {}),
+      } as FoodMeasurement;
+      if (m.method === 'mask_pixel_count') {
+        m.regionIds = regions
+          .filter((g) => g.attemptId === m.attemptId && g.segmentationStatus === 'succeeded' && (g.itemId ?? null) === m.itemId)
+          .map((g) => g.regionId as string);
+      }
+      return clean(m);
+    });
   }
   async listMeasurementsByAttempt(attemptId: string): Promise<FoodMeasurement[]> {
     const rows = await this.sql(`SELECT * FROM food_measurement WHERE attempt_id = ${quote(attemptId)}`);
-    return rows.map((r) => this.toMeasurement(r));
+    return this.withRegionIds(rows, `SELECT * FROM segmentation_region WHERE attempt_id = ${quote(attemptId)}`);
   }
   async listMeasurementsByEvent(eventId: string): Promise<FoodMeasurement[]> {
     const rows = await this.sql(`SELECT * FROM food_measurement WHERE event_id = ${quote(eventId)}`);
-    return rows.map((r) => this.toMeasurement(r));
+    return this.withRegionIds(rows, `SELECT * FROM segmentation_region WHERE event_id = ${quote(eventId)}`);
   }
 
   // --- attendance ---

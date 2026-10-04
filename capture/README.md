@@ -165,13 +165,37 @@ Demo manifests and AI-generated synthetic plate images (provenance in
 entries across processes, so re-running replay reports "already ingested"
 instead of creating new dishes. Delete it only together with a fresh database.
 
+## Simulate the camera (no board)
+
+```bash
+npm run simulate-camera -- --count 3                      # test2/*.jpeg → images/arduino-inbox
+npm run simulate-camera -- --count 3 --service svc_hall-main_2026-10-03_dinner --state-dir /tmp/sim-state
+```
+
+`src/simulateCamera.ts` (`simulateCamera`, `listPhotos`) writes photos into an inbox exactly like
+`uno-q/laptop_capture.py` saves a manual capture: `<uuid4>/photo.jpg` (unchanged bytes) +
+`metadata.json` (same protocol-v1 fields and formatting), via a dot-prefixed temp folder and an
+atomic rename. Each photo is one distinct dish. `captureSource: "simulated_camera"` makes the bridge
+submit these dishes as `source: 'replay'`, never `'camera'`. With `--service` it then runs one
+`ingest-inbox` pass (`--no-dedupe` unless `--dedupe`). Options and rationale:
+[BRIDGE.md](../BRIDGE.md#run-it-without-the-board-simulate-camera).
+
+Use the bridge's `--state-dir <dir>` to keep a demo or E2E run's grouping/event-ID state out of
+`capture/.inbox-*.json`. For the real board, `scripts/live_camera_test.py` is the hardware check
+(camera preflight, manual + auto frames, cued plate run through the bridge); the simulator covers the
+same bridge path without hardware.
+
 ## Run tests
 
 ```bash
 cd capture
 npm install
-npm test        # tsc && node --test "dist/test/*.test.js"
+npm test        # tsc && node --test dist/test/*.test.js
 ```
+
+`test/simulateCamera.test.ts` checks the simulator's inbox against the inbox reader, the bridge
+(fake Gemini matcher and `--no-dedupe`), and `laptop_capture.py`'s own bundle validation (needs
+`python3`; skipped otherwise).
 
 Tests cover: exactly-once ingestion per manifest entry, identical bytes ≠
 duplicate dish, stable event IDs across retries (injected transient upload

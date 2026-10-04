@@ -128,6 +128,27 @@ test('Google invalid-key 400 normalizes to GEMINI_AUTH_FAILED (seen in the live 
   });
 });
 
+test('Google 402 depleted credits normalizes to non-retryable GEMINI_BILLING (seen in the live E2E)', async () => {
+  let calls = 0;
+  const gw = createGeminiGateway({
+    env: {},
+    sleep: noSleep,
+    mockTransport: () => {
+      calls++;
+      const err = new Error('{"error":{"code":402,"message":"Your prepayment credits are depleted.","status":"RESOURCE_EXHAUSTED"}}');
+      (err as Error & { status: number }).status = 402;
+      throw err;
+    },
+  });
+  await assert.rejects(gw.generateText('x'), (err: unknown) => {
+    assert.ok(err instanceof GatewayError);
+    assert.equal(err.apiError.code, 'GEMINI_BILLING');
+    assert.equal(err.apiError.retryable, false);
+    return true;
+  });
+  assert.equal(calls, 1);
+});
+
 test('timeout-shaped errors normalize to retryable GEMINI_TIMEOUT', async () => {
   const gw = createGeminiGateway({
     env: {},

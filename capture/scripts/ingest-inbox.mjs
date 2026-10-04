@@ -9,6 +9,7 @@
  *   --poll <s>      --watch scan interval in seconds (default 2)
  *   --idle <s>      --watch: close the open dish after this long with no new photos (default 10)
  *   --no-dedupe     one dish per manual photo, no Gemini; --auto frames are skipped
+ *   --state-dir <d> where .inbox-groups.json / .inbox-ingest.json live (default: capture/)
  *   API_URL=...     backend (default http://localhost:8787)
  *
  * Frames are grouped into dishes with POST /api/dish-match (Gemini), then one
@@ -41,6 +42,7 @@ const { values: args } = parseArgs({
     poll: { type: 'string', default: '2' },
     idle: { type: 'string', default: '10' },
     'no-dedupe': { type: 'boolean', default: false },
+    'state-dir': { type: 'string', default: root },
   },
 });
 
@@ -67,11 +69,11 @@ if (!service) fail(`Service ${args.service} does not exist. Upload its menu firs
 const sink = new HttpIngestionSink(api);
 const grouper = new DishGrouper({
   matcher: new HttpDishMatcher(api),
-  stateFile: path.join(root, '.inbox-groups.json'),
+  stateFile: path.join(args['state-dir'], '.inbox-groups.json'),
   noDedupe: args['no-dedupe'],
 });
 const adapter = new ReplayCaptureAdapter(new HttpUploader(api), sink, {
-  stateFile: path.join(root, '.inbox-ingest.json'),
+  stateFile: path.join(args['state-dir'], '.inbox-ingest.json'),
 });
 
 const short = (id) => id.slice(0, 8);

@@ -80,7 +80,10 @@ for (const malformed of [false, true]) {
   test(`ingestion ${malformed ? 'rejects misaligned' : 'persists validated'} mask metadata; optional zero baseline does not gate counting`, async t => {
     const analyzer: Analyzer = { analyze: async ({ event, attemptId, menu }) => ({
       attempt: { eventId: event.eventId, attemptId, menuId: menu.service.menuId, menuVersion: menu.service.menuVersion,
-        baselineVersions: {}, model: 'synthetic-mask-fixture', promptVersion: 'fixture-v1', status: 'succeeded', qualityFlags: [], createdAt: '2026-10-03T16:00:01Z' },
+        baselineVersions: {}, model: 'synthetic-mask-fixture', promptVersion: 'fixture-v1', status: 'succeeded', qualityFlags: [], createdAt: '2026-10-03T16:00:01Z',
+        // Mask counts must arrive with their segmentation result (union-v1 invariant).
+        segmentation: { model: 'synthetic-mask-fixture', checkpoint: 'fixture', codeRevision: 'fixture', promptSource: 'gemini_box', settingsVersion: 'fixture-v1',
+          countingRuleVersion: 'union-v1', status: 'succeeded', countStatus: 'complete', capturePixelsWasted: 100, widthPx: GEOMETRY.widthPx, heightPx: GEOMETRY.heightPx, regions: [] } },
       measurements: [{ measurementId: `mask-${event.eventId}`, eventId: event.eventId, attemptId, itemId: 'item_eggs', remainingAreaPx: 100,
         method: 'mask_pixel_count', baselineAreaPx: 0, qualityFlags: [],
         maskCount: { pixelsWasted: 100, maskObjectId: 'synthetic-external-mask', geometry: { ...GEOMETRY, widthPx: malformed ? 10 : GEOMETRY.widthPx },

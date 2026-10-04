@@ -1,8 +1,7 @@
 import type { PortionBenchmark as Benchmark } from '../data/types'
 import { formatNumber } from '../lib/format'
-import { PX_PER_WASTE_UNIT } from '../data/liveApi'
 
-/** Waste per portion: waste units per portion served, once detailed scans exist. */
+/** Waste per portion: Pixels wasted per portion served, once counted scans and portion counts exist. */
 export function PortionBenchmarkView({ benchmark }: { benchmark: Benchmark }) {
   const ranked = benchmark.items.filter((i) => i.pixelsWastedPerPortion !== null)
   return (
@@ -10,8 +9,8 @@ export function PortionBenchmarkView({ benchmark }: { benchmark: Benchmark }) {
       <h2 className="text-lg font-semibold text-ink">Waste per portion</h2>
       {ranked.length === 0 ? (
         <p className="text-base">
-          Not available yet. This needs the more detailed plate scans, which are still being built. Your portion counts are saved
-          and will be used then.
+          Not available yet. This needs counted plate scans and portion counts for the same meal. Your portion counts are saved
+          and will be used once plates are counted.
         </p>
       ) : (
         <div className="overflow-x-auto">
@@ -32,7 +31,7 @@ export function PortionBenchmarkView({ benchmark }: { benchmark: Benchmark }) {
                     {formatNumber(i.portionsServed ?? 0)}
                     {i.portionsSource === 'demo' && ' (demo)'}
                   </td>
-                  <td>{((i.pixelsWastedPerPortion ?? 0) / PX_PER_WASTE_UNIT).toFixed(2)} waste units</td>
+                  <td>{formatNumber(Math.round(i.pixelsWastedPerPortion ?? 0))} pixels per portion</td>
                 </tr>
               ))}
             </tbody>

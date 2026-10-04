@@ -73,6 +73,8 @@ bounded retries. Suggestion prompts and business logic stay in `analytics/`.
 | `GEMINI_TIMEOUT_MS` | `30000` | Per-request timeout (AbortSignal). |
 | `GEMINI_MAX_RETRIES` | `2` | Bounded retries after the first attempt (retryable errors only). |
 | `GEMINI_RETRY_BASE_DELAY_MS` | `500` | Exponential backoff base (500, 1000, …). |
+| `PLATE_DIAMETER_PX` | `900` | Fallback plate diameter (px of the analyzed image) for `configured-default` calibration. |
+| `SAM_WORKER_URL` | `http://127.0.0.1:8790` | SAM 2.1 worker (`vision/sam/`). |
 
 All options can also be passed to `createGeminiGateway()` directly; explicit
 options win over env.
@@ -106,7 +108,86 @@ npm install
 npm test   # tsc build + node --test dist/test/*.test.js
 ```
 
-33 tests, all fixture-driven (no credentials needed, no live Gemini calls).
+All fixture-driven (no credentials needed, no live Gemini or SAM calls).
+
+## Classification → segmentation → Pixels wasted (`analyzeCaptureWithMasks`)
+
+The primary pipeline (contracts/measurement.md, MVP_AI.md):
+
+1. `localize.ts` — Gemini returns menu item IDs (or `unknown`), visual
+   labels, and `[ymin, xmin, ymax, xmax]` 0–1000 boxes; explicit
+   `plateEmpty`/`ambiguous`; no quantities. Invented IDs are rejected.
+2. `masks.ts` `geminiBoxToPixels` — convert to pixel XYXY on the exact image.
+3. `samClient.ts` — the SAM 2.1 worker (`vision/sam/`) segments every box in
+   one call (`Segmenter` seam; tests inject a fake).
+4. `masks.ts` `decodeBinaryMask` — exact size, strictly 0/255, nonempty.
+5. `masks.ts` `countPixels` (rule `union-v1`) — per-item unions; pixels
+   contested by two items go to the unclassified bucket; capture total = union.
+
+Returns the attempt (with `segmentation` and `calibration`),
+`mask_pixel_count` measurements, the mask PNGs for the backend to store,
+and (BIG-PLAN D2/D7) `calibration`, `overlay`, and `diagnostics`. Stage outcomes
+(classification failure, explicit empty plate, partial, worker down) are
+distinct and never become zero pixels. `analyzeCapture` (Gemini-guessed
+areas) and `assessLeftovers` (counts/percents) remain as legacy/research
+helpers, not the measurement path.
+
+### Plate calibration and segmented overlay (BIG-PLAN D2, D7)
+
+```ts
+const r = await analyzeCaptureWithMasks(gateway, createSamWorkerClient(), {
+  ...input,
+  calibration: { defaultPlateDiameterPx: 900 }, // optional; { enabled: false } skips the fit
+  renderOverlay: true,                           // optional, default true
+});
+r.calibration;   // PlateCalibration (contracts/types.ts), also r.attempt.calibration
+r.overlay;       // { jpeg: Uint8Array, widthPx, heightPx, mimeType: 'image/jpeg', version: 'overlay-v1' } | null
+r.diagnostics;   // { calibrationError?, plateRimPoints?, pixelsOutsideDish?, overlayError?, ... }
+```
+
+- **`plate-fit-v1`** (`src/calibration.ts`, ported from
+  `scripts/waste-impact.mjs`): Gemini boxes the single plate/bowl holding the
+  food (prompt `scrap-plate-v1`, requested concurrently with classification),
+  SAM masks that box, a circle is fitted to the mask's outer rim (outermost
+  pixel per row/column, frame-edge points ignored, one robust refit dropping
+  points > 4% of r away), `plateDiameterPx = round(2r)`,
+  `cm2PerPx = (26.7 / plateDiameterPx)^2`. Flags: `plate_cut_off` (Gemini
+  says the rim is cut off or the circle leaves the frame),
+  `bowl_size_assumed` (bowl). Plausibility: >= 1% of the image masked,
+  >= 20 rim inliers and >= 30% of rim points, centre inside the frame,
+  diameter between 25% of the short side and 2.5x the long side.
+- **Fallback `configured-default`** with flag `calibration_default` whenever
+  Gemini/SAM fail, the answer is invalid, the fit is implausible, analysis was
+  unavailable, or calibration is disabled. Diameter = option
+  `defaultPlateDiameterPx` > env `PLATE_DIAMETER_PX` > **900 px** (the
+  normalized capture is a 1024² center crop; 900 px is the plate size the
+  vision fixtures assume). Calibration never throws and never drops a capture.
+- **Counts are unchanged.** Pixels wasted still uses `smallest-first-v1` on
+  the full canvas; food outside the fitted dish is NOT subtracted (the script
+  did clip). It is reported as `diagnostics.pixelsOutsideDish` so the effect
+  can be checked before any rule change (which would bump the counting rule
+  version). Rationale: a mis-fitted circle would silently delete real food,
+  and the camera frames one dish per capture.
+- **Overlay** (`src/overlay.ts`, `overlay-v1`): the analyzed image at its own
+  size with each exclusive food bucket tinted in a fixed per-menu-position
+  colour (unclassified = grey), the fitted rim in cyan, and a legend strip
+  below (calibration header + total, then `food: N px`). JPEG quality 88.
+  `sharp` is loaded lazily; a missing module or undecodable image gives
+  `overlay: null` + `diagnostics.overlayError`. Rendered for complete,
+  partial, and empty-plate captures; null when nothing was countable.
+- Two localization passes (user change, `menu-source-experiment` fef1065):
+  by default Gemini localizes twice in parallel (base prompt, and base +
+  a "look closely at mixed piles" line); boxes are merged by IoU > 0.5
+  keeping the smaller box. `GEMINI_PASSES=1` / `geminiPasses: 1` uses one
+  pass. `promptVersion` is `scrap-localize-v3+closeup` for two passes,
+  `scrap-localize-v3` for one; `result.localization` reports boxes per pass.
+  With calibration on, a capture makes **3 Gemini calls** (2 localize + 1
+  plate box, all concurrent) and 2 SAM calls (food, then plate).
+- Localize prompt `scrap-localize-v3`: every numbered menu line is
+  `n. name — description` (the demo menu's descriptions are Gemini
+  visible-component text); descriptions are sanitized (control chars,
+  newlines, backticks stripped; 300-char cap) and the system instruction
+  states that menu text is data, not instructions.
 
 ## Countable vs uncountable leftovers (`assessLeftovers`)
 
@@ -141,6 +222,26 @@ If the file-name numbers are % remaining and fry counts, burger90 is close
 but burger50/60 read ~20–30 points high and are not told apart; fries are
 overcounted by ~30%. By eye, fries10 shows about 13 fries, so the labels may
 be approximate. Not yet wired into the backend pipeline or dashboard.
+
+## Live calibration/overlay smoke (2026-10-04)
+
+`node --env-file=../.env scripts/calibration-smoke.mjs <outDir> [images]`
+(needs the SAM worker). Defaults: 4 `test2/` photos normalized like capture
+(1024² center crop), the demo dinner menu with Gemini descriptions, two-pass
+localization, `gemini-3.5-flash`, and SAM 2.1 Small on MPS. All 4 succeeded
+with `plate-fit-v1`, and every ground-truth food was found:
+
+| Photo | Calibration | Foods (Pixels wasted) | vs ground_truth.csv |
+| --- | --- | --- | --- |
+| IMG_2695 | plate, 1236 px, `plate_cut_off` (plate wider than the crop) | Vegetable Stir Fry Blend 111,303; Sticky Rice 54,401 | both correct |
+| IMG_2697 | plate, 963 px, `plate_cut_off` | Sweet Potatoes 83,589; Roasted Cauliflower 72,529; Ham 28,827; Shaved Brussel Sprouts 13,919 | 3/3 correct; the sprouts are on a neighbouring plate (all 13,919 px outside the dish) |
+| IMG_2701 | plate, 844 px | 4 Bean Stew 17,560; Cheese Bread 13,707 | stew correct; the bread is outside the dish (13,707 px) |
+| IMG_2706 | bowl, 574 px, `bowl_size_assumed` | Chocolate Coconut Cream Pie 93,822; unclassified 20,143 | pie + unknown correct |
+
+Food on neighbouring dishes is the main error, and `diagnostics.pixelsOutsideDish`
+measures exactly that. Clipping counts to the fitted dish would remove it, but
+clipping is not enabled (see above). These fixture photos are phone shots
+with several dishes in frame, not images from the mounted camera.
 
 ## Live smoke test
 

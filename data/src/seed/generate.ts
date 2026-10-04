@@ -7,11 +7,17 @@
  * "topdown-normalized-v1" space (round plate, 900px diameter — matching
  * contracts/samples.json).
  *
- * Everything here is DEMO DATA: menus are invented and expected areas were
- * assigned by hand per category to look plausible next to the sample record
- * (scrambled eggs = 48,000 px). They are not measured portions.
+ * Breakfast and lunch menus are invented. Every dinner (BIG-PLAN D6) is the
+ * test dining hall's 23-food dinner menu from menu_waste_factors.csv: display
+ * name = CSV `food`, category = station, description = Gemini's visible
+ * components. Each dinner also gets DEMO portions-served counts (seeded,
+ * plausible 40-260 per item, source 'demo').
  *
- * Output is fully deterministic (no timestamps, no randomness), so
+ * Everything here is DEMO DATA: expected areas were assigned by hand per
+ * category to look plausible next to the sample record (scrambled eggs =
+ * 48,000 px), and portion counts are dummy values. Neither is measured.
+ *
+ * Output is fully deterministic (seeded hash, fixed timestamps), so
  * regenerating produces a byte-identical file.
  */
 
@@ -21,7 +27,10 @@ import { fileURLToPath } from 'node:url';
 import { parseMenuUpload } from '../menuBundle.js';
 import { createReferencePortion, validateReferencePortion } from '../referencePortions.js';
 import { buildVocabulary } from '../vocabulary.js';
-import type { ImageGeometry, MenuBundle, MenuUpload, ReferencePortion } from '../types.js';
+import { parsePortionsServed } from '../portionsServed.js';
+import { WASTE_FACTOR_MENU_TEXT } from '../factors.js';
+import { slugifyName } from '../ids.js';
+import type { ImageGeometry, MenuBundle, MenuUpload, PortionsServed, ReferencePortion } from '../types.js';
 
 export const DEMO_GEOMETRY: ImageGeometry = {
   widthPx: 1024,
@@ -47,9 +56,15 @@ const CATEGORY_AREA_PX: Record<string, number> = {
   bread: 14000,
 };
 
-type DemoItem = { name: string; category: keyof typeof CATEGORY_AREA_PX; description?: string };
+type DemoItem = {
+  name: string;
+  category: string;
+  description?: string;
+  /** CATEGORY_AREA_PX key for the reference area; defaults to `category`. */
+  areaClass?: keyof typeof CATEGORY_AREA_PX;
+};
 
-const DEMO_DAYS: Array<{ date: string; breakfast: DemoItem[]; lunch: DemoItem[]; dinner: DemoItem[] }> = [
+const DEMO_DAYS: Array<{ date: string; breakfast: DemoItem[]; lunch: DemoItem[] }> = [
   {
     date: '2026-10-01',
     breakfast: [
@@ -65,13 +80,6 @@ const DEMO_DAYS: Array<{ date: string; breakfast: DemoItem[]; lunch: DemoItem[];
       { name: 'French Fries', category: 'side', description: 'Crinkle-cut fries, standard basket' },
       { name: 'Garden Salad', category: 'salad', description: 'Mixed greens, cucumber, tomato' },
       { name: 'Fudge Brownie', category: 'dessert', description: 'Single square brownie' },
-    ],
-    dinner: [
-      { name: 'Baked Ziti', category: 'entree', description: 'Ziti with marinara and mozzarella' },
-      { name: 'Garlic Breadstick', category: 'bread', description: 'One herbed garlic breadstick' },
-      { name: 'Steamed Broccoli', category: 'side', description: 'Steamed broccoli florets' },
-      { name: 'Caesar Salad', category: 'salad', description: 'Romaine, croutons, caesar dressing' },
-      { name: 'Vanilla Pudding', category: 'dessert', description: 'Single pudding cup serving' },
     ],
   },
   {
@@ -90,13 +98,6 @@ const DEMO_DAYS: Array<{ date: string; breakfast: DemoItem[]; lunch: DemoItem[];
       { name: 'Street Corn Salad', category: 'salad', description: 'Roasted corn, cotija, lime' },
       { name: 'Cinnamon Churro', category: 'dessert', description: 'One cinnamon sugar churro' },
     ],
-    dinner: [
-      { name: 'Herb Roasted Chicken', category: 'entree', description: 'Quarter chicken with herb rub' },
-      { name: 'Mashed Potatoes', category: 'side', description: 'Mashed potatoes with gravy, standard scoop' },
-      { name: 'Green Beans', category: 'side', description: 'Sauteed green beans' },
-      { name: 'Dinner Roll', category: 'bread', description: 'One buttered dinner roll' },
-      { name: 'Apple Crisp', category: 'dessert', description: 'Baked apple crisp, single serving' },
-    ],
   },
   {
     date: '2026-10-03',
@@ -114,13 +115,6 @@ const DEMO_DAYS: Array<{ date: string; breakfast: DemoItem[]; lunch: DemoItem[];
       { name: 'Minestrone Soup', category: 'soup', description: 'Vegetable minestrone, bowl serving' },
       { name: 'Chocolate Chip Cookie', category: 'dessert', description: 'One bakery cookie' },
     ],
-    dinner: [
-      { name: 'Teriyaki Salmon', category: 'entree', description: 'Glazed salmon fillet' },
-      { name: 'Jasmine Rice', category: 'side', description: 'Steamed jasmine rice, standard scoop' },
-      { name: 'Roasted Zucchini', category: 'side', description: 'Roasted zucchini and squash' },
-      { name: 'Miso Soup', category: 'soup', description: 'Miso broth with tofu and scallion' },
-      { name: 'Mango Sorbet', category: 'dessert', description: 'Single scoop of sorbet' },
-    ],
   },
 ];
 
@@ -133,6 +127,88 @@ export interface DemoSeed {
   coordinateSpace: typeof DEMO_GEOMETRY.coordinateSpace;
   menus: MenuBundle[];
   referencePortions: ReferencePortion[];
+  /** DEMO portions served per dinner item (source 'demo'); replacement snapshots per service. */
+  portionsServed: PortionsServed[];
+  portionsLabel: string;
+}
+
+/**
+ * Baked Sweet Potatoes is not on the dining hall's label sheet, so Gemini wrote
+ * no visible-components text for it. This short description is the earlier
+ * hand-written (Claude) one from the factor-table experiment.
+ */
+const FALLBACK_VISIBLE_COMPONENTS: Record<string, string> = {
+  'baked-sweet-potatoes': 'orange baked sweet potato flesh and skins',
+};
+
+/** Portion role per factor food; drives the reference area and the demo count range. */
+type PortionRole = 'entree' | 'side' | 'soup' | 'dessert';
+const ENTREE_KEYS = new Set([
+  'baked-boneless-ham',
+  'ancho-flank-steak',
+  'vegetable-cannelloni',
+  'michigan-farmers-4-bean-stew',
+  'pepperoni-pizza',
+  'cheese-pizza',
+  'chicken-broccoli-alfredo-pizza',
+]);
+
+export function portionRole(factorKey: string, station: string): PortionRole {
+  if (station === 'MBakery') return 'dessert';
+  if (station === 'Soup') return 'soup';
+  return ENTREE_KEYS.has(factorKey) ? 'entree' : 'side';
+}
+
+/** Demo portions-served range per role (all inside the agreed 40-260). */
+export const DEMO_PORTION_RANGES: Record<PortionRole, readonly [number, number]> = {
+  entree: [120, 260],
+  side: [70, 170],
+  soup: [60, 140],
+  dessert: [40, 110],
+};
+
+export const DEMO_PORTIONS_SEED = 'demo-portions-v1';
+
+/** The 23-food dinner menu (CSV order). */
+export function factorDinnerItems(): DemoItem[] {
+  return WASTE_FACTOR_MENU_TEXT.map((row) => {
+    const description = row.visibleComponents ?? FALLBACK_VISIBLE_COMPONENTS[row.factorKey];
+    return {
+      name: row.food,
+      category: row.station,
+      ...(description !== undefined ? { description } : {}),
+      areaClass: portionRole(row.factorKey, row.station),
+    };
+  });
+}
+
+/** FNV-1a 32-bit hash -> deterministic seed. */
+function hash32(text: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h >>> 0;
+}
+
+/** Deterministic integer in [min, max] for (seed, key). */
+function seededInt(key: string, min: number, max: number): number {
+  const u = hash32(`${DEMO_PORTIONS_SEED}|${key}`) / 0x1_0000_0000;
+  return min + Math.floor(u * (max - min + 1));
+}
+
+/** DEMO portions served for one dinner bundle, validated through parsePortionsServed. */
+export function buildDemoPortions(bundle: MenuBundle): PortionsServed[] {
+  const s = bundle.service;
+  const entries = bundle.items.map((item) => {
+    const key = slugifyName(item.displayName);
+    const [min, max] = DEMO_PORTION_RANGES[portionRole(key, item.category ?? '')];
+    return { itemId: item.itemId, count: seededInt(`${s.serviceId}|${key}`, min, max) };
+  });
+  // Fixed end-of-dinner timestamp (7:30 PM America/Detroit in October) keeps the file byte-stable.
+  const updatedAt = `${s.serviceDate}T23:30:00.000Z`;
+  return parsePortionsServed({ serviceId: s.serviceId, menuVersion: s.menuVersion, entries }, bundle, 'demo', updatedAt);
 }
 
 /** Small deterministic jitter so items in a category do not all share one area. */
@@ -145,6 +221,7 @@ function areaFor(category: keyof typeof CATEGORY_AREA_PX, name: string): number 
 }
 
 export function buildDemoSeed(): DemoSeed {
+  const dinner = factorDinnerItems();
   const upload: MenuUpload = {
     hallId: 'hall-main',
     hallTimezone: 'America/Detroit',
@@ -152,30 +229,34 @@ export function buildDemoSeed(): DemoSeed {
       date: day.date,
       breakfast: day.breakfast,
       lunch: day.lunch,
-      dinner: day.dinner,
+      dinner,
     })),
   };
   const menus = parseMenuUpload(upload);
 
+  const byName = new Map(
+    [...DEMO_DAYS.flatMap((day) => [...day.breakfast, ...day.lunch]), ...dinner].map(
+      (item) => [item.name, item] as const,
+    ),
+  );
   const referencePortions: ReferencePortion[] = [];
   for (const bundle of menus) {
-    const byName = new Map(
-      DEMO_DAYS.flatMap((day) => [...day.breakfast, ...day.lunch, ...day.dinner]).map(
-        (item) => [item.name, item] as const,
-      ),
-    );
     for (const item of bundle.items) {
       const demoItem = byName.get(item.displayName)!;
       referencePortions.push(
         createReferencePortion([], {
           itemId: item.itemId,
-          expectedAreaPx: areaFor(demoItem.category, item.displayName),
+          expectedAreaPx: areaFor(demoItem.areaClass ?? demoItem.category, item.displayName),
           geometry: DEMO_GEOMETRY,
           source: 'manual_area',
         }),
       );
     }
   }
+
+  const portionsServed = menus
+    .filter((bundle) => bundle.service.mealLabel === 'dinner')
+    .flatMap(buildDemoPortions);
 
   // Self-check: every record passes this package's own validators and every
   // bundle produces a vocabulary.
@@ -184,15 +265,17 @@ export function buildDemoSeed(): DemoSeed {
 
   return {
     label:
-      'DEMO DATA — fictional dining-hall menus with hand-assigned manual_area reference portions for the Scrap prototype. Not real hall data; not measured portions.',
+      'DEMO DATA — fictional breakfast/lunch menus, the test hall\'s 23-food dinner menu, hand-assigned manual_area reference portions, and dummy demo portions-served counts for the Scrap prototype. Not real hall data; not measured portions or real serving counts.',
     demo: true,
     provenance:
-      'Generated deterministically by data/src/seed/generate.ts (scrap-data). Regenerate with `npm run seed` in data/.',
+      'Generated deterministically by data/src/seed/generate.ts (scrap-data). Regenerate with `npm run seed` in data/. Dinner items come from menu_waste_factors.csv (descriptions = gemini_visible_components; Baked Sweet Potatoes uses a hand-written fallback). portionsServed are DEMO counts from a seeded hash (seed "demo-portions-v1", 40-260 per item by role), source "demo".',
     hallId: upload.hallId,
     hallTimezone: upload.hallTimezone,
     coordinateSpace: DEMO_GEOMETRY.coordinateSpace,
     menus,
     referencePortions,
+    portionsServed,
+    portionsLabel: 'DEMO portions served: dummy counts for the prototype, not real serving data.',
   };
 }
 
@@ -206,6 +289,6 @@ if (isMain) {
   mkdirSync(dirname(outPath), { recursive: true });
   writeFileSync(outPath, `${JSON.stringify(seed, null, 2)}\n`, 'utf8');
   console.log(
-    `Wrote ${outPath}: ${seed.menus.length} menus, ${seed.referencePortions.length} reference portions.`,
+    `Wrote ${outPath}: ${seed.menus.length} menus, ${seed.referencePortions.length} reference portions, ${seed.portionsServed.length} demo portions.`,
   );
 }

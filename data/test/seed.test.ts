@@ -3,7 +3,14 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { buildDemoSeed, DEMO_GEOMETRY, type DemoSeed } from '../src/seed/generate.js';
+import {
+  buildDemoPortions,
+  buildDemoSeed,
+  DEMO_GEOMETRY,
+  DEMO_PORTION_RANGES,
+  portionRole,
+  type DemoSeed,
+} from '../src/seed/generate.js';
 import {
   buildVocabulary,
   checkGeometryCompatibility,
@@ -11,6 +18,10 @@ import {
   planMenuRevision,
   resolveReferencePortion,
   validateReferencePortion,
+  WASTE_FACTORS,
+  factorKeyFor,
+  findFactorMenuText,
+  findWasteFactor,
 } from '../src/index.js';
 
 function loadCheckedInSeed(): DemoSeed {
@@ -73,4 +84,60 @@ test('seed: bundles resolve by hall/date/service and survive the revision planne
 
 test('seed: the checked-in JSON file matches the generator output', () => {
   assert.deepEqual(loadCheckedInSeed(), JSON.parse(JSON.stringify(buildDemoSeed())));
+});
+
+test('seed: every dinner is the 23-food factor menu with Gemini descriptions', () => {
+  const seed = buildDemoSeed();
+  const dinners = seed.menus.filter((m) => m.service.mealLabel === 'dinner');
+  assert.deepEqual(
+    dinners.map((m) => m.service.serviceDate),
+    ['2026-10-01', '2026-10-02', '2026-10-03'],
+  );
+  for (const bundle of dinners) {
+    const { serviceDate } = bundle.service;
+    assert.equal(bundle.items.length, WASTE_FACTORS.length);
+    bundle.items.forEach((item, i) => {
+      const factor = WASTE_FACTORS[i]!;
+      assert.equal(item.displayName, factor.food);
+      assert.equal(item.category, factor.station);
+      assert.equal(item.itemId, `item_hall-main_${serviceDate}_dinner_${factor.factorKey}`);
+      assert.equal(factorKeyFor(item.displayName), factor.factorKey);
+      assert.ok(findWasteFactor(item.displayName));
+      const text = findFactorMenuText(item.displayName)!;
+      if (text.visibleComponents !== null) assert.equal(item.description, text.visibleComponents);
+      else assert.ok(item.description && item.description.length > 0, `${item.displayName} needs a description`);
+    });
+  }
+});
+
+test('seed: demo portions served, one per dinner item, labeled demo and plausible', () => {
+  const seed = buildDemoSeed();
+  assert.match(seed.portionsLabel, /DEMO/);
+  assert.match(seed.provenance, /demo/i);
+  const dinners = seed.menus.filter((m) => m.service.mealLabel === 'dinner');
+  assert.equal(seed.portionsServed.length, dinners.length * WASTE_FACTORS.length);
+  assert.equal(new Set(seed.portionsServed.map((p) => p.recordId)).size, seed.portionsServed.length);
+  const byRole: Record<string, number[]> = {};
+  for (const p of seed.portionsServed) {
+    const bundle = dinners.find((m) => m.service.serviceId === p.serviceId)!;
+    const item = bundle.items.find((i) => i.itemId === p.itemId)!;
+    assert.ok(item, `portion for unknown item ${p.itemId}`);
+    assert.equal(p.source, 'demo');
+    assert.equal(p.menuId, bundle.service.menuId);
+    assert.equal(p.menuVersion, bundle.service.menuVersion);
+    assert.equal(p.serviceDate, bundle.service.serviceDate);
+    assert.ok(Number.isSafeInteger(p.count) && p.count >= 40 && p.count <= 260, `${p.itemId}: ${p.count}`);
+    const role = portionRole(factorKeyFor(item.displayName), item.category ?? '');
+    const [min, max] = DEMO_PORTION_RANGES[role];
+    assert.ok(p.count >= min && p.count <= max);
+    (byRole[role] ??= []).push(p.count);
+  }
+  const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+  assert.ok(mean(byRole.dessert!) < mean(byRole.entree!));
+  assert.ok(mean(byRole.side!) < mean(byRole.entree!));
+  // Re-validating through the package's own parser accepts the 'demo' source unchanged.
+  for (const bundle of dinners) {
+    const rows = seed.portionsServed.filter((p) => p.serviceId === bundle.service.serviceId);
+    assert.deepEqual(buildDemoPortions(bundle), rows);
+  }
 });

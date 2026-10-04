@@ -1,0 +1,23 @@
+station,food,serving_description,serving_g,calories,total_fat_g,saturated_fat_g,trans_fat_g,cholesterol_mg,sodium_mg,total_carbohydrate_g,dietary_fiber_g,sugars_g,protein_g,vitamin_a_pct_dv,vitamin_c_pct_dv,calcium_pct_dv,iron_pct_dv,allergens_contains,menu_co2_icon
+Soup,Broccoli Cheddar Soup,8 oz Cup,227,274,20,12,0,66,495,12,1,4,12,9,19,32,3,milk; wheat/barley/rye,high
+Signature Maize,Baked Boneless Ham,3 oz Serving,85,111,5,2,0,48,986,2,0,2,14,0,0,0,4,pork,medium
+Signature Maize,Oven Roasted Garlic Potatoes,1/2 Cup,85,86,2,0,0,0,128,15,1,1,2,0,16,1,3,,low
+Signature Maize,Roasted Cauliflower,2 oz,57,16,0,0,0,0,19,3,1,1,1,0,44,1,1,,low
+24 Carrots,Michigan Farmers 4 Bean Stew,Cups,180,119,4,0,0,0,491,17,5,4,5,18,15,7,10,,low
+24 Carrots,Farro,2 oz,57,93,0,0,0,0,311,19,2,1,3,0,0,1,9,wheat/barley/rye,low
+24 Carrots,Shaved Brussel Sprouts,Serving,85,111,7,1,0,0,30,9,3,5,3,3,67,2,4,,low
+24 Carrots,Vegetable Cannelloni,Cannelloni,160,260,8,4,0,33,483,36,4,6,13,4,7,22,9,eggs; milk; wheat/barley/rye,medium
+24 Carrots,Panzanella Salad,Salad,233,342,30,2,0,2,177,17,1,5,5,29,22,6,1,milk; wheat/barley/rye,low
+Halal,Ancho Flank Steak,3 oz Portion,94,141,7,3,0,56,154,1,1,0,19,8,0,4,12,beef,high
+Halal,Sticky Rice,3 oz Serving,85,80,0,0,0,0,0,18,1,0,2,,,0,6,,low
+Halal,Vegetable Stir Fry Blend,Cups,227,60,1,0,0,0,200,11,4,3,4,72,193,14,9,,low
+Pizziti,Cheese Bread,Piece,51,212,8,4,0,21,389,22,1,1,9,0,0,18,13,eggs; milk; soy; wheat/barley/rye,low
+Pizziti,Pepperoni Pizza,Slice,113,306,10,4,0,28,647,33,2,2,13,0,0,18,16,beef; eggs; milk; soy; wheat/barley/rye,low
+Pizziti,Cheese Pizza,Slice,105,278,8,3,0,21,540,33,2,2,12,0,0,18,15,eggs; milk; soy; wheat/barley/rye,low
+Pizziti,Chicken Broccoli Alfredo Pizza,Slice,132,311,10,5,0,42,490,32,2,2,15,4,12,14,13,eggs; milk; soy; wheat/barley/rye,low
+MBakery,Chocolate Coconut Cream Pie,Piece,142,452,28,19,0,0,358,53,3,39,3,0,0,3,18,alcohol; coconut; oats; soy; wheat/barley/rye,low
+MBakery,Pumpkin Pie,Slice,135,290,10,5,0,39,376,43,1,30,6,127,4,15,6,eggs; milk; wheat/barley/rye,medium
+MBakery,Snickers Brownies with Peanuts,Pieces,91,358,16,7,0,64,235,47,2,32,7,8,0,5,8,eggs; milk; peanuts; soy; tree nuts; wheat/barley/rye,medium
+MBakery,Peppermint White Chocolate Blondie,Bars,81,307,11,7,0,69,102,47,1,31,5,6,0,4,6,alcohol; eggs; milk; soy; wheat/barley/rye,low
+MBakery,Golden Cake with Chocolate Frosting,Slice,130,428,16,7,0,0,566,67,1,43,5,0,0,8,9,alcohol; oats; soy; wheat/barley/rye,low
+MBakery,Strawberry Shortcake Bar,Bar,41,163,5,2,0,1,154,29,0,15,1,0,0,0,17,eggs; milk; oats; pork; soy; wheat/barley/rye,low

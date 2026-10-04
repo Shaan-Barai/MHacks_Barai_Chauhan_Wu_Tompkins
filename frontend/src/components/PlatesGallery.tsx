@@ -18,6 +18,7 @@ import { getCaptureImages } from '../data/api'
 import type { CaptureImages, CaptureListItem, ProcessingState, SignedImage } from '../data/types'
 import { formatNumber } from '../lib/format'
 import { NEIGHBOR_EXPLANATION } from './impactCopy'
+import { ESTIMATE_EXPLANATION, METHOD_TEXT, PhysicalChips, hasPhysical } from './PhysicalChips'
 import { Badge, Card, GhostButton, InfoTip } from './ui'
 
 const SHOW_FIRST = 12
@@ -168,6 +169,8 @@ function PlateViewer({
   onClose: () => void
 }) {
   const [view, setView] = useState<View>('both')
+  const estTip = useId()
+  const anyEstimate = capture.items.some(hasPhysical)
   const headingRef = useRef<HTMLHeadingElement>(null)
   useEffect(() => {
     headingRef.current?.focus()
@@ -242,12 +245,18 @@ function PlateViewer({
         ) : capture.items.length === 0 ? (
           <p>{capture.pixelsWasted === 0 ? 'Clean plate. No food left.' : 'No foods found yet.'}</p>
         ) : (
-          <table className="w-full max-w-xl text-left text-base">
+          <table className="w-full max-w-2xl text-left text-base">
             <caption className="sr-only">Foods left on this plate</caption>
             <thead>
               <tr className="border-b border-ink text-sm">
                 <th scope="col" className="py-1 pr-2">Food</th>
-                <th scope="col" className="py-1">Pixels wasted</th>
+                <th scope="col" className="py-1 pr-2">Pixels wasted</th>
+                {anyEstimate && (
+                  <th scope="col" className="py-1 font-normal">
+                    Estimated amount
+                    <InfoTip id={estTip} text={ESTIMATE_EXPLANATION} />
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -257,16 +266,36 @@ function PlateViewer({
                     {it.displayName}
                     {it.itemId === null && <span className="font-normal"> (not on the menu)</span>}
                   </th>
-                  <td className="py-1">{formatNumber(it.pixels)}</td>
+                  <td className="py-1 pr-2">{formatNumber(it.pixels)}</td>
+                  {anyEstimate && (
+                    <td className="py-1">
+                      <PhysicalChips amounts={it} />
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
         )}
+        {anyEstimate && capture.physicalMethod && (
+          <p className="mt-2 text-sm">Estimated by {METHOD_TEXT[capture.physicalMethod]} from the camera calibration.</p>
+        )}
+        {!anyEstimate && capture.items.length > 0 && (
+          <p className="mt-2 text-sm italic">{noEstimateText(capture)}</p>
+        )}
         {capture.state === 'needs_review' && <p className="mt-2 text-sm">A person should check these labels before relying on them.</p>}
       </div>
     </Card>
   )
+}
+
+/** Why a plate has no gram / CO2e / water estimates. */
+function noEstimateText(capture: CaptureListItem): string {
+  if (capture.items.some((i) => i.physicalUnavailableReason === 'incompatible_geometry')) {
+    return 'No grams, CO2e or water for this plate: its picture size differs from the camera calibration.'
+  }
+  if (capture.physicalMethod) return 'No grams, CO2e or water for the foods on this plate.'
+  return 'No grams, CO2e or water for this plate: the camera was not calibrated when it was scanned.'
 }
 
 function Thumbnail({ entry, onBroken }: { entry: ImageEntry | undefined; onBroken: (url: string) => void }) {

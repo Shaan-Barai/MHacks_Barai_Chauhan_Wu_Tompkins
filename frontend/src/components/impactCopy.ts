@@ -2,6 +2,8 @@
  * Plain-language copy and small helpers shared by the waste-impact dashboard
  * sections (UI.md writing rules). BIG-PLAN v2: pixels are the headline unit;
  * impact and nutrition are relative points, never kg, litres or dollars.
+ * IT_4 adds ESTIMATED grams, kg CO2e and litres of water from the camera
+ * calibration; they are always labeled estimates.
  */
 import type { ItemImpactRow } from '../data/types'
 
@@ -18,6 +20,9 @@ export const PER_PORTION_EXPLANATION =
 
 export const NUTRITION_EXPLANATION =
   'Relative points for the nutrients left on plates: pixels ÷ 1,000 × the food’s typical density × its nutrients per kilogram. Higher means more nutrition was thrown away. Use them to compare foods. They are shown on their own and are not part of the impact score.'
+
+export const ESTIMATED_TOTALS_EXPLANATION =
+  'An estimate, not a scale reading. The camera calibration turns pixels into square centimetres (or, with Depth Anything V2 on, into volume). Typical food density turns that into grams, and each food’s footprint per kilogram gives CO2e and water. Only plates scanned with a calibrated camera count here. Pixels wasted stay the measurement.'
 
 export const NEIGHBOR_EXPLANATION =
   'Only the plate being scanned is counted. Food on a neighboring plate in the same photo is outlined as "Other dish (not counted)" and left out.'

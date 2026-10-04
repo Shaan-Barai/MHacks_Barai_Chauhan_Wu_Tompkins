@@ -1,11 +1,13 @@
-/** Settings: hall name, meal times for different days, special events, and a download. */
+/** Settings: hall name, meal times for different days, special events, camera calibration, and a download. */
 import { useState } from 'react'
+import { CameraCalibrationPanel } from '../components/CameraCalibration'
 import { MealTimesFields } from '../components/MealTimesFields'
 import { Card, FieldLabel, GhostButton, PrimaryButton, inputClass } from '../components/ui'
 import type { HallSettings, MealTimeSet, SpecialEvent, Weekday } from '../data/types'
 import { WEEKDAYS, WEEKDAY_NAME } from '../data/types'
 import { buildWasteCsv, downloadCsv } from '../lib/csv'
 import { todayIso } from '../lib/dates'
+import { SignInHint, useAuth } from '../state/auth'
 import { DEFAULT_SETTINGS, newId } from '../state/settings'
 
 function TimeSetEditor({
@@ -73,6 +75,7 @@ function EventRow({ event, onChange, onRemove }: { event: SpecialEvent; onChange
 }
 
 export function SettingsPage({ settings, onSave }: { settings: HallSettings; onSave: (next: HallSettings) => void }) {
+  const { canEdit } = useAuth()
   const [draft, setDraft] = useState<HallSettings>(settings)
   const [saved, setSaved] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -105,7 +108,11 @@ export function SettingsPage({ settings, onSave }: { settings: HallSettings; onS
     <div className="max-w-3xl space-y-5">
       <h1 className="font-display text-3xl font-semibold text-ink">Settings</h1>
 
-      <Card className="space-y-4">
+      {!canEdit && <SignInHint>Staff can change the hall, meal times, events and camera calibration.</SignInHint>}
+
+      <Card>
+      <fieldset disabled={!canEdit} className="min-w-0 space-y-4">
+        <legend className="sr-only">Dining hall settings</legend>
         <div>
           <h2 className="text-lg font-semibold">Dining hall</h2>
           <div className="mt-2 max-w-md">
@@ -152,17 +159,22 @@ export function SettingsPage({ settings, onSave }: { settings: HallSettings; onS
           </GhostButton>
         </div>
 
-        <div className="flex items-center gap-3 border-t border-ink pt-4">
-          <PrimaryButton type="button" onClick={save}>
-            Save settings
-          </PrimaryButton>
-          {saved && (
-            <p role="status" className="font-semibold">
-              Saved.
-            </p>
-          )}
-        </div>
+        {canEdit && (
+          <div className="flex items-center gap-3 border-t border-ink pt-4">
+            <PrimaryButton type="button" onClick={save}>
+              Save settings
+            </PrimaryButton>
+            {saved && (
+              <p role="status" className="font-semibold">
+                Saved.
+              </p>
+            )}
+          </div>
+        )}
+      </fieldset>
       </Card>
+
+      <CameraCalibrationPanel />
 
       <Card>
         <h2 className="text-lg font-semibold">Download</h2>

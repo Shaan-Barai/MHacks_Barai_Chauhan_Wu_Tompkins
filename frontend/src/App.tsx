@@ -1,71 +1,125 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { defaultRange, type DateRange } from './components/DateRangePicker'
 import { SetupWizard } from './components/SetupWizard'
 import { BehindScenesPage } from './pages/BehindScenesPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { MenusPage } from './pages/MenusPage'
+import { NotFoundPage } from './pages/NotFoundPage'
 import { PortionsPage } from './pages/PortionsPage'
 import { SchedulePage } from './pages/SchedulePage'
 import { SettingsPage } from './pages/SettingsPage'
-import { useHallSettings } from './state/settings'
+import { AuthProvider, StaffSignIn, useAuth } from './state/auth'
+import { DEFAULT_SETTINGS, useHallSettings } from './state/settings'
 
 type Page = 'dashboard' | 'schedule' | 'menus' | 'portions' | 'behind' | 'settings'
 
-const NAV: { page: Page; label: string }[] = [
-  { page: 'dashboard', label: 'Dashboard' },
-  { page: 'schedule', label: 'Schedule' },
-  { page: 'menus', label: 'Menus' },
-  { page: 'portions', label: 'Portions served' },
-  { page: 'behind', label: 'Behind the scenes' },
-  { page: 'settings', label: 'Settings' },
+const NAV: { page: Page; label: string; path: string }[] = [
+  { page: 'dashboard', label: 'Dashboard', path: '/' },
+  { page: 'schedule', label: 'Schedule', path: '/schedule' },
+  { page: 'menus', label: 'Menus', path: '/menus' },
+  { page: 'portions', label: 'Portions served', path: '/portions' },
+  { page: 'behind', label: 'Behind the scenes', path: '/behind-the-scenes' },
+  { page: 'settings', label: 'Settings', path: '/settings' },
 ]
 
+/** Path -> page; null = no such page (404). The server sends index.html for every non-API path. */
+export function pageForPath(pathname: string): Page | null {
+  const path = pathname.replace(/\/+$/, '') || '/'
+  if (path === '/' || path === '/dashboard' || path === '/index.html') return 'dashboard'
+  return NAV.find((n) => n.path === path)?.page ?? null
+}
+
+function usePath(): [string, (path: string) => void] {
+  const [path, setPath] = useState(() => window.location.pathname)
+  useEffect(() => {
+    const onPop = () => setPath(window.location.pathname)
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+  const go = useCallback((next: string) => {
+    if (next !== window.location.pathname) window.history.pushState(null, '', next)
+    setPath(next)
+  }, [])
+  return [path, go]
+}
+
 export default function App() {
+  return (
+    <AuthProvider>
+      <Shell />
+    </AuthProvider>
+  )
+}
+
+function Shell() {
   const { settings, update } = useHallSettings()
-  const [page, setPage] = useState<Page>('dashboard')
+  const { canEdit } = useAuth()
+  const [path, go] = usePath()
+  const page = pageForPath(path)
   const [range, setRange] = useState<DateRange>(defaultRange)
   const [dataRevision, setDataRevision] = useState(0)
 
-  if (!settings) {
+  const title = page ? NAV.find((n) => n.page === page)!.label : 'Page not found'
+  useEffect(() => {
+    document.title = `${title} · ScrapSaver`
+  }, [title])
+
+  // First-time setup is for staff. Visitors see the dashboard with default meal times.
+  if (!settings && canEdit) {
     return <SetupWizard onComplete={update} />
   }
+  const hall = settings ?? DEFAULT_SETTINGS
 
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">
+      <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:bg-cream focus:p-2 focus:text-ink">
+        Skip to content
+      </a>
       {/* Left: narrow nav, black with white text */}
       <nav className="flex w-full shrink-0 flex-col bg-ink p-4 text-cream lg:w-48" aria-label="Main">
         <p className="font-display text-2xl font-semibold">ScrapSaver</p>
-        <p className="mt-0.5 truncate text-sm" title={settings.name}>
-          {settings.name}
-        </p>
+        {hall.name && (
+          <p className="mt-0.5 truncate text-sm" title={hall.name}>
+            {hall.name}
+          </p>
+        )}
         <ul className="mt-3 flex flex-wrap gap-1 lg:mt-6 lg:block lg:space-y-1">
           {NAV.map((item) => (
             <li key={item.page}>
-              <button
-                type="button"
+              <a
+                href={item.path}
                 aria-current={page === item.page ? 'page' : undefined}
-                onClick={() => setPage(item.page)}
-                className={`w-full rounded-btn px-3 py-2 text-left text-base ${
+                onClick={(e) => {
+                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
+                  e.preventDefault()
+                  go(item.path)
+                }}
+                className={`block w-full rounded-btn px-3 py-2 text-left text-base ${
                   page === item.page ? 'bg-cream font-semibold text-ink' : 'text-cream hover:underline'
                 }`}
               >
                 {item.label}
-              </button>
+              </a>
             </li>
           ))}
         </ul>
+        <div className="mt-4 lg:mt-6">
+          <StaffSignIn />
+        </div>
         <p className="mt-auto hidden pt-6 text-xs leading-snug lg:block">
-          Pixels wasted come from AI outlines of plate photos. Impact points are relative. Meal swipes are simulated for the demo.
+          Pixels wasted come from AI outlines of plate photos. Impact points are relative; grams, CO2e and water are estimates. Meal
+          swipes are simulated for the demo.
         </p>
       </nav>
 
-      <main className="min-w-0 flex-1 overflow-y-auto bg-cream p-4 sm:p-6">
+      <main id="main" className="min-w-0 flex-1 overflow-y-auto bg-cream p-4 sm:p-6">
         {page === 'dashboard' && <DashboardPage range={range} onRangeChange={setRange} />}
-        {page === 'schedule' && <SchedulePage settings={settings} dataRevision={dataRevision} />}
+        {page === 'schedule' && <SchedulePage settings={hall} dataRevision={dataRevision} />}
         {page === 'menus' && <MenusPage />}
         {page === 'portions' && <PortionsPage onSaved={() => setDataRevision((r) => r + 1)} />}
         {page === 'behind' && <BehindScenesPage />}
-        {page === 'settings' && <SettingsPage settings={settings} onSave={update} />}
+        {page === 'settings' && <SettingsPage settings={hall} onSave={update} />}
+        {page === null && <NotFoundPage onHome={() => go('/')} />}
       </main>
     </div>
   )

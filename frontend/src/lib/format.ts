@@ -48,3 +48,44 @@ export function formatPoints(points: number): string {
   if (abs === 0) return '0'
   return String(Number(points.toPrecision(2)))
 }
+
+// ---------------------------------------------------------------------------
+// IT_4 estimated physical amounts (labeled "est." wherever they appear).
+// ---------------------------------------------------------------------------
+
+/** 1,234 / 38 / 4.2 / 0.042: whole numbers from 10 up, one decimal from 1, two significant digits below 1. */
+export function formatAmount(n: number): string {
+  const abs = Math.abs(n)
+  if (abs >= 10) return formatNumber(n)
+  if (abs >= 1) return new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(n)
+  if (abs === 0) return '0'
+  return String(Number(n.toPrecision(2)))
+}
+
+/** Totals and per-portion amounts: 38 g, 0.27 g, or 1.2 kg from 1,000 g up. */
+export function formatMass(grams: number): string {
+  return Math.abs(grams) >= 1000 ? `${formatAmount(grams / 1000)} kg` : `${formatAmount(grams)} g`
+}
+
+// Food labels match the overlay legend written by analytics (formatPhysicalLabel):
+// whole grams, CO2e and water to 2 significant digits, CO2e in g below 0.1 kg.
+
+function sig2(n: number): string {
+  if (n === 0) return '0'
+  return Number(n.toPrecision(2)).toLocaleString('en-US', { maximumFractionDigits: 20 })
+}
+
+/** Whole grams: "38 g", "1,234 g". */
+export function formatGrams(grams: number): string {
+  return `${Math.round(grams).toLocaleString('en-US')} g`
+}
+
+/** "1.1 kg CO2e", "310 kg CO2e", "34 g CO2e" (below 0.1 kg). */
+export function formatKgCo2e(kg: number): string {
+  return kg >= 0.1 ? `${sig2(kg)} kg CO2e` : `${sig2(kg * 1000)} g CO2e`
+}
+
+/** "18 L", "0.52 L", "1,200 L". */
+export function formatLitres(litres: number): string {
+  return `${sig2(litres)} L`
+}

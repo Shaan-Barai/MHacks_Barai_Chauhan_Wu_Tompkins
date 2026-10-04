@@ -29,6 +29,19 @@ export const getCaptures = impl.getCaptures
 export const getCaptureImages = impl.getCaptureImages
 export const getRecommendation = impl.getRecommendation
 
+// IT_4: staff sign-in, camera calibration, measurement settings.
+export const getSession = impl.getSession
+export const login = impl.login
+export const logout = impl.logout
+export const getMeasurementSettings = impl.getMeasurementSettings
+export const saveMeasurementSettings = impl.saveMeasurementSettings
+export const getCalibrations = impl.getCalibrations
+export const getCalibration = impl.getCalibration
+export const createCalibration = impl.createCalibration
+export const getCalibrationImages = impl.getCalibrationImages
+/** Demo-mode passcode (mock only; the live passcode is set on the server). */
+export const MOCK_PASSCODE = mock.MOCK_PASSCODE
+
 /** Artificial latency for mock mode so loading states are visible; tests set 0. */
 export const setApiLatency = mock.setApiLatency
 /** Latest selectable menu date (a few days ahead in both modes). */

@@ -7,6 +7,7 @@ import { useAsync } from '../lib/useAsync'
 import { downloadCsv } from '../lib/csv'
 import { Card, EmptyState, FieldLabel, GhostButton, inputClass, LoadingBlock, PrimaryButton } from '../components/ui'
 import { PortionBenchmarkView } from '../components/PortionBenchmark'
+import { SignInHint, useAuth } from '../state/auth'
 
 export function PortionsPage({ onSaved }: { onSaved: () => void }) {
   const [date, setDate] = useState(todayIso)
@@ -34,6 +35,7 @@ export function PortionsPage({ onSaved }: { onSaved: () => void }) {
 }
 
 function PortionsEditor({ service, onSaved }: { service: PortionService; onSaved: () => void }) {
+  const { canEdit } = useAuth()
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(service.items.map(i =>
     [i.itemId, service.portions.find(p => p.itemId === i.itemId)?.count.toString() ?? ''])))
   const [busy, setBusy] = useState(false)
@@ -53,7 +55,8 @@ function PortionsEditor({ service, onSaved }: { service: PortionService; onSaved
     downloadCsv('portions-served.csv', lines.join('\n') + '\n')
   }
   return <>
-    <Card><form onSubmit={e => {
+    {!canEdit && <SignInHint>Staff can enter portions served or upload a filled sheet.</SignInHint>}
+    {canEdit && <Card><form onSubmit={e => {
       e.preventDefault()
       void complete(async () => {
         const entries = service.items.map(i => {
@@ -81,7 +84,7 @@ function PortionsEditor({ service, onSaved }: { service: PortionService; onSaved
           }) }} /></label>
       </div>
       {error && <p role="alert" className="font-semibold text-ink">{error}</p>}
-    </form></Card>
+    </form></Card>}
     <Card>{benchmark.status === 'loading' && <LoadingBlock label="Loading" />}
       {benchmark.status === 'error' && <EmptyState title="Couldn't load waste per portion.">{benchmark.error}</EmptyState>}
       {benchmark.status === 'ready' && <PortionBenchmarkView benchmark={benchmark.data} />}

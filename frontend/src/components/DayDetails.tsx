@@ -13,6 +13,7 @@ import { useAsync } from '../lib/useAsync'
 import { timeSetFor } from '../state/settings'
 import { Badge, Card, EmptyState, InfoTip, LoadingBlock, PIXELS_WASTED_EXPLANATION } from './ui'
 import { PortionBenchmarkView } from './PortionBenchmark'
+import { ESTIMATE_EXPLANATION, PhysicalChips, hasPhysical } from './PhysicalChips'
 
 function clock(t: string): string {
   const [h, m] = t.split(':').map(Number)
@@ -73,6 +74,8 @@ function MealView({ detail }: { detail: MealDetail }) {
   const unitsTip = useId()
   const skippedTip = useId()
   const swipesTip = useId()
+  const estTip = useId()
+  const anyEstimate = detail.items.some(hasPhysical)
   const meal = MEAL_NAME[detail.meal].toLowerCase()
   const [top, ...rest] = detail.items
   const showBenchmark = detail.portionBenchmark?.items.some((i) => i.pixelsWastedPerPortion !== null)
@@ -131,10 +134,19 @@ function MealView({ detail }: { detail: MealDetail }) {
       {top && (
         <div>
           <h4 className="text-base font-semibold">Left on plates</h4>
-          <ol className="mt-2 max-w-md divide-y divide-ink border-y border-ink">
+          {anyEstimate && (
+            <p className="text-sm">
+              Grams, CO2e and water are estimates (est.).
+              <InfoTip id={estTip} text={ESTIMATE_EXPLANATION} />
+            </p>
+          )}
+          <ol className="mt-2 max-w-2xl divide-y divide-ink border-y border-ink">
             {[top, ...rest].map((item) => (
-              <li key={item.itemId} className="flex justify-between gap-3 py-2">
-                <span>{item.displayName}</span>
+              <li key={item.itemId} className="flex flex-wrap justify-between gap-x-3 gap-y-1 py-2">
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span>{item.displayName}</span>
+                  {anyEstimate && <PhysicalChips amounts={item} />}
+                </span>
                 <span className="whitespace-nowrap">
                   {formatNumber(item.pixelsWasted)} pixels, {formatPercent(item.shareOfMealPixelsPercent)} of the meal's wasted pixels
                 </span>

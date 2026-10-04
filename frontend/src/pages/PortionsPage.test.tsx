@@ -1,10 +1,16 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { PortionsPage } from './PortionsPage'
+import { PortionsPage as Page } from './PortionsPage'
+import { AuthProvider } from '../state/auth'
 import { getPortionService, getPortionBenchmark, savePortions } from '../data/api'
 
 vi.mock('../data/api', () => ({ getPortionService: vi.fn(), getPortionBenchmark: vi.fn(), savePortions: vi.fn(), importPortionsCsv: vi.fn(), USE_MOCK: false }))
 const service = { serviceId: 'svc', menuVersion: 1, items: [{ itemId: 'rice', displayName: 'Rice' }, { itemId: 'soup', displayName: 'Soup' }], portions: [{ itemId: 'rice', count: 400, source: 'manual' as const }] }
+/** Signed-in staff (IT_4 I11): the counts form is only for staff. */
+function PortionsPage(props: { onSaved: () => void }) {
+  return <AuthProvider initialStatus="signedIn"><Page {...props} /></AuthProvider>
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(getPortionService).mockResolvedValue(service)

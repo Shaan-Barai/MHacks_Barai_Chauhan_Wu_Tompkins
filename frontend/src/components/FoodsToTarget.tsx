@@ -5,8 +5,9 @@
  */
 import { useId, useState } from 'react'
 import type { ItemImpactRow } from '../data/types'
-import { formatNumber, formatPoints } from '../lib/format'
+import { formatMass, formatNumber, formatPoints } from '../lib/format'
 import { PER_PORTION_EXPLANATION, impactUnavailableReason, perPortionUnavailableReason } from './impactCopy'
+import { ESTIMATE_EXPLANATION, PhysicalChips, hasPhysical } from './PhysicalChips'
 import { Badge, Card, GhostButton, InfoTip } from './ui'
 
 const SHOW_FIRST = 8
@@ -14,6 +15,8 @@ const SHOW_FIRST = 8
 export function FoodsToTarget({ rows, demoPortions }: { rows: ItemImpactRow[]; demoPortions: boolean }) {
   const [showAll, setShowAll] = useState(false)
   const tipId = useId()
+  const estTip = useId()
+  const anyEstimate = rows.some((r) => hasPhysical(r.impact))
   const ranked = rows.filter((r) => perPortionUnavailableReason(r) === null)
   const unranked = rows.filter((r) => perPortionUnavailableReason(r) !== null)
   const visible = showAll ? ranked : ranked.slice(0, SHOW_FIRST)
@@ -29,6 +32,12 @@ export function FoodsToTarget({ rows, demoPortions }: { rows: ItemImpactRow[]; d
         Ranked by Pixels wasted per portion served.
         <InfoTip id={tipId} text={PER_PORTION_EXPLANATION} />
       </p>
+      {anyEstimate && (
+        <p className="mt-1 text-sm">
+          Grams, CO2e and water are estimates (est.) for the food left on calibrated plates.
+          <InfoTip id={estTip} text={ESTIMATE_EXPLANATION} />
+        </p>
+      )}
 
       {ranked.length > 0 && (
         <div className="mt-3 overflow-x-auto">
@@ -54,8 +63,16 @@ export function FoodsToTarget({ rows, demoPortions }: { rows: ItemImpactRow[]; d
               {visible.map((r, i) => (
                 <tr key={r.itemId ?? r.displayName} className="border-b border-ink align-top">
                   <td className="py-1.5 pr-2">{i + 1}</td>
-                  <th scope="row" className="py-1.5 pr-2 font-semibold">{r.displayName}</th>
-                  <td className="py-1.5 pr-2 font-semibold">{formatNumber(r.perPortion!.pixels)} pixels</td>
+                  <th scope="row" className="py-1.5 pr-2 font-semibold">
+                    {r.displayName}
+                    {anyEstimate && <PhysicalChips amounts={r.impact} className="mt-1 flex font-normal" />}
+                  </th>
+                  <td className="py-1.5 pr-2 font-semibold">
+                    {formatNumber(r.perPortion!.pixels)} pixels
+                    {r.perPortion!.grams != null && (
+                      <span className="block text-sm font-normal">about {formatMass(r.perPortion!.grams)} est.</span>
+                    )}
+                  </td>
                   <td className="py-1.5 pr-2 text-sm">
                     {r.perPortion!.impactPoints == null
                       ? (impactUnavailableReason(r) ?? 'Not available')

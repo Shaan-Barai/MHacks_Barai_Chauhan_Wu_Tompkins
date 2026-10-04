@@ -66,7 +66,16 @@ describe('liveApi', () => {
       mealSwipes: { count: 748, source: 'simulated' },
       tip: { source: 'fallback_rules' },
     })
-    expect(d?.items[0]).toEqual({ itemId: 'zucchini', displayName: 'Roasted Zucchini', pixelsWasted: 24500, shareOfMealPixelsPercent: 53.2 })
+    // No estimates in this payload: null, never 0 (IT_4 I1).
+    expect(d?.items[0]).toEqual({
+      itemId: 'zucchini',
+      displayName: 'Roasted Zucchini',
+      pixelsWasted: 24500,
+      shareOfMealPixelsPercent: 53.2,
+      grams: null,
+      kgCo2e: null,
+      waterLitres: null,
+    })
   })
 
   it('keeps a scanned meal visible when no plate could be counted (never zero waste)', async () => {

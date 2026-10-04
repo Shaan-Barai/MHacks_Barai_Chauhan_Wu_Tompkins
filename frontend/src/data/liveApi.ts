@@ -8,7 +8,14 @@
  * server-side by analytics/; components never redo canonical math.
  */
 import { loadSettings } from '../state/settings'
+import { AuthRequiredError, notifyAuthRequired } from './authEvents'
 import type {
+  AuthSession,
+  CalibrationImages,
+  CameraCalibration,
+  MeasurementSettings,
+  NewCalibration,
+  SignedImage,
   CaptureImages,
   CaptureListItem,
   ImpactDashboard,
@@ -60,6 +67,12 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error("Can't reach ScrapSaver right now. Try again in a minute.")
   }
   const body = (await res.json().catch(() => ({}))) as T & ApiErrorBody
+  const method = (init?.method ?? 'GET').toUpperCase()
+  if (res.status === 401 && method !== 'GET' && !path.startsWith('/api/auth/')) {
+    // A change was refused because no staff session is active (IT_4 I11).
+    notifyAuthRequired()
+    throw new AuthRequiredError()
+  }
   if (!res.ok) {
     throw new ApiRequestError(res.status, body.error?.code, body.error?.message ?? 'Something went wrong on the server.')
   }
@@ -150,6 +163,10 @@ interface MealResponse {
       displayName?: string
       pixelsWasted: number
       shareOfMealPixelsPercent: number | null
+      grams?: number | null
+      kgCo2e?: number | null
+      waterLitres?: number | null
+      physicalUnavailableReason?: MealDetail['items'][number]['physicalUnavailableReason']
     }[]
   }
   attendance: { count: number; source: 'simulated' }
@@ -180,6 +197,11 @@ export async function getMealDetail(date: IsoDate, meal: MealLabel): Promise<Mea
       displayName: i.displayName ?? i.itemId,
       pixelsWasted: i.pixelsWasted,
       shareOfMealPixelsPercent: i.shareOfMealPixelsPercent ?? 0,
+      // IT_4 I8: estimated amounts when the backend sends them; absent = unavailable.
+      grams: i.grams ?? null,
+      kgCo2e: i.kgCo2e ?? null,
+      waterLitres: i.waterLitres ?? null,
+      ...(i.physicalUnavailableReason ? { physicalUnavailableReason: i.physicalUnavailableReason } : {}),
     })),
     tip: body.insight && { recommendation: body.insight.recommendation, source: body.insight.source },
     ...(body.portionBenchmark ? { portionBenchmark: body.portionBenchmark } : {}),
@@ -289,4 +311,170 @@ export async function getCaptureImages(eventId: string): Promise<CaptureImages> 
 
 export async function getRecommendation(start: IsoDate, end: IsoDate): Promise<Recommendation> {
   return call<Recommendation>(`/api/recommendation?${q({ hallId: hallId(), start, end })}`)
+}
+
+// ---------------------------------------------------------------------------
+// Staff sign-in (IT_4 I11): reads are public, every change needs a session.
+// The backend sets an httpOnly cookie; the browser sends it on same-origin
+// requests, so nothing here stores a token.
+// ---------------------------------------------------------------------------
+
+interface MeBody {
+  authenticated?: boolean
+  signedIn?: boolean
+  admin?: boolean
+  role?: string
+  /** false = this server runs without sign-in (local open mode). */
+  authRequired?: boolean
+  expiresAt?: string
+}
+
+function signedInFrom(body: MeBody): boolean {
+  return Boolean(body.authenticated ?? body.signedIn ?? body.admin ?? body.role === 'admin')
+}
+
+export async function getSession(): Promise<AuthSession> {
+  try {
+    const body = await call<MeBody>('/api/auth/me')
+    return {
+      signedIn: signedInFrom(body),
+      authAvailable: body.authRequired !== false,
+      ...(body.expiresAt ? { expiresAt: body.expiresAt } : {}),
+    }
+  } catch (err) {
+    if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) return { signedIn: false, authAvailable: true }
+    // An older backend without sign-in: changes are not gated there.
+    if (err instanceof ApiRequestError && err.status === 404) return { signedIn: true, authAvailable: false }
+    throw err
+  }
+}
+
+export async function login(passcode: string): Promise<AuthSession> {
+  try {
+    const body = await call<MeBody>('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passcode }),
+    })
+    return { signedIn: true, authAvailable: true, ...(body.expiresAt ? { expiresAt: body.expiresAt } : {}) }
+  } catch (err) {
+    if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) throw new Error("That passcode didn't work.")
+    if (err instanceof ApiRequestError && err.status === 429) throw new Error('Too many tries. Wait a minute, then try again.')
+    throw err
+  }
+}
+
+export async function logout(): Promise<void> {
+  await call('/api/auth/logout', { method: 'POST' })
+}
+
+// ---------------------------------------------------------------------------
+// Camera calibration + measurement settings (IT_4 I2, I3, I9)
+// ---------------------------------------------------------------------------
+
+/** Accept `{ key: value }` or the bare value. */
+function unwrap<T>(body: unknown, key: string): T {
+  if (body && typeof body === 'object' && key in (body as Record<string, unknown>)) return (body as Record<string, T>)[key]
+  return body as T
+}
+
+export async function getMeasurementSettings(): Promise<MeasurementSettings> {
+  return unwrap(await call(`/api/settings/measurement?${q({ hallId: hallId() })}`), 'settings')
+}
+
+export async function saveMeasurementSettings(
+  next: Pick<MeasurementSettings, 'depthEnabled' | 'activeCalibrationId' | 'plateThicknessCm'>,
+): Promise<MeasurementSettings> {
+  const body = await call('/api/settings/measurement', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hallId: hallId(), ...next }),
+  })
+  return unwrap(body, 'settings')
+}
+
+export async function getCalibrations(): Promise<CameraCalibration[]> {
+  const body = await call(`/api/calibrations?${q({ hallId: hallId() })}`)
+  return unwrap<CameraCalibration[]>(body, 'calibrations') ?? []
+}
+
+export async function getCalibration(calibrationId: string): Promise<CameraCalibration> {
+  return unwrap(await call(`/api/calibrations/${encodeURIComponent(calibrationId)}`), 'calibration')
+}
+
+interface UploadGrant {
+  objectId: string
+  uploadUrl: string
+  uploadHeaders?: Record<string, string>
+}
+
+/** Image size, when the browser can read it (the backend checks it too). */
+async function imageSize(file: File): Promise<{ widthPx: number; heightPx: number } | null> {
+  try {
+    if (typeof createImageBitmap !== 'function') return null
+    const bmp = await createImageBitmap(file)
+    const size = { widthPx: bmp.width, heightPx: bmp.height }
+    bmp.close?.()
+    return size
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Upload the calibration photo through the backend's storage flow
+ * (request upload → PUT bytes → finalize), then run the calibration.
+ */
+export async function createCalibration(input: NewCalibration): Promise<CameraCalibration> {
+  const size = await imageSize(input.photo)
+  const grant = await call<UploadGrant>('/api/images/uploads', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      associationKind: 'calibration',
+      associationId: input.cameraId,
+      mimeType: input.photo.type,
+      sizeBytes: input.photo.size,
+      ...(size ?? {}),
+    }),
+  })
+  let put: Response
+  try {
+    put = await fetch(grant.uploadUrl, {
+      method: 'PUT',
+      headers: grant.uploadHeaders ?? { 'Content-Type': input.photo.type },
+      body: input.photo,
+    })
+  } catch {
+    throw new Error("The photo didn't upload. Check the connection and try again.")
+  }
+  if (!put.ok) throw new Error("The photo didn't upload. Try again.")
+  await call(`/api/images/${encodeURIComponent(grant.objectId)}/finalize`, { method: 'POST' })
+  const body = await call('/api/calibrations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      hallId: hallId(),
+      cameraId: input.cameraId,
+      imageObjectId: grant.objectId,
+      knownAreaCm2: input.knownAreaCm2,
+      referenceLabel: input.referenceLabel,
+    }),
+  })
+  return unwrap(body, 'calibration')
+}
+
+type ImagesBody = Partial<Record<'photo' | 'original' | 'image' | 'outline' | 'overlay' | 'reference' | 'depth' | 'depthPreview', SignedImage | null>> & {
+  calibrationId?: string
+}
+
+/** Short-lived links for the calibration photo, the reference outline, and the depth preview. */
+export async function getCalibrationImages(calibrationId: string): Promise<CalibrationImages> {
+  const body = await call<ImagesBody>(`/api/calibrations/${encodeURIComponent(calibrationId)}/images`)
+  return {
+    calibrationId,
+    photo: body.photo ?? body.original ?? body.image ?? null,
+    outline: body.outline ?? body.overlay ?? body.reference ?? null,
+    depth: body.depth ?? body.depthPreview ?? null,
+  }
 }

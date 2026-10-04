@@ -6,7 +6,7 @@ import { MostWasted } from './MostWasted'
 import { NutritionLost } from './NutritionLost'
 import { dashboard, impact, row } from './impactFixtures'
 
-/** BIG-PLAN v2: no grams, kilograms, litres, cubic meters, CO2e or dollars anywhere. */
+/** Uncalibrated data (these fixtures) shows no grams, kilograms, litres, cubic meters or dollars (IT_4 I1). */
 const PHYSICAL_UNITS = /\d\s?(g|kg|L|m³)(?!\w)|litres|CO₂e|\$/
 
 describe('HeadlineCards', () => {
@@ -25,7 +25,10 @@ describe('HeadlineCards', () => {
     expect(screen.getByText(/pixels ÷ 1,000 × the food’s typical density × a footprint factor/)).toBeInTheDocument()
     expect(screen.getByText(/0\.19 × greenhouse-gas points \+ 1\.50 × water points/)).toBeInTheDocument()
     expect(screen.getByText(/1 food has no impact data/)).toBeInTheDocument()
-    expect(screen.queryByText('estimate')).toBeNull()
+    // Uncalibrated: the estimate cards say so instead of showing 0.
+    expect(screen.getAllByText('estimate')).toHaveLength(2)
+    expect(screen.getAllByText('Not available')).toHaveLength(2)
+    expect(screen.getAllByText(/No plates in these days were scanned with a calibrated camera/)).toHaveLength(2)
 
     // Only the explanatory "not kg or litres" sentence may name a physical unit.
     const text = (container.textContent ?? '').replace(/not kg or litres|not kilograms, litres, or dollars/g, '')
@@ -37,7 +40,7 @@ describe('HeadlineCards', () => {
     d.totals = { ...d.totals, co2Points: null, waterPoints: null, impactPoints: null }
     d.coverage = { ...d.coverage, itemsWithoutFactor: 0 }
     render(<HeadlineCards data={d} />)
-    expect(screen.getByText('Not available')).toBeInTheDocument()
+    expect(screen.getAllByText('Not available')).toHaveLength(3)
     expect(screen.getByText('Greenhouse gases:').nextSibling).toHaveTextContent('not available')
     expect(screen.queryByText(/no impact data/)).toBeNull()
   })

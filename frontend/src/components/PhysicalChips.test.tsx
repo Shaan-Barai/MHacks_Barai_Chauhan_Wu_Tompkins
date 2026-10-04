@@ -1,0 +1,64 @@
+import { describe, expect, it } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import { PhysicalChips, physicalReasonText } from './PhysicalChips'
+import { formatAmount, formatGrams, formatKgCo2e, formatLitres, formatMass } from '../lib/format'
+
+describe('estimate formatting', () => {
+  it('rounds like the label example: 38 g · 1.1 kg CO2e · 18 L', () => {
+    // food labels match the analytics overlay legend (formatPhysicalLabel)
+    expect(formatGrams(38.4)).toBe('38 g')
+    expect(formatGrams(1_234.4)).toBe('1,234 g')
+    expect(formatKgCo2e(1.12)).toBe('1.1 kg CO2e')
+    expect(formatKgCo2e(131.69)).toBe('130 kg CO2e')
+    expect(formatKgCo2e(0.0342)).toBe('34 g CO2e')
+    expect(formatLitres(18.2)).toBe('18 L')
+    expect(formatLitres(0.523)).toBe('0.52 L')
+    expect(formatLitres(1_234)).toBe('1,200 L')
+    // totals and per-portion amounts
+    expect(formatMass(4.25)).toBe('4.3 g')
+    expect(formatMass(12_345)).toBe('12 kg')
+    expect(formatAmount(1234.5)).toBe('1,235')
+    expect(formatAmount(0)).toBe('0')
+  })
+})
+
+describe('PhysicalChips', () => {
+  it('shows grams, CO2e with a cloud and water with a droplet, marked est., with a screen-reader sentence', () => {
+    const { container } = render(<PhysicalChips amounts={{ grams: 38, kgCo2e: 1.1, waterLitres: 18 }} />)
+    expect(screen.getByText('Estimated: 38 g, 1.1 kg CO2e, 18 L water.')).toHaveClass('sr-only')
+    expect(screen.getByText('38 g')).toBeInTheDocument()
+    expect(screen.getByText('1.1 kg CO2e')).toBeInTheDocument()
+    expect(screen.getByText('18 L water')).toBeInTheDocument()
+    expect(screen.getByText('est.')).toBeInTheDocument()
+    // two inline SVG icons, hidden from screen readers; no icon font or CDN
+    const svgs = container.querySelectorAll('svg')
+    expect(svgs).toHaveLength(2)
+    svgs.forEach((s) => expect(s).toHaveAttribute('aria-hidden', 'true'))
+    expect(container.firstElementChild).toHaveAttribute('title', expect.stringMatching(/camera calibration and typical food density; pixels are the measurement/))
+  })
+
+  it('never shows 0 for a missing estimate: a muted reason, or nothing', () => {
+    const { rerender, container } = render(<PhysicalChips amounts={{ grams: null, kgCo2e: null, waterLitres: null, physicalUnavailableReason: 'no_calibration' }} />)
+    expect(screen.getByText('not calibrated')).toHaveClass('italic')
+    rerender(<PhysicalChips amounts={{ grams: null, kgCo2e: null, waterLitres: null, physicalUnavailableReason: 'incompatible_geometry' }} />)
+    expect(screen.getByText('photo size differs from the calibration')).toBeInTheDocument()
+    rerender(<PhysicalChips amounts={{ grams: null, kgCo2e: null, waterLitres: null, physicalUnavailableReason: 'unknown_item' }} />)
+    expect(container.textContent).toBe('')
+    rerender(<PhysicalChips amounts={{}} showReason={false} />)
+    expect(container.textContent).toBe('')
+    expect(container.textContent).not.toMatch(/\b0\b/)
+  })
+
+  it('a real zero (a measured clean plate) is shown, and partial amounts show only what exists', () => {
+    render(<PhysicalChips amounts={{ grams: 0, kgCo2e: null, waterLitres: null }} />)
+    expect(screen.getByText('0 g')).toBeInTheDocument()
+    expect(screen.queryByText(/CO2e/)).toBeNull()
+  })
+
+  it('has plain words for every reason', () => {
+    expect(physicalReasonText('no_factor')).toBe('no estimate for this food')
+    expect(physicalReasonText('no_density')).toBe('no density data for this food')
+    expect(physicalReasonText(undefined)).toBe('not calibrated')
+    expect(physicalReasonText('unknown_item')).toBeNull()
+  })
+})

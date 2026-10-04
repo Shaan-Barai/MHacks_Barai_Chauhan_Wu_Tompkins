@@ -4,9 +4,6 @@ import { DashboardPage } from './DashboardPage'
 import { HOW_MEASURED } from '../components/impactCopy'
 import { addDays, todayIso } from '../lib/dates'
 
-/** BIG-PLAN v2: pixels and relative points only. */
-const PHYSICAL_UNITS = /\d\s?(g|kg|L|m³)(?!\w)|litres|CO₂e|CO2e|\$|nutrient-days|estimated grams/
-
 beforeAll(() => {
   // jsdom has no ResizeObserver (the chart measures its width with one).
   vi.stubGlobal(
@@ -19,12 +16,18 @@ beforeAll(() => {
 })
 
 describe('DashboardPage (mock data)', () => {
-  it('renders the v2 dashboard: pixel totals, relative impact, pixel chart, and no physical units', async () => {
+  it('renders pixel totals first, estimated CO2e and water with coverage, relative impact, the chart and plates', async () => {
     const today = todayIso()
-    const { container } = render(<DashboardPage range={{ start: addDays(today, -29), end: today }} onRangeChange={() => {}} />)
+    render(<DashboardPage range={{ start: addDays(today, -29), end: today }} onRangeChange={() => {}} />)
 
     expect(await screen.findByLabelText(/^Total waste: [\d,]+ pixels$/)).toBeInTheDocument()
     expect(screen.getByLabelText(/^Relative impact: [\d,.]+ points$/)).toBeInTheDocument()
+    // IT_4: estimates only from calibrated plates (the mock calibrated 20 days ago), mixed methods.
+    expect(screen.getByLabelText(/^Estimated CO2e: [\d,.]+ kg CO2e$/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Estimated water: [\d,.]+ L$/)).toBeInTheDocument()
+    expect(screen.getAllByText(/^From [\d,]+ of [\d,]+ plates \(calibrated\)$/)).toHaveLength(2)
+    expect(screen.getAllByText(/^Method: mixed \([\d,]+ plates by depth volume, [\d,]+ by area\)$/)).toHaveLength(2)
+
     expect(await screen.findByRole('heading', { name: 'Pixels wasted by day' })).toBeInTheDocument()
     expect(await screen.findByText('Foods to target')).toBeInTheDocument()
     expect(await screen.findByRole('heading', { name: 'Plates' })).toBeInTheDocument()
@@ -32,9 +35,16 @@ describe('DashboardPage (mock data)', () => {
     expect(screen.getByText(HOW_MEASURED)).toBeInTheDocument()
     expect(HOW_MEASURED).toMatch(/plate being scanned/)
     expect(HOW_MEASURED).toMatch(/relative/)
+    // food rows carry estimated chips, labeled est.
+    expect(screen.getAllByText('est.').length).toBeGreaterThan(0)
+  })
 
-    const text = (container.textContent ?? '').replace(/not kg or litres|not kilograms, litres, or dollars/g, '')
-    expect(text).not.toMatch(PHYSICAL_UNITS)
-    expect(screen.queryByText('estimate')).toBeNull()
+  it('has no estimates for days before the camera was calibrated', async () => {
+    const today = todayIso()
+    render(<DashboardPage range={{ start: addDays(today, -89), end: addDays(today, -60) }} onRangeChange={() => {}} />)
+    expect(await screen.findByLabelText(/^Total waste: [\d,]+ pixels$/)).toBeInTheDocument()
+    expect(screen.getAllByText(/No plates in these days were scanned with a calibrated camera/)).toHaveLength(2)
+    expect(screen.queryByText('est.')).toBeNull()
+    expect(screen.queryByText(/\d kg CO2e/)).toBeNull()
   })
 })

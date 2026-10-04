@@ -75,7 +75,7 @@ export interface DailyWastePoint {
   pixelsWasted: number | null
 }
 
-export interface ItemWaste {
+export interface ItemWaste extends PhysicalAmounts {
   itemId: string
   displayName: string
   /** Mask pixels counted for this item across the meal. */
@@ -208,7 +208,7 @@ export type ImpactUnavailableReason = 'no_factor' | 'unknown_item'
  *   points = (pixels / 1000) x weight_g_per_cm2 x factor
  * co2Points uses C, waterPoints uses W, impactPoints uses 0.19 C + 1.50 W.
  */
-export interface WasteImpact {
+export interface WasteImpact extends PhysicalAmounts {
   pixels: number
   co2Points: number | null
   waterPoints: number | null
@@ -217,12 +217,16 @@ export interface WasteImpact {
   nutritionPoints: number | null
   wasteFactorsVersion: string
   unavailableReason?: ImpactUnavailableReason
+  /** IT_4: the method behind grams; 'mixed' when a total combines both. */
+  physicalMethod?: PhysicalMethod | 'mixed' | null
 }
 
 /** Per-portion rates over the same hall/date/service/menu version. */
 export interface PerPortion {
   pixels: number
   impactPoints: number | null
+  /** IT_4: estimated grams per portion (calibrated captures only); null when unavailable. */
+  grams?: number | null
 }
 
 export interface ItemImpactRow {
@@ -241,7 +245,13 @@ export interface ItemImpactRow {
 /** GET /api/dashboard/impact?start&end[&hallId] */
 export interface ImpactDashboard {
   window: { start: string; end: string; hallId?: string }
-  totals: WasteImpact & { captures: number; analyzedCaptures: number; excludedCaptures: number }
+  totals: WasteImpact & {
+    captures: number
+    analyzedCaptures: number
+    excludedCaptures: number
+    /** IT_4: analyzed captures that carried physical estimates (calibrated). Absent from older backends. */
+    physicalCoverage?: PhysicalCoverage
+  }
   /** Ranked by perPortion.pixels desc ("Foods to target"); unavailable rates last. */
   targets: ItemImpactRow[]
   /** Ranked by impact.pixels desc ("Most wasted"). */
@@ -264,8 +274,15 @@ export interface CaptureListItem {
   source: CaptureSource
   state: ProcessingState
   pixelsWasted: number | null
-  items: Array<{ itemId: string | null; displayName: string; pixels: number }>
+  items: Array<
+    { itemId: string | null; displayName: string; pixels: number } & PhysicalAmounts & {
+      volumeCm3?: number | null
+      areaCm2?: number | null
+    }
+  >
   hasOverlay: boolean
+  calibrationId?: string | null
+  physicalMethod?: PhysicalMethod | null
 }
 
 export interface SignedImage {
@@ -289,4 +306,116 @@ export interface Recommendation {
   source: 'gemini' | 'fallback'
   generatedAt: string
   inputVersion: string
+}
+
+// ---------------------------------------------------------------------------
+// IT_4 (2026-10-04): camera calibration, calibrated area, Depth Anything V2
+// volume, ESTIMATED grams / kg CO2e / litres of water. Local copy of the
+// contracts/types.ts IT_4 section. Pixels wasted stay the measurement;
+// physical numbers are labeled estimates and are null (never 0) when missing.
+// New fields are optional here so payloads from older backends still parse.
+// ---------------------------------------------------------------------------
+
+export type PhysicalMethod = 'area-calibrated-v1' | 'volume-dav2-v1'
+
+export type PhysicalUnavailableReason = 'no_calibration' | 'incompatible_geometry' | 'no_factor' | 'no_density' | 'unknown_item'
+
+/** Estimated physical amounts; null or absent = unavailable, never 0. */
+export interface PhysicalAmounts {
+  grams?: number | null
+  kgCo2e?: number | null
+  waterLitres?: number | null
+  physicalUnavailableReason?: PhysicalUnavailableReason
+}
+
+export interface PhysicalCoverage {
+  calibratedCaptures: number
+  volumeCaptures: number
+  analyzedCaptures: number
+}
+
+export interface CameraIntrinsics {
+  cameraModel: 'logitech-c920s' | 'other'
+  widthPx: number
+  heightPx: number
+  fxPx: number
+  fyPx: number
+  cxPx: number
+  cyPx: number
+  source: 'nominal-fov' | 'checkerboard' | 'configured'
+}
+
+export type CameraCalibrationFlag =
+  | 'reference_not_found'
+  | 'reference_low_confidence'
+  | 'reference_touches_edge'
+  | 'depth_unavailable'
+  | 'depth_scale_disagrees'
+
+export interface CalibrationDepth {
+  checkpoint: string
+  settingsVersion: string
+  rawReferenceMedianM: number
+  scale: number
+  cameraHeightCmDepth: number
+  tablePlane: { a: number; b: number; c: number }
+  depthObjectId: string
+}
+
+/** POST /api/calibrations, GET /api/calibrations[/:id] */
+export interface CameraCalibration {
+  calibrationId: string
+  hallId: string
+  cameraId: string
+  createdAt: string
+  status: 'processing' | 'succeeded' | 'failed'
+  method: 'reference-area-v1'
+  imageObjectId: string
+  overlayObjectId?: string
+  referenceMaskObjectId?: string
+  widthPx: number
+  heightPx: number
+  knownAreaCm2: number
+  referenceLabel: string
+  referencePixels: number
+  cm2PerPx: number
+  intrinsics: CameraIntrinsics
+  cameraHeightCmGeometric: number
+  depth: CalibrationDepth | null
+  flags: CameraCalibrationFlag[]
+  error?: { code: string; message: string; retryable?: boolean }
+}
+
+/** GET /api/calibrations/:id/images (short-lived links). */
+export interface CalibrationImages {
+  calibrationId: string
+  /** The calibration photo as taken. */
+  photo: SignedImage | null
+  /** The photo with the reference object outlined. */
+  outline: SignedImage | null
+  /** Depth Anything V2 preview, when depth ran. */
+  depth: SignedImage | null
+}
+
+/** GET/PUT /api/settings/measurement (per hall). */
+export interface MeasurementSettings {
+  hallId: string
+  depthEnabled: boolean
+  activeCalibrationId: string | null
+  plateThicknessCm: number
+  updatedAt: string
+}
+
+export interface NewCalibration {
+  cameraId: string
+  knownAreaCm2: number
+  referenceLabel: string
+  photo: File
+}
+
+/** GET /api/auth/me. `authAvailable: false` = the backend has no sign-in (older local backends). */
+export interface AuthSession {
+  signedIn: boolean
+  authAvailable: boolean
+  expiresAt?: string
 }

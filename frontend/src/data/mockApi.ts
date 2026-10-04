@@ -5,8 +5,14 @@
  * menus kept in localStorage), with the same signatures as liveApi.ts.
  */
 import { addDays, eachDay, startOfMonth, startOfWeek, todayIso } from '../lib/dates'
+import { AuthRequiredError, notifyAuthRequired } from './authEvents'
 import {
+  MOCK_ACTIVE_CALIBRATION_ID,
   MOCK_FUTURE_MENU_DAYS,
+  MOCK_HALL_ID,
+  mockCalibration,
+  mockCalibrationHistory,
+  mockCalibrationImages,
   mockCaptureImages,
   mockCaptures,
   mockImpactDashboard,
@@ -16,6 +22,11 @@ import {
   rng,
 } from './mockData'
 import type {
+  AuthSession,
+  CalibrationImages,
+  CameraCalibration,
+  MeasurementSettings,
+  NewCalibration,
   CaptureImages,
   CaptureListItem,
   ImpactDashboard,
@@ -269,4 +280,145 @@ export async function getCaptureImages(eventId: string): Promise<CaptureImages> 
 export async function getRecommendation(start: IsoDate, end: IsoDate): Promise<Recommendation> {
   await wait()
   return mockRecommendation(mockImpactDashboard(start, end, todayIso()), new Date())
+}
+
+// ---------------------------------------------------------------------------
+// Staff sign-in (IT_4 I11), demo only: the passcode is MOCK_PASSCODE and the
+// "session" lives in this browser. Real sessions are httpOnly cookies set by
+// the backend.
+// ---------------------------------------------------------------------------
+
+export const MOCK_PASSCODE = 'scrapsaver'
+const SESSION_KEY = 'scrap.mock.session.v1'
+
+function mockSignedIn(): boolean {
+  try {
+    return localStorage.getItem(SESSION_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+/** Demo mutations behave like the backend: no session, no change (401). */
+function requireSession(): void {
+  if (!mockSignedIn()) {
+    notifyAuthRequired()
+    throw new AuthRequiredError()
+  }
+}
+
+export async function getSession(): Promise<AuthSession> {
+  await wait()
+  return { signedIn: mockSignedIn(), authAvailable: true }
+}
+
+export async function login(passcode: string): Promise<AuthSession> {
+  await wait()
+  if (passcode !== MOCK_PASSCODE) throw new Error("That passcode didn't work.")
+  localStorage.setItem(SESSION_KEY, '1')
+  return { signedIn: true, authAvailable: true }
+}
+
+export async function logout(): Promise<void> {
+  await wait()
+  localStorage.removeItem(SESSION_KEY)
+}
+
+// ---------------------------------------------------------------------------
+// Camera calibration + measurement settings (IT_4), kept in this browser.
+// ---------------------------------------------------------------------------
+
+const CALIBRATION_KEY = 'scrap.mock.calibration.v1'
+
+interface CalibrationStore {
+  settings: MeasurementSettings
+  calibrations: CameraCalibration[]
+}
+
+function readCalibrationStore(): CalibrationStore {
+  try {
+    const raw = localStorage.getItem(CALIBRATION_KEY)
+    if (raw) return JSON.parse(raw) as CalibrationStore
+  } catch {
+    // fall through to the seed
+  }
+  const today = todayIso()
+  return {
+    settings: {
+      hallId: MOCK_HALL_ID,
+      depthEnabled: true,
+      activeCalibrationId: MOCK_ACTIVE_CALIBRATION_ID,
+      plateThicknessCm: 1.5,
+      updatedAt: new Date(`${addDays(today, -20)}T13:00:00Z`).toISOString(),
+    },
+    calibrations: mockCalibrationHistory(today),
+  }
+}
+
+function writeCalibrationStore(store: CalibrationStore): void {
+  localStorage.setItem(CALIBRATION_KEY, JSON.stringify(store))
+}
+
+export async function getMeasurementSettings(): Promise<MeasurementSettings> {
+  await wait()
+  return readCalibrationStore().settings
+}
+
+export async function saveMeasurementSettings(
+  next: Pick<MeasurementSettings, 'depthEnabled' | 'activeCalibrationId' | 'plateThicknessCm'>,
+): Promise<MeasurementSettings> {
+  await wait()
+  requireSession()
+  if (!(Number.isFinite(next.plateThicknessCm) && next.plateThicknessCm >= 0 && next.plateThicknessCm <= 10)) {
+    throw new Error('Plate thickness must be between 0 and 10 cm.')
+  }
+  const store = readCalibrationStore()
+  if (next.activeCalibrationId !== null) {
+    const cal = store.calibrations.find((c) => c.calibrationId === next.activeCalibrationId)
+    if (!cal || cal.status !== 'succeeded') throw new Error('Only a finished calibration can be used.')
+  }
+  store.settings = { ...store.settings, ...next, updatedAt: new Date().toISOString() }
+  writeCalibrationStore(store)
+  return store.settings
+}
+
+export async function getCalibrations(): Promise<CameraCalibration[]> {
+  await wait()
+  return readCalibrationStore().calibrations
+}
+
+export async function getCalibration(calibrationId: string): Promise<CameraCalibration> {
+  await wait()
+  const cal = readCalibrationStore().calibrations.find((c) => c.calibrationId === calibrationId)
+  if (!cal) throw new Error('This calibration no longer exists.')
+  return cal
+}
+
+/**
+ * Demo calibration: the "photo" is not analyzed. The card always covers
+ * 34,186 pixels (scaled by the known area) and depth runs when it is on.
+ */
+export async function createCalibration(input: NewCalibration): Promise<CameraCalibration> {
+  await wait()
+  requireSession()
+  if (!(Number.isFinite(input.knownAreaCm2) && input.knownAreaCm2 > 0)) throw new Error('Enter the reference size in cm², more than 0.')
+  if (!input.photo.type.startsWith('image/')) throw new Error('Choose a photo (JPEG, PNG or WebP).')
+  const store = readCalibrationStore()
+  const n = store.calibrations.length
+  const cal = mockCalibration({
+    calibrationId: `cal_demo_new_${n}_${Date.now().toString(36)}`,
+    createdAt: new Date().toISOString(),
+    knownAreaCm2: input.knownAreaCm2,
+    referenceLabel: input.referenceLabel.trim() || 'reference object',
+    referencePixels: Math.round(34_186 * (input.knownAreaCm2 / 46.21)),
+    rawDepthM: store.settings.depthEnabled ? 0.49 : null,
+  })
+  store.calibrations = [{ ...cal, cameraId: input.cameraId }, ...store.calibrations]
+  writeCalibrationStore(store)
+  return store.calibrations[0]
+}
+
+export async function getCalibrationImages(calibrationId: string): Promise<CalibrationImages> {
+  const cal = await getCalibration(calibrationId)
+  return mockCalibrationImages(cal, new Date())
 }

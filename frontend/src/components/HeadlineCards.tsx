@@ -1,13 +1,15 @@
 /**
- * Two headline cards for the selected days (BIG-PLAN v2): Total waste in
- * Pixels wasted (the measurement), and Relative impact in unitless points
- * (impact score with greenhouse-gas and water points under it). Points are
- * labeled relative everywhere; there are no grams, kg, litres or dollars.
+ * Headline cards for the selected days. Total waste in Pixels wasted (the
+ * measurement, BIG-PLAN v2) comes first. IT_4 adds Estimated CO2e (kg) and
+ * Estimated water (L) from calibrated plates only, with their coverage and
+ * method (area / depth volume / mixed). Relative impact stays in unitless
+ * points. Missing estimates say "Not available", never 0.
  */
 import { useId, type ReactNode } from 'react'
 import type { ImpactDashboard } from '../data/types'
-import { formatNumber, formatPoints } from '../lib/format'
-import { IMPACT_EXPLANATION, RELATIVE_POINTS_NOTE, splitUnit } from './impactCopy'
+import { formatMass, formatKgCo2e, formatLitres, formatNumber, formatPoints } from '../lib/format'
+import { ESTIMATED_TOTALS_EXPLANATION, IMPACT_EXPLANATION, RELATIVE_POINTS_NOTE, splitUnit } from './impactCopy'
+import { CloudIcon, DropletIcon } from './PhysicalChips'
 import { Badge, Card, InfoTip, PIXELS_WASTED_EXPLANATION } from './ui'
 
 function BigValue({ formatted, label }: { formatted: string | null; label: string }) {
@@ -25,12 +27,14 @@ function BigValue({ formatted, label }: { formatted: string | null; label: strin
 
 function HeadlineCard({
   title,
+  icon,
   tip,
   badge,
   formatted,
   children,
 }: {
   title: string
+  icon?: ReactNode
   tip: string
   badge?: string
   formatted: string | null
@@ -40,7 +44,8 @@ function HeadlineCard({
   return (
     <Card className="flex flex-col">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-base font-semibold text-ink">
+        <h3 className="inline-flex items-center gap-1.5 text-base font-semibold text-ink">
+          {icon}
           {title}
           <InfoTip id={tipId} text={tip} />
         </h3>
@@ -54,11 +59,46 @@ function HeadlineCard({
 
 const points = (n: number | null | undefined) => (n == null ? 'not available' : `${formatPoints(n)} points`)
 
+/** "Method: area" / "depth volume" / "mixed (5 plates by depth volume, 7 by area)". */
+export function methodLine(data: ImpactDashboard): string | null {
+  const t = data.totals
+  const cov = t.physicalCoverage
+  if (!t.physicalMethod || !cov || cov.calibratedCaptures === 0) return null
+  if (t.physicalMethod === 'area-calibrated-v1') return 'Method: area'
+  if (t.physicalMethod === 'volume-dav2-v1') return 'Method: depth volume'
+  const area = cov.calibratedCaptures - cov.volumeCaptures
+  return `Method: mixed (${formatNumber(cov.volumeCaptures)} plate${cov.volumeCaptures === 1 ? '' : 's'} by depth volume, ${formatNumber(area)} by area)`
+}
+
+/** Coverage and method under each estimated total. */
+function EstimateCoverage({ data, value }: { data: ImpactDashboard; value: number | null | undefined }) {
+  const cov = data.totals.physicalCoverage
+  const calibrated = cov?.calibratedCaptures ?? 0
+  const analyzed = cov?.analyzedCaptures ?? data.totals.analyzedCaptures
+  if (calibrated === 0) {
+    return (
+      <p className="mt-2 text-base">
+        No plates in these days were scanned with a calibrated camera. Calibrate the camera in Settings.
+      </p>
+    )
+  }
+  const method = methodLine(data)
+  return (
+    <>
+      <p className="mt-2 text-base">
+        From {formatNumber(calibrated)} of {formatNumber(analyzed)} plate{analyzed === 1 ? '' : 's'} (calibrated)
+      </p>
+      {method && <p className="text-sm">{method}</p>}
+      {value == null && <p className="text-sm">None of the foods on those plates has footprint data.</p>}
+    </>
+  )
+}
+
 export function HeadlineCards({ data }: { data: ImpactDashboard }) {
   const t = data.totals
   return (
     <section aria-label="Totals for the selected days" className="space-y-2">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <HeadlineCard title="Total waste" tip={PIXELS_WASTED_EXPLANATION} formatted={`${formatNumber(t.pixels)} pixels`}>
           <p className="mt-1 text-sm">Pixels wasted, counted inside the AI outlines</p>
           <p className="mt-2 text-base">
@@ -70,6 +110,31 @@ export function HeadlineCards({ data }: { data: ImpactDashboard }) {
               person to look)
             </p>
           )}
+        </HeadlineCard>
+
+        <HeadlineCard
+          title="Estimated CO2e"
+          icon={<CloudIcon />}
+          tip={ESTIMATED_TOTALS_EXPLANATION}
+          badge="estimate"
+          formatted={t.kgCo2e == null ? null : formatKgCo2e(t.kgCo2e)}
+        >
+          <p className="mt-1 text-sm">
+            Greenhouse gases from the food left on plates
+            {t.grams != null && <>, about {formatMass(t.grams)} of food</>}
+          </p>
+          <EstimateCoverage data={data} value={t.kgCo2e} />
+        </HeadlineCard>
+
+        <HeadlineCard
+          title="Estimated water"
+          icon={<DropletIcon />}
+          tip={ESTIMATED_TOTALS_EXPLANATION}
+          badge="estimate"
+          formatted={t.waterLitres == null ? null : formatLitres(t.waterLitres)}
+        >
+          <p className="mt-1 text-sm">Fresh water used to make the food left on plates</p>
+          <EstimateCoverage data={data} value={t.waterLitres} />
         </HeadlineCard>
 
         <HeadlineCard
@@ -103,7 +168,7 @@ function CoverageNotes({ data }: { data: ImpactDashboard }) {
   return (
     <p className="text-sm">
       {n} food{n === 1 ? ' has' : 's have'} no impact data, so {n === 1 ? 'its pixels count' : 'their pixels count'} in Total waste
-      but not in the points.
+      but not in the points or estimates.
     </p>
   )
 }

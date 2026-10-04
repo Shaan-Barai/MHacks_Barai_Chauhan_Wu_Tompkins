@@ -43,8 +43,8 @@ describe('mock impact dashboard (BIG-PLAN v2: pixels and relative points)', () =
     for (const r of d.targets) {
       if (r.perPortion) expect(r.perPortion.pixels).toBeCloseTo(r.impact.pixels / r.portionsServed!, 6)
     }
-    // no physical units anywhere in the payload
-    expect(JSON.stringify(d)).not.toMatch(/grams|kgCo2e|waterM3|impactUsd|nutrientDays|cm2|Calibration/)
+    // factor-table internals never leak into the payload (estimates are tested in physicalMock.test.ts)
+    expect(JSON.stringify(d)).not.toMatch(/waterM3|impactUsd|nutrientDays/)
   })
 
   it('has explained unavailable rows: unknown food, missing portions, no factor', async () => {

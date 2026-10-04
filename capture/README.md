@@ -6,8 +6,10 @@ Owner: Agent 3 — camera/replay capture and image preparation. Built against
 For the **Uno Q + C920s** rig, see [camera capture setup](uno-q/README.md).
 Manual Enter/`--once` capture and timed `--auto` capture both use FFmpeg and
 SSH, without OpenCV. `--auto` transfers one raw photo per second to the laptop.
-Timed frames have unresolved dish identity
-and are not automatically submitted as separate dishes to this adapter.
+Timed frames have unresolved dish identity, so they are never submitted one
+per frame: the inbox bridge (`npm run ingest-inbox -- --service <id>`) groups
+frames into dishes with Gemini and submits one `camera` capture per dish. See
+[BRIDGE.md](../BRIDGE.md).
 
 Camera hardware is not available yet, so this package implements the
 **replay adapter** (a JSON manifest listing dish images with hall/service

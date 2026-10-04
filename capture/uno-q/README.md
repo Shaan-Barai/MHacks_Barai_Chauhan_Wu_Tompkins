@@ -197,8 +197,10 @@ the cached photo without requiring FFmpeg or the camera to be available.
 - Photos are raw and unnormalized. Keep the full plate within the centered
   square crop used by the existing 1024 x 1024 normalization adapter.
 - This operation ends at local files. It does not upload to R2, mutate
-  SpacetimeDB, call Gemini, or calculate waste. Use the existing backend storage
-  flow when integrating selected dish captures.
+  SpacetimeDB, call Gemini, or calculate waste. To ingest the photos, run the
+  inbox bridge (`cd capture && npm run ingest-inbox -- --service <id> --watch`),
+  which groups frames into dishes with Gemini so each dish is counted once.
+  See [BRIDGE.md](../../BRIDGE.md).
 - The only transport addition is an automatic stream envelope containing the
   bundle length and capture UUID; the JPEG/metadata bundle remains protocol v1.
   No shared application contract or package dependency changed.

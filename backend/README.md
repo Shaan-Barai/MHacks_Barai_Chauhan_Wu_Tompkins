@@ -92,6 +92,11 @@ Every error returns the shared envelope `{ "error": { code, message, details?, r
   `pending → processing → succeeded | needs_review | failed`.
   The image must be finalized and uploaded for *this* event
   (`IMAGE_ASSOCIATION_MISMATCH` otherwise).
+- `POST /api/dish-match` — camera bridge only ([BRIDGE.md](../BRIDGE.md)):
+  `{ reference, candidate }`, each `{ mimeType, base64 }` (≤ 400 KB), →
+  `{ plateVisible, sameDish?, reason, model, promptVersion }`. Thumbnails are
+  never stored or logged. `503 DISH_MATCH_UNAVAILABLE` without a Gemini key;
+  `502` for a provider error or unusable answer (never a guessed verdict).
 - `GET /api/captures/:eventId` — event + all attempts + counted measurements.
 - `GET /api/observations?hallId=…&serviceId=…` — events with their counted
   (latest succeeded attempt) measurements only; superseded attempts are history.

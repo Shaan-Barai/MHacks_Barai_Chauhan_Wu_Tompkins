@@ -275,3 +275,17 @@ User-directed changes (UI.md has the full spec):
   Prompts and fallback text use plain words for kitchen staff.
 - Item names: when a menu no longer lists a measured item (for example after a
   menu edit), display a readable name derived from its stable ID.
+
+## 2026-10-03: Uno Q camera bridge counts each dish once
+
+- `capture/scripts/ingest-inbox.mjs` ingests `images/arduino-inbox/` captures
+  as `source: 'camera'`. Frames are grouped into dishes before anything is
+  uploaded; one representative frame per dish becomes one `CaptureEvent`.
+- Same-dish decisions: an RGB pre-filter (`prefilter-v1`, mean absolute
+  difference < 4/255) for unchanged frames, otherwise Gemini via the additive
+  `POST /api/dish-match` contract (`DishMatchRequest` / `DishMatchResult`,
+  prompt `dish-match-v1`). `unsure` merges: missing a dish is preferred over
+  counting one twice. Without Gemini the bridge pauses; it never guesses.
+- Verdicts and minted event IDs persist in gitignored state files, so reruns
+  never regroup frames or add dishes. Provisional thresholds (3 s no-plate
+  grace, 10 s idle) need tuning on real conveyor footage. Details: BRIDGE.md.

@@ -6,7 +6,7 @@
  *
  * Loads, idempotently (re-running changes nothing):
  *   - every menu. A service that already has a menu with DIFFERENT items
- *     (e.g. the old 5-item dinners in `scrap`, now the 23-food dinner) gets a
+ *     (e.g. the old 5-item dinners in `scrap`, now the 26-food dinner) gets a
  *     new menu revision: same serviceId/menuId, menuVersion + 1 (data/
  *     planMenuRevision). Old items are archived by the module
  *     (menu_item_revision) and old analyses keep the version they froze.
@@ -16,7 +16,7 @@
  *     for the service's CURRENT menu version.
  *
  * Optional live-camera dinner (BIG-PLAN v2): `--live-dinner[=YYYY-MM-DD]`
- * also seeds the 23-food dinner (plus demo portions) for that hall-local date
+ * also seeds the 26-food dinner (plus demo portions) for that hall-local date
  * (default: today in America/Detroit), so camera captures tonight resolve to
  * svc_hall-main_<date>_dinner.
  *

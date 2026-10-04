@@ -61,7 +61,7 @@ status table below as agents report back.
   `impact_usd_per_portion`. The **"Foods to target"** list is ranked by grams per portion.
   **"Most wasted"** is ranked by total estimated grams. Missing or zero portions make the rate
   unavailable (AGENTS.md §7).
-- **D6. Demo menu and dummy portions.** The demo dinner menu uses the 23 foods in
+- **D6. Demo menu and dummy portions.** (2026-10-04: now 26 foods, adding Halal Rice, Tomatoes and Lettuce.) The demo dinner menu uses the 23 foods in
   `menu_waste_factors.csv`. Descriptions are the `gemini_visible_components` text from
   `gemini_menu_guesses_raw.txt`, because Gemini descriptions scored slightly better in
   `experiment_summary.csv`. Dummy portions use a seeded, plausible 40–260 range per item, with

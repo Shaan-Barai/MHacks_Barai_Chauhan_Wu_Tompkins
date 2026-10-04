@@ -150,6 +150,36 @@ export const WASTE_FACTORS: WasteFactor[] = [
     "largestFactor": "water"
   },
   {
+    "factorKey": "halal-rice",
+    "food": "Halal Rice",
+    "station": "Halal",
+    "weightGPerCm2": 1.3,
+    "kgCo2ePerKg": 1.9,
+    "waterM3PerKg": 0.866,
+    "impactUsdPerKg": 1.66,
+    "largestFactor": "water"
+  },
+  {
+    "factorKey": "tomatoes",
+    "food": "Tomatoes",
+    "station": "Salad Bar",
+    "weightGPerCm2": 0.8,
+    "kgCo2ePerKg": 2.09,
+    "waterM3PerKg": 0.37,
+    "impactUsdPerKg": 0.95,
+    "largestFactor": "water"
+  },
+  {
+    "factorKey": "lettuce",
+    "food": "Lettuce",
+    "station": "Salad Bar",
+    "weightGPerCm2": 0.3,
+    "kgCo2ePerKg": 0.53,
+    "waterM3PerKg": 0.103,
+    "impactUsdPerKg": 0.26,
+    "largestFactor": "water"
+  },
+  {
     "factorKey": "cheese-bread",
     "food": "Cheese Bread",
     "station": "Pizziti",
@@ -317,6 +347,21 @@ export const NUTRITION_FACTORS: NutritionFactor[] = [
     "factorKey": "vegetable-stir-fry-blend",
     "nutrientDaysPerKg": 1.58,
     "kcalPerKg": 264
+  },
+  {
+    "factorKey": "halal-rice",
+    "nutrientDaysPerKg": 0.23,
+    "kcalPerKg": 1499
+  },
+  {
+    "factorKey": "tomatoes",
+    "nutrientDaysPerKg": 0.44,
+    "kcalPerKg": 180
+  },
+  {
+    "factorKey": "lettuce",
+    "nutrientDaysPerKg": 0.57,
+    "kcalPerKg": 155
   },
   {
     "factorKey": "cheese-bread",
@@ -500,6 +545,36 @@ export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = [
     "allergens": null,
     "labelServingG": 227,
     "menuCo2Label": "low"
+  },
+  {
+    "factorKey": "halal-rice",
+    "food": "Halal Rice",
+    "station": "Halal",
+    "visibleComponents": null,
+    "ingredients": null,
+    "allergens": null,
+    "labelServingG": null,
+    "menuCo2Label": null
+  },
+  {
+    "factorKey": "tomatoes",
+    "food": "Tomatoes",
+    "station": "Salad Bar",
+    "visibleComponents": null,
+    "ingredients": null,
+    "allergens": null,
+    "labelServingG": null,
+    "menuCo2Label": null
+  },
+  {
+    "factorKey": "lettuce",
+    "food": "Lettuce",
+    "station": "Salad Bar",
+    "visibleComponents": null,
+    "ingredients": null,
+    "allergens": null,
+    "labelServingG": null,
+    "menuCo2Label": null
   },
   {
     "factorKey": "cheese-bread",

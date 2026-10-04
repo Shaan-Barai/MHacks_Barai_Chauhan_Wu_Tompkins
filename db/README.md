@@ -206,7 +206,7 @@ change only through Agent 2.
 
 Demo seed data lives in **`data/seed/demo-seed.json`** (labeled DEMO DATA;
 provenance in `data/README.md`): 9 menus (3 days × 3 meals, `hall-main`,
-America/Detroit; each dinner is the 23-food factor menu), 99 `manual_area`
+America/Detroit; each dinner is the 26-food factor menu), 99 `manual_area`
 reference portions, and 69 demo portions served (dinners). Keeping the seed in
 `data/` keeps one source of truth for backend fixtures, analytics, and the
 published database.
@@ -220,7 +220,7 @@ the backend's validated API, so it lands in `scrap` when the backend uses it):
   keep the version they froze; the old items move to `menu_item_revision`.
 - Demo portions are saved as a replacement snapshot for each dinner's
   **current** version.
-- `--live-dinner[=YYYY-MM-DD]` also seeds the 23-food dinner plus demo portions
+- `--live-dinner[=YYYY-MM-DD]` also seeds the 26-food dinner plus demo portions
   for that hall-local date (default: today in America/Detroit) so live camera
   captures resolve to `svc_hall-main_<date>_dinner`.
 - Idempotent: a second run creates and revises nothing.

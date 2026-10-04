@@ -8,7 +8,7 @@
  * contracts/samples.json).
  *
  * Breakfast and lunch menus are invented. Every dinner (BIG-PLAN D6) is the
- * test dining hall's 23-food dinner menu from menu_waste_factors.csv: display
+ * test dining hall's 26-food dinner menu from menu_waste_factors.csv: display
  * name = CSV `food`, category = station, description = Gemini's visible
  * components. Each dinner also gets DEMO portions-served counts (seeded,
  * plausible 40-260 per item, source 'demo').
@@ -139,6 +139,9 @@ export interface DemoSeed {
  */
 const FALLBACK_VISIBLE_COMPONENTS: Record<string, string> = {
   'baked-sweet-potatoes': 'orange baked sweet potato flesh and skins',
+  'halal-rice': 'loose, fluffy yellow-orange long-grain rice tinted with turmeric, separate grains, sometimes with flecks of spice or onion',
+  tomatoes: 'diced or sliced raw red tomato pieces with glossy red flesh, pale seeds and juice',
+  lettuce: 'shredded or chopped raw lettuce, crisp pale-green to green leaf ribbons and torn pieces',
 };
 
 /** Portion role per factor food; drives the reference area and the demo count range. */
@@ -169,7 +172,7 @@ export const DEMO_PORTION_RANGES: Record<PortionRole, readonly [number, number]>
 
 export const DEMO_PORTIONS_SEED = 'demo-portions-v1';
 
-/** The 23-food dinner menu (CSV order). */
+/** The 26-food dinner menu (CSV order). */
 export function factorDinnerItems(): DemoItem[] {
   return WASTE_FACTOR_MENU_TEXT.map((row) => {
     const description = row.visibleComponents ?? FALLBACK_VISIBLE_COMPONENTS[row.factorKey];
@@ -265,10 +268,10 @@ export function buildDemoSeed(): DemoSeed {
 
   return {
     label:
-      'DEMO DATA — fictional breakfast/lunch menus, the test hall\'s 23-food dinner menu, hand-assigned manual_area reference portions, and dummy demo portions-served counts for the Scrap prototype. Not real hall data; not measured portions or real serving counts.',
+      'DEMO DATA — fictional breakfast/lunch menus, the test hall\'s 26-food dinner menu, hand-assigned manual_area reference portions, and dummy demo portions-served counts for the Scrap prototype. Not real hall data; not measured portions or real serving counts.',
     demo: true,
     provenance:
-      'Generated deterministically by data/src/seed/generate.ts (scrap-data). Regenerate with `npm run seed` in data/. Dinner items come from menu_waste_factors.csv (descriptions = gemini_visible_components; Baked Sweet Potatoes uses a hand-written fallback). portionsServed are DEMO counts from a seeded hash (seed "demo-portions-v1", 40-260 per item by role), source "demo".',
+      'Generated deterministically by data/src/seed/generate.ts (scrap-data). Regenerate with `npm run seed` in data/. Dinner items come from menu_waste_factors.csv (descriptions = gemini_visible_components; Baked Sweet Potatoes, Halal Rice, Tomatoes and Lettuce use hand-written fallbacks). portionsServed are DEMO counts from a seeded hash (seed "demo-portions-v1", 40-260 per item by role), source "demo".',
     hallId: upload.hallId,
     hallTimezone: upload.hallTimezone,
     coordinateSpace: DEMO_GEOMETRY.coordinateSpace,

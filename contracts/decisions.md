@@ -399,7 +399,7 @@ impact → dashboard. Full plan and tracker: [BIG-PLAN.md](../BIG-PLAN.md).
   hall/date/service/menu version), plus pixels and $ per portion. "Foods to
   target" ranks by grams per portion; "Most wasted" by total grams. Missing or
   zero portions ⇒ unavailable.
-- **D6** demo dinner menu = the 23 factor-table foods with Gemini visible
+- **D6** demo dinner menu = the 23 factor-table foods (26 since 2026-10-04: + Halal Rice, Tomatoes, Lettuce; see menu_waste_factors_README.md) with Gemini visible
   descriptions; dummy portions are seeded, source `demo`, labeled.
 - **D7** R2 holds photo, per-food masks, and a segmented overlay JPEG per
   capture (`image_object.association.kind = 'overlay'`); dashboard reads via

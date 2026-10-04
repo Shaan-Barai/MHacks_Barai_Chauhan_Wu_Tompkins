@@ -33,7 +33,7 @@ test('factors: factorKeyFor slugs display names', () => {
 
 test('factors: generated waste table matches menu_waste_factors.csv', () => {
   const rows = csvObjects('menu_waste_factors.csv');
-  assert.equal(rows.length, 23);
+  assert.equal(rows.length, 26);
   assert.equal(WASTE_FACTORS.length, rows.length);
   rows.forEach((r, i) => {
     const f = WASTE_FACTORS[i]!;
@@ -48,7 +48,7 @@ test('factors: generated waste table matches menu_waste_factors.csv', () => {
       largestFactor: r.largest_factor,
     });
   });
-  assert.equal(new Set(WASTE_FACTORS.map((f) => f.factorKey)).size, 23);
+  assert.equal(new Set(WASTE_FACTORS.map((f) => f.factorKey)).size, 26);
 });
 
 test('factors: score is 0.19*C + 1.50*W with no nutrition term', () => {

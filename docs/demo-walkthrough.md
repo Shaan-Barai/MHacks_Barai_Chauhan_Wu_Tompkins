@@ -11,7 +11,7 @@ step below in order and pauses between them, so you can narrate. The script belo
 
 1. Start the stack as described in [runbook.md](runbook.md#start-full-stack-r2--scrap--gemini--sam):
    SpacetimeDB, the SAM worker on :8790, the backend on :8787 against `scrap` with R2, and the frontend
-   on :5173. Run `cd backend && npm run seed -- --live-dinner` once: it seeds the 23-food dinner menus
+   on :5173. Run `cd backend && npm run seed -- --live-dinner` once: it seeds the 26-food dinner menus
    (2026-10-01..03 and today), demo portions, and leaves old analyses on the menu version they used.
 2. Decide which capture path you will show:
    - **Real camera:** the Uno Q with the C920s (`capture/uno-q/README.md`, [BRIDGE.md](../BRIDGE.md)) into

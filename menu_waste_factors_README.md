@@ -1,6 +1,6 @@
 # Waste Impact Factors: Dinner Menu
 
-Two files hold per-food constants for the 23 items on the test dining hall's dinner menu: the 22 dishes on the nutrition sheet plus Baked Sweet Potatoes, which appeared on an earlier menu.
+Two files hold per-food constants for the 26 items on the test dining hall's dinner menu: the 22 dishes on the nutrition sheet, Baked Sweet Potatoes (from an earlier menu), and **Halal Rice, Tomatoes and Lettuce** (added 2026-10-04 for the live demo; see [Added foods](#added-foods-2026-10-04)).
 
 **What the app reports (BIG-PLAN v2, 2026-10-04).** The measurement is **Pixels wasted**: leftover-food pixels counted from validated SAM 2.1 masks, only on the dish being scanned. The app has no plate-size calibration and shows no grams, kg CO2e, litres or dollars. To let a pixel of beef count for more than a pixel of rice, it turns pixels into unitless **relative impact points** using the factors in these files.
 
@@ -127,7 +127,7 @@ O = (good-nutrient days × quality multiplier) + calorie credit
 - **Quality multiplier** = `1 / (1 + L / 100)`. L is the % of the daily maximum for saturated fat, sugar and sodium in 100 g, all taken from the label. It shrinks the nutrient credit for less healthy foods but can never reach zero.
 - **Calorie credit** = 0.1 nutrient-days per 2,000 kcal, using label calories. Even food with few nutrients still feeds someone, so a full day's worth of calories with no nutrients counts as one-tenth of a nutrient-day.
 
-The result is always positive. Desserts get small values (0.39–0.55 per kg; pumpkin pie is 0.97 thanks to its vitamin A). Vegetables get the most: sweet potatoes 1.80, stir fry 1.58, brussels sprouts 1.31. The lowest is sticky rice at 0.24.
+The result is always positive. Desserts get small values (0.39–0.55 per kg; pumpkin pie is 0.97 thanks to its vitamin A). Vegetables get the most: sweet potatoes 1.80, stir fry 1.58, brussels sprouts 1.31. The lowest are Halal Rice (0.23) and sticky rice (0.24).
 
 **Why not use the NRF9.3 index as is?** Its standard formula subtracts sugar, fat and sodium, which can push desserts to zero or below. That would treat wasting dessert as a nutritional gain. This adaptation keeps the penalty as a multiplier instead.
 
@@ -145,9 +145,22 @@ Neither model knows the real recipes, since the dining hall only publishes aller
 Scores per kg (`impact_score_usd_per_kg`); the app turns them into relative impact points:
 - **Highest:** Ancho Flank Steak, 27.91, where carbon is about 90% of the score.
 - **Next:** Cheese Bread (6.95), Pepperoni Pizza (5.96) and Baked Boneless Ham (5.07).
-- **Lowest:** Baked Sweet Potatoes, 0.12, then Vegetable Stir Fry Blend (0.21) and Oven Roasted Garlic Potatoes (0.29).
-- **Largest factor:** water for 17 foods, carbon for 6 (the flank steak, pepperoni pizza, the Snickers brownies, the two vegan desserts and the sweet potatoes).
-- **Nutrition** (separate): highest for the vegetables (sweet potatoes 1.80, stir fry 1.58 nutrient-days per kg), lowest for sticky rice (0.24).
+- **Lowest:** Baked Sweet Potatoes, 0.12, then Vegetable Stir Fry Blend (0.21), Lettuce (0.26) and Oven Roasted Garlic Potatoes (0.29).
+- **Largest factor:** water for 20 foods, carbon for 6 (the flank steak, pepperoni pizza, the Snickers brownies, the two vegan desserts and the sweet potatoes).
+- **Added foods:** Halal Rice 1.66, Tomatoes 0.95, Lettuce 0.26 (water is the largest factor for all three).
+- **Nutrition** (separate): highest for the vegetables (sweet potatoes 1.80, stir fry 1.58 nutrient-days per kg), lowest for Halal Rice (0.23) and sticky rice (0.24).
+
+## Added foods (2026-10-04)
+
+Halal Rice, Tomatoes and Lettuce were added to the demo dinner so plates from the halal station and its toppings can be matched. None is on the dining hall's nutrition sheet, so like Baked Sweet Potatoes they have no label, allergen list or Gemini guess, and their menu descriptions are hand-written fallbacks in `data/src/seed/generate.ts`.
+
+| Food | Station | g/cm² | C | W | Score | Recipe and source |
+|---|---|---|---|---|---|---|
+| Halal Rice | Halal | 1.3 | 1.90 | 0.866 | 1.66 | Yellow long-grain rice: 0.38 kg raw rice per kg cooked (as Sticky Rice), 3% vegetable (soybean) oil, 3% onion, 0.6% salt. Rice, soybean oil and onion from Poore & Nemecek |
+| Tomatoes | Salad Bar | 0.8 | 2.09 | 0.370 | 0.95 | Raw tomatoes, Poore & Nemecek global median (includes heated greenhouses, so C is upper-range) |
+| Lettuce | Salad Bar | 0.3 | 0.53 | 0.103 | 0.26 | Poore & Nemecek has no lettuce row, so "Other Vegetables" is used. Shredded leaves are airy, hence the low density |
+
+Nutrition (in `menu_nutrition_factors.csv`, separate from the score) uses the same O formula with USDA values per 100 g: Halal Rice 0.23 (unenriched cooked long-grain rice, oil, onion, salt), Tomatoes 0.44 (raw red tomatoes), Lettuce 0.57 (raw romaine and iceberg, 50/50). The method reproduces the existing Baked Sweet Potatoes row (O 1.80). The densities are estimates like the others: Halal Rice is looser than Sticky Rice (1.6), and a layer of diced tomato is about 0.8 g/cm².
 
 ## Caveats
 - **Relative impact points are not physical quantities.** They are pixels weighted by the density constants and the factors, so they rank foods against each other but are not kg, litres or dollars. Pixel area also depends on the camera distance and plate size, which the app does not calibrate. Accurate pixel counting does not guarantee accurate segmentation.

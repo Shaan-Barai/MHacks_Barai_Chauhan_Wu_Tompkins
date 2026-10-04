@@ -12,6 +12,9 @@ Signature Maize,Roasted Cauliflower,1.09,281,1.074,0.014,0.95,10.21,"dining hall
 Halal,Ancho Flank Steak,1.05,2025,0.949,0.101,0.76,9.86,"dining hall label (6 of 9 nutrients, sat fat, sugar, sodium, kcal) + recipe estimate (vit E, K, Mg)",94,141,7,3,154,1,1,0,19,8,0,4,12,"label matches raw flank steak, so label nutrients x1.35 for cooked"
 Halal,Sticky Rice,0.24,941,0.196,0.047,1.0,2.28,"dining hall label (6 of 9 nutrients, sat fat, sugar, sodium, kcal) + recipe estimate (vit E, K, Mg)",85,80,0,0,0,18,1,0,2,0,0,0,6,label leaves vitamin A and C blank; treated as 0
 Halal,Vegetable Stir Fry Blend,1.58,264,1.571,0.013,0.94,14.87,"dining hall label (6 of 9 nutrients, sat fat, sugar, sodium, kcal) + recipe estimate (vit E, K, Mg)",227,60,1,0,200,11,4,3,4,72,193,14,9,
+Halal,Halal Rice,0.23,1499,0.151,0.075,0.96,2.12,recipe estimate from USDA ingredient values (no label),,,,,,,,,,,,,,"no label; USDA long-grain white rice (unenriched, cooked) 94%, soybean oil 3%, onion 3%, salt 0.6%"
+Salad Bar,Tomatoes,0.44,180,0.43,0.009,0.98,4.13,recipe estimate from USDA ingredient values (no label),,,,,,,,,,,,,,"no label; USDA red ripe tomatoes, raw"
+Salad Bar,Lettuce,0.57,155,0.558,0.008,0.99,5.32,recipe estimate from USDA ingredient values (no label),,,,,,,,,,,,,,"no label; USDA romaine and iceberg lettuce, raw, 50/50"
 Pizziti,Cheese Bread,0.92,4157,0.709,0.208,0.57,8.61,"dining hall label (6 of 9 nutrients, sat fat, sugar, sodium, kcal) + recipe estimate (vit E, K, Mg)",51,212,8,4,389,22,1,1,9,0,0,18,13,
 Pizziti,Pepperoni Pizza,0.69,2708,0.556,0.135,0.68,6.5,"dining hall label (6 of 9 nutrients, sat fat, sugar, sodium, kcal) + recipe estimate (vit E, K, Mg)",113,306,10,4,647,33,2,2,13,0,0,18,16,
 Pizziti,Cheese Pizza,0.72,2648,0.591,0.132,0.71,6.79,"dining hall label (6 of 9 nutrients, sat fat, sugar, sodium, kcal) + recipe estimate (vit E, K, Mg)",105,278,8,3,540,33,2,2,12,0,0,18,15,

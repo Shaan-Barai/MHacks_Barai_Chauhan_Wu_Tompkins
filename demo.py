@@ -253,7 +253,7 @@ def step_menu(demo):
     """Today's dinner menu, with waste factors and demo portions served."""
     status, menu = demo.get(f"/api/menus/by-service/{demo.service_id}")
     if status != 200 and not demo.args.service:
-        print(f"  No menu for {demo.service_id} yet. Seeding the 23-food demo dinner for {demo.date}…")
+        print(f"  No menu for {demo.service_id} yet. Seeding the 26-food demo dinner for {demo.date}…")
         run_live(["npm", "run", "--silent", "seed", "--", f"--live-dinner={demo.date}"], cwd=REPO / "backend",
                  env={"API_URL": demo.api})
         status, menu = demo.get(f"/api/menus/by-service/{demo.service_id}")

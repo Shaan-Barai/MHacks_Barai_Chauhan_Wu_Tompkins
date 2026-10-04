@@ -17,7 +17,7 @@ npm test           # build + node --test (in-memory repo, mock analyzer, offline
 # separate test database (SPACETIMEDB_TEST_MODULE, default scrap-test; never scrap):
 set -a; . ../.env; set +a; SCRAP_LIVE_REPO_TEST=1 npm test
 npm run seed       # load data/seed/demo-seed.json through the API (backend running):
-                   # menus (incl. the 23-food demo dinner), reference portions, and
+                   # menus (incl. the 26-food demo dinner), reference portions, and
                    # demo portions served (source "demo"); idempotent
 ```
 

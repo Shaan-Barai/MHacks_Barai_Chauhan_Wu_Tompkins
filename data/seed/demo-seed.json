@@ -1,7 +1,7 @@
 {
-  "label": "DEMO DATA — fictional breakfast/lunch menus, the test hall's 23-food dinner menu, hand-assigned manual_area reference portions, and dummy demo portions-served counts for the Scrap prototype. Not real hall data; not measured portions or real serving counts.",
+  "label": "DEMO DATA — fictional breakfast/lunch menus, the test hall's 26-food dinner menu, hand-assigned manual_area reference portions, and dummy demo portions-served counts for the Scrap prototype. Not real hall data; not measured portions or real serving counts.",
   "demo": true,
-  "provenance": "Generated deterministically by data/src/seed/generate.ts (scrap-data). Regenerate with `npm run seed` in data/. Dinner items come from menu_waste_factors.csv (descriptions = gemini_visible_components; Baked Sweet Potatoes uses a hand-written fallback). portionsServed are DEMO counts from a seeded hash (seed \"demo-portions-v1\", 40-260 per item by role), source \"demo\".",
+  "provenance": "Generated deterministically by data/src/seed/generate.ts (scrap-data). Regenerate with `npm run seed` in data/. Dinner items come from menu_waste_factors.csv (descriptions = gemini_visible_components; Baked Sweet Potatoes, Halal Rice, Tomatoes and Lettuce use hand-written fallbacks). portionsServed are DEMO counts from a seeded hash (seed \"demo-portions-v1\", 40-260 per item by role), source \"demo\".",
   "hallId": "hall-main",
   "hallTimezone": "America/Detroit",
   "coordinateSpace": "topdown-normalized-v1",
@@ -203,6 +203,27 @@
           "displayName": "Vegetable Stir Fry Blend",
           "category": "Halal",
           "description": "colorful assortment of tender-crisp cut vegetables including dark green broccoli florets, diagonal sliced orange carrots, red bell pepper strips, green snap peas, and ivory water chestnut slices coated in a clear sheen"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_dinner_halal-rice",
+          "menuId": "menu_hall-main_2026-10-01_dinner",
+          "displayName": "Halal Rice",
+          "category": "Halal",
+          "description": "loose, fluffy yellow-orange long-grain rice tinted with turmeric, separate grains, sometimes with flecks of spice or onion"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_dinner_tomatoes",
+          "menuId": "menu_hall-main_2026-10-01_dinner",
+          "displayName": "Tomatoes",
+          "category": "Salad Bar",
+          "description": "diced or sliced raw red tomato pieces with glossy red flesh, pale seeds and juice"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-01_dinner_lettuce",
+          "menuId": "menu_hall-main_2026-10-01_dinner",
+          "displayName": "Lettuce",
+          "category": "Salad Bar",
+          "description": "shredded or chopped raw lettuce, crisp pale-green to green leaf ribbons and torn pieces"
         },
         {
           "itemId": "item_hall-main_2026-10-01_dinner_cheese-bread",
@@ -475,6 +496,27 @@
           "description": "colorful assortment of tender-crisp cut vegetables including dark green broccoli florets, diagonal sliced orange carrots, red bell pepper strips, green snap peas, and ivory water chestnut slices coated in a clear sheen"
         },
         {
+          "itemId": "item_hall-main_2026-10-02_dinner_halal-rice",
+          "menuId": "menu_hall-main_2026-10-02_dinner",
+          "displayName": "Halal Rice",
+          "category": "Halal",
+          "description": "loose, fluffy yellow-orange long-grain rice tinted with turmeric, separate grains, sometimes with flecks of spice or onion"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_dinner_tomatoes",
+          "menuId": "menu_hall-main_2026-10-02_dinner",
+          "displayName": "Tomatoes",
+          "category": "Salad Bar",
+          "description": "diced or sliced raw red tomato pieces with glossy red flesh, pale seeds and juice"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-02_dinner_lettuce",
+          "menuId": "menu_hall-main_2026-10-02_dinner",
+          "displayName": "Lettuce",
+          "category": "Salad Bar",
+          "description": "shredded or chopped raw lettuce, crisp pale-green to green leaf ribbons and torn pieces"
+        },
+        {
           "itemId": "item_hall-main_2026-10-02_dinner_cheese-bread",
           "menuId": "menu_hall-main_2026-10-02_dinner",
           "displayName": "Cheese Bread",
@@ -743,6 +785,27 @@
           "displayName": "Vegetable Stir Fry Blend",
           "category": "Halal",
           "description": "colorful assortment of tender-crisp cut vegetables including dark green broccoli florets, diagonal sliced orange carrots, red bell pepper strips, green snap peas, and ivory water chestnut slices coated in a clear sheen"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_dinner_halal-rice",
+          "menuId": "menu_hall-main_2026-10-03_dinner",
+          "displayName": "Halal Rice",
+          "category": "Halal",
+          "description": "loose, fluffy yellow-orange long-grain rice tinted with turmeric, separate grains, sometimes with flecks of spice or onion"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_dinner_tomatoes",
+          "menuId": "menu_hall-main_2026-10-03_dinner",
+          "displayName": "Tomatoes",
+          "category": "Salad Bar",
+          "description": "diced or sliced raw red tomato pieces with glossy red flesh, pale seeds and juice"
+        },
+        {
+          "itemId": "item_hall-main_2026-10-03_dinner_lettuce",
+          "menuId": "menu_hall-main_2026-10-03_dinner",
+          "displayName": "Lettuce",
+          "category": "Salad Bar",
+          "description": "shredded or chopped raw lettuce, crisp pale-green to green leaf ribbons and torn pieces"
         },
         {
           "itemId": "item_hall-main_2026-10-03_dinner_cheese-bread",
@@ -1131,6 +1194,48 @@
       "baselineVersion": 1,
       "itemId": "item_hall-main_2026-10-01_dinner_vegetable-stir-fry-blend",
       "expectedAreaPx": 26357,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_dinner_halal-rice_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_halal-rice",
+      "expectedAreaPx": 24203,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_dinner_tomatoes_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_tomatoes",
+      "expectedAreaPx": 26816,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-01_dinner_lettuce_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_lettuce",
+      "expectedAreaPx": 25262,
       "geometry": {
         "widthPx": 1024,
         "heightPx": 1024,
@@ -1603,6 +1708,48 @@
       "source": "manual_area"
     },
     {
+      "baselineId": "base_hall-main_2026-10-02_dinner_halal-rice_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_halal-rice",
+      "expectedAreaPx": 24203,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_dinner_tomatoes_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_tomatoes",
+      "expectedAreaPx": 26816,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-02_dinner_lettuce_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_lettuce",
+      "expectedAreaPx": 25262,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
       "baselineId": "base_hall-main_2026-10-02_dinner_cheese-bread_v1",
       "baselineVersion": 1,
       "itemId": "item_hall-main_2026-10-02_dinner_cheese-bread",
@@ -2065,6 +2212,48 @@
       "source": "manual_area"
     },
     {
+      "baselineId": "base_hall-main_2026-10-03_dinner_halal-rice_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_halal-rice",
+      "expectedAreaPx": 24203,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_dinner_tomatoes_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_tomatoes",
+      "expectedAreaPx": 26816,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
+      "baselineId": "base_hall-main_2026-10-03_dinner_lettuce_v1",
+      "baselineVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_lettuce",
+      "expectedAreaPx": 25262,
+      "geometry": {
+        "widthPx": 1024,
+        "heightPx": 1024,
+        "coordinateSpace": "topdown-normalized-v1",
+        "plateShape": "round",
+        "plateDiameterPx": 900
+      },
+      "source": "manual_area"
+    },
+    {
       "baselineId": "base_hall-main_2026-10-03_dinner_cheese-bread_v1",
       "baselineVersion": 1,
       "itemId": "item_hall-main_2026-10-03_dinner_cheese-bread",
@@ -2363,6 +2552,42 @@
       "updatedAt": "2026-10-01T23:30:00.000Z"
     },
     {
+      "recordId": "[\"svc_hall-main_2026-10-01_dinner\",1,\"item_hall-main_2026-10-01_dinner_halal-rice\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-01_dinner",
+      "serviceDate": "2026-10-01",
+      "menuId": "menu_hall-main_2026-10-01_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_halal-rice",
+      "count": 75,
+      "source": "demo",
+      "updatedAt": "2026-10-01T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-01_dinner\",1,\"item_hall-main_2026-10-01_dinner_tomatoes\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-01_dinner",
+      "serviceDate": "2026-10-01",
+      "menuId": "menu_hall-main_2026-10-01_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_tomatoes",
+      "count": 119,
+      "source": "demo",
+      "updatedAt": "2026-10-01T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-01_dinner\",1,\"item_hall-main_2026-10-01_dinner_lettuce\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-01_dinner",
+      "serviceDate": "2026-10-01",
+      "menuId": "menu_hall-main_2026-10-01_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-01_dinner_lettuce",
+      "count": 81,
+      "source": "demo",
+      "updatedAt": "2026-10-01T23:30:00.000Z"
+    },
+    {
       "recordId": "[\"svc_hall-main_2026-10-01_dinner\",1,\"item_hall-main_2026-10-01_dinner_cheese-bread\"]",
       "hallId": "hall-main",
       "serviceId": "svc_hall-main_2026-10-01_dinner",
@@ -2639,6 +2864,42 @@
       "updatedAt": "2026-10-02T23:30:00.000Z"
     },
     {
+      "recordId": "[\"svc_hall-main_2026-10-02_dinner\",1,\"item_hall-main_2026-10-02_dinner_halal-rice\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-02_dinner",
+      "serviceDate": "2026-10-02",
+      "menuId": "menu_hall-main_2026-10-02_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_halal-rice",
+      "count": 153,
+      "source": "demo",
+      "updatedAt": "2026-10-02T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-02_dinner\",1,\"item_hall-main_2026-10-02_dinner_tomatoes\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-02_dinner",
+      "serviceDate": "2026-10-02",
+      "menuId": "menu_hall-main_2026-10-02_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_tomatoes",
+      "count": 108,
+      "source": "demo",
+      "updatedAt": "2026-10-02T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-02_dinner\",1,\"item_hall-main_2026-10-02_dinner_lettuce\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-02_dinner",
+      "serviceDate": "2026-10-02",
+      "menuId": "menu_hall-main_2026-10-02_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-02_dinner_lettuce",
+      "count": 121,
+      "source": "demo",
+      "updatedAt": "2026-10-02T23:30:00.000Z"
+    },
+    {
       "recordId": "[\"svc_hall-main_2026-10-02_dinner\",1,\"item_hall-main_2026-10-02_dinner_cheese-bread\"]",
       "hallId": "hall-main",
       "serviceId": "svc_hall-main_2026-10-02_dinner",
@@ -2911,6 +3172,42 @@
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-03_dinner_vegetable-stir-fry-blend",
       "count": 80,
+      "source": "demo",
+      "updatedAt": "2026-10-03T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-03_dinner\",1,\"item_hall-main_2026-10-03_dinner_halal-rice\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_dinner",
+      "serviceDate": "2026-10-03",
+      "menuId": "menu_hall-main_2026-10-03_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_halal-rice",
+      "count": 142,
+      "source": "demo",
+      "updatedAt": "2026-10-03T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-03_dinner\",1,\"item_hall-main_2026-10-03_dinner_tomatoes\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_dinner",
+      "serviceDate": "2026-10-03",
+      "menuId": "menu_hall-main_2026-10-03_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_tomatoes",
+      "count": 139,
+      "source": "demo",
+      "updatedAt": "2026-10-03T23:30:00.000Z"
+    },
+    {
+      "recordId": "[\"svc_hall-main_2026-10-03_dinner\",1,\"item_hall-main_2026-10-03_dinner_lettuce\"]",
+      "hallId": "hall-main",
+      "serviceId": "svc_hall-main_2026-10-03_dinner",
+      "serviceDate": "2026-10-03",
+      "menuId": "menu_hall-main_2026-10-03_dinner",
+      "menuVersion": 1,
+      "itemId": "item_hall-main_2026-10-03_dinner_lettuce",
+      "count": 132,
       "source": "demo",
       "updatedAt": "2026-10-03T23:30:00.000Z"
     },

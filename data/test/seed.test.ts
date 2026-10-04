@@ -86,7 +86,7 @@ test('seed: the checked-in JSON file matches the generator output', () => {
   assert.deepEqual(loadCheckedInSeed(), JSON.parse(JSON.stringify(buildDemoSeed())));
 });
 
-test('seed: every dinner is the 23-food factor menu with Gemini descriptions', () => {
+test('seed: every dinner is the 26-food factor menu with Gemini descriptions', () => {
   const seed = buildDemoSeed();
   const dinners = seed.menus.filter((m) => m.service.mealLabel === 'dinner');
   assert.deepEqual(

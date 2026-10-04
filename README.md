@@ -104,8 +104,8 @@ cd db/spacetimedb && npm ci && spacetime publish --module-path . --server local 
 # 5. Backend API (builds data/vision/analytics first) — http://localhost:8787
 cd backend && npm ci && SPACETIMEDB_MODULE=scrap npm start   # own terminal
 
-# 6. Demo data: seed menus (incl. the 23-food dinner) + demo portions served
-cd backend && SPACETIMEDB_MODULE=scrap npm run seed -- --live-dinner   # adds today's 23-food dinner
+# 6. Demo data: seed menus (incl. the 26-food dinner) + demo portions served
+cd backend && SPACETIMEDB_MODULE=scrap npm run seed -- --live-dinner   # adds today's 26-food dinner
 
 # 7a. Real camera: Uno Q → laptop inbox, then the bridge (BRIDGE.md, ARDUINO.md)
 python3 capture/uno-q/laptop_capture.py --target arduino@YOUR_BOARD_IP --auto

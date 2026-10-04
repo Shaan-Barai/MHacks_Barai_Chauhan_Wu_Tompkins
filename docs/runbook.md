@@ -33,7 +33,7 @@ cd backend && npm ci && npm run build
 PORT=8787 node --env-file=/Users/mike/mhacks/.env dist/backend/src/server.js
 #    expect: "storage: r2, persistence: SpacetimeDB scrap, vision: Gemini classification + SAM 2.1 masks"
 #    once (idempotent): cd backend && npm run seed -- --live-dinner
-#      menus incl. the 23-food dinners for 2026-10-01..03 (a menu revision where the stored items
+#      menus incl. the 26-food dinners for 2026-10-01..03 (a menu revision where the stored items
 #      differed), demo portions, and today's dinner (hall-local date, America/Detroit) for the camera.
 
 # 4. Frontend: http://localhost:5173 (proxies /api to :8787)

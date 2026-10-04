@@ -17,6 +17,7 @@
   .spinner { display: inline-block; width: 18px; height: 18px; border: 3px solid #fff; border-right-color: transparent; border-radius: 50%;
              animation: spin .8s linear infinite; vertical-align: -3px; margin-right: 10px; }
   @keyframes spin { to { transform: rotate(360deg); } }
+  .note { color: #666; font-size: 14px; margin-top: 24px; }
   #error { color: var(--err); margin-top: 16px; min-height: 24px; }
 </style>
 </head>
@@ -25,6 +26,7 @@
   <button id="upload" type="button">Upload a photo</button>
   <input type="file" id="file" accept="image/*" hidden>
   <p id="error" role="alert"></p>
+  <p class="note">Analyses run one at a time, so a photo may wait behind others. Results are temporary: only the last 20 are kept and all are lost when the server restarts. Save anything you need.</p>
 </main>
 <script>
 const button = document.getElementById('upload');

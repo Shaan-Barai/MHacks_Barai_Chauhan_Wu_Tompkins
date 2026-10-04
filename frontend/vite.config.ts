@@ -10,7 +10,8 @@ const execArgv = nodeMajor >= 22 ? ['--no-experimental-webstorage'] : []
 export default defineConfig({
   plugins: [react()],
   // Dev: the dashboard calls the backend through /api (backend/README.md).
-  server: { proxy: { '/api': process.env.VITE_PROXY_TARGET ?? 'http://localhost:8787' } },
+  // Pin to IPv4 loopback: Vite's default can bind [::1] only, so 127.0.0.1 checks failed (D11).
+  server: { host: '127.0.0.1', proxy: { '/api': process.env.VITE_PROXY_TARGET ?? 'http://localhost:8787' } },
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test-setup.ts'],

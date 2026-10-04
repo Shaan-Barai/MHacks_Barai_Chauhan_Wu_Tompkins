@@ -965,8 +965,9 @@ def slug(name):
 
 
 def load_factors():
-    path = REPO / "menu_waste_factors.csv"
-    if not path.exists():
+    # Renamed to menu_waste_factors_EastQuad.csv on 2026-10-04; accept either name.
+    path = next((p for p in (REPO / "menu_waste_factors_EastQuad.csv", REPO / "menu_waste_factors.csv") if p.exists()), None)
+    if path is None:
         return {}
     with path.open(newline="") as f:
         return {slug(row["food"]): row for row in csv.DictReader(f)}

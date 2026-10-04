@@ -12,7 +12,7 @@
  * make-demo-pictures.mjs (demo_pictures/) and server.mjs (upload website).
  */
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -52,6 +52,10 @@ function parseCsv(text) {
 }
 
 const readCsv = (name) => parseCsv(readFileSync(path.join(REPO, name), 'utf8'));
+/** The dinner tables were renamed with an _EastQuad suffix (2026-10-04); accept either name. */
+const firstExisting = (...names) => names.find((n) => existsSync(path.join(REPO, n))) ?? names[0];
+const DINNER_FACTORS = firstExisting('menu_waste_factors_EastQuad.csv', 'menu_waste_factors.csv');
+const DINNER_NUTRITION = firstExisting('menu_nutrition_factors_EastQuad.csv', 'menu_nutrition_factors.csv');
 const num = (v) => (v === undefined || v === '' ? null : Number(v));
 export const slug = (s) => s.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
@@ -71,10 +75,10 @@ const FALLBACK_DESCRIPTIONS = {
  * Lettuce duplicate Halal Rice, Tomatoes and Lettuce, so only Halal Chicken is added).
  */
 export function loadFoodDatabase() {
-  const nutrition = new Map(readCsv('menu_nutrition_factors.csv').map((r) => [r.food, r]));
+  const nutrition = new Map(readCsv(DINNER_NUTRITION).map((r) => [r.food, r]));
   const DUPLICATES = new Set(['Yellow Rice', 'Diced Tomatoes', 'Shredded Lettuce']);
   const rows = [
-    ...readCsv('menu_waste_factors.csv').map((r) => ({ ...r, ...(nutrition.get(r.food) ?? {}), table: 'menu_waste_factors.csv' })),
+    ...readCsv(DINNER_FACTORS).map((r) => ({ ...r, ...(nutrition.get(r.food) ?? {}), table: DINNER_FACTORS })),
     ...readCsv('menu_waste_factors_halal_bros.csv')
       .filter((r) => !DUPLICATES.has(r.food))
       .map((r) => ({ ...r, table: 'menu_waste_factors_halal_bros.csv' })),

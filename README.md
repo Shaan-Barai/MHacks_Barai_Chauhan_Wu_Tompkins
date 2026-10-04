@@ -68,9 +68,10 @@ python3 demo.py --list           # the steps; --only/--skip pick some, --events 
 python3 demo.py --simulate --hall hall-test   # run on a test hall instead of hall-main
 ```
 
-**Upload website:** `node upload_demo/server.mjs` → http://localhost:8795. Anyone can upload a food
-photo and see the original, Gemini's boxes, SAM 2.1's masks, the final Pixels wasted, and each food's
-carbon and water factors from the 27-food database ([`upload_demo/README.md`](upload_demo/README.md)).
+**Upload website:** `node upload_demo/server.mjs` → http://localhost:8795. One "Upload a photo"
+button; after the upload, a results page shows the original, Gemini's classification, SAM 2.1's masks,
+the final result and the total food wasted (Halal Chicken + Halal Rice;
+[`upload_demo/README.md`](upload_demo/README.md)).
 [`demo_pictures/`](demo_pictures/README.md) shows every step for the halal chicken + rice bowl.
 
 It needs the stack from [Setup](#setup) (it offers to start missing services) and writes its

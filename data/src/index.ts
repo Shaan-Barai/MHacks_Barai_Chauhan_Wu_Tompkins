@@ -7,6 +7,19 @@ export * from './types.js';
 export { parsePortionsServed, parsePortionsCsv, MAX_PORTIONS_SERVED } from './portionsServed.js';
 export { DataValidationError } from './errors.js';
 export {
+  WASTE_FACTORS,
+  NUTRITION_FACTORS,
+  WASTE_FACTOR_MENU_TEXT,
+  WASTE_FACTORS_VERSION,
+  CARBON_USD_PER_KG_CO2E,
+  WATER_USD_PER_M3,
+  factorKeyFor,
+  findWasteFactor,
+  findNutritionFactor,
+  findFactorMenuText,
+  type WasteFactorMenuText,
+} from './factors.js';
+export {
   MEAL_LABELS,
   slugifyName,
   makeServiceId,

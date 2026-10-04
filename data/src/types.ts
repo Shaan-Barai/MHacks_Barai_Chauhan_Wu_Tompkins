@@ -15,6 +15,11 @@ export type {
   ImageGeometry,
   ReferencePortion,
   ApiError,
+  PortionsServed,
+  PlateCalibration,
+  CalibrationFlag,
+  WasteFactor,
+  NutritionFactor,
 } from '../../contracts/types.js';
 
 /**

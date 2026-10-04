@@ -13,8 +13,9 @@ Self-contained Node 20+ / TypeScript package; dependencies live in
 ```bash
 cd data
 npm install
-npm test     # build + node --test (27 tests)
-npm run seed # regenerate seed/demo-seed.json (deterministic, byte-identical)
+npm test        # build + node --test
+npm run seed    # regenerate seed/demo-seed.json (deterministic, byte-identical)
+npm run factors # regenerate src/factors.generated.ts from the root factor CSVs
 ```
 
 ## Menu upload formats (UI.md setup step 2 — "Upload menus myself")
@@ -144,6 +145,22 @@ output (null = unknown is always allowed).
 `revise` (same serviceId/menuId, `menuVersion + 1`). A different hall, date,
 or meal is a `SERVICE_MISMATCH` error, never a rewrite. Stored history stays
 valid because `AnalysisAttempt` freezes the `menuVersion` it used.
+
+## Waste and nutrition factors (BIG-PLAN D1, D4)
+
+`menu_waste_factors.csv` and `menu_nutrition_factors.csv` (repo root) are the
+source of truth. `scripts/generate-factors.mjs` (`npm run factors`) turns them
+into `src/factors.generated.ts`; a test fails when the committed module drifts
+from the CSVs, and checks `impactUsdPerKg = 0.19*C + 1.50*W` (no nutrition).
+
+| Export | Meaning |
+| --- | --- |
+| `WASTE_FACTORS: WasteFactor[]` | One contract `WasteFactor` per waste-CSV row (23 dinner foods) |
+| `NUTRITION_FACTORS: NutritionFactor[]` | Nutrient-days and kcal per kg, reported separately, never in the score |
+| `WASTE_FACTOR_MENU_TEXT` | Gemini visible components/ingredients, allergens, label serving per row |
+| `factorKeyFor(displayName)` | `slug(displayName)`: lowercase ASCII, non-alphanumerics -> `-`, trimmed (same as `slugifyName`) |
+| `findWasteFactor(name)` / `findNutritionFactor(name)` / `findFactorMenuText(name)` | Lookup by slug; `null` = no factor (show "no impact factor", never zero) |
+| `WASTE_FACTORS_VERSION` | `'waste-factors-v2'`, stamped on every derived impact |
 
 ## Demo seed — `seed/demo-seed.json`
 

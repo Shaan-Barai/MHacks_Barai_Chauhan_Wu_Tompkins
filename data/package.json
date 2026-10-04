@@ -10,7 +10,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "npm run build && node --test dist/data/test/*.test.js",
-    "seed": "npm run build && node dist/data/src/seed/generate.js"
+    "seed": "npm run build && node dist/data/src/seed/generate.js",
+    "factors": "node scripts/generate-factors.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.17.0",

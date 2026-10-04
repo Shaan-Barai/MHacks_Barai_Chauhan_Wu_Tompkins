@@ -23,10 +23,12 @@ describe('CameraCalibrationPanel signed out', () => {
     expect(screen.getByText(/Don't move the camera afterwards/)).toBeInTheDocument()
     expect(screen.getByText('Sign in to change this.')).toBeInTheDocument()
 
-    const toggle = await screen.findByRole('switch', { name: /Depth Anything V2 on/ })
-    expect(toggle).toBeChecked()
+    const toggle = await screen.findByRole('switch', { name: /Depth Anything V2 off/ })
+    expect(toggle).not.toBeChecked()
     expect(toggle).toBeDisabled()
-    expect(screen.getByText(/On: estimates each food’s volume from a depth map/)).toBeInTheDocument()
+    expect(screen.getByText('Experimental')).toBeInTheDocument()
+    expect(screen.getByText(/On: estimates each food’s volume from a depth map.*If depth can’t be measured, the area estimate is used\./)).toBeInTheDocument()
+    expect(screen.getByText(/mounted camera at its usual position/)).toBeInTheDocument()
 
     // the active calibration is shown first
     const result = await screen.findByRole('region', { name: /Calibration from/ })
@@ -106,9 +108,9 @@ describe('CameraCalibrationPanel signed in', () => {
     fireEvent.click(within(form).getByRole('button', { name: 'Calibrate' }))
     expect(await within(form).findByRole('alert')).toHaveTextContent('more than 0')
 
-    fireEvent.click(await screen.findByRole('switch', { name: /Depth Anything V2 on/ }))
-    expect(await screen.findByRole('switch', { name: /Depth Anything V2 off/ })).not.toBeChecked()
-    expect((await getMeasurementSettings()).depthEnabled).toBe(false)
+    fireEvent.click(await screen.findByRole('switch', { name: /Depth Anything V2 off/ }))
+    expect(await screen.findByRole('switch', { name: /Depth Anything V2 on/ })).toBeChecked()
+    expect((await getMeasurementSettings()).depthEnabled).toBe(true)
 
     fireEvent.change(screen.getByLabelText('Thickness (cm)'), { target: { value: '2.5' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save thickness' }))

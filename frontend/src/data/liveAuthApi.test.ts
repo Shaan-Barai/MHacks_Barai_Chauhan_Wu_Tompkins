@@ -12,6 +12,17 @@ import {
 } from './liveApi'
 import { AUTH_REQUIRED_EVENT, AuthRequiredError } from './authEvents'
 
+// jsdom has no canvas: stand in for the 1024 x 1024 centre-square normalization.
+vi.mock('../lib/normalizePhoto', () => ({
+  normalizePhoto: vi.fn(async () => ({
+    file: new File([new Uint8Array([9, 9, 9, 9])], 'card-1024.jpg', { type: 'image/jpeg' }),
+    widthPx: 1024,
+    heightPx: 1024,
+    sourceWidthPx: 1920,
+    sourceHeightPx: 1080,
+  })),
+}))
+
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
 afterEach(() => {
@@ -70,7 +81,7 @@ describe('sign-in', () => {
 })
 
 describe('calibration + settings', () => {
-  it('uploads the photo (request -> PUT -> finalize) then posts the calibration', async () => {
+  it('normalizes the photo to 1024 x 1024, uploads it under a new calibration id (request -> PUT -> finalize), then posts the calibration', async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = []
     vi.stubGlobal(
       'fetch',
@@ -89,8 +100,11 @@ describe('calibration + settings', () => {
     const cal = await createCalibration({ cameraId: 'uno-q-c920s-1', knownAreaCm2: 46.21, referenceLabel: 'credit card', photo })
     expect(cal.calibrationId).toBe('cal_1')
     expect(calls.map((c) => c.url)).toEqual(['/api/images/uploads', 'https://r2.test/put?sig=x', '/api/images/img_1/finalize', '/api/calibrations'])
-    expect(JSON.parse(calls[0].init!.body as string)).toMatchObject({ associationKind: 'calibration', associationId: 'uno-q-c920s-1', mimeType: 'image/jpeg', sizeBytes: 3 })
+    const upload = JSON.parse(calls[0].init!.body as string)
+    expect(upload).toMatchObject({ associationKind: 'calibration', mimeType: 'image/jpeg', sizeBytes: 4, widthPx: 1024, heightPx: 1024 })
+    expect(upload.associationId).toMatch(/^cal_[a-z0-9]+$/)
     expect(calls[1].init).toMatchObject({ method: 'PUT', headers: { 'Content-Type': 'image/jpeg' } })
+    expect((calls[1].init!.body as File).name).toBe('card-1024.jpg')
     expect(JSON.parse(calls[3].init!.body as string)).toEqual({
       hallId: 'hall-main',
       cameraId: 'uno-q-c920s-1',

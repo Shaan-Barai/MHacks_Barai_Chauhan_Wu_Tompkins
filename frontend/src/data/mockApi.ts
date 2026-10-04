@@ -346,7 +346,7 @@ function readCalibrationStore(): CalibrationStore {
   return {
     settings: {
       hallId: MOCK_HALL_ID,
-      depthEnabled: true,
+      depthEnabled: false,
       activeCalibrationId: MOCK_ACTIVE_CALIBRATION_ID,
       plateThicknessCm: 1.5,
       updatedAt: new Date(`${addDays(today, -20)}T13:00:00Z`).toISOString(),
@@ -396,7 +396,7 @@ export async function getCalibration(calibrationId: string): Promise<CameraCalib
 
 /**
  * Demo calibration: the "photo" is not analyzed. The card always covers
- * 34,186 pixels (scaled by the known area) and depth runs when it is on.
+ * 34,186 pixels (scaled by the known area) and the depth scale is measured.
  */
 export async function createCalibration(input: NewCalibration): Promise<CameraCalibration> {
   await wait()
@@ -411,7 +411,9 @@ export async function createCalibration(input: NewCalibration): Promise<CameraCa
     knownAreaCm2: input.knownAreaCm2,
     referenceLabel: input.referenceLabel.trim() || 'reference object',
     referencePixels: Math.round(34_186 * (input.knownAreaCm2 / 46.21)),
-    rawDepthM: store.settings.depthEnabled ? 0.49 : null,
+    // Calibration measures the depth scale whenever the worker answers (I9),
+    // so the toggle can be turned on later without recalibrating.
+    rawDepthM: 0.49,
   })
   store.calibrations = [{ ...cal, cameraId: input.cameraId }, ...store.calibrations]
   writeCalibrationStore(store)

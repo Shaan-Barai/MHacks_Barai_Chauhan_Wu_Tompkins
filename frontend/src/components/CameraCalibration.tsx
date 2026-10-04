@@ -28,6 +28,7 @@ const POLL_MS = 2000
 const POLL_TRIES = 45
 
 export const DEPTH_EXPLANATION = 'On: estimates each food’s volume from a depth map of the photo. Off: uses the food’s area only.'
+export const DEPTH_FALLBACK_NOTE = 'If depth can’t be measured, the area estimate is used.'
 
 /** Height difference between the two estimates, as a share of the photo-geometry height. */
 export function heightDifference(cal: CameraCalibration): number | null {
@@ -190,7 +191,7 @@ function HowTo() {
       <ol className="mt-1 list-decimal space-y-1 pl-6">
         <li>Lock the camera in place and keep its focus fixed.</li>
         <li>Lay a credit card (or another flat object you have measured) flat where the plates go.</li>
-        <li>Take a photo with the camera and upload it below.</li>
+        <li>Take the photo with the mounted camera at its usual position, then upload it below.</li>
         <li>Don't move the camera afterwards. If it moves, or its picture size changes, calibrate again.</li>
       </ol>
     </div>
@@ -201,12 +202,15 @@ function DepthToggle({ enabled, disabled, onChange }: { enabled: boolean; disabl
   const id = useId()
   return (
     <div className="border border-ink p-3">
-      <label htmlFor={id} className="flex items-center gap-3 text-base font-semibold">
-        <input id={id} type="checkbox" role="switch" className="h-5 w-5" checked={enabled} disabled={disabled} aria-describedby={`${id}-help`} onChange={(e) => onChange(e.target.checked)} />
-        Depth Anything V2 {enabled ? 'on' : 'off'}
-      </label>
+      <div className="flex flex-wrap items-center gap-3">
+        <label htmlFor={id} className="flex items-center gap-3 text-base font-semibold">
+          <input id={id} type="checkbox" role="switch" className="h-5 w-5" checked={enabled} disabled={disabled} aria-describedby={`${id}-help`} onChange={(e) => onChange(e.target.checked)} />
+          Depth Anything V2 {enabled ? 'on' : 'off'}
+        </label>
+        <Badge>Experimental</Badge>
+      </div>
       <p id={`${id}-help`} className="mt-1 text-base">
-        {DEPTH_EXPLANATION}
+        {DEPTH_EXPLANATION} {DEPTH_FALLBACK_NOTE} Off is the default.
       </p>
     </div>
   )
@@ -314,7 +318,10 @@ function NewCalibrationForm({ cameraId, onCreated }: { cameraId: string; onCreat
           onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
           className="block max-w-full text-base file:mr-3 file:rounded-btn file:border file:border-solid file:border-ink file:bg-cream file:px-3 file:py-1 file:font-sans file:text-ink"
         />
-        <p className="mt-1 text-sm">Take it with the camera that scans the plates, at its usual picture size.</p>
+        <p className="mt-1 text-sm">
+          It must come from the mounted camera that scans the plates, at its usual position. The photo is cropped to the same centre square
+          as plate photos.
+        </p>
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <PrimaryButton type="submit" disabled={busy}>

@@ -68,10 +68,14 @@ origin). Pages have their own paths (`/`, `/schedule`, `/menus`, `/portions`,
 ## Camera calibration and estimates (IT_4)
 
 - **Settings -> Camera calibration**: known area in cm² (credit-card preset
-  46.21 cm²), Depth Anything V2 toggle (`PUT /api/settings/measurement`
-  `depthEnabled`), calibration photo upload (`POST /api/images/uploads`
-  with `associationKind: 'calibration'` -> PUT -> finalize ->
-  `POST /api/calibrations`), result with the reference outline
+  46.21 cm²), Depth Anything V2 toggle (experimental, off by default;
+  `PUT /api/settings/measurement` `depthEnabled`), calibration photo upload:
+  the browser normalizes it like a capture (`topdown-normalized-v1`: centre
+  square, 1024 x 1024 JPEG q90, `src/lib/normalizePhoto.ts`), then
+  `POST /api/images/uploads` with `associationKind: 'calibration'` and a new
+  `cal_<id>` as `associationId` -> PUT -> finalize -> `POST /api/calibrations`.
+  The browser PUT goes straight to object storage, so the bucket's CORS must
+  allow PUT from the dashboard origin; result with the reference outline
   (`GET /api/calibrations/:id/images`), cm²/px, camera height from the photo
   vs Depth Anything V2, flags in plain words, Activate, history, plate
   thickness. Processing calibrations are polled every 2 s.

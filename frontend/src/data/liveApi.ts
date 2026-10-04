@@ -9,6 +9,7 @@
  */
 import { loadSettings } from '../state/settings'
 import { AuthRequiredError, notifyAuthRequired } from './authEvents'
+import { normalizePhoto } from '../lib/normalizePhoto'
 import type {
   AuthSession,
   CalibrationImages,
@@ -408,42 +409,39 @@ interface UploadGrant {
   uploadHeaders?: Record<string, string>
 }
 
-/** Image size, when the browser can read it (the backend checks it too). */
-async function imageSize(file: File): Promise<{ widthPx: number; heightPx: number } | null> {
-  try {
-    if (typeof createImageBitmap !== 'function') return null
-    const bmp = await createImageBitmap(file)
-    const size = { widthPx: bmp.width, heightPx: bmp.height }
-    bmp.close?.()
-    return size
-  } catch {
-    return null
-  }
+/** A new calibration id; it is also the upload's association id (backend contract). */
+function newCalibrationId(): string {
+  const rand =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID().replace(/-/g, '') : Math.random().toString(36).slice(2)
+  return `cal_${Date.now().toString(36)}${rand.slice(0, 16)}`
 }
 
 /**
- * Upload the calibration photo through the backend's storage flow
- * (request upload → PUT bytes → finalize), then run the calibration.
+ * Normalize the photo like a plate capture (1024 x 1024 centre square), upload
+ * it through the backend's storage flow (request upload -> PUT bytes ->
+ * finalize) under a new calibration id, then run the calibration.
  */
 export async function createCalibration(input: NewCalibration): Promise<CameraCalibration> {
-  const size = await imageSize(input.photo)
+  const photo = await normalizePhoto(input.photo)
+  const calibrationId = newCalibrationId()
   const grant = await call<UploadGrant>('/api/images/uploads', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       associationKind: 'calibration',
-      associationId: input.cameraId,
-      mimeType: input.photo.type,
-      sizeBytes: input.photo.size,
-      ...(size ?? {}),
+      associationId: calibrationId,
+      mimeType: photo.file.type,
+      sizeBytes: photo.file.size,
+      widthPx: photo.widthPx,
+      heightPx: photo.heightPx,
     }),
   })
   let put: Response
   try {
     put = await fetch(grant.uploadUrl, {
       method: 'PUT',
-      headers: grant.uploadHeaders ?? { 'Content-Type': input.photo.type },
-      body: input.photo,
+      headers: grant.uploadHeaders ?? { 'Content-Type': photo.file.type },
+      body: photo.file,
     })
   } catch {
     throw new Error("The photo didn't upload. Check the connection and try again.")

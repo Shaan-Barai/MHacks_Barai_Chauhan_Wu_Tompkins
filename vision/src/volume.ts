@@ -53,6 +53,8 @@ export const CLIP_FLAG_FRACTION = 0.05;
 export const MAX_INVALID_FRACTION = 0.1;
 /** More than this fraction of a bucket's valid pixels below the plate ⇒ area fallback (depth did not resolve the food). */
 export const MAX_NEGATIVE_FRACTION = 0.5;
+/** Mean food height (over valid pixels) below this ⇒ area fallback: depth did not resolve the food's thickness. */
+export const MIN_MEAN_HEIGHT_MM = 1;
 const MAX_VALID_DEPTH_M = 20;
 const MIN_PLANE_TOLERANCE_CM = 0.3;
 const MAX_FIT_POINTS = 200_000;
@@ -380,6 +382,12 @@ export function computeVolumeEstimates(input: VolumeInput): VolumeResult {
     // Most of the food reads at or below the plate: depth does not resolve this food, and a
     // near-zero volume would be a silent zero. Fall back to the calibrated area (AI.md).
     if (neg > MAX_NEGATIVE_FRACTION * valid) return area(b, [...plateFlags, 'negative_heights_clipped', 'depth_invalid']);
+    // Food that reads barely above the plate would also be a near-silent zero volume.
+    if ((10 * hSum) / valid < MIN_MEAN_HEIGHT_MM) {
+      const lowFlags: VolumeFlag[] = [...plateFlags];
+      if (neg > CLIP_FLAG_FRACTION * valid) lowFlags.push('negative_heights_clipped');
+      return area(b, [...lowFlags, 'depth_invalid']);
+    }
     const extrapolate = n / valid;
     const flags: VolumeFlag[] = [...plateFlags];
     if (neg > CLIP_FLAG_FRACTION * valid) flags.push('negative_heights_clipped');

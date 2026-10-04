@@ -164,6 +164,18 @@ test('volume: food that mostly reads below the plate falls back to area (no near
   assert.equal(e.areaCm2, 25);
 });
 
+test('volume: food that reads barely above the plate (mean < 1 mm) falls back to area, never ~0', () => {
+  const s = boxScene();
+  const depthM = Float32Array.from(s.depthM as Float32Array);
+  // 40% of the box below the plate (under the 50% rule), the rest only 0.5 mm above it.
+  for (let y = 100; y < 200; y++) for (let x = 100; x < 200; x++) depthM[y * s.width + x] = y < 140 ? 0.501 : 0.49995;
+  const e = computeVolumeEstimates({ ...s, depthM }).estimates[0]!.estimate;
+  assert.equal(e.method, 'area-calibrated-v1');
+  assert.deepEqual(e.flags, ['negative_heights_clipped', 'depth_invalid']);
+  assert.equal(e.volumeCm3, null);
+  assert.equal(e.areaCm2, 25);
+});
+
 test('volume: bowls/liquids use the area method with bowl_volume_unreliable; never zero', () => {
   const s = boxScene();
   const e = computeVolumeEstimates({ ...s, bowl: true }).estimates[0]!.estimate;

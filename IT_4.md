@@ -298,12 +298,13 @@ remaining work.
 | A | **done** | 2026-10-04 | `b031707` `b7cd23f` `ca764d5`: density column (26 foods, FAO/INFOODS + USDA, analogues labeled; pizzas + cheese bread null → area method), waste-factors-v3, grams/kgCo2e/waterLitres, coverage, `formatPhysicalLabel`; analytics 74/74, data 39/39 (fixtures). Backend impact test assertion needs B |
 | V | **done** | 2026-10-04 | `6fc5d9a` `ea9ebd6` `8afadc5` `369ff6c`; vision 100/100. DAv2 worker live on MPS (~170 ms/1024² warm). Calibration must use the 1024² normalized crop (f ≈ 1289.7 px). **Live on 3 phone photos: DAv2 depth 3–5× too far and food reads at/below the plate ⇒ all foods fell back to area (`depth_invalid`). Volume unvalidated; keep depth off until a C920s known-volume check passes** |
 | B | **done** | 2026-10-04 | `05d2fd9` `750c21d` `f33b4f3` `6fcbbcb` `2739f93` `bf2a2ce`; backend 67/67; schema published in place to local `scrap` (no wipe); live prod-mode run on :8797: auth 401s, calibration on K's synthetic card (N_ref 42,516, height 44.8 cm vs 45 designed, `depth_scale_disagrees`), area + volume captures, legend suffix in overlay. Test rows left under `hall-it4-test` |
-| U | running | 2026-10-04 | launched (mocks first) |
+| U | **done** | 2026-10-04 | `be3636a` `cb31b18` `fea8dfd`; frontend 93/93, build OK. Staff sign-in, calibration panel (browser normalizes to 1024²; DAv2 toggle experimental, off), estimate chips + CO2e/water cards. Live in headless Chrome against `scrap`. Browser calibration upload blocked by R2 CORS (user must apply `deploy/r2-cors.local.json`; the R2 token can't set CORS) |
 | K | running | 2026-10-04 | launched (client side + docs first) |
 | P | **done** | 2026-10-04 | `f9a7496`: `deploy/local.sh up/down/status/smoke/seed`, `smoke.mjs` 16/16 on test ports (live Gemini+SAM capture on `hall-smoke`), `docs/deploy.md` (tunnel documented only), r2-cors.local.json (not applied). Main checkout still runs the old dev backend on :8787; restart from main after A/V land |
 
 ### Log
 - 2026-10-04: plan written. User chose Fly.io and will buy a domain.
+- 2026-10-04: coordinator restarted :8787 from main via `deploy/local.sh up` (production mode); smoke 16/16 incl. live Gemini+SAM capture.
 - 2026-10-04: V's live check: DAv2 Small doesn't resolve food height on close-up phone photos; area method is the default, depth toggle labeled experimental.
 - 2026-10-04: Gemini billing works again (B's live run, no 402).
 - 2026-10-04: user: run DAv2 + SAM locally, don't worry about Fly.io. P, B and V redirected.

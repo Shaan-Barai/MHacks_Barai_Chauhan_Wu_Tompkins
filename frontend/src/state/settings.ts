@@ -1,6 +1,6 @@
 /** Hall settings, persisted to localStorage (setup is shown once per browser). */
 import { useCallback, useState } from 'react'
-import type { HallSettings, IsoDate, MealHours, MealLabel, MealTimeSet, Weekday } from '../data/types'
+import type { HallRef, HallSettings, IsoDate, MealHours, MealLabel, MealTimeSet, Weekday } from '../data/types'
 import { WEEKDAYS } from '../data/types'
 import { fromIso } from '../lib/dates'
 
@@ -15,6 +15,7 @@ const WEEKDAY_MEALS: Record<MealLabel, MealHours> = {
 export const DEFAULT_SETTINGS: HallSettings = {
   hallId: 'hall-main',
   name: '',
+  halls: [],
   timeSets: [
     { id: 'weekdays', name: 'Weekdays', days: ['mon', 'tue', 'wed', 'thu', 'fri'], meals: WEEKDAY_MEALS },
     {
@@ -31,14 +32,51 @@ export const DEFAULT_SETTINGS: HallSettings = {
   events: [],
 }
 
-/** Settings saved before time sets existed had one `mealTimes` for every day. */
+/** The first hall keeps the original ID so data saved before multiple halls stays attached. */
+const PRIMARY_HALL_ID = 'hall-main'
+
+function slug(name: string): string {
+  return name
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+/**
+ * Stable IDs for hall names: halls that already have an ID keep it, the first
+ * new hall is `hall-main` if free, the rest `hall-<name>` (made unique).
+ */
+export function assignHallIds(halls: { hallId?: string; name: string }[]): HallRef[] {
+  const taken = new Set(halls.map((h) => h.hallId).filter((id): id is string => Boolean(id)))
+  return halls.map((h) => {
+    if (h.hallId) return { hallId: h.hallId, name: h.name.trim() }
+    let id = taken.has(PRIMARY_HALL_ID) ? `hall-${slug(h.name) || 'location'}` : PRIMARY_HALL_ID
+    for (let n = 2; taken.has(id); n++) id = `hall-${slug(h.name) || 'location'}-${n}`
+    taken.add(id)
+    return { hallId: id, name: h.name.trim() }
+  })
+}
+
+/** Keep `hallId`/`name` equal to the first hall. */
+export function withHalls(settings: HallSettings, halls: HallRef[]): HallSettings {
+  const first = halls[0] ?? { hallId: PRIMARY_HALL_ID, name: '' }
+  return { ...settings, halls, hallId: first.hallId, name: first.name }
+}
+
+/**
+ * Settings saved before time sets existed had one `mealTimes` for every day;
+ * settings saved before multiple halls had a single hallId/name.
+ */
 function migrate(raw: Partial<HallSettings> & { mealTimes?: Record<MealLabel, MealHours> }): HallSettings {
   const timeSets =
     raw.timeSets ??
     (raw.mealTimes
       ? [{ id: 'every-day', name: 'Every day', days: [...WEEKDAYS], meals: raw.mealTimes }]
       : DEFAULT_SETTINGS.timeSets)
-  return { hallId: raw.hallId ?? 'hall-main', name: raw.name ?? '', timeSets, events: raw.events ?? [] }
+  const halls = raw.halls?.length ? raw.halls : [{ hallId: raw.hallId ?? PRIMARY_HALL_ID, name: raw.name ?? '' }]
+  return withHalls({ ...DEFAULT_SETTINGS, timeSets, events: raw.events ?? [] }, halls)
 }
 
 export function loadSettings(): HallSettings | null {

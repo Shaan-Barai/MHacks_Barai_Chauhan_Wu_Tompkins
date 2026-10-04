@@ -38,6 +38,22 @@ function hallId(): string {
   return loadSettings()?.hallId ?? 'hall-main'
 }
 
+/**
+ * Which hall a request is about: a hallId, `undefined` for the first hall in
+ * Settings, or `null` for every hall together (the dashboard's "All").
+ */
+export type HallScope = string | null | undefined
+
+function hallParam(hall: HallScope): Record<string, string> {
+  if (hall === null) return {}
+  return { hallId: hall ?? hallId() }
+}
+
+/** Where a hall's own system can send menus (shown on the Menu Schedule page). */
+export function menuApiBase(): string {
+  return API_BASE || window.location.origin
+}
+
 interface ApiErrorBody {
   error?: { code: string; message: string }
 }
@@ -87,8 +103,8 @@ interface MenuBundle {
   items: { itemId: string; displayName: string }[]
 }
 
-export async function getMenu(date: IsoDate): Promise<DayMenu | null> {
-  const body = await orNull(call<{ menus: MenuBundle[] }>(`/api/menus?${q({ hallId: hallId(), date })}`))
+export async function getMenu(date: IsoDate, hall?: string): Promise<DayMenu | null> {
+  const body = await orNull(call<{ menus: MenuBundle[] }>(`/api/menus?${q({ hallId: hall ?? hallId(), date })}`))
   if (!body || body.menus.length === 0) return null
   const meals: Record<MealLabel, MenuItemLite[]> = { breakfast: [], lunch: [], dinner: [] }
   for (const m of body.menus) {
@@ -97,8 +113,8 @@ export async function getMenu(date: IsoDate): Promise<DayMenu | null> {
   return { date, menuId: body.menus[0].service.menuId, source: 'user', meals }
 }
 
-export async function getMenuDays(start: IsoDate, end: IsoDate): Promise<Record<IsoDate, boolean>> {
-  const { dates } = await call<{ dates: IsoDate[] }>(`/api/menus/days?${q({ hallId: hallId(), start, end })}`)
+export async function getMenuDays(start: IsoDate, end: IsoDate, hall?: string): Promise<Record<IsoDate, boolean>> {
+  const { dates } = await call<{ dates: IsoDate[] }>(`/api/menus/days?${q({ hallId: hall ?? hallId(), start, end })}`)
   const have = new Set(dates)
   const out: Record<IsoDate, boolean> = {}
   for (let d = start; d <= end; d = nextDay(d)) out[d] = have.has(d)
@@ -112,24 +128,32 @@ function nextDay(d: IsoDate): IsoDate {
 }
 
 /** POST /api/menus/upload, parsed and versioned by the backend (data/ helpers). */
-export async function saveUserMenu(date: IsoDate, meals: Record<MealLabel, MenuItemLite[]>): Promise<DayMenu> {
-  const day: Record<string, unknown> = { date }
-  for (const meal of MEALS) if (meals[meal].length > 0) day[meal] = meals[meal].map((i) => i.displayName)
+export async function saveUserMenu(date: IsoDate, meals: Record<MealLabel, MenuItemLite[]>, hall?: string): Promise<DayMenu> {
+  await saveUserMenuDays([date], meals, hall)
+  return (await getMenu(date, hall)) ?? { date, menuId: '', source: 'user', meals }
+}
+
+/** The same meals on several dates (a repeating menu), in one upload. */
+export async function saveUserMenuDays(dates: IsoDate[], meals: Record<MealLabel, MenuItemLite[]>, hall?: string): Promise<void> {
+  const days = dates.map((date) => {
+    const day: Record<string, unknown> = { date }
+    for (const meal of MEALS) if (meals[meal].length > 0) day[meal] = meals[meal].map((i) => i.displayName)
+    return day
+  })
   await call('/api/menus/upload', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ hallId: hallId(), hallTimezone: HALL_TIMEZONE, days: [day] }),
+    body: JSON.stringify({ hallId: hall ?? hallId(), hallTimezone: HALL_TIMEZONE, days }),
   })
-  return (await getMenu(date)) ?? { date, menuId: '', source: 'user', meals }
 }
 
 // ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 
-export async function getDailyWaste(start: IsoDate, end: IsoDate): Promise<DailyWastePoint[]> {
+export async function getDailyWaste(start: IsoDate, end: IsoDate, hall?: HallScope): Promise<DailyWastePoint[]> {
   const { days } = await call<{ days: { date: IsoDate; pixelsWasted: number | null }[] }>(
-    `/api/dashboard/daily?${q({ hallId: hallId(), start, end })}`,
+    `/api/dashboard/daily?${q({ ...hallParam(hall), start, end })}`,
   )
   // The chart is pixels only (BIG-PLAN v2); any other per-day fields are ignored.
   return days.map((d) => ({ date: d.date, pixelsWasted: d.pixelsWasted }))
@@ -157,8 +181,8 @@ interface MealResponse {
 }
 
 /** Null = no menu or no scanned plate yet (friendly empty state). */
-export async function getMealDetail(date: IsoDate, meal: MealLabel): Promise<MealDetail | null> {
-  const body = await orNull(call<MealResponse>(`/api/dashboard/meal?${q({ hallId: hallId(), date, meal })}`))
+export async function getMealDetail(date: IsoDate, meal: MealLabel, hall?: string): Promise<MealDetail | null> {
+  const body = await orNull(call<MealResponse>(`/api/dashboard/meal?${q({ hallId: hall ?? hallId(), date, meal })}`))
   // Scanned plates that weren't counted stay visible (AGENTS.md §9.7).
   if (!body || body.summary.captureCount === 0) return null
   const s = body.summary
@@ -270,14 +294,14 @@ export async function getImageUrl(objectId: string): Promise<string> {
 // Waste impact dashboard (BIG-PLAN v2, contracts/types.ts waste-impact section)
 // ---------------------------------------------------------------------------
 
-export async function getImpactDashboard(start: IsoDate, end: IsoDate): Promise<ImpactDashboard> {
-  return call<ImpactDashboard>(`/api/dashboard/impact?${q({ hallId: hallId(), start, end })}`)
+export async function getImpactDashboard(start: IsoDate, end: IsoDate, hall?: HallScope): Promise<ImpactDashboard> {
+  return call<ImpactDashboard>(`/api/dashboard/impact?${q({ ...hallParam(hall), start, end })}`)
 }
 
 /** Accepts a bare array or `{ captures: [...] }`. */
-export async function getCaptures(start: IsoDate, end: IsoDate): Promise<CaptureListItem[]> {
+export async function getCaptures(start: IsoDate, end: IsoDate, hall?: HallScope): Promise<CaptureListItem[]> {
   const body = await call<CaptureListItem[] | { captures: CaptureListItem[] }>(
-    `/api/captures?${q({ hallId: hallId(), start, end })}`,
+    `/api/captures?${q({ ...hallParam(hall), start, end })}`,
   )
   return Array.isArray(body) ? body : body.captures ?? []
 }
@@ -287,6 +311,6 @@ export async function getCaptureImages(eventId: string): Promise<CaptureImages> 
   return call<CaptureImages>(`/api/captures/${encodeURIComponent(eventId)}/images`)
 }
 
-export async function getRecommendation(start: IsoDate, end: IsoDate): Promise<Recommendation> {
-  return call<Recommendation>(`/api/recommendation?${q({ hallId: hallId(), start, end })}`)
+export async function getRecommendation(start: IsoDate, end: IsoDate, hall?: HallScope): Promise<Recommendation> {
+  return call<Recommendation>(`/api/recommendation?${q({ ...hallParam(hall), start, end })}`)
 }

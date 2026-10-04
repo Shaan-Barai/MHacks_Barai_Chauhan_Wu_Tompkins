@@ -3,7 +3,8 @@
  * waste in Pixels wasted, Relative impact in points), the AI recommendation,
  * foods to target (pixels per portion), most wasted (pixels), the daily
  * pixels chart, recent plates with their AI outline images, and relative
- * nutrition points kept apart from the impact score.
+ * nutrition points kept apart from the impact score. A dining hall picker next
+ * to the title shows one location or all of them together.
  */
 import { useMemo } from 'react'
 import { getCaptures, getDailyWaste, getImpactDashboard, getRecommendation } from '../data/api'
@@ -19,13 +20,29 @@ import { PlatesGallery } from '../components/PlatesGallery'
 import { RecommendationCard } from '../components/RecommendationCard'
 import { WasteChart } from '../components/WasteChart'
 import { Card, EmptyState, LoadingBlock } from '../components/ui'
+import type { HallRef } from '../data/types'
 
-export function DashboardPage({ range, onRangeChange }: { range: DateRange; onRangeChange: (r: DateRange) => void }) {
-  const deps = [range.start, range.end]
-  const impact = useAsync(() => getImpactDashboard(range.start, range.end), deps)
-  const rec = useAsync(() => getRecommendation(range.start, range.end), deps)
-  const plates = useAsync(() => getCaptures(range.start, range.end), deps)
-  const series = useAsync(() => getDailyWaste(range.start, range.end), deps)
+export function DashboardPage({
+  range,
+  onRangeChange,
+  halls = [],
+  hall = 'all',
+  onHallChange,
+}: {
+  range: DateRange
+  onRangeChange: (r: DateRange) => void
+  halls?: HallRef[]
+  /** A hallId, or 'all' for every location together. */
+  hall?: string
+  onHallChange?: (hall: string) => void
+}) {
+  // 'all' asks the backend for every hall at once (no hallId), so totals are summed server-side.
+  const scope = hall === 'all' ? null : hall
+  const deps = [range.start, range.end, scope]
+  const impact = useAsync(() => getImpactDashboard(range.start, range.end, scope), deps)
+  const rec = useAsync(() => getRecommendation(range.start, range.end, scope), deps)
+  const plates = useAsync(() => getCaptures(range.start, range.end, scope), deps)
+  const series = useAsync(() => getDailyWaste(range.start, range.end, scope), deps)
 
   const buckets = useMemo(() => (series.data ? dailyBuckets(series.data) : []), [series.data])
   const hasChartData = buckets.some((b) => b.value !== null)
@@ -34,7 +51,24 @@ export function DashboardPage({ range, onRangeChange }: { range: DateRange; onRa
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-display text-3xl font-semibold text-ink">Dashboard</h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="font-display text-3xl font-semibold text-ink">Dashboard</h1>
+          {halls.length > 0 && (
+            <select
+              aria-label="Dining hall"
+              value={hall}
+              onChange={(e) => onHallChange?.(e.target.value)}
+              className="rounded-btn border border-ink bg-cream px-3 py-2 text-base text-ink"
+            >
+              <option value="all">All dining halls</option>
+              {halls.map((h) => (
+                <option key={h.hallId} value={h.hallId}>
+                  {h.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
         <DateRangePicker value={range} onChange={onRangeChange} />
       </div>
       <p className="max-w-3xl text-sm">{HOW_MEASURED}</p>

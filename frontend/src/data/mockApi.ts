@@ -74,13 +74,13 @@ function menuFor(date: IsoDate, today: IsoDate): DayMenu | null {
 // ---------------------------------------------------------------------------
 
 /** Menu in effect on a date (manager-uploaded wins over demo data). */
-export async function getMenu(date: IsoDate): Promise<DayMenu | null> {
+export async function getMenu(date: IsoDate, _hall?: string): Promise<DayMenu | null> {
   await wait()
   return menuFor(date, todayIso())
 }
 
 /** Which days in [start, end] have a menu, feeds the Menus calendar. */
-export async function getMenuDays(start: IsoDate, end: IsoDate): Promise<Record<IsoDate, boolean>> {
+export async function getMenuDays(start: IsoDate, end: IsoDate, _hall?: string): Promise<Record<IsoDate, boolean>> {
   await wait()
   const today = todayIso()
   const out: Record<IsoDate, boolean> = {}
@@ -89,7 +89,7 @@ export async function getMenuDays(start: IsoDate, end: IsoDate): Promise<Record<
 }
 
 /** Save (or replace) the manager's menu for one day. */
-export async function saveUserMenu(date: IsoDate, meals: Record<MealLabel, MenuItemLite[]>): Promise<DayMenu> {
+export async function saveUserMenu(date: IsoDate, meals: Record<MealLabel, MenuItemLite[]>, _hall?: string): Promise<DayMenu> {
   await wait()
   const menu: DayMenu = { date, menuId: `menu_user_${date}`, source: 'user', meals }
   const all = readUserMenus()
@@ -101,8 +101,18 @@ export async function saveUserMenu(date: IsoDate, meals: Record<MealLabel, MenuI
   return menu
 }
 
+/** The same meals on several dates (a repeating menu). Mock data has one hall. */
+export async function saveUserMenuDays(dates: IsoDate[], meals: Record<MealLabel, MenuItemLite[]>, hall?: string): Promise<void> {
+  for (const date of dates) await saveUserMenu(date, meals, hall)
+}
+
+/** Mock data has one hall; the API base shown for menu uploads. */
+export function menuApiBase(): string {
+  return window.location.origin
+}
+
 /** Daily waste series for the chart; null pixelsWasted = no data that day. */
-export async function getDailyWaste(start: IsoDate, end: IsoDate): Promise<DailyWastePoint[]> {
+export async function getDailyWaste(start: IsoDate, end: IsoDate, _hall?: string | null): Promise<DailyWastePoint[]> {
   await wait()
   const today = todayIso()
   return eachDay(start, end).map((date) => ({ date, pixelsWasted: dailyTotal(date, today) }))
@@ -121,7 +131,7 @@ function dailyTotal(date: IsoDate, today: IsoDate): number | null {
 }
 
 /** Right-panel detail for one meal service; null = no menu / no data. */
-export async function getMealDetail(date: IsoDate, meal: MealLabel): Promise<MealDetail | null> {
+export async function getMealDetail(date: IsoDate, meal: MealLabel, _hall?: string): Promise<MealDetail | null> {
   await wait()
   const today = todayIso()
   const detail = mockMealDetail(date, meal, menuFor(date, today), today)
@@ -249,12 +259,12 @@ export async function getImageUrl(_objectId: string): Promise<string> {
 // Waste impact dashboard (BIG-PLAN D1-D8)
 // ---------------------------------------------------------------------------
 
-export async function getImpactDashboard(start: IsoDate, end: IsoDate): Promise<ImpactDashboard> {
+export async function getImpactDashboard(start: IsoDate, end: IsoDate, _hall?: string | null): Promise<ImpactDashboard> {
   await wait()
   return mockImpactDashboard(start, end, todayIso())
 }
 
-export async function getCaptures(start: IsoDate, end: IsoDate): Promise<CaptureListItem[]> {
+export async function getCaptures(start: IsoDate, end: IsoDate, _hall?: string | null): Promise<CaptureListItem[]> {
   await wait()
   return mockCaptures(start, end, todayIso())
 }
@@ -266,7 +276,7 @@ export async function getCaptureImages(eventId: string): Promise<CaptureImages> 
   return images
 }
 
-export async function getRecommendation(start: IsoDate, end: IsoDate): Promise<Recommendation> {
+export async function getRecommendation(start: IsoDate, end: IsoDate, _hall?: string | null): Promise<Recommendation> {
   await wait()
   return mockRecommendation(mockImpactDashboard(start, end, todayIso()), new Date())
 }

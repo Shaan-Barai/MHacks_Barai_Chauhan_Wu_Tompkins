@@ -1,42 +1,114 @@
 /**
- * Add a menu: pick a date, type the foods for each meal (or upload a
- * spreadsheet), save, and move on to the next day.
+ * Add a menu: pick a date (and how often it repeats), type the foods for each
+ * meal, save, and move on to the next day. Menus can also come from a
+ * spreadsheet, or straight from the hall's own system through the API.
  */
-import { useRef, useState } from 'react'
-import { saveUserMenu } from '../data/api'
-import type { IsoDate, MealLabel, MenuItemLite } from '../data/types'
-import { MEALS, MEAL_NAME } from '../data/types'
+import { useId, useRef, useState } from 'react'
+import { menuApiBase, saveUserMenuDays } from '../data/api'
+import type { HallRef, IsoDate, MealLabel, MenuItemLite, MenuRepeat } from '../data/types'
+import { MEALS, MEAL_NAME, MENU_REPEAT_NAME } from '../data/types'
 import { itemIdFor } from '../data/mockData'
-import { addDays, todayIso } from '../lib/dates'
-import { Card, FieldLabel, GhostButton, PrimaryButton, inputClass } from './ui'
+import { addDays, formatMedium, todayIso } from '../lib/dates'
+import { defaultRepeatUntil, repeatDates } from '../lib/repeat'
+import { Card, FieldLabel, GhostButton, InfoTip, PrimaryButton, inputClass } from './ui'
+
+const REPEATS: MenuRepeat[] = ['never', 'daily', 'weekly', 'biweekly']
+
+export const MENU_API_EXPLANATION =
+  "If your dining hall already keeps menus in another program, that program can send them to ScrapSaver automatically, so nobody has to type them in. Give your IT team or menu software vendor the web address and example below. Menus sent this way show up here just like typed ones."
 
 export function MenuSource({
+  halls = [],
+  hallId,
+  date: controlledDate,
+  onDateChange,
   initialDate,
   onMenuSaved,
 }: {
+  /** Locations the manager runs; a picker shows when there is more than one and no `hallId`. */
+  halls?: HallRef[]
+  /** Save to this hall (the page already picked one). */
+  hallId?: string
+  /** Controlled menu date, e.g. the day picked on the calendar below. */
+  date?: IsoDate
+  onDateChange?: (date: IsoDate) => void
   initialDate?: IsoDate
-  onMenuSaved?: (date: IsoDate) => void
+  onMenuSaved?: (dates: IsoDate[]) => void
 }) {
-  return <ManualMenuPanel initialDate={initialDate} onMenuSaved={onMenuSaved} />
+  const [ownDate, setOwnDate] = useState<IsoDate>(initialDate ?? todayIso())
+  const date = controlledDate ?? ownDate
+  const setDate = (next: IsoDate) => {
+    setOwnDate(next)
+    onDateChange?.(next)
+  }
+  const [pickedHall, setPickedHall] = useState<string | undefined>(halls[0]?.hallId)
+  const hall = hallId ?? pickedHall
+  const hallName = halls.find((h) => h.hallId === hall)?.name
+
+  return (
+    <ManualMenuPanel
+      date={date}
+      setDate={setDate}
+      hall={hall}
+      hallName={hallName}
+      hallPicker={
+        !hallId && halls.length > 1 ? (
+          <div>
+            <FieldLabel htmlFor="menu-hall">Dining hall</FieldLabel>
+            <select
+              id="menu-hall"
+              value={pickedHall}
+              onChange={(e) => setPickedHall(e.target.value)}
+              className="rounded-btn border border-ink bg-cream px-3 py-2 text-base text-ink"
+            >
+              {halls.map((h) => (
+                <option key={h.hallId} value={h.hallId}>
+                  {h.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null
+      }
+      onMenuSaved={onMenuSaved}
+    />
+  )
 }
 
 function emptyMeals(): Record<MealLabel, string[]> {
   return { breakfast: [''], lunch: [''], dinner: [''] }
 }
 
+function describeDates(dates: IsoDate[]): string {
+  if (dates.length === 1) return formatMedium(dates[0])
+  return `${dates.length} days, ${formatMedium(dates[0])} through ${formatMedium(dates[dates.length - 1])}`
+}
+
 function ManualMenuPanel({
-  initialDate,
+  date,
+  setDate,
+  hall,
+  hallName,
+  hallPicker,
   onMenuSaved,
 }: {
-  initialDate?: IsoDate
-  onMenuSaved?: (date: IsoDate) => void
+  date: IsoDate
+  setDate: (date: IsoDate) => void
+  hall?: string
+  hallName?: string
+  hallPicker: React.ReactNode
+  onMenuSaved?: (dates: IsoDate[]) => void
 }) {
-  const [date, setDate] = useState<IsoDate>(initialDate ?? todayIso())
   const [meals, setMeals] = useState<Record<MealLabel, string[]>>(emptyMeals)
+  const [repeat, setRepeat] = useState<MenuRepeat>('never')
+  const [until, setUntil] = useState<IsoDate>(() => defaultRepeatUntil(date))
   const [saving, setSaving] = useState(false)
-  const [savedDates, setSavedDates] = useState<IsoDate[]>([])
+  const [saved, setSaved] = useState<string[]>([])
+  const [error, setError] = useState<string | null>(null)
   const [csvNote, setCsvNote] = useState<string | null>(null)
+  const [showApi, setShowApi] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const apiTip = useId()
 
   const setItem = (meal: MealLabel, i: number, value: string) =>
     setMeals((m) => ({ ...m, [meal]: m[meal].map((v, j) => (j === i ? value : v)) }))
@@ -51,20 +123,28 @@ function ManualMenuPanel({
       .map((name) => ({ itemId: itemIdFor(name), displayName: name }))
 
   const hasItems = MEALS.some((m) => meals[m].some((v) => v.trim()))
+  const dates = repeatDates(date, repeat, until)
 
   const save = async () => {
     setSaving(true)
-    await saveUserMenu(date, {
-      breakfast: toItems(meals.breakfast),
-      lunch: toItems(meals.lunch),
-      dinner: toItems(meals.dinner),
-    })
-    setSaving(false)
-    setSavedDates((d) => [...d, date])
-    onMenuSaved?.(date)
-    // "Allow adding several days at once": keep the form, advance the date.
-    setMeals(emptyMeals())
-    setDate(addDays(date, 1))
+    setError(null)
+    try {
+      await saveUserMenuDays(
+        dates,
+        { breakfast: toItems(meals.breakfast), lunch: toItems(meals.lunch), dinner: toItems(meals.dinner) },
+        hall,
+      )
+      setSaved((s) => [...s, describeDates(dates)])
+      onMenuSaved?.(dates)
+      // "Allow adding several days at once": keep the form, advance the date.
+      setMeals(emptyMeals())
+      setRepeat('never')
+      setDate(addDays(date, 1))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'The menu could not be saved.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   /**
@@ -92,31 +172,67 @@ function ManualMenuPanel({
       setCsvNote('No foods found. Use one row per food: meal, food (or date, meal, food).')
       return
     }
-    for (const [d, m] of byDate) {
-      await saveUserMenu(d, {
-        breakfast: toItems(m.breakfast),
-        lunch: toItems(m.lunch),
-        dinner: toItems(m.dinner),
-      })
-      setSavedDates((prev) => [...prev, d])
-      onMenuSaved?.(d)
+    try {
+      for (const [d, m] of byDate) {
+        await saveUserMenuDays([d], { breakfast: toItems(m.breakfast), lunch: toItems(m.lunch), dinner: toItems(m.dinner) }, hall)
+        setSaved((prev) => [...prev, formatMedium(d)])
+        onMenuSaved?.([d])
+      }
+      setCsvNote(`Added menus for ${byDate.size} day${byDate.size === 1 ? '' : 's'} from the spreadsheet.`)
+    } catch (err) {
+      setCsvNote(err instanceof Error ? err.message : 'The spreadsheet could not be saved.')
     }
-    setCsvNote(`Added menus for ${byDate.size} day${byDate.size === 1 ? '' : 's'} from the spreadsheet.`)
   }
 
   return (
     <Card>
-      <h2 className="text-lg font-semibold text-ink">Add a menu</h2>
-      <div className="mt-3">
-        <FieldLabel htmlFor="menu-date">Menu date</FieldLabel>
-        <input
-          id="menu-date"
-          type="date"
-          value={date}
-          onChange={(e) => e.target.value && setDate(e.target.value)}
-          className="rounded-btn border border-ink bg-cream px-3 py-2 text-base text-ink"
-        />
+      <h2 className="text-lg font-semibold text-ink">Add a menu{hallName ? ` for ${hallName}` : ''}</h2>
+      <div className="mt-3 flex flex-wrap items-end gap-4">
+        {hallPicker}
+        <div>
+          <FieldLabel htmlFor="menu-date">Menu date</FieldLabel>
+          <input
+            id="menu-date"
+            type="date"
+            value={date}
+            onChange={(e) => e.target.value && setDate(e.target.value)}
+            className="rounded-btn border border-ink bg-cream px-3 py-2 text-base text-ink"
+          />
+        </div>
+        <div>
+          <FieldLabel htmlFor="menu-repeat">Repeat:</FieldLabel>
+          <select
+            id="menu-repeat"
+            value={repeat}
+            onChange={(e) => {
+              const next = e.target.value as MenuRepeat
+              setRepeat(next)
+              if (next !== 'never' && until <= date) setUntil(defaultRepeatUntil(date))
+            }}
+            className="rounded-btn border border-ink bg-cream px-3 py-2 text-base text-ink"
+          >
+            {REPEATS.map((r) => (
+              <option key={r} value={r}>
+                {MENU_REPEAT_NAME[r]}
+              </option>
+            ))}
+          </select>
+        </div>
+        {repeat !== 'never' && (
+          <div>
+            <FieldLabel htmlFor="menu-repeat-until">Until</FieldLabel>
+            <input
+              id="menu-repeat-until"
+              type="date"
+              min={date}
+              value={until}
+              onChange={(e) => e.target.value && setUntil(e.target.value)}
+              className="rounded-btn border border-ink bg-cream px-3 py-2 text-base text-ink"
+            />
+          </div>
+        )}
       </div>
+      {repeat !== 'never' && <p className="mt-2 text-sm">This menu will be saved on {describeDates(dates)}.</p>}
 
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
         {MEALS.map((meal) => (
@@ -156,7 +272,7 @@ function ManualMenuPanel({
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <PrimaryButton type="button" onClick={save} disabled={!hasItems || saving}>
-          {saving ? 'Saving…' : 'Save this day'}
+          {saving ? 'Saving…' : repeat === 'never' ? 'Save this day' : `Save ${dates.length} days`}
         </PrimaryButton>
         <GhostButton type="button" onClick={() => fileRef.current?.click()}>
           Upload a spreadsheet instead
@@ -173,19 +289,78 @@ function ManualMenuPanel({
             e.target.value = ''
           }}
         />
-        <p className="text-sm">Save the spreadsheet as .csv with one food per row: meal, food. Add a date column first to fill several days.</p>
+        <span className="inline-flex items-center">
+          <GhostButton type="button" aria-expanded={showApi} aria-controls="menu-api-panel" onClick={() => setShowApi((v) => !v)}>
+            Send menus through the API
+          </GhostButton>
+          <InfoTip id={apiTip} text={MENU_API_EXPLANATION} />
+        </span>
       </div>
+      <p className="mt-2 text-sm">Save the spreadsheet as .csv with one food per row: meal, food. Add a date column first to fill several days.</p>
 
+      {showApi && <MenuApiPanel hallId={hall ?? 'hall-main'} />}
+
+      {error && (
+        <p role="alert" className="mt-3 text-base font-semibold">
+          {error}
+        </p>
+      )}
       {csvNote && (
         <p role="status" className="mt-3 text-base font-semibold">
           {csvNote}
         </p>
       )}
-      {savedDates.length > 0 && (
+      {saved.length > 0 && (
         <p role="status" className="mt-2 text-base">
-          Saved: {savedDates.join(', ')}. Add another day above, or move on when you're done.
+          Saved: {saved.join('; ')}. Add another day above, or move on when you're done.
         </p>
       )}
     </Card>
+  )
+}
+
+/** Copy-ready instructions for a hall's own menu system (POST /api/menus/upload). */
+function MenuApiPanel({ hallId }: { hallId: string }) {
+  const [copied, setCopied] = useState(false)
+  const url = `${menuApiBase()}/api/menus/upload`
+  const example = JSON.stringify(
+    {
+      hallId,
+      hallTimezone: 'America/Detroit',
+      days: [{ date: todayIso(), lunch: ['Grilled Chicken', 'Brown Rice'], dinner: ['Pasta Marinara'] }],
+    },
+    null,
+    2,
+  )
+  const curl = `curl -X POST ${url} \\\n  -H "Content-Type: application/json" \\\n  -d '${example.replace(/\n\s*/g, ' ')}'`
+
+  return (
+    <div id="menu-api-panel" className="mt-4 space-y-3 rounded-card border border-linen p-4">
+      <h3 className="text-base font-semibold">Send menus from your own system</h3>
+      <p className="text-sm">
+        Send a POST request with JSON to the address below. Each day lists the foods for breakfast, lunch, and dinner. Sending a
+        day again replaces that day's menu. For a spreadsheet file, send it as text/csv to{' '}
+        <code className="break-all">{menuApiBase()}/api/menus/csv?hallId={hallId}&amp;hallTimezone=America/Detroit</code>.
+      </p>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+        <dt className="font-semibold">Address</dt>
+        <dd>
+          <code className="break-all">POST {url}</code>
+        </dd>
+        <dt className="font-semibold">Dining hall ID</dt>
+        <dd>
+          <code>{hallId}</code>
+        </dd>
+      </dl>
+      <pre className="overflow-x-auto rounded-btn bg-ink p-3 text-xs leading-snug text-cream">{curl}</pre>
+      <GhostButton
+        type="button"
+        onClick={() => {
+          void navigator.clipboard?.writeText(curl).then(() => setCopied(true))
+        }}
+      >
+        {copied ? 'Copied' : 'Copy example'}
+      </GhostButton>
+    </div>
   )
 }

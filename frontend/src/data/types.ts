@@ -47,12 +47,31 @@ export interface SpecialEvent {
   end: string
 }
 
-/** Saved by first-time setup and Settings (localStorage). */
+/** One dining hall (location) this manager runs. */
+export interface HallRef {
+  hallId: string
+  name: string
+}
+
+/**
+ * Saved by first-time setup and Settings (localStorage). `hallId`/`name` are
+ * always the first entry of `halls`, the hall pages use when none is picked.
+ */
 export interface HallSettings {
   hallId: string
   name: string
+  halls: HallRef[]
   timeSets: MealTimeSet[]
   events: SpecialEvent[]
+}
+
+/** How often a saved menu repeats after its first date. */
+export type MenuRepeat = 'never' | 'daily' | 'weekly' | 'biweekly'
+export const MENU_REPEAT_NAME: Record<MenuRepeat, string> = {
+  never: 'Never',
+  daily: 'Every day',
+  weekly: 'Every week',
+  biweekly: 'Every other week',
 }
 
 export interface MenuItemLite {

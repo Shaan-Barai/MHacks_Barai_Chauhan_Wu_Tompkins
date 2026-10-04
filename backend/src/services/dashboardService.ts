@@ -181,7 +181,8 @@ export class DashboardService {
     return this.summarize(menu, await this.observations(menu), attendance ?? null);
   }
 
-  async daily(hallId: string, start: string, end: string): Promise<DailyPoint[]> {
+  /** `hallId` undefined = every hall's services added together. */
+  async daily(hallId: string | undefined, start: string, end: string): Promise<DailyPoint[]> {
     const services = (await this.repo.listServices(hallId)).filter(
       (s) => s.serviceDate >= start && s.serviceDate <= end,
     );

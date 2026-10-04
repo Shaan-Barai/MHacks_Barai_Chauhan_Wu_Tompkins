@@ -1,5 +1,5 @@
 /**
- * One day on the Schedule tab: that day's meal times and events, then per
+ * One day on the Menu Schedule page: that day's meal times and events, then per
  * meal what was left on plates and a suggestion grounded in those numbers.
  */
 import { useId, useState } from 'react'
@@ -21,9 +21,19 @@ function clock(t: string): string {
   return m === 0 ? `${hour}${suffix}` : `${hour}:${String(m).padStart(2, '0')}${suffix}`
 }
 
-export function DayDetails({ date, settings, dataRevision = 0 }: { date: IsoDate; settings: HallSettings; dataRevision?: number }) {
+export function DayDetails({
+  date,
+  settings,
+  hallId,
+  dataRevision = 0,
+}: {
+  date: IsoDate
+  settings: HallSettings
+  hallId?: string
+  dataRevision?: number
+}) {
   const [meal, setMeal] = useState<MealLabel>('lunch')
-  const detail = useAsync(() => getMealDetail(date, meal), [date, meal, dataRevision])
+  const detail = useAsync(() => getMealDetail(date, meal, hallId), [date, meal, hallId, dataRevision])
   const set = timeSetFor(settings, date)
   const events = settings.events.filter((e) => e.date === date)
 
@@ -60,7 +70,7 @@ export function DayDetails({ date, settings, dataRevision = 0 }: { date: IsoDate
         {detail.status === 'error' && <EmptyState title="Couldn't load this meal.">{detail.error}</EmptyState>}
         {detail.status === 'ready' && detail.data === null && (
           <EmptyState title={`No plates were scanned at ${MEAL_NAME[meal].toLowerCase()}.`}>
-            If this meal has no menu yet, add one in Menus.
+            If this meal has no menu yet, add one above.
           </EmptyState>
         )}
         {detail.status === 'ready' && detail.data !== null && <MealView detail={detail.data} />}

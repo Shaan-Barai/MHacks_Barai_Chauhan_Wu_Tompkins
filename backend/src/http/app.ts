@@ -468,7 +468,8 @@ export function createApp(deps: AppDeps): express.Express {
   app.get(
     '/api/dashboard/daily',
     wrap(async (req, res) => {
-      const hallId = requireQuery(req, 'hallId');
+      // No hallId = every hall together (the dashboard's "All dining halls").
+      const hallId = typeof req.query.hallId === 'string' && req.query.hallId ? req.query.hallId : undefined;
       res.json({ days: await dashboard.daily(hallId, requireQuery(req, 'start'), requireQuery(req, 'end')) });
     }),
   );

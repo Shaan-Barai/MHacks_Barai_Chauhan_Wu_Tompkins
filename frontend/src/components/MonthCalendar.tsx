@@ -1,5 +1,5 @@
 /**
- * Month grid shared by Schedule and Menus. Each day is a button; pages decide
+ * Month grid on the Menu Schedule page. Each day is a button; pages decide
  * what a day says (`note`) and what happens when it is picked.
  */
 import { useState } from 'react'

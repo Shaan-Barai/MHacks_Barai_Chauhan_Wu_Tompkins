@@ -291,6 +291,25 @@ test('GET /api/dashboard/daily: pixels per day, no grams; null (never 0) without
   assert.equal('grams' in day, false);
 });
 
+test('GET /api/dashboard/daily without hallId adds every hall together ("All dining halls")', async (t) => {
+  const s = await seeded();
+  t.after(() => s.close());
+  const other = 'hall-other';
+  const menu = {
+    ...MENU,
+    service: { ...MENU.service, hallId: other, serviceId: `svc_${other}_${DATE}_dinner`, menuId: `menu_${other}_${DATE}_dinner` },
+    items: MENU.items.map((i) => ({ ...i, menuId: `menu_${other}_${DATE}_dinner` })),
+  };
+  assert.equal((await s.api('POST', '/api/menus', menu)).status, 201);
+  const one = await s.api('GET', `/api/dashboard/daily?hallId=${HALL}&start=${DATE}&end=${DATE}`);
+  const all = await s.api('GET', `/api/dashboard/daily?start=${DATE}&end=${DATE}`);
+  const empty = await s.api('GET', `/api/dashboard/daily?hallId=${other}&start=${DATE}&end=${DATE}`);
+  assert.equal(all.status, 200, JSON.stringify(all.json));
+  assert.equal(empty.json.days[0].pixelsWasted, null, 'the other hall has a menu but no plates');
+  assert.equal(all.json.days[0].pixelsWasted, one.json.days[0].pixelsWasted);
+  assert.equal(all.json.days[0].capturedDishes, one.json.days[0].capturedDishes);
+});
+
 test('impact totals, capture list, daily: missing points stay null, clean plates are a measured 0', async (t) => {
   const s = await startTestServer();
   t.after(() => s.close());

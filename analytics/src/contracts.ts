@@ -38,7 +38,11 @@ export type QualityFlag =
   /** A region's segmentation failed or produced an invalid mask (no pixels counted for it). */
   | 'segmentation_failed'
   /** Masks of different foods overlapped; shared pixels went to the unclassified bucket. */
-  | 'overlapping_masks';
+  | 'overlapping_masks'
+  /** Target-dish counting (BIG-PLAN v2): food on other dishes in the frame was left out. */
+  | 'neighbor_food_excluded'
+  /** Target-dish counting: the scanned dish couldn't be found, so masks were not clipped to it. */
+  | 'target_dish_unavailable';
 
 export type ProcessingState = 'pending' | 'processing' | 'succeeded' | 'needs_review' | 'failed';
 

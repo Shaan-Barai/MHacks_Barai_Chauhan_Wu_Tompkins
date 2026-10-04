@@ -500,3 +500,36 @@ Rows carry `table: 'halal-bros'`; its keys may not overlap another table's. The 
 unchanged (`WASTE_FACTORS` stays East Quad only). The restaurant publishes no nutrition data, so the
 CSV's nutrition labels remain made-up test values and its g/cm² values unverified estimates. Factor
 version `waste-factors-v6`.
+
+## 2026-10-04: End-to-end pipeline ported onto main (main's calibrated design wins)
+
+The `end-to-end-pipeline` work was written against the pixels-only plan. It is ported feature by
+feature onto main; where the two disagree, main's IT_4 design wins (calibrated `reference-area-v1`
+estimates in grams, kg CO2e and litres, labeled est., null not 0; the ingest-token/admin auth gate;
+`geminiCap`; hidden captures; the East Quad → Halal Bros → 500-food factor tables). Ported:
+
+- One ingest path for camera photos: the raw original is uploaded as image kind `'original'` and a
+  `scan_info` row (device ID, `timestampBasis` from the laptop clock, never the board clock, SHA-256,
+  source name) is written beside the capture. A backend whose `scrap` module lacks
+  `upsert_scan_info` logs a warning once and continues; republish the module to store scan rows.
+- `POST /api/camera/take-photo` (behind the auth gate and `geminiCap`) and `GET /api/camera/status`
+  run `capture/scripts/take-photo.mjs` over key-only SSH (`CAMERA_HOST`, `CAMERA_USER`,
+  `CAMERA_SSH_KEY` in `.env`), with a photo quality check (valid JPEG, size, brightness, Laplacian
+  sharpness) before upload.
+- Sample history: `DEMO_SEED=1` or `POST /api/demo/seed` adds ~14 days of `source: 'demo'` captures in
+  `svc_demo_*` services, tracked in `demo_marker`; `POST /api/demo/clear` (`clear_demo_data`) removes
+  them with their attendance and visibility rows. Demo portions served use category ranges (pizza
+  200–400, entrée 80–200, side/soup 60–150, dessert 50–150; `demo-portions-v2`).
+- `GET /api/dashboard/totals` (today/week/month Pixels wasted, plus the estimate line when calibrated
+  captures exist). The dashboard ranks foods per portion, by total pixels or by impact points.
+- Recommendations `impact-rec-v4` / `impact-rec-v4-physical`: 2–3 bullets, a bullet citing a food's
+  number names that food, an earlier/later-half trend fact; saved in `insight`, regenerated with
+  `POST /api/recommendation/regenerate`, and on Gemini failure the last saved one is returned with
+  `stale: true`.
+- Impact points = 0.19 × CO2 points + 1.50 × water points from the unrounded parts.
+- Test levels in `tests/`: `test:unit`, `test:integration`, `test:images` (`RUN_LIVE=1`),
+  `test:camera` (`RUN_CAMERA=1`), `test:smoke` (Playwright); detection scoring is skipped when
+  `ground_truth.csv` is absent. See `docs/testing.md`.
+
+The pixels-only wording of that branch (no cm², everything relative) is superseded by the
+calibrated-estimate decisions above; Pixels wasted stays the primary measured metric.

@@ -190,7 +190,9 @@ export class ImpactService {
     for (const r of records) {
       for (const [eventId, attempt] of r.countedAttempts) attemptQualityFlags.set(eventId, attempt.qualityFlags ?? []);
     }
-    return buildImpactDashboard({
+    // Generated sample history (source 'demo') is labeled on the dashboard.
+    const sampleCaptures = records.flatMap((r) => r.captures).filter((c) => c.source === 'demo').length;
+    const dashboard = buildImpactDashboard({
       window,
       measurements: selected.measurements,
       attemptQualityFlags,
@@ -201,6 +203,11 @@ export class ImpactService {
       wasteFactorsVersion: WASTE_FACTORS_VERSION,
       physicalCoverage: selected.physicalCoverage,
     });
+    return {
+      ...dashboard,
+      coverage: { ...dashboard.coverage, sampleCaptures },
+      labels: { ...dashboard.labels, sampleData: sampleCaptures > 0 },
+    };
   }
 
   /** Recent plates, newest first, capped (contracts CaptureListItem). */

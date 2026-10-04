@@ -126,7 +126,7 @@ test('seed: demo portions served, one per dinner item, labeled demo and plausibl
     assert.equal(p.menuId, bundle.service.menuId);
     assert.equal(p.menuVersion, bundle.service.menuVersion);
     assert.equal(p.serviceDate, bundle.service.serviceDate);
-    assert.ok(Number.isSafeInteger(p.count) && p.count >= 40 && p.count <= 260, `${p.itemId}: ${p.count}`);
+    assert.ok(Number.isSafeInteger(p.count) && p.count >= 50 && p.count <= 400, `${p.itemId}: ${p.count}`);
     const role = portionRole(factorKeyFor(item.displayName), item.category ?? '');
     const [min, max] = DEMO_PORTION_RANGES[role];
     assert.ok(p.count >= min && p.count <= max);
@@ -135,6 +135,9 @@ test('seed: demo portions served, one per dinner item, labeled demo and plausibl
   const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
   assert.ok(mean(byRole.dessert!) < mean(byRole.entree!));
   assert.ok(mean(byRole.side!) < mean(byRole.entree!));
+  // Pizza is counted in slices, so it serves the most portions.
+  assert.ok(mean(byRole.pizza!) > mean(byRole.entree!));
+  assert.deepEqual(DEMO_PORTION_RANGES.pizza, [200, 400]);
   // Re-validating through the package's own parser accepts the 'demo' source unchanged.
   for (const bundle of dinners) {
     const rows = seed.portionsServed.filter((p) => p.serviceId === bundle.service.serviceId);

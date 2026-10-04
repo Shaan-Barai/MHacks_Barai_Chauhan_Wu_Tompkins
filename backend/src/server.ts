@@ -16,7 +16,7 @@ try {
   log.error('startup refused', { reason: err instanceof Error ? err.message : String(err) });
   process.exit(1);
 }
-const { app, config, security } = built;
+const { app, config, security, demo } = built;
 
 const onListen = () => {
   const persistence = config.spacetime ? `SpacetimeDB ${config.spacetime.module}` : 'in-memory/JSON';
@@ -33,6 +33,14 @@ const onListen = () => {
     vision,
     frontend: config.frontendDist ? 'served' : 'not served',
   });
+  // DEMO_SEED=1: fill ~14 days of labeled sample history (skips slots already filled).
+  if (config.demoSeed && demo) {
+    const endDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Detroit' }).format(new Date());
+    demo
+      .seedHistory({ hallId: process.env.HALL_ID || 'hall-main', endDate })
+      .then((r) => log.info('sample history added (remove with npm run demo:clear)', { services: r.services, captures: r.captures }))
+      .catch((e) => log.error('sample history failed', { reason: e instanceof Error ? e.message : String(e) }));
+  }
 };
 if (config.host) app.listen(config.port, config.host, onListen);
 else app.listen(config.port, onListen);

@@ -11,7 +11,8 @@
  * test dining hall's 26-food dinner menu from menu_waste_factors.csv: display
  * name = CSV `food`, category = station, description = Gemini's visible
  * components. Each dinner also gets DEMO portions-served counts (seeded,
- * plausible 40-260 per item, source 'demo').
+ * plausible per role: pizza slices 200-400, entrees 80-200, sides and soup
+ * 60-150, desserts 50-150; source 'demo').
  *
  * Everything here is DEMO DATA: expected areas were assigned by hand per
  * category to look plausible next to the sample record (scrambled eggs =
@@ -28,6 +29,7 @@ import { parseMenuUpload } from '../menuBundle.js';
 import { createReferencePortion, validateReferencePortion } from '../referencePortions.js';
 import { buildVocabulary } from '../vocabulary.js';
 import { parsePortionsServed } from '../portionsServed.js';
+import { DEMO_PORTION_RANGES, portionRole } from '../portionRoles.js';
 import { WASTE_FACTOR_MENU_TEXT } from '../factors.js';
 import { slugifyName } from '../ids.js';
 import type { ImageGeometry, MenuBundle, MenuUpload, PortionsServed, ReferencePortion } from '../types.js';
@@ -144,33 +146,9 @@ const FALLBACK_VISIBLE_COMPONENTS: Record<string, string> = {
   lettuce: 'shredded or chopped raw lettuce, crisp pale-green to green leaf ribbons and torn pieces',
 };
 
-/** Portion role per factor food; drives the reference area and the demo count range. */
-type PortionRole = 'entree' | 'side' | 'soup' | 'dessert';
-const ENTREE_KEYS = new Set([
-  'baked-boneless-ham',
-  'ancho-flank-steak',
-  'vegetable-cannelloni',
-  'michigan-farmers-4-bean-stew',
-  'pepperoni-pizza',
-  'cheese-pizza',
-  'chicken-broccoli-alfredo-pizza',
-]);
+export { DEMO_PORTION_RANGES, portionRole, type PortionRole } from '../portionRoles.js';
 
-export function portionRole(factorKey: string, station: string): PortionRole {
-  if (station === 'MBakery') return 'dessert';
-  if (station === 'Soup') return 'soup';
-  return ENTREE_KEYS.has(factorKey) ? 'entree' : 'side';
-}
-
-/** Demo portions-served range per role (all inside the agreed 40-260). */
-export const DEMO_PORTION_RANGES: Record<PortionRole, readonly [number, number]> = {
-  entree: [120, 260],
-  side: [70, 170],
-  soup: [60, 140],
-  dessert: [40, 110],
-};
-
-export const DEMO_PORTIONS_SEED = 'demo-portions-v1';
+export const DEMO_PORTIONS_SEED = 'demo-portions-v2';
 
 /** The 26-food dinner menu (CSV order). */
 export function factorDinnerItems(): DemoItem[] {
@@ -180,7 +158,8 @@ export function factorDinnerItems(): DemoItem[] {
       name: row.food,
       category: row.station,
       ...(description !== undefined ? { description } : {}),
-      areaClass: portionRole(row.factorKey, row.station),
+      // A pizza slice uses the entree reference area (unchanged from before 'pizza' had its own count range).
+      areaClass: ((role) => (role === 'pizza' ? 'entree' : role))(portionRole(row.factorKey, row.station)),
     };
   });
 }
@@ -271,7 +250,7 @@ export function buildDemoSeed(): DemoSeed {
       'DEMO DATA — fictional breakfast/lunch menus, the test hall\'s 26-food dinner menu, hand-assigned manual_area reference portions, and dummy demo portions-served counts for the Scrap prototype. Not real hall data; not measured portions or real serving counts.',
     demo: true,
     provenance:
-      'Generated deterministically by data/src/seed/generate.ts (scrap-data). Regenerate with `npm run seed` in data/. Dinner items come from menu_waste_factors.csv (descriptions = gemini_visible_components; Baked Sweet Potatoes, Halal Rice, Tomatoes and Lettuce use hand-written fallbacks). portionsServed are DEMO counts from a seeded hash (seed "demo-portions-v1", 40-260 per item by role), source "demo".',
+      'Generated deterministically by data/src/seed/generate.ts (scrap-data). Regenerate with `npm run seed` in data/. Dinner items come from menu_waste_factors.csv (descriptions = gemini_visible_components; Baked Sweet Potatoes, Halal Rice, Tomatoes and Lettuce use hand-written fallbacks). portionsServed are DEMO counts from a seeded hash (seed "demo-portions-v2"; pizza slices 200-400, entrees 80-200, sides and soup 60-150, desserts 50-150), source "demo".',
     hallId: upload.hallId,
     hallTimezone: upload.hallTimezone,
     coordinateSpace: DEMO_GEOMETRY.coordinateSpace,

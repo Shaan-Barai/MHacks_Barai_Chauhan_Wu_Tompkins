@@ -300,7 +300,7 @@ remaining work.
 | B | running | 2026-10-04 | launched (hardening + schema first) |
 | U | running | 2026-10-04 | launched (mocks first) |
 | K | running | 2026-10-04 | launched (client side + docs first) |
-| P | running | 2026-10-04 | redirected: no Fly. Local production stack (`deploy/local-up.sh`), smoke test, tunnel runbook (docs only) |
+| P | **done** | 2026-10-04 | `f9a7496`: `deploy/local.sh up/down/status/smoke/seed`, `smoke.mjs` 16/16 on test ports (live Gemini+SAM capture on `hall-smoke`), `docs/deploy.md` (tunnel documented only), r2-cors.local.json (not applied). Main checkout still runs the old dev backend on :8787; restart from main after A/V land |
 
 ### Log
 - 2026-10-04: plan written. User chose Fly.io and will buy a domain.

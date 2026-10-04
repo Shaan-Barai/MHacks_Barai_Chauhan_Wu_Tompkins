@@ -53,6 +53,8 @@ photos and logs to `images/demo-runs/` (gitignored). **Adding a feature? Add a d
 
 ## Documents
 
+- [`IT_4.md`](IT_4.md) — calibrated area, Depth Anything V2 volume, estimated CO2e/water, local production stack (plan + tracker).
+- [`docs/deploy.md`](docs/deploy.md) — run the whole stack locally in production mode: `deploy/local.sh up | status | smoke | down`.
 - [`BIG-PLAN.md`](BIG-PLAN.md) — the camera → impact → dashboard plan and its tracker.
 - [`EXPLAIN.md`](EXPLAIN.md) — the whole database (SpacetimeDB + R2) in plain language.
 - [`menu_waste_factors_README.md`](menu_waste_factors_README.md) — the waste

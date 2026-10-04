@@ -61,32 +61,20 @@ edited in Settings; there is no first-run wizard.
 `npm run build` writes `dist/`; the backend serves it with an SPA fallback
 (`SERVE_FRONTEND=1`), so the dashboard and `/api` share one origin and the
 data layer uses relative `/api` URLs (`VITE_API_URL` only for a separate API
-origin). Pages have their own paths (`/`, `/schedule`, `/menus`, `/portions`,
-`/behind-the-scenes`, `/settings`); any other path shows a 404 page.
+origin). Pages have their own paths (see the list above); any other path shows a 404 page.
 
 ## Camera calibration and estimates (IT_4)
 
-- **Settings -> Camera calibration**: known area in cm² (credit-card preset
-  46.21 cm²), reference label, calibration photo upload:
-  the browser normalizes it like a capture (`topdown-normalized-v1`: centre
-  square, 1024 x 1024 JPEG q90, `src/lib/normalizePhoto.ts`), then
-  `POST /api/images/uploads` with `associationKind: 'calibration'` and a new
-  `cal_<id>` as `associationId` -> PUT -> finalize -> `POST /api/calibrations`.
-  The browser PUT goes straight to object storage, so the bucket's CORS must
-  allow PUT from the dashboard origin; result with the reference outline
-  (`GET /api/calibrations/:id/images`), cm²/px, camera height from the photo,
-  `reference_*` flags in plain words (unknown legacy flags are hidden),
-  Activate (`PUT /api/settings/measurement` `{ hallId, activeCalibrationId }`),
-  history. Processing calibrations are polled every 2 s. Area comes only from
-  the calibration; grams = area x the food's typical weight per cm². Depth
-  Anything V2 (toggle, depth height, plate thickness, volume) was removed
-  2026-10-04.
+- **Camera calibration has no UI** (removed 2026-10-04 at the product owner's
+  request). Calibrate with `python3 demo.py --recalibrate` (or
+  `POST /api/calibrations` + `PUT /api/settings/measurement`). Area comes only
+  from the active calibration; grams = area x the food's typical weight per
+  cm². Without one, carbon, water and food weight show "—".
 - **Food labels**: `38 g · 1.1 kg CO2e · 18 L water` chips with inline
   SVG cloud/droplet icons, rounded like analytics' overlay label (whole
   grams; CO2e and litres to 2 significant digits; CO2e in g below 0.1 kg).
   Missing = a muted reason or nothing, never 0.
-- **Headline cards**: Estimated CO2e and Estimated water with "From X of Y
-  plates (calibrated)"; no method breakdown.
+- **Headline cards**: Carbon emissions, Water, Food wasted, Plates scanned.
 - **Mock data**: days over 20 days ago are uncalibrated, the last 20 days use
   the calibrated area (so Today and 7 days are fully calibrated, 30 days
   partly, 90 days mostly uncalibrated); a no-factor food, unknown food, a demo

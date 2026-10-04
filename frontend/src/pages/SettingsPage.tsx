@@ -1,6 +1,5 @@
-/** Settings: hall name, meal times for different days, special events, camera calibration, and a download. */
+/** Settings: hall name, meal times for different days, special events, and a download. */
 import { useState } from 'react'
-import { CameraCalibrationPanel } from '../components/CameraCalibration'
 import { MealTimesFields } from '../components/MealTimesFields'
 import { Card, FieldLabel, GhostButton, PrimaryButton, inputClass } from '../components/ui'
 import type { HallSettings, MealTimeSet, SpecialEvent, Weekday } from '../data/types'
@@ -165,8 +164,6 @@ export function SettingsPage({ settings, onSave }: { settings: HallSettings; onS
         </div>
       </fieldset>
       </Card>
-
-      <CameraCalibrationPanel />
 
       <Card>
         <h2 className="text-lg font-semibold">Download</h2>

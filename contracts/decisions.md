@@ -554,3 +554,5 @@ calibrated-estimate decisions above; Pixels wasted stays the primary measured me
   as "—", without calibration); photos are taken with `npm run take-photo`.
 - The Nutrition lost section is removed from Statistics (product owner). The API still computes
   nutrition points; nothing else changes.
+- The camera calibration panel (credit-card reference photos) is removed from Settings. The backend
+  calibration API is unchanged; calibrate with `python3 demo.py --recalibrate`.

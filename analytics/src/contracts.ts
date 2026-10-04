@@ -352,8 +352,11 @@ export interface ImpactDashboard {
     itemsWithPortions: number;
     /** Captures where food outside the scanned (target) dish was excluded. */
     capturesWithNeighborFoodExcluded: number;
+    /** Generated sample scans (source 'demo', DEMO_SEED) in the window. */
+    sampleCaptures?: number;
   };
-  labels: { relativeImpact: true; demoPortions: boolean };
+  /** sampleData: the window includes generated sample history; show a 'sample data' label. */
+  labels: { relativeImpact: true; demoPortions: boolean; sampleData?: boolean };
 }
 
 /** GET /api/captures?start&end — recent plates for the dashboard gallery. */

@@ -122,9 +122,9 @@ test('GET /api/dashboard/impact: pixel totals, relative points, px-per-portion t
   assert.equal(d.totals.analyzedCaptures, 2);
   assert.equal(d.totals.excludedCaptures, 1);
   assert.equal(typeof d.totals.wasteFactorsVersion, 'string');
-  assert.deepEqual(d.labels, { relativeImpact: true, demoPortions: false });
+  assert.deepEqual(d.labels, { relativeImpact: true, demoPortions: false, sampleData: false });
   // cap_a's counted attempt is flagged; cap_c's failed attempt is not counted.
-  assert.deepEqual(d.coverage, { itemsWithFactor: 2, itemsWithoutFactor: 0, itemsWithPortions: 2, capturesWithNeighborFoodExcluded: 1 });
+  assert.deepEqual(d.coverage, { itemsWithFactor: 2, itemsWithoutFactor: 0, itemsWithPortions: 2, capturesWithNeighborFoodExcluded: 1, sampleCaptures: 0 });
 
   const ham = d.mostWasted.find((r: any) => r.itemId === HAM);
   const potatoes = d.mostWasted.find((r: any) => r.itemId === POTATOES);

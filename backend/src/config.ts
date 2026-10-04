@@ -30,6 +30,8 @@ export interface BackendConfig {
   /** SpacetimeDB persistence; when unset the JSON/in-memory repository is used. */
   spacetime?: { uri: string; module: string; token?: string };
   attendance: { min: number; max: number; seed?: string };
+  /** DEMO_SEED=1: fill ~14 days of labeled sample history at startup (idempotent). */
+  demoSeed?: boolean;
 }
 
 function int(name: string, fallback: number): number {
@@ -93,5 +95,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BackendConfig 
       max: int('ATTENDANCE_MAX', 1200),
       seed: env.ATTENDANCE_SEED || undefined,
     },
+    demoSeed: env.DEMO_SEED === '1' || env.DEMO_SEED === 'true',
   };
 }

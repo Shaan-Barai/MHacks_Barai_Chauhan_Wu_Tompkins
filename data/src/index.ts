@@ -5,6 +5,7 @@
 
 export * from './types.js';
 export { parsePortionsServed, parsePortionsCsv, MAX_PORTIONS_SERVED } from './portionsServed.js';
+export { DEMO_PORTION_RANGES, portionRole, type PortionRole } from './portionRoles.js';
 export { DataValidationError } from './errors.js';
 export {
   WASTE_FACTORS,

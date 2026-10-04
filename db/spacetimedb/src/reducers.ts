@@ -583,7 +583,11 @@ export const clear_demo_data = spacetimedb.reducer({}, (ctx) => {
   for (const marker of [...ctx.db.demoMarker.iter()]) {
     const key = marker.rowKey;
     switch (marker.tableName) {
-      case 'meal_service': ctx.db.mealService.serviceId.delete(key); break;
+      case 'meal_service':
+        ctx.db.mealService.serviceId.delete(key);
+        // Simulated attendance the dashboard generated for this sample service.
+        ctx.db.attendance.serviceId.delete(key);
+        break;
       case 'menu_item': ctx.db.menuItem.itemId.delete(key); break;
       case 'portions_served': ctx.db.portionsServed.recordId.delete(key); break;
       case 'capture_event': ctx.db.captureEvent.eventId.delete(key); break;

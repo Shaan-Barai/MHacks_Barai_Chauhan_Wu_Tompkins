@@ -18,6 +18,7 @@ import type { SummaryService } from '../services/summaryService.js';
 import type { DashboardService } from '../services/dashboardService.js';
 import type { DishMatchService } from '../services/dishMatchService.js';
 import type { CameraService } from '../services/cameraService.js';
+import type { DemoService } from '../services/demoService.js';
 import type { CaptureService } from '../services/captureService.js';
 import { parseWindow, CAPTURE_LIST_DEFAULT_LIMIT, CAPTURE_LIST_MAX_LIMIT, type ImpactService } from '../services/impactService.js';
 import type { MealLabel, MenuBundle } from '../types.js';
@@ -42,6 +43,8 @@ export interface AppDeps {
   impact: ImpactService;
   /** Dashboard 'Take photo' (optional: tests and offline setups omit it). */
   camera?: CameraService;
+  /** Sample history (DEMO_SEED); optional in tests. */
+  demo?: DemoService;
 }
 
 export function createApp(deps: AppDeps): express.Express {
@@ -351,6 +354,31 @@ export function createApp(deps: AppDeps): express.Express {
       const submission = validateCaptureSubmission(req.body);
       const result = await ingestion.submitCapture(submission);
       res.status(result.deduplicated ? 200 : 201).json(result);
+    }),
+  );
+
+  // ---- sample history (DEMO_SEED): fill is opt-in, clearing is always allowed ----
+  app.post(
+    '/api/demo/seed',
+    wrap(async (req, res) => {
+      if (!deps.demo || !config.demoSeed) {
+        throw new HttpError(403, apiError('DEMO_SEED_DISABLED', 'Set DEMO_SEED=1 in .env to add sample history.', false));
+      }
+      const { hallId, endDate, days } = req.body ?? {};
+      res.status(201).json(
+        await deps.demo.seedHistory({
+          hallId: typeof hallId === 'string' && hallId ? hallId : 'hall-main',
+          endDate: typeof endDate === 'string' ? endDate : new Date().toISOString().slice(0, 10),
+          ...(typeof days === 'number' ? { days } : {}),
+        }),
+      );
+    }),
+  );
+  app.post(
+    '/api/demo/clear',
+    wrap(async (_req, res) => {
+      if (!deps.demo) throw new HttpError(503, apiError('DEMO_UNAVAILABLE', 'Sample data is not available on this server.', false));
+      res.json(await deps.demo.clear());
     }),
   );
 

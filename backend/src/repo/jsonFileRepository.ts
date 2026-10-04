@@ -191,7 +191,10 @@ export class JsonFileRepository implements Repository {
   async clearDemoData(): Promise<number> {
     const markers = [...this.demoMarkers.values()];
     for (const { tableName, rowKey } of markers) {
-      if (tableName === 'meal_service') this.menus.delete(rowKey);
+      if (tableName === 'meal_service') {
+        this.menus.delete(rowKey);
+        this.attendance.delete(rowKey);
+      }
       else if (tableName === 'portions_served') this.portionsServed.delete(rowKey);
       else if (tableName === 'capture_event') this.captureEvents.delete(rowKey);
       else if (tableName === 'scan_info') this.scans.delete(rowKey);

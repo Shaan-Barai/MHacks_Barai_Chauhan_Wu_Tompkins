@@ -1,7 +1,7 @@
 {
   "label": "DEMO DATA — fictional breakfast/lunch menus, the test hall's 23-food dinner menu, hand-assigned manual_area reference portions, and dummy demo portions-served counts for the Scrap prototype. Not real hall data; not measured portions or real serving counts.",
   "demo": true,
-  "provenance": "Generated deterministically by data/src/seed/generate.ts (scrap-data). Regenerate with `npm run seed` in data/. Dinner items come from menu_waste_factors.csv (descriptions = gemini_visible_components; Baked Sweet Potatoes uses a hand-written fallback). portionsServed are DEMO counts from a seeded hash (seed \"demo-portions-v1\", 40-260 per item by role), source \"demo\".",
+  "provenance": "Generated deterministically by data/src/seed/generate.ts (scrap-data). Regenerate with `npm run seed` in data/. Dinner items come from menu_waste_factors.csv (descriptions = gemini_visible_components; Baked Sweet Potatoes uses a hand-written fallback). portionsServed are DEMO counts from a seeded hash (seed \"demo-portions-v2\"; pizza slices 200-400, entrees 80-200, sides and soup 60-150, desserts 50-150), source \"demo\".",
   "hallId": "hall-main",
   "hallTimezone": "America/Detroit",
   "coordinateSpace": "topdown-normalized-v1",
@@ -2214,7 +2214,7 @@
       "menuId": "menu_hall-main_2026-10-01_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-01_dinner_broccoli-cheddar-soup",
-      "count": 72,
+      "count": 139,
       "source": "demo",
       "updatedAt": "2026-10-01T23:30:00.000Z"
     },
@@ -2226,7 +2226,7 @@
       "menuId": "menu_hall-main_2026-10-01_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-01_dinner_baked-boneless-ham",
-      "count": 202,
+      "count": 162,
       "source": "demo",
       "updatedAt": "2026-10-01T23:30:00.000Z"
     },
@@ -2238,7 +2238,7 @@
       "menuId": "menu_hall-main_2026-10-01_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-01_dinner_oven-roasted-garlic-potatoes",
-      "count": 164,
+      "count": 141,
       "source": "demo",
       "updatedAt": "2026-10-01T23:30:00.000Z"
     },
@@ -2250,7 +2250,7 @@
       "menuId": "menu_hall-main_2026-10-01_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-01_dinner_baked-sweet-potatoes",
-      "count": 102,
+      "count": 61,
       "source": "demo",
       "updatedAt": "2026-10-01T23:30:00.000Z"
     },
@@ -2262,7 +2262,7 @@
       "menuId": "menu_hall-main_2026-10-01_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-01_dinner_roasted-cauliflower",
-      "count": 140,
+      "count": 63,
       "source": "demo",
       "updatedAt": "2026-10-01T23:30:00.000Z"
     },
@@ -2274,7 +2274,7 @@
       "menuId": "menu_hall-main_2026-10-01_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-01_dinner_michigan-farmers-4-bean-stew",
-      "count": 150,
+      "count": 172,
       "source": "demo",
       "updatedAt": "2026-10-01T23:30:00.000Z"
     },
@@ -2286,7 +2286,7 @@
       "menuId": "menu_hall-main_2026-10-01_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-01_dinner_farro",
-      "count": 167,
+      "count": 102,
       "source": "demo",
       "updatedAt": "2026-10-01T23:30:00.000Z"
     },
@@ -2298,7 +2298,7 @@
       "menuId": "menu_hall-main_2026-10-01_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-01_dinner_shaved-brussel-sprouts",
-      "count": 101,
+      "count": 88,
       "source": "demo",
       "updatedAt": "2026-10-01T23:30:00.000Z"
     },
@@ -2310,7 +2310,7 @@
       "menuId": "menu_hall-main_2026-10-01_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-01_dinner_vegetable-cannelloni",
-      "count": 248,
+      "count": 118,
       "source": "demo",
       "updatedAt": "2026-10-01T23:30:00.000Z"
     },
@@ -2322,7 +2322,7 @@
       "menuId": "menu_hall-main_2026-10-01_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-01_dinner_panzanella-salad",
-      "count": 155,
+      "count": 136,
       "source": "demo",
       "updatedAt": "2026-10-01T23:30:00.000Z"
     },
@@ -2334,7 +2334,7 @@
       "menuId": "menu_hall-main_2026-10-01_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-01_dinner_ancho-flank-steak",
-      "count": 168,
+      "count": 129,
       "source": "demo",
       "updatedAt": "2026-10-01T23:30:00.000Z"
     },
@@ -2346,7 +2346,7 @@
       "menuId": "menu_hall-main_2026-10-01_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-01_dinner_sticky-rice",
-      "count": 122,
+      "count": 65,
       "source": "demo",
       "updatedAt": "2026-10-01T23:30:00.000Z"
     },
@@ -2370,7 +2370,7 @@
       "menuId": "menu_hall-main_2026-10-01_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-01_dinner_cheese-bread",
-      "count": 152,
+      "count": 69,
       "source": "demo",
       "updatedAt": "2026-10-01T23:30:00.000Z"
     },
@@ -2382,7 +2382,7 @@
       "menuId": "menu_hall-main_2026-10-01_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-01_dinner_pepperoni-pizza",
-      "count": 198,
+      "count": 230,
       "source": "demo",
       "updatedAt": "2026-10-01T23:30:00.000Z"
     },
@@ -2394,7 +2394,7 @@
       "menuId": "menu_hall-main_2026-10-01_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-01_dinner_cheese-pizza",
-      "count": 208,
+      "count": 371,
       "source": "demo",
       "updatedAt": "2026-10-01T23:30:00.000Z"
     },
@@ -2406,7 +2406,7 @@
       "menuId": "menu_hall-main_2026-10-01_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-01_dinner_chicken-broccoli-alfredo-pizza",
-      "count": 244,
+      "count": 295,
       "source": "demo",
       "updatedAt": "2026-10-01T23:30:00.000Z"
     },
@@ -2418,7 +2418,7 @@
       "menuId": "menu_hall-main_2026-10-01_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-01_dinner_chocolate-coconut-cream-pie",
-      "count": 86,
+      "count": 85,
       "source": "demo",
       "updatedAt": "2026-10-01T23:30:00.000Z"
     },
@@ -2430,7 +2430,7 @@
       "menuId": "menu_hall-main_2026-10-01_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-01_dinner_pumpkin-pie",
-      "count": 49,
+      "count": 133,
       "source": "demo",
       "updatedAt": "2026-10-01T23:30:00.000Z"
     },
@@ -2442,7 +2442,7 @@
       "menuId": "menu_hall-main_2026-10-01_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-01_dinner_snickers-brownies-with-peanuts",
-      "count": 86,
+      "count": 137,
       "source": "demo",
       "updatedAt": "2026-10-01T23:30:00.000Z"
     },
@@ -2454,7 +2454,7 @@
       "menuId": "menu_hall-main_2026-10-01_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-01_dinner_peppermint-white-chocolate-blondie",
-      "count": 50,
+      "count": 95,
       "source": "demo",
       "updatedAt": "2026-10-01T23:30:00.000Z"
     },
@@ -2466,7 +2466,7 @@
       "menuId": "menu_hall-main_2026-10-01_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-01_dinner_golden-cake-with-chocolate-frosting",
-      "count": 82,
+      "count": 81,
       "source": "demo",
       "updatedAt": "2026-10-01T23:30:00.000Z"
     },
@@ -2478,7 +2478,7 @@
       "menuId": "menu_hall-main_2026-10-01_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-01_dinner_strawberry-shortcake-bar",
-      "count": 97,
+      "count": 107,
       "source": "demo",
       "updatedAt": "2026-10-01T23:30:00.000Z"
     },
@@ -2490,7 +2490,7 @@
       "menuId": "menu_hall-main_2026-10-02_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-02_dinner_broccoli-cheddar-soup",
-      "count": 95,
+      "count": 107,
       "source": "demo",
       "updatedAt": "2026-10-02T23:30:00.000Z"
     },
@@ -2502,7 +2502,7 @@
       "menuId": "menu_hall-main_2026-10-02_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-02_dinner_baked-boneless-ham",
-      "count": 164,
+      "count": 194,
       "source": "demo",
       "updatedAt": "2026-10-02T23:30:00.000Z"
     },
@@ -2514,7 +2514,7 @@
       "menuId": "menu_hall-main_2026-10-02_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-02_dinner_oven-roasted-garlic-potatoes",
-      "count": 141,
+      "count": 109,
       "source": "demo",
       "updatedAt": "2026-10-02T23:30:00.000Z"
     },
@@ -2526,7 +2526,7 @@
       "menuId": "menu_hall-main_2026-10-02_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-02_dinner_baked-sweet-potatoes",
-      "count": 165,
+      "count": 146,
       "source": "demo",
       "updatedAt": "2026-10-02T23:30:00.000Z"
     },
@@ -2538,7 +2538,7 @@
       "menuId": "menu_hall-main_2026-10-02_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-02_dinner_roasted-cauliflower",
-      "count": 155,
+      "count": 103,
       "source": "demo",
       "updatedAt": "2026-10-02T23:30:00.000Z"
     },
@@ -2550,7 +2550,7 @@
       "menuId": "menu_hall-main_2026-10-02_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-02_dinner_michigan-farmers-4-bean-stew",
-      "count": 147,
+      "count": 128,
       "source": "demo",
       "updatedAt": "2026-10-02T23:30:00.000Z"
     },
@@ -2562,7 +2562,7 @@
       "menuId": "menu_hall-main_2026-10-02_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-02_dinner_farro",
-      "count": 140,
+      "count": 146,
       "source": "demo",
       "updatedAt": "2026-10-02T23:30:00.000Z"
     },
@@ -2574,7 +2574,7 @@
       "menuId": "menu_hall-main_2026-10-02_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-02_dinner_shaved-brussel-sprouts",
-      "count": 104,
+      "count": 60,
       "source": "demo",
       "updatedAt": "2026-10-02T23:30:00.000Z"
     },
@@ -2586,7 +2586,7 @@
       "menuId": "menu_hall-main_2026-10-02_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-02_dinner_vegetable-cannelloni",
-      "count": 211,
+      "count": 155,
       "source": "demo",
       "updatedAt": "2026-10-02T23:30:00.000Z"
     },
@@ -2598,7 +2598,7 @@
       "menuId": "menu_hall-main_2026-10-02_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-02_dinner_panzanella-salad",
-      "count": 126,
+      "count": 106,
       "source": "demo",
       "updatedAt": "2026-10-02T23:30:00.000Z"
     },
@@ -2610,7 +2610,7 @@
       "menuId": "menu_hall-main_2026-10-02_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-02_dinner_ancho-flank-steak",
-      "count": 155,
+      "count": 184,
       "source": "demo",
       "updatedAt": "2026-10-02T23:30:00.000Z"
     },
@@ -2622,7 +2622,7 @@
       "menuId": "menu_hall-main_2026-10-02_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-02_dinner_sticky-rice",
-      "count": 145,
+      "count": 129,
       "source": "demo",
       "updatedAt": "2026-10-02T23:30:00.000Z"
     },
@@ -2634,7 +2634,7 @@
       "menuId": "menu_hall-main_2026-10-02_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-02_dinner_vegetable-stir-fry-blend",
-      "count": 135,
+      "count": 99,
       "source": "demo",
       "updatedAt": "2026-10-02T23:30:00.000Z"
     },
@@ -2646,7 +2646,7 @@
       "menuId": "menu_hall-main_2026-10-02_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-02_dinner_cheese-bread",
-      "count": 166,
+      "count": 92,
       "source": "demo",
       "updatedAt": "2026-10-02T23:30:00.000Z"
     },
@@ -2658,7 +2658,7 @@
       "menuId": "menu_hall-main_2026-10-02_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-02_dinner_pepperoni-pizza",
-      "count": 145,
+      "count": 395,
       "source": "demo",
       "updatedAt": "2026-10-02T23:30:00.000Z"
     },
@@ -2670,7 +2670,7 @@
       "menuId": "menu_hall-main_2026-10-02_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-02_dinner_cheese-pizza",
-      "count": 250,
+      "count": 376,
       "source": "demo",
       "updatedAt": "2026-10-02T23:30:00.000Z"
     },
@@ -2682,7 +2682,7 @@
       "menuId": "menu_hall-main_2026-10-02_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-02_dinner_chicken-broccoli-alfredo-pizza",
-      "count": 189,
+      "count": 303,
       "source": "demo",
       "updatedAt": "2026-10-02T23:30:00.000Z"
     },
@@ -2694,7 +2694,7 @@
       "menuId": "menu_hall-main_2026-10-02_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-02_dinner_chocolate-coconut-cream-pie",
-      "count": 99,
+      "count": 58,
       "source": "demo",
       "updatedAt": "2026-10-02T23:30:00.000Z"
     },
@@ -2706,7 +2706,7 @@
       "menuId": "menu_hall-main_2026-10-02_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-02_dinner_pumpkin-pie",
-      "count": 75,
+      "count": 148,
       "source": "demo",
       "updatedAt": "2026-10-02T23:30:00.000Z"
     },
@@ -2718,7 +2718,7 @@
       "menuId": "menu_hall-main_2026-10-02_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-02_dinner_snickers-brownies-with-peanuts",
-      "count": 66,
+      "count": 123,
       "source": "demo",
       "updatedAt": "2026-10-02T23:30:00.000Z"
     },
@@ -2730,7 +2730,7 @@
       "menuId": "menu_hall-main_2026-10-02_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-02_dinner_peppermint-white-chocolate-blondie",
-      "count": 47,
+      "count": 121,
       "source": "demo",
       "updatedAt": "2026-10-02T23:30:00.000Z"
     },
@@ -2742,7 +2742,7 @@
       "menuId": "menu_hall-main_2026-10-02_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-02_dinner_golden-cake-with-chocolate-frosting",
-      "count": 42,
+      "count": 131,
       "source": "demo",
       "updatedAt": "2026-10-02T23:30:00.000Z"
     },
@@ -2754,7 +2754,7 @@
       "menuId": "menu_hall-main_2026-10-02_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-02_dinner_strawberry-shortcake-bar",
-      "count": 49,
+      "count": 51,
       "source": "demo",
       "updatedAt": "2026-10-02T23:30:00.000Z"
     },
@@ -2766,7 +2766,7 @@
       "menuId": "menu_hall-main_2026-10-03_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-03_dinner_broccoli-cheddar-soup",
-      "count": 139,
+      "count": 146,
       "source": "demo",
       "updatedAt": "2026-10-03T23:30:00.000Z"
     },
@@ -2778,7 +2778,7 @@
       "menuId": "menu_hall-main_2026-10-03_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-03_dinner_baked-boneless-ham",
-      "count": 236,
+      "count": 172,
       "source": "demo",
       "updatedAt": "2026-10-03T23:30:00.000Z"
     },
@@ -2790,7 +2790,7 @@
       "menuId": "menu_hall-main_2026-10-03_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-03_dinner_oven-roasted-garlic-potatoes",
-      "count": 75,
+      "count": 139,
       "source": "demo",
       "updatedAt": "2026-10-03T23:30:00.000Z"
     },
@@ -2802,7 +2802,7 @@
       "menuId": "menu_hall-main_2026-10-03_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-03_dinner_baked-sweet-potatoes",
-      "count": 90,
+      "count": 121,
       "source": "demo",
       "updatedAt": "2026-10-03T23:30:00.000Z"
     },
@@ -2814,7 +2814,7 @@
       "menuId": "menu_hall-main_2026-10-03_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-03_dinner_roasted-cauliflower",
-      "count": 138,
+      "count": 121,
       "source": "demo",
       "updatedAt": "2026-10-03T23:30:00.000Z"
     },
@@ -2826,7 +2826,7 @@
       "menuId": "menu_hall-main_2026-10-03_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-03_dinner_michigan-farmers-4-bean-stew",
-      "count": 156,
+      "count": 148,
       "source": "demo",
       "updatedAt": "2026-10-03T23:30:00.000Z"
     },
@@ -2838,7 +2838,7 @@
       "menuId": "menu_hall-main_2026-10-03_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-03_dinner_farro",
-      "count": 105,
+      "count": 106,
       "source": "demo",
       "updatedAt": "2026-10-03T23:30:00.000Z"
     },
@@ -2850,7 +2850,7 @@
       "menuId": "menu_hall-main_2026-10-03_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-03_dinner_shaved-brussel-sprouts",
-      "count": 102,
+      "count": 132,
       "source": "demo",
       "updatedAt": "2026-10-03T23:30:00.000Z"
     },
@@ -2862,7 +2862,7 @@
       "menuId": "menu_hall-main_2026-10-03_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-03_dinner_vegetable-cannelloni",
-      "count": 259,
+      "count": 200,
       "source": "demo",
       "updatedAt": "2026-10-03T23:30:00.000Z"
     },
@@ -2874,7 +2874,7 @@
       "menuId": "menu_hall-main_2026-10-03_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-03_dinner_panzanella-salad",
-      "count": 128,
+      "count": 83,
       "source": "demo",
       "updatedAt": "2026-10-03T23:30:00.000Z"
     },
@@ -2886,7 +2886,7 @@
       "menuId": "menu_hall-main_2026-10-03_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-03_dinner_ancho-flank-steak",
-      "count": 250,
+      "count": 152,
       "source": "demo",
       "updatedAt": "2026-10-03T23:30:00.000Z"
     },
@@ -2898,7 +2898,7 @@
       "menuId": "menu_hall-main_2026-10-03_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-03_dinner_sticky-rice",
-      "count": 101,
+      "count": 68,
       "source": "demo",
       "updatedAt": "2026-10-03T23:30:00.000Z"
     },
@@ -2910,7 +2910,7 @@
       "menuId": "menu_hall-main_2026-10-03_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-03_dinner_vegetable-stir-fry-blend",
-      "count": 80,
+      "count": 121,
       "source": "demo",
       "updatedAt": "2026-10-03T23:30:00.000Z"
     },
@@ -2922,7 +2922,7 @@
       "menuId": "menu_hall-main_2026-10-03_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-03_dinner_cheese-bread",
-      "count": 99,
+      "count": 96,
       "source": "demo",
       "updatedAt": "2026-10-03T23:30:00.000Z"
     },
@@ -2934,7 +2934,7 @@
       "menuId": "menu_hall-main_2026-10-03_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-03_dinner_pepperoni-pizza",
-      "count": 193,
+      "count": 355,
       "source": "demo",
       "updatedAt": "2026-10-03T23:30:00.000Z"
     },
@@ -2946,7 +2946,7 @@
       "menuId": "menu_hall-main_2026-10-03_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-03_dinner_cheese-pizza",
-      "count": 155,
+      "count": 258,
       "source": "demo",
       "updatedAt": "2026-10-03T23:30:00.000Z"
     },
@@ -2958,7 +2958,7 @@
       "menuId": "menu_hall-main_2026-10-03_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-03_dinner_chicken-broccoli-alfredo-pizza",
-      "count": 164,
+      "count": 244,
       "source": "demo",
       "updatedAt": "2026-10-03T23:30:00.000Z"
     },
@@ -2970,7 +2970,7 @@
       "menuId": "menu_hall-main_2026-10-03_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-03_dinner_chocolate-coconut-cream-pie",
-      "count": 86,
+      "count": 133,
       "source": "demo",
       "updatedAt": "2026-10-03T23:30:00.000Z"
     },
@@ -2982,7 +2982,7 @@
       "menuId": "menu_hall-main_2026-10-03_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-03_dinner_pumpkin-pie",
-      "count": 93,
+      "count": 118,
       "source": "demo",
       "updatedAt": "2026-10-03T23:30:00.000Z"
     },
@@ -2994,7 +2994,7 @@
       "menuId": "menu_hall-main_2026-10-03_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-03_dinner_snickers-brownies-with-peanuts",
-      "count": 98,
+      "count": 150,
       "source": "demo",
       "updatedAt": "2026-10-03T23:30:00.000Z"
     },
@@ -3006,7 +3006,7 @@
       "menuId": "menu_hall-main_2026-10-03_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-03_dinner_peppermint-white-chocolate-blondie",
-      "count": 44,
+      "count": 101,
       "source": "demo",
       "updatedAt": "2026-10-03T23:30:00.000Z"
     },
@@ -3018,7 +3018,7 @@
       "menuId": "menu_hall-main_2026-10-03_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-03_dinner_golden-cake-with-chocolate-frosting",
-      "count": 97,
+      "count": 141,
       "source": "demo",
       "updatedAt": "2026-10-03T23:30:00.000Z"
     },
@@ -3030,7 +3030,7 @@
       "menuId": "menu_hall-main_2026-10-03_dinner",
       "menuVersion": 1,
       "itemId": "item_hall-main_2026-10-03_dinner_strawberry-shortcake-bar",
-      "count": 63,
+      "count": 121,
       "source": "demo",
       "updatedAt": "2026-10-03T23:30:00.000Z"
     }

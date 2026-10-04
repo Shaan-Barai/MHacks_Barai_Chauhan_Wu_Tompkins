@@ -4,14 +4,14 @@ Two files hold per-food constants for the 26 items on the test dining hall's din
 
 **What the app reports (BIG-PLAN v2, 2026-10-04; IT_4).** The measurement is **Pixels wasted**: leftover-food pixels counted from validated SAM 2.1 masks, only on the dish being scanned. To let a pixel of beef count for more than a pixel of rice, it turns pixels into unitless **relative impact points** using the factors in these files. When the camera has been **calibrated** (IT_4: a reference object of known area gives cm² per pixel), the app also shows **estimated** grams, kg CO2e and litres of water; see [Estimated grams, CO2e and water (IT_4)](#estimated-grams-co2e-and-water-it_4). It never shows dollars.
 
-**`menu_waste_factors.csv`** (feeds the impact points) gives, for each food:
+**`menu_waste_factors_EastQuad.csv`** (feeds the impact points) gives, for each food:
 - a weight-per-area constant (`weight_g_per_cm2`), so foods that are heavier per unit of visible area weigh more in the points, and calibrated area turns into estimated grams (IT_4)
 - two environmental impact factors per kg of food: carbon (C) and water (W)
 - a combined Waste Impact Score per kg, built from C and W only
 - the dining hall's allergen list, an ingredient recipe and the label serving size
 - Gemini's plain description of what each dish looks like on a plate, used in the classification prompt and as the demo menu description
 
-**`menu_nutrition_factors.csv`** (reported separately, never in the impact points) gives the nutrition lost per kg (O, in nutrient-days), calories per kg and the dining hall's nutrition label. See [Nutrition points](#nutrition-points-reported-separately-not-in-the-score).
+**`menu_nutrition_factors_EastQuad.csv`** (reported separately, never in the impact points) gives the nutrition lost per kg (O, in nutrient-days), calories per kg and the dining hall's nutrition label. See [Nutrition points](#nutrition-points-reported-separately-not-in-the-score).
 
 Both files are keyed by `station` + `food`. The app matches a menu item to a row by `factorKey = slug(food)`, for example `Ancho Flank Steak` → `ancho-flank-steak`. The typed copies used by the app are generated from these CSVs (`data/scripts/generate-factors.mjs` → `data/src/factors.generated.ts`, version `waste-factors-v4`; v4 removed the v3 density columns), so the CSVs stay the source of truth.
 
@@ -96,7 +96,7 @@ Both plates together: 24 + 40 = **64 g**, 3.16 + 0.07 = **3.2 kg CO2e**, 46.2 + 
 
 ## Columns
 
-### `menu_waste_factors.csv` (impact point inputs)
+### `menu_waste_factors_EastQuad.csv` (impact point inputs)
 | Column | Meaning |
 |---|---|
 | `station`, `food` | Menu station and item name |
@@ -114,7 +114,7 @@ Both plates together: 24 + 40 = **64 g**, 3.16 + 0.07 = **3.2 kg CO2e**, 46.2 + 
 | `label_serving_g` | Serving weight from the dining hall label, useful for checking `weight_g_per_cm2` |
 | `notes` | Assumptions specific to that item |
 
-### `menu_nutrition_factors.csv` (reported separately)
+### `menu_nutrition_factors_EastQuad.csv` (reported separately)
 | Column | Meaning |
 |---|---|
 | `station`, `food` | Same keys as the waste file |
@@ -145,7 +145,7 @@ These are estimates from typical portions. For example, a 14-inch pizza slice co
 
 ## Nutrition points (reported separately, not in the score)
 
-The app reports nutrition as its own relative number, from `menu_nutrition_factors.csv`: `nutritionPoints = pixels / 1000 × weight_g_per_cm2 × O`. Like the impact points it is unitless (not nutrient-days), and it is never added to `impactPoints`.
+The app reports nutrition as its own relative number, from `menu_nutrition_factors_EastQuad.csv`: `nutritionPoints = pixels / 1000 × weight_g_per_cm2 × O`. Like the impact points it is unitless (not nutrient-days), and it is never added to `impactPoints`.
 
 ### O: lost nutrition, in "nutrient-days"
 One **nutrient-day** is enough of 9 key nutrients to cover an adult's daily needs for one day. The 9 nutrients are protein, fiber, vitamins A, C and E, calcium, iron, potassium and magnesium.
@@ -169,7 +169,7 @@ The result is always positive. Desserts get small values (0.39–0.55 per kg; pu
 ## Ingredient experiment: Claude's guesses vs. Gemini's
 Neither model knows the real recipes, since the dining hall only publishes allergens. To find which ingredient descriptions work better for classification:
 
-1. **Source data:** Gemini was given `dining_hall_menu_labels.pdf` (the original screenshots) and `dining_hall_menu_labels.csv` (the same data transcribed). Neither file contains any of Claude's guesses.
+1. **Source data:** Gemini was given `dining_hall_menu_labels_EastQuad.pdf` (the original screenshots) and `dining_hall_menu_labels_EastQuad.csv` (the same data transcribed). Neither file contains any of Claude's guesses.
 2. **Gemini's guesses:** Gemini filled in `gemini_ingredients` and `gemini_visible_components` from that source data alone (`gemini_menu_guesses_raw.txt`). Baked Sweet Potatoes is not on that sheet, so it has no Gemini guess.
 3. **Run both:** the same plate photos went through the same pipeline twice, once with Claude's descriptions in the classification prompt and once with Gemini's. Nothing else changed.
 4. **Compare** against hand-labeled plates (`experiment_summary.csv`): Gemini's descriptions scored slightly better overall (36 correct vs 35 over 24 vs 23 scored runs, a lower unknown share and a lower run-to-run disagreement rate, though 3 wrong vs 2). The difference is small, but the app and the demo menu use the Gemini descriptions. Claude's columns were dropped from this file.
@@ -193,7 +193,7 @@ Halal Rice, Tomatoes and Lettuce were added to the demo dinner so plates from th
 | Tomatoes | Salad Bar | 0.8 | 2.09 | 0.370 | 0.95 | Raw tomatoes, Poore & Nemecek global median (includes heated greenhouses, so C is upper-range) |
 | Lettuce | Salad Bar | 0.3 | 0.53 | 0.103 | 0.26 | Poore & Nemecek has no lettuce row, so "Other Vegetables" is used. Shredded leaves are airy, hence the low weight per area |
 
-Nutrition (in `menu_nutrition_factors.csv`, separate from the score) uses the same O formula with USDA values per 100 g: Halal Rice 0.23 (unenriched cooked long-grain rice, oil, onion, salt), Tomatoes 0.44 (raw red tomatoes), Lettuce 0.57 (raw romaine and iceberg, 50/50). The method reproduces the existing Baked Sweet Potatoes row (O 1.80). The densities are estimates like the others: Halal Rice is looser than Sticky Rice (1.6), and a layer of diced tomato is about 0.8 g/cm².
+Nutrition (in `menu_nutrition_factors_EastQuad.csv`, separate from the score) uses the same O formula with USDA values per 100 g: Halal Rice 0.23 (unenriched cooked long-grain rice, oil, onion, salt), Tomatoes 0.44 (raw red tomatoes), Lettuce 0.57 (raw romaine and iceberg, 50/50). The method reproduces the existing Baked Sweet Potatoes row (O 1.80). The densities are estimates like the others: Halal Rice is looser than Sticky Rice (1.6), and a layer of diced tomato is about 0.8 g/cm².
 
 ## Caveats
 - **Relative impact points are not physical quantities.** They are pixels weighted by the weight-per-area constants and the factors, so they rank foods against each other but are not kg, litres or dollars. Pixel area also depends on the camera distance and plate size. Accurate pixel counting does not guarantee accurate segmentation.

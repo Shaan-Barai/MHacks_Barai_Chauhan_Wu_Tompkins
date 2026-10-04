@@ -29,7 +29,7 @@ SAM score and mask pixels, quality flags, and model and prompt versions.
 **How to read these numbers.** Pixels wasted counts visible leftover-food pixels in AI-generated
 masks. It is not grams or servings. Points are unitless and only compare foods with each other:
 `base = pixels / 1000 × g/cm²`, then `CO2 points = base × C` and `water points = base × W`, using the
-factors in `menu_waste_factors.csv` and `menu_waste_factors_halal_bros.csv` (Halal Chicken). See
+factors in `menu_waste_factors_EastQuad.csv` and `menu_waste_factors_halal_bros.csv` (Halal Chicken). See
 `menu_waste_factors_README.md`.
 
 **Known limitation visible here.** SAM's rice mask at the lower right includes some bare, reflective

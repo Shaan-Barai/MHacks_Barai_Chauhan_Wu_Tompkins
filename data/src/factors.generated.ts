@@ -5824,7 +5824,7 @@ export const COMMON_WASTE_FACTORS: WasteFactor[] = [
   }
 ];
 
-/** menu_nutrition_factors.csv rows. Reported separately; never part of the score. */
+/** menu_nutrition_factors_EastQuad.csv rows. Reported separately; never part of the score. */
 export const NUTRITION_FACTORS: NutritionFactor[] = [
   {
     "factorKey": "broccoli-cheddar-soup",

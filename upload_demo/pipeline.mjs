@@ -70,7 +70,7 @@ const FALLBACK_DESCRIPTIONS = {
 
 /**
  * Every food with carbon/water factors: the 26-food dinner table
- * (menu_waste_factors.csv + menu_nutrition_factors.csv) plus the Halal Bros
+ * (menu_waste_factors_EastQuad.csv + menu_nutrition_factors_EastQuad.csv) plus the Halal Bros
  * rows that are not already in it (Yellow Rice, Diced Tomatoes and Shredded
  * Lettuce duplicate Halal Rice, Tomatoes and Lettuce, so only Halal Chicken is added).
  */

@@ -38,7 +38,7 @@ in I10, §4 row P and §5 is superseded.
 | --- | --- | --- |
 | Uno Q + C920s → laptop inbox → bridge → R2 + SpacetimeDB `scrap` | live-tested | `capture/`, `BRIDGE.md`, `ARDUINO.md` |
 | Gemini classify + boxes → SAM 2.1 (local worker :8790) → target-dish clip → pixel counts → overlay JPEG | implemented | `vision/src/maskPipeline.ts`, `vision/sam/worker.py`, `vision/src/overlay.ts` |
-| Relative impact **points** (unitless) from `weight_g_per_cm2`, C, W | implemented | `analytics/src/wasteImpact.ts`, `menu_waste_factors.csv` |
+| Relative impact **points** (unitless) from `weight_g_per_cm2`, C, W | implemented | `analytics/src/wasteImpact.ts`, `menu_waste_factors_EastQuad.csv` |
 | Dashboard (React + Vite), dev proxy to backend :8787 | implemented, local only | `frontend/` |
 | Backend (Express), **no auth, no static serving**, local SpacetimeDB | local only | `backend/src/http/app.ts` |
 | Depth / volume | plan only | `AI.md` "Future extension" |
@@ -96,7 +96,7 @@ in I10, §4 row P and §5 is superseded.
   (food treated as lying on the base plane).
 - **I7. Grams, CO2, water** (derived at read time in `analytics`, like the points):
   - volume method: `grams = volume_cm3 × density_g_per_cm3`. This is a **new column** in
-    `menu_waste_factors.csv`, sourced from the FAO/INFOODS Density Database v2 or USDA, with a citation per row.
+    `menu_waste_factors_EastQuad.csv`, sourced from the FAO/INFOODS Density Database v2 or USDA, with a citation per row.
   - area method: `grams = area_cm2 × weight_g_per_cm2` (existing column).
   - `kg_co2e = grams/1000 × C`, `water_L = grams/1000 × W × 1000 = grams × W` (W is m³/kg).
   - No factor ⇒ `null` (`no_factor`). Unknown food ⇒ `null` (`unknown_item`). Never zero.
@@ -232,7 +232,7 @@ coordinator handoff. AGENTS.md rules apply. Each commit ends with the `Co-Author
 | WS | Owns | Deliverables |
 | --- | --- | --- |
 | **C** coordinator | `IT_4.md`, `AGENTS.md`, `README.md`, `contracts/`, `.env.example`, `contracts/decisions.md` | §3 contracts + I1–I12 decisions before fan-out; AGENTS.md §2/§7 updated for calibrated physical units; final README (prod URL, calibration how-to); tracker |
-| **A** factors + analytics | `data/`, `analytics/`, `menu_waste_factors*.{csv,md}`, `menu_nutrition_factors.csv` | `density_g_per_cm3` column for all 26 foods with sources; regenerate `factors.generated.ts`; `computeWasteImpact` adds grams/kgCo2e/waterLitres per I7; totals + physical coverage; per-portion grams; recommendation facts cite estimated CO2/water (labeled) when available; README formula section; hand-calculated unit tests (area method, volume method, missing factor/density, unknown item, mixed calibrated/uncalibrated captures) |
+| **A** factors + analytics | `data/`, `analytics/`, `menu_waste_factors*.{csv,md}`, `menu_nutrition_factors_EastQuad.csv` | `density_g_per_cm3` column for all 26 foods with sources; regenerate `factors.generated.ts`; `computeWasteImpact` adds grams/kgCo2e/waterLitres per I7; totals + physical coverage; per-portion grams; recommendation facts cite estimated CO2/water (labeled) when available; README formula section; hand-calculated unit tests (area method, volume method, missing factor/density, unknown item, mixed calibrated/uncalibrated captures) |
 | **V** vision + workers | `vision/` (incl. new `vision/depth/`) | `vision/depth/worker.py` + README (DAv2 Metric Indoor Small, MPS/CPU, `WORKER_TOKEN`; add the token check to the SAM worker too); `vision/src/depthClient.ts`; `vision/src/calibration.ts` (I2/I3: Gemini box of the reference object → SAM → `N_ref`, k, C920s intrinsics helper, geometric height, DAv2 scale + table plane, calibration overlay JPEG); `vision/src/volume.ts` (pure I5/I6 integration over masks + depth + dish region); overlay legend accepts per-bucket suffix text (I8); tests with synthetic depth maps (flat plate + box of known size ⇒ exact volume) and **one live check** on the Mac with a real object of known volume |
 | **B** backend + db | `backend/`, `db/` | schema (additive): `camera_calibration`, `measurement_settings`, physical columns on `food_measurement` / `analysis_attempt`, new image association kinds; reducers; calibration + settings endpoints; ingestion runs depth + volume when enabled and stores the depth PNG in R2; impact/captures payloads carry physical numbers and overlay suffixes; **I11 hardening** (auth, sessions, rate limits, headers, `/api/ready`, serve `frontend/dist` with SPA fallback when `SERVE_FRONTEND=1`, `PORT`/`HOST` env, maincloud URI support); tests |
 | **U** dashboard | `frontend/`, `UI.md` | Settings → **Camera calibration** panel (known area cm² input with a credit-card preset, Depth Anything V2 toggle, upload a calibration photo or "use latest camera frame", shows the reference outline, cm²/px, camera height geometric vs DAv2, flags, Activate); food labels with grams · kg CO2e · L water chips (I8); headline cards for estimated CO2e + water with coverage; admin login (passcode), with write controls hidden/disabled when logged out; production build (relative `/api`, no dev-only assumptions); mock data first, then the live API; tests |

@@ -148,7 +148,7 @@ valid because `AnalysisAttempt` freezes the `menuVersion` it used.
 
 ## Waste and nutrition factors (BIG-PLAN D1, D4)
 
-`menu_waste_factors.csv` and `menu_nutrition_factors.csv` (repo root) are the
+`menu_waste_factors_EastQuad.csv` and `menu_nutrition_factors_EastQuad.csv` (repo root) are the
 source of truth. `scripts/generate-factors.mjs` (`npm run factors`) turns them
 into `src/factors.generated.ts`; a test fails when the committed module drifts
 from the CSVs, and checks `impactUsdPerKg = 0.19*C + 1.50*W` (no nutrition).
@@ -170,7 +170,7 @@ the shared 1024×1024 `topdown-normalized-v1` geometry (round plate, 900 px
 diameter — matching `contracts/samples.json`).
 
 - Breakfast and lunch are fictional menus (5 items each).
-- **Every dinner is the test hall's 26-food menu** from `menu_waste_factors.csv`
+- **Every dinner is the test hall's 26-food menu** from `menu_waste_factors_EastQuad.csv`
   (BIG-PLAN D6): `displayName` = CSV `food`, `category` = station,
   `description` = `gemini_visible_components` (Baked Sweet Potatoes has no
   Gemini text, so it uses the earlier hand-written description). Item IDs are

@@ -257,8 +257,8 @@ export interface ApiError {
 // ---------------------------------------------------------------------------
 // Waste impact (BIG-PLAN.md; v2 2026-10-04). Pixels wasted is the measurement
 // and the headline unit. Relative impact points are derived at read time by
-// analytics from pixels and the factor tables (menu_waste_factors.csv,
-// menu_nutrition_factors.csv). No plate-size calibration, no grams.
+// analytics from pixels and the factor tables (menu_waste_factors_EastQuad.csv,
+// menu_nutrition_factors_EastQuad.csv). No plate-size calibration, no grams.
 // ---------------------------------------------------------------------------
 
 export type CalibrationFlag = 'calibration_default' | 'plate_cut_off' | 'bowl_size_assumed';
@@ -280,7 +280,7 @@ export interface PlateCalibration {
   flags: CalibrationFlag[];
 }
 
-/** One row of menu_waste_factors.csv. Score excludes nutrition (D1). */
+/** One row of menu_waste_factors_EastQuad.csv. Score excludes nutrition (D1). */
 export interface WasteFactor {
   /** slug(food), e.g. 'ancho-flank-steak'; menu items match via slug(displayName) (D4). */
   factorKey: string;
@@ -304,7 +304,7 @@ export interface WasteFactor {
 
 export type WasteFactorTable = 'east-quad' | 'halal-bros' | 'common-500';
 
-/** One row of menu_nutrition_factors.csv. Reported separately; never in the score. */
+/** One row of menu_nutrition_factors_EastQuad.csv. Reported separately; never in the score. */
 export interface NutritionFactor {
   factorKey: string;
   nutrientDaysPerKg: number;

@@ -1,7 +1,7 @@
 /**
  * Hand-built fixtures for the waste-impact component tests (not used by the
  * app). Points follow BIG-PLAN v2: pixels/1000 x weight_g_per_cm2 x factor,
- * impact = 0.19 x co2 + 1.50 x water, using menu_waste_factors.csv values.
+ * impact = 0.19 x co2 + 1.50 x water, using menu_waste_factors_EastQuad.csv values.
  */
 import type { ImpactDashboard, ItemImpactRow, WasteImpact } from '../data/types'
 

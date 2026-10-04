@@ -107,7 +107,7 @@ export function buildTables(wasteCsv, nutritionCsv, commonCsv = '', halalBrosCsv
     kcalPerKg: num(r, 'kcal_per_kg', 'menu_nutrition_factors_EastQuad.csv'),
   }));
   for (const n of nutrition) {
-    if (!keys.has(n.factorKey)) throw new Error(`menu_nutrition_factors.csv: ${n.factorKey} has no waste-factor row`);
+    if (!keys.has(n.factorKey)) throw new Error(`menu_nutrition_factors_EastQuad.csv: ${n.factorKey} has no waste-factor row`);
   }
   // Halal Bros: a second restaurant table (waste + nutrition columns in one file), checked after East Quad.
   const halalRows = halalBrosCsv ? parseCsv(halalBrosCsv) : [];
@@ -180,7 +180,7 @@ export const HALAL_BROS_NUTRITION_FACTORS: NutritionFactor[] = ${j(tables.halalB
  */
 export const COMMON_WASTE_FACTORS: WasteFactor[] = ${j(tables.commonWasteFactors ?? [])};
 
-/** menu_nutrition_factors.csv rows. Reported separately; never part of the score. */
+/** menu_nutrition_factors_EastQuad.csv rows. Reported separately; never part of the score. */
 export const NUTRITION_FACTORS: NutritionFactor[] = ${j(tables.nutritionFactors)};
 
 export const WASTE_FACTOR_MENU_TEXT: WasteFactorMenuText[] = ${j(tables.menuText)};

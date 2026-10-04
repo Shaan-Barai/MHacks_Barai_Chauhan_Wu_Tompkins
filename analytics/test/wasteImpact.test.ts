@@ -32,7 +32,7 @@ import type {
   WasteFactor,
 } from '../src/contracts.js';
 
-// Rows copied from menu_waste_factors.csv / menu_nutrition_factors.csv (waste-factors-v4).
+// Rows copied from menu_waste_factors_EastQuad.csv / menu_nutrition_factors_EastQuad.csv (waste-factors-v4).
 const PIZZA: WasteFactor = {
   factorKey: 'pepperoni-pizza', food: 'Pepperoni Pizza', station: 'Pizziti',
   weightGPerCm2: 1.0, kgCo2ePerKg: 16.06, waterM3PerKg: 1.94, impactUsdPerKg: 5.96, largestFactor: 'carbon',

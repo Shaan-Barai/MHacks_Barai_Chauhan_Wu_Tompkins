@@ -381,8 +381,8 @@ User request (2026-10-03): camera → R2/SpacetimeDB → Gemini + SAM → waste
 impact → dashboard. Full plan and tracker: [BIG-PLAN.md](../BIG-PLAN.md).
 
 - **D1 score without nutrition:** `waste_impact_usd_per_kg = 0.19·C + 1.50·W`
-  (C kg CO2e/kg, W m³ freshwater/kg, `menu_waste_factors.csv`). Nutrition
-  (nutrient-days) moves to `menu_nutrition_factors.csv` and is reported
+  (C kg CO2e/kg, W m³ freshwater/kg, `menu_waste_factors_EastQuad.csv`). Nutrition
+  (nutrient-days) moves to `menu_nutrition_factors_EastQuad.csv` and is reported
   separately as "nutrition lost", never added to the score.
 - **D2 pixels → grams (estimate):** per-capture `cm²/px = (26.7 /
   plate_diameter_px)²` from the `plate-fit-v1` calibration (Gemini plate box →

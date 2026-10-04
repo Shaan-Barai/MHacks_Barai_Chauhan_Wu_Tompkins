@@ -13,7 +13,7 @@ top of it:
 k (cm² per pixel)       = known reference area (cm², typed by you) / reference pixels N_ref
 food area (cm²)         = food pixels × k                      area method (area-calibrated-v1)
 camera height (cm)      = f · √k                               f = C920s focal length in px
-grams                   = area × weight_g_per_cm2              factors: menu_waste_factors.csv
+grams                   = area × weight_g_per_cm2              factors: menu_waste_factors_EastQuad.csv
 kg CO2e = grams/1000 × C        L water = grams × W
 ```
 

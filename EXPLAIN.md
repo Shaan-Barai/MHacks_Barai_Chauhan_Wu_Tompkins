@@ -86,7 +86,7 @@ The dashboard's per-portion rates and impact points are **not** saved in the dat
 
 1. **Pixels wasted** for a food (from `food_measurement`)
 2. **Portions served** of that food at that meal (from `portions_served`)
-3. **That food's factors** (from `menu_waste_factors.csv`: grams per cm², CO2 per kg, water per kg)
+3. **That food's factors** (from `menu_waste_factors_EastQuad.csv`: grams per cm², CO2 per kg, water per kg)
 
 ```text
 waste per portion  = pixels wasted ÷ portions served
@@ -96,7 +96,7 @@ water points       = base × the food's water factor
 impact points      = base × (0.19 × CO2 factor + 1.50 × water factor)
 ```
 
-Points are **relative**: they say "this leftover matters about twice as much as that one", not a number of kilograms, litres or dollars. They let a leftover of steak (high CO2) count for more than the same area of rice. Nutrition points (from `menu_nutrition_factors.csv`) are shown separately and are **not** part of the impact score.
+Points are **relative**: they say "this leftover matters about twice as much as that one", not a number of kilograms, litres or dollars. They let a leftover of steak (high CO2) count for more than the same area of rice. Nutrition points (from `menu_nutrition_factors_EastQuad.csv`) are shown separately and are **not** part of the impact score.
 
 Because these numbers are calculated, fixing a factor in the CSV updates every past result without touching the database. Pixels themselves come from the AI's outline, so they can be off when the outline is off.
 

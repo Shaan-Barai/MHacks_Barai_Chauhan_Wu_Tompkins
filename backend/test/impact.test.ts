@@ -5,7 +5,7 @@
  * GET /api/dashboard/daily. Offline: mock analyzer, local-dev storage,
  * in-memory repo, no live Gemini.
  *
- * Factor rows (menu_waste_factors.csv via scrap-data):
+ * Factor rows (menu_waste_factors_EastQuad.csv via scrap-data):
  *   Baked Boneless Ham            0.9 g/cm², C 12.39, W 1.808, score 5.07
  *   Oven Roasted Garlic Potatoes  1.6 g/cm², C 0.62,  W 0.117, score 0.29
  *   Mystery Stew                  no factor row

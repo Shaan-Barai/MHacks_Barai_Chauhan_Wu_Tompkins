@@ -34,7 +34,7 @@ status table below as agents report back.
 | Inbox → dish grouping (Gemini same-dish) → R2 presigned upload → finalize → `POST /api/captures` | Implemented, fixture-tested | `capture/src/inboxBridge.ts`, `BRIDGE.md` |
 | Gemini classify + boxes → SAM 2.1 masks → per-food pixels; masks stored in object storage | Implemented on the experiment branch | `vision/src/maskPipeline.ts`, `vision/sam/worker.py`, `backend/src/services/ingestionService.ts` |
 | Plate calibration (Gemini plate box → SAM → circle fit → cm²/px) and colored overlay | **Script only** | `vision/scripts/waste-impact.mjs` |
-| Waste factors (C, W, O, score) | CSV + README; the score still includes nutrition | `menu_waste_factors.csv`, `menu_waste_factors_README.md` |
+| Waste factors (C, W, O, score) | CSV + README; the score still includes nutrition | `menu_waste_factors_EastQuad.csv`, `menu_waste_factors_README.md` |
 | Portions served + Pixels-wasted-per-portion | Implemented (pixels only) | `analytics/src/portions.ts`, `data/src/portionsServed.ts` |
 | Dashboard | Simplified ScrapSaver redesign. No impact, no per-portion headline, no images | `frontend/` |
 | AI suggestions | Pixel/portion-grounded suggestions | `analytics/src/*Suggestions.ts` |
@@ -42,8 +42,8 @@ status table below as agents report back.
 ## 2. Decisions (the coordinator records them in `contracts/decisions.md`)
 
 - **D1. Score without nutrition.** `waste_impact_usd_per_kg = 0.19·C + 1.50·W`. C = kg CO2e/kg and
-  W = m³ freshwater/kg, from `menu_waste_factors.csv`. Nutrition (O, nutrient-days/kg) moves to
-  `menu_nutrition_factors.csv`. It is reported separately as "nutrition lost" and never added to the score.
+  W = m³ freshwater/kg, from `menu_waste_factors_EastQuad.csv`. Nutrition (O, nutrient-days/kg) moves to
+  `menu_nutrition_factors_EastQuad.csv`. It is reported separately as "nutrition lost" and never added to the score.
 - **D2. Pixels → grams.** The calibration and weight constants that AGENTS.md §2 required now exist,
   so estimated grams may be shown, **always labeled as estimates**. Per capture:
   `cm²/px = (26.7 cm / plate_diameter_px)²`. The plate diameter comes from Gemini's plate box → SAM
@@ -62,7 +62,7 @@ status table below as agents report back.
   **"Most wasted"** is ranked by total estimated grams. Missing or zero portions make the rate
   unavailable (AGENTS.md §7).
 - **D6. Demo menu and dummy portions.** (2026-10-04: now 26 foods, adding Halal Rice, Tomatoes and Lettuce.) The demo dinner menu uses the 23 foods in
-  `menu_waste_factors.csv`. Descriptions are the `gemini_visible_components` text from
+  `menu_waste_factors_EastQuad.csv`. Descriptions are the `gemini_visible_components` text from
   `gemini_menu_guesses_raw.txt`, because Gemini descriptions scored slightly better in
   `experiment_summary.csv`. Dummy portions use a seeded, plausible 40–260 range per item, with
   source `demo`, labeled demo.
@@ -86,7 +86,7 @@ export interface PlateCalibration {
   fullyVisible?: boolean;
   flags: Array<'calibration_default' | 'plate_cut_off' | 'bowl_size_assumed'>;
 }
-export interface WasteFactor {      // one row of menu_waste_factors.csv
+export interface WasteFactor {      // one row of menu_waste_factors_EastQuad.csv
   factorKey: string; food: string; station: string;
   weightGPerCm2: number; kgCo2ePerKg: number; waterM3PerKg: number;
   impactUsdPerKg: number;           // 0.19*C + 1.50*W (no nutrition)
@@ -121,7 +121,7 @@ itself. It never force-pushes, and it never edits another agent's directory with
 | --- | --- | --- | --- |
 | **M** | Merge integrator | everything (one-time) | `menu-source-experiment` merged into `big-plan`, builds/tests green |
 | **C** | Coordinator (Agent 1) | `BIG-PLAN.md`, `AGENTS.md`, `README.md`, `contracts/` | Decisions D1–D8, §3 contract types + samples, final review and merge to `main` |
-| **A** | Factors & analytics (Agents 2+6) | `data/`, `analytics/`, `menu_waste_factors*.{csv,md}`, new `menu_nutrition_factors.csv` | Split CSV (no nutrition in score); README rewrite; typed factor table + `slug` lookup in `data/`; dinner demo menu (23 foods, Gemini descriptions) + dummy portions in the seed; `analytics` `computeWasteImpact`, item impact rows, per-portion ranking, totals, nutrition-lost (separate); recommendation facts + prompt + fallback; unit tests with hand-calculated numbers |
+| **A** | Factors & analytics (Agents 2+6) | `data/`, `analytics/`, `menu_waste_factors*.{csv,md}`, new `menu_nutrition_factors_EastQuad.csv` | Split CSV (no nutrition in score); README rewrite; typed factor table + `slug` lookup in `data/`; dinner demo menu (23 foods, Gemini descriptions) + dummy portions in the seed; `analytics` `computeWasteImpact`, item impact rows, per-portion ranking, totals, nutrition-lost (separate); recommendation facts + prompt + fallback; unit tests with hand-calculated numbers |
 | **B** | Vision (Agent 4) | `vision/` | Port `plate-fit-v1` calibration and overlay rendering from `waste-impact.mjs` into `vision/src` (library API returning `PlateCalibration` + overlay JPEG bytes). Use menu descriptions in the localize prompt. Set up the local SAM 2.1 worker venv (`.venv`, gitignored) and run a live smoke test on `test2/` photos. Tests use fakes |
 | **D** | Backend + DB (Agents 2/5) | `backend/`, `db/` | Persist the calibration per capture (schema, additive). Store overlay JPEGs in R2 + `image_object` (`overlay`). Endpoints in §3. Seed the dinner menu + demo portions into SpacetimeDB. Wire `analytics` impact/recommendation. Tests |
 | **E** | Dashboard (Agent 7) | `frontend/`, `UI.md` | New dashboard: headline cards **Total waste** (est. g + pixels), **CO2e**, **Water**, **Waste impact $**. **Foods to target** (waste per portion), **Most wasted** table, nutrition lost as a separate labeled note, **Plates** gallery (original ↔ segmented toggle, per-food legend), **AI recommendation** card. Mock data first, then the live API. Tests |
@@ -140,7 +140,7 @@ once D lands → C does the final review, updates README/AGENTS, and merges `big
    `analysis_attempt` + `food_measurement` rows with references only.
 2. Gemini runs before SAM. Pixel counts come from validated masks. The calibration is persisted or
    flagged as the default.
-3. `menu_waste_factors.csv` scores exclude nutrition, and the README documents `0.19·C + 1.50·W`.
+3. `menu_waste_factors_EastQuad.csv` scores exclude nutrition, and the README documents `0.19·C + 1.50·W`.
    Nutrition lives in its own file/section.
 4. The dashboard shows total waste (est. g + pixels), CO2e, water, impact $, foods to target by waste
    per portion, most wasted, plate images (original + segmented), and an AI recommendation citing

@@ -50,7 +50,7 @@ setup again, clear site data or run
   `analytics/`; components only format them.
 - **`src/data/mockApi.ts` + `mockData.ts`**: deterministic demo data (seeded
   PRNG) for offline demos: `VITE_USE_MOCK=1 npm run dev`. The impact demo uses
-  the 26 dinner foods and factors from `menu_waste_factors.csv` (points =
+  the 26 dinner foods and factors from `menu_waste_factors_EastQuad.csv` (points =
   pixels/1000 x weight_g_per_cm2 x factor), seeded demo portions, one menu item
   with no factor, one food with no portions entered, an unknown-food bucket,
   and recent plates with generated SVG photo / outline images (data URLs,

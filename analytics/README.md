@@ -102,7 +102,7 @@ calibration (`reference-area-v1`, known-area reference), stored by the backend o
 derives an area any other way; a measurement without a usable `physical` gets `null` + `no_calibration`.
 
 ```text
-grams       = areaCm2 × weightGPerCm2        (typical food weight per cm², menu_waste_factors.csv)
+grams       = areaCm2 × weightGPerCm2        (typical food weight per cm², menu_waste_factors_EastQuad.csv)
 kgCo2e      = grams / 1000 × C
 waterLitres = grams × W                       (W is m³/kg)
 physicalMethod = 'area-calibrated-v1'

@@ -8,7 +8,7 @@
  * contracts/samples.json).
  *
  * Breakfast and lunch menus are invented. Every dinner (BIG-PLAN D6) is the
- * test dining hall's 26-food dinner menu from menu_waste_factors.csv: display
+ * test dining hall's 26-food dinner menu from menu_waste_factors_EastQuad.csv: display
  * name = CSV `food`, category = station, description = Gemini's visible
  * components. Each dinner also gets DEMO portions-served counts (seeded,
  * plausible per role: pizza slices 200-400, entrees 80-200, sides and soup
@@ -250,7 +250,7 @@ export function buildDemoSeed(): DemoSeed {
       'DEMO DATA — fictional breakfast/lunch menus, the test hall\'s 26-food dinner menu, hand-assigned manual_area reference portions, and dummy demo portions-served counts for the Scrap prototype. Not real hall data; not measured portions or real serving counts.',
     demo: true,
     provenance:
-      'Generated deterministically by data/src/seed/generate.ts (scrap-data). Regenerate with `npm run seed` in data/. Dinner items come from menu_waste_factors.csv (descriptions = gemini_visible_components; Baked Sweet Potatoes, Halal Rice, Tomatoes and Lettuce use hand-written fallbacks). portionsServed are DEMO counts from a seeded hash (seed "demo-portions-v2"; pizza slices 200-400, entrees 80-200, sides and soup 60-150, desserts 50-150), source "demo".',
+      'Generated deterministically by data/src/seed/generate.ts (scrap-data). Regenerate with `npm run seed` in data/. Dinner items come from menu_waste_factors_EastQuad.csv (descriptions = gemini_visible_components; Baked Sweet Potatoes, Halal Rice, Tomatoes and Lettuce use hand-written fallbacks). portionsServed are DEMO counts from a seeded hash (seed "demo-portions-v2"; pizza slices 200-400, entrees 80-200, sides and soup 60-150, desserts 50-150), source "demo".',
     hallId: upload.hallId,
     hallTimezone: upload.hallTimezone,
     coordinateSpace: DEMO_GEOMETRY.coordinateSpace,

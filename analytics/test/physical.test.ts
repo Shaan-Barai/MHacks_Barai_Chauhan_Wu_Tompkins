@@ -36,7 +36,7 @@ import type {
   WasteFactor,
 } from '../src/contracts.js';
 
-// Rows from menu_waste_factors.csv (waste-factors-v4).
+// Rows from menu_waste_factors_EastQuad.csv (waste-factors-v4).
 const STEAK: WasteFactor = {
   factorKey: 'ancho-flank-steak', food: 'Ancho Flank Steak', station: 'Halal',
   weightGPerCm2: 1.2, kgCo2ePerKg: 131.69, waterM3PerKg: 1.925, impactUsdPerKg: 27.91, largestFactor: 'carbon',

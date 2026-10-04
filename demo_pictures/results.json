@@ -37,7 +37,7 @@
         "largestFactor": "water",
         "co2Label": null,
         "station": "Halal",
-        "table": "menu_waste_factors.csv"
+        "table": "menu_waste_factors_EastQuad.csv"
       }
     },
     {

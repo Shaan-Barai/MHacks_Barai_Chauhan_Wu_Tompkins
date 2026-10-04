@@ -85,7 +85,7 @@ photos and logs to `images/demo-runs/` (gitignored). **Adding a feature? Add a d
 - [`BIG-PLAN.md`](BIG-PLAN.md) — the camera → impact → dashboard plan and its tracker.
 - [`EXPLAIN.md`](EXPLAIN.md) — the whole database (SpacetimeDB + R2) in plain language.
 - [`menu_waste_factors_README.md`](menu_waste_factors_README.md) — the waste
-  impact formula and per-food factors (nutrition in `menu_nutrition_factors.csv`).
+  impact formula and per-food factors (nutrition in `menu_nutrition_factors_EastQuad.csv`).
 - [`AGENTS.md`](AGENTS.md) — the working plan: agent roles, ownership, rules,
   measurement formulas, and completion checks.
 - [`UI.md`](UI.md) — dashboard spec (layout, palette, copy).

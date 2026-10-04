@@ -4,7 +4,7 @@
  * impact in analytics, never in the vision library.
  *
  *   cd vision && npm run build
- *   node --env-file=../.env scripts/waste-impact.mjs <imagesDir> <menu_waste_factors.csv> [outDir]
+ *   node --env-file=../.env scripts/waste-impact.mjs <imagesDir> <menu_waste_factors_EastQuad.csv> [outDir]
  *
  * Needs the SAM worker (vision/sam/worker.py) and a Gemini key.
  *
@@ -19,7 +19,7 @@
  *  3. Relative impact points (unitless, comparable only with each other):
  *       points = pixels / 1000 x weight_g_per_cm2 x factor
  *     co2Points uses C, waterPoints uses W, impactPoints uses 0.19C + 1.50W.
- *     nutritionPoints uses O (menu_nutrition_factors.csv next to the factor
+ *     nutritionPoints uses O (menu_nutrition_factors_EastQuad.csv next to the factor
  *     CSV, or env NUTRITION_CSV) and is separate: never part of impactPoints.
  *     There is no plate-size calibration, so these are NOT grams, kg CO2e,
  *     litres or dollars.
@@ -40,7 +40,7 @@ import sharp from 'sharp';
 import { analyzeCaptureWithMasks, createGeminiGateway, createSamWorkerClient } from '../dist/src/index.js';
 
 const [imagesDir, csvPath, outArg] = process.argv.slice(2);
-if (!imagesDir || !csvPath) throw new Error('usage: waste-impact.mjs <imagesDir> <menu_waste_factors.csv> [outDir]');
+if (!imagesDir || !csvPath) throw new Error('usage: waste-impact.mjs <imagesDir> <menu_waste_factors_EastQuad.csv> [outDir]');
 const outDir = outArg ?? path.join(process.env.TMPDIR ?? '/tmp', 'scrap-waste-impact');
 mkdirSync(outDir, { recursive: true });
 const LONG_SIDE = 1600;
@@ -69,7 +69,7 @@ function parseCsv(text) {
   return body.map((r) => Object.fromEntries(header.map((h, i) => [h, r[i] ?? ''])));
 }
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-const nutritionPath = process.env.NUTRITION_CSV ?? path.join(path.dirname(csvPath), 'menu_nutrition_factors.csv');
+const nutritionPath = process.env.NUTRITION_CSV ?? path.join(path.dirname(csvPath), 'menu_nutrition_factors_EastQuad.csv');
 const nutritionBySlug = new Map(
   existsSync(nutritionPath)
     ? parseCsv(readFileSync(nutritionPath, 'utf8')).map((r) => [slug(r.food), Number(r.O_nutrient_days_per_kg)]).filter(([, o]) => Number.isFinite(o))

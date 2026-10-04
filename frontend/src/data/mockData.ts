@@ -207,7 +207,7 @@ export function mockMealDetail(date: IsoDate, meal: MealLabel, menu: DayMenu | n
 
 // ===========================================================================
 // Waste impact demo (BIG-PLAN v2): the dinner menu from
-// menu_waste_factors.csv, Pixels wasted, relative impact points
+// menu_waste_factors_EastQuad.csv, Pixels wasted, relative impact points
 // (points = pixels/1000 x weight_g_per_cm2 x factor), relative nutrition
 // points (separate), seeded demo portions, recent plates and their images.
 // All of it is mock, deterministic per date. IT_4 adds ESTIMATED grams, kg
@@ -222,14 +222,14 @@ export const WATER_WEIGHT = 1.5
 interface MockFactorFood {
   food: string
   station: string
-  /** weight_g_per_cm2, C (kg CO2e/kg), W (m3/kg), O (nutrient-days/kg) from menu_waste_factors.csv */
+  /** weight_g_per_cm2, C (kg CO2e/kg), W (m3/kg), O (nutrient-days/kg) from menu_waste_factors_EastQuad.csv */
   weight: number
   c: number
   w: number
   o: number
 }
 
-/** The 23 dinner foods, values copied from menu_waste_factors.csv. */
+/** The 23 dinner foods, values copied from menu_waste_factors_EastQuad.csv. */
 export const MOCK_DINNER_FOODS: MockFactorFood[] = [
   { food: 'Broccoli Cheddar Soup', station: 'Soup', weight: 1.5, c: 4.9, w: 1.07, o: 0.45 },
   { food: 'Baked Boneless Ham', station: 'Signature Maize', weight: 0.9, c: 12.39, w: 1.808, o: 0.38 },

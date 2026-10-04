@@ -313,7 +313,7 @@ the half-plate region clipped 216,760 px of real ham and sweet potato);
 of the dish box. These are phone photos with several dishes in frame, not
 images from the mounted camera.
 
-`scripts/waste-impact.mjs <imagesDir> <menu_waste_factors.csv> [outDir]`
+`scripts/waste-impact.mjs <imagesDir> <menu_waste_factors_EastQuad.csv> [outDir]`
 (research only) runs the same pipeline on a folder of photos and prints
 pixels and **relative impact points** (`points = px/1000 × weight_g_per_cm2 ×
 factor`; co2Points C, waterPoints W, impactPoints 0.19C + 1.50W;

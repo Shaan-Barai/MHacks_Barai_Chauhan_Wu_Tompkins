@@ -34,7 +34,7 @@ test('factors: factorKeyFor slugs display names', () => {
   assert.equal(factorKeyFor('---'), '');
 });
 
-test('factors: generated waste table matches menu_waste_factors.csv', () => {
+test('factors: generated waste table matches menu_waste_factors_EastQuad.csv', () => {
   const rows = csvObjects('menu_waste_factors_EastQuad.csv');
   assert.equal(rows.length, 26);
   assert.equal(WASTE_FACTORS.length, rows.length);
@@ -69,7 +69,7 @@ test('factors: score is 0.19*C + 1.50*W with no nutrition term', () => {
   assert.equal(WASTE_FACTORS_VERSION, 'waste-factors-v6');
 });
 
-test('factors: generated nutrition table matches menu_nutrition_factors.csv', () => {
+test('factors: generated nutrition table matches menu_nutrition_factors_EastQuad.csv', () => {
   const rows = csvObjects('menu_nutrition_factors_EastQuad.csv');
   assert.equal(NUTRITION_FACTORS.length, rows.length);
   rows.forEach((r, i) => {

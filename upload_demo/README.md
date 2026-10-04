@@ -19,7 +19,7 @@ built `vision/` (`cd vision && npm run build`). There is nothing else to install
   four pictures.
 - **Foods.** Every photo is matched against **Halal Chicken and Halal Rice only** (there is no menu
   choice). Halal Chicken comes from `menu_waste_factors_halal_bros.csv`, Halal Rice from
-  `menu_waste_factors.csv`. Food that is neither is counted as unclassified.
+  `menu_waste_factors_EastQuad.csv`. Food that is neither is counted as unclassified.
 - **Numbers.** Pixels wasted is the measurement: visible leftover-food pixels in AI masks, not grams.
   `POST /api/analyze` still returns each food's relative CO2/water/nutrition points in `summary`
   (used by `demo.py`); the pages don't show them.

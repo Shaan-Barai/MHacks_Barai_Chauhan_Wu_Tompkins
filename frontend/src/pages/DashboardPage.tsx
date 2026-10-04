@@ -5,16 +5,18 @@
  * recommendation live on Statistics; plate photos on Behind the scenes.
  */
 import { useState } from 'react'
-import { getImpactDashboard } from '../data/api'
+import { getDemoStatus, getImpactDashboard } from '../data/api'
 import { useAsync } from '../lib/useAsync'
 import { CarbonByDay } from '../components/CarbonByDay'
 import { DASHBOARD_PRESETS, DateRangePicker, rangeForDays, type DateRange } from '../components/DateRangePicker'
 import { HeadlineCards } from '../components/HeadlineCards'
+import { ClearedNotice } from '../components/DemoDataCard'
 import { Badge, EmptyState, LoadingBlock } from '../components/ui'
 
-export function DashboardPage() {
+export function DashboardPage({ dataRevision = 0 }: { dataRevision?: number } = {}) {
   const [range, setRange] = useState<DateRange>(() => rangeForDays(1))
-  const impact = useAsync(() => getImpactDashboard(range.start, range.end), [range.start, range.end])
+  const impact = useAsync(() => getImpactDashboard(range.start, range.end), [range.start, range.end, dataRevision])
+  const demo = useAsync(() => getDemoStatus().catch(() => null), [dataRevision])
   // A one-day chart is a single bar, so "Today" charts the last 7 days.
   const chartRange = range.start === range.end ? rangeForDays(7) : range
 
@@ -28,11 +30,13 @@ export function DashboardPage() {
         <DateRangePicker value={range} onChange={setRange} presets={DASHBOARD_PRESETS} />
       </div>
 
+      <ClearedNotice status={demo.data ?? null} />
+
       {impact.status === 'loading' && !impact.data && <LoadingBlock label="Loading totals" />}
       {impact.status === 'error' && <EmptyState title="Couldn't load the totals." />}
       {impact.data && <HeadlineCards data={impact.data} />}
 
-      <CarbonByDay range={chartRange} />
+      <CarbonByDay key={dataRevision} range={chartRange} />
     </div>
   )
 }

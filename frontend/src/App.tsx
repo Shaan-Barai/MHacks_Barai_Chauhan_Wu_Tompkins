@@ -111,12 +111,12 @@ function Shell() {
       </nav>
 
       <main id="main" className="min-w-0 flex-1 overflow-y-auto bg-cream p-4 sm:p-6">
-        {page === 'dashboard' && <DashboardPage />}
+        {page === 'dashboard' && <DashboardPage dataRevision={dataRevision} />}
         {page === 'statistics' && <StatisticsPage dataRevision={dataRevision} />}
         {page === 'menus' && <MenusPage />}
         {page === 'portions' && <PortionsPage onSaved={() => setDataRevision((r) => r + 1)} />}
         {page === 'behind' && <BehindScenesPage path={path} onNavigate={go} />}
-        {page === 'settings' && <SettingsPage settings={hall} onSave={update} />}
+        {page === 'settings' && <SettingsPage settings={hall} onSave={update} onDataChanged={() => setDataRevision((r) => r + 1)} />}
         {page === 'admin' && <AdminPage />}
         {page === null && <NotFoundPage onHome={() => go('/dashboard')} />}
       </main>

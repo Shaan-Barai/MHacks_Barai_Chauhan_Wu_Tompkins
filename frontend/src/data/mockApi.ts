@@ -31,6 +31,7 @@ import type {
 
   CameraStatus,
   TakePhotoResult,
+  DemoStatus,
   WasteTotal,
   WasteTotals,
   CaptureImages,
@@ -545,6 +546,28 @@ export async function getWasteTotals(today: IsoDate): Promise<WasteTotals> {
 export async function getCameraStatus(): Promise<CameraStatus> {
   await wait()
   return { configured: false, busy: false }
+}
+
+// Demo data controls: the mock keeps its mode in memory.
+let demoStatus: DemoStatus = { hallId: 'hall-main', mode: 'default', sampleLoaded: false, sampleCaptures: 0, clearedAt: null }
+export async function getDemoStatus(): Promise<DemoStatus> {
+  await wait()
+  return { ...demoStatus }
+}
+export async function loadDemoData(): Promise<DemoStatus> {
+  await wait()
+  demoStatus = { ...demoStatus, mode: 'sample', sampleLoaded: true, sampleCaptures: 42, clearedAt: null }
+  return { ...demoStatus }
+}
+export async function clearDemoData(): Promise<DemoStatus> {
+  await wait()
+  demoStatus = { ...demoStatus, mode: 'cleared', clearedAt: new Date().toISOString() }
+  return { ...demoStatus }
+}
+export async function restoreDemoData(): Promise<DemoStatus> {
+  await wait()
+  demoStatus = { ...demoStatus, mode: 'default', clearedAt: null }
+  return { ...demoStatus }
 }
 
 export async function takePhoto(): Promise<TakePhotoResult> {

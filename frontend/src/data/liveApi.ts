@@ -37,6 +37,7 @@ import type {
   PlateRecord,
   CameraStatus,
   TakePhotoResult,
+  DemoStatus,
   WasteTotals,
   TryImageJob,
   TryImageStatus,
@@ -568,3 +569,19 @@ export async function regenerateRecommendation(start: IsoDate, end: IsoDate): Pr
     body: JSON.stringify({ hallId: hallId(), start, end }),
   })
 }
+
+// Demo data controls: load labeled sample scans, hide older scans, or restore the default view.
+export async function getDemoStatus(): Promise<DemoStatus> {
+  return call<DemoStatus>(`/api/demo/status?${q({ hallId: hallId() })}`)
+}
+
+function demoPost(action: 'load' | 'clear-data' | 'restore'): Promise<DemoStatus> {
+  return call<DemoStatus>(`/api/demo/${action}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hallId: hallId() }),
+  })
+}
+export const loadDemoData = () => demoPost('load')
+export const clearDemoData = () => demoPost('clear-data')
+export const restoreDemoData = () => demoPost('restore')

@@ -66,4 +66,10 @@ describe('DashboardPage (mock data)', () => {
     await waitFor(() => expect(daily).toHaveBeenLastCalledWith(chartStart, week.end))
     expect(await screen.findByLabelText(/^Plates scanned: [\d,]+ plates$/)).toBeInTheDocument()
   })
+
+  it('shows a subtle notice when the demo view is cleared', async () => {
+    vi.spyOn(api, 'getDemoStatus').mockResolvedValue({ hallId: 'hall-main', mode: 'cleared', sampleLoaded: false, sampleCaptures: 0, clearedAt: '2026-10-04T12:00:00Z' })
+    render(<DashboardPage />)
+    expect(await screen.findByText(/Showing scans since .* Restore the default view in Settings\./)).toBeInTheDocument()
+  })
 })

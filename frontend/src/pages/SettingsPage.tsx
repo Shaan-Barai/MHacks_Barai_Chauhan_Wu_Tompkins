@@ -1,5 +1,6 @@
 /** Settings: hall name, meal times for different days, special events, and a download. */
 import { useState } from 'react'
+import { DemoDataCard } from '../components/DemoDataCard'
 import { MealTimesFields } from '../components/MealTimesFields'
 import { Card, FieldLabel, GhostButton, PrimaryButton, inputClass } from '../components/ui'
 import type { HallSettings, MealTimeSet, SpecialEvent, Weekday } from '../data/types'
@@ -72,7 +73,15 @@ function EventRow({ event, onChange, onRemove }: { event: SpecialEvent; onChange
   )
 }
 
-export function SettingsPage({ settings, onSave }: { settings: HallSettings; onSave: (next: HallSettings) => void }) {
+export function SettingsPage({
+  settings,
+  onSave,
+  onDataChanged,
+}: {
+  settings: HallSettings
+  onSave: (next: HallSettings) => void
+  onDataChanged?: () => void
+}) {
   const [draft, setDraft] = useState<HallSettings>(settings)
   const [saved, setSaved] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -164,6 +173,8 @@ export function SettingsPage({ settings, onSave }: { settings: HallSettings; onS
         </div>
       </fieldset>
       </Card>
+
+      <DemoDataCard onDataChanged={onDataChanged} />
 
       <Card>
         <h2 className="text-lg font-semibold">Download</h2>

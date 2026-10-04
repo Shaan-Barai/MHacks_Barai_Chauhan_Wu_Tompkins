@@ -508,3 +508,12 @@ export interface TryImageJob {
   /** Data URLs (or null when a step could not be drawn). */
   images?: { original: string | null; boxes: string | null; masks: string | null; final: string | null }
 }
+
+/** Demo data controls (Settings): which scans the dashboard shows. */
+export interface DemoStatus {
+  hallId: string
+  mode: 'default' | 'sample' | 'cleared'
+  sampleLoaded: boolean
+  sampleCaptures: number
+  clearedAt: string | null
+}

@@ -35,6 +35,11 @@ export const regenerateRecommendation = impl.regenerateRecommendation
 export const getWasteTotals = impl.getWasteTotals
 export const getCameraStatus = impl.getCameraStatus
 export const takePhoto = impl.takePhoto
+// Demo data controls (Settings).
+export const getDemoStatus = impl.getDemoStatus
+export const loadDemoData = impl.loadDemoData
+export const clearDemoData = impl.clearDemoData
+export const restoreDemoData = impl.restoreDemoData
 // Try an Image: one-off analysis of an uploaded plate photo.
 export const getTryImageStatus = impl.getTryImageStatus
 export const getTryImageSample = impl.getTryImageSample

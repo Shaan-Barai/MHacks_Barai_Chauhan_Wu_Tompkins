@@ -12,6 +12,7 @@ import { analyzeCaptureWithMasks, type MaskAnalysisInput } from '../src/maskPipe
 import { countPixels, decodeBinaryMask, geminiBoxToPixels } from '../src/masks.js';
 import { buildNumberedMenu, validateLocalizeText } from '../src/localize.js';
 import type { Segmenter, SegmentResponse } from '../src/samClient.js';
+import { PLATE_SYSTEM_INSTRUCTION } from '../src/calibration.js';
 
 const W = 100;
 const H = 50;
@@ -204,7 +205,7 @@ test('segmentation unavailable: retryable failure, never zero pixels', async () 
   assert.deepEqual(measurements, []);
 });
 
-test('partial: one malformed mask and one invalid box -> lower-bound count, needs review', async () => {
+test('partial (single pass): one malformed mask and one invalid box -> lower-bound count, needs review', async () => {
   const sam = boxFiller((k) => (k === 1 ? { maskPng: maskPng(W, H, () => 128) } : {}));
   const { attempt, measurements } = await analyzeCaptureWithMasks(
     gemini([
@@ -213,7 +214,7 @@ test('partial: one malformed mask and one invalid box -> lower-bound count, need
       { ingredient: 'fries', menu_id: 2, box_2d: [500, 500, 400, 600] },
     ]),
     sam,
-    input,
+    { ...input, geminiPasses: 1 },
   );
   assert.equal(attempt.status, 'needs_review');
   const seg = attempt.segmentation!;
@@ -278,4 +279,71 @@ test('localize v2: numbered menu from name + description; menu_id must be an int
     assert.deepEqual(validateLocalizeText(JSON.stringify([{ ingredient: 'x', menu_id: bad, box_2d: [1, 2, 3, 4] }]), ['stir', 'rice']), { ok: false, reason: 'menu_id_out_of_range' });
   }
   assert.deepEqual(validateLocalizeText('{"regions":[]}', ['stir']), { ok: false, reason: 'not_an_array' });
+});
+
+/** Gateway whose answer depends on the pass (pass 2's prompt carries CLOSEUP_LINE). */
+function twoPass(pass1: unknown, pass2: unknown) {
+  return createGeminiGateway({
+    env: {},
+    mockTransport: (req) => {
+      const closeup = req.parts.some((p) => 'text' in p && p.text.includes('Look especially closely'));
+      const answer = closeup ? pass2 : pass1;
+      if (answer instanceof Error) throw answer;
+      return typeof answer === 'string' ? answer : JSON.stringify(answer);
+    },
+  });
+}
+
+test('two passes: union of boxes; heavy overlaps (IoU > 0.5) keep the smaller box, same or different menu_id', async () => {
+  const sam = boxFiller();
+  const rice = { ingredient: 'rice pile', menu_id: 1, box_2d: [0, 0, 600, 600] }; // x0-60, y0-30 = 1800 px
+  const carrotA = { ingredient: 'carrot coin', menu_id: 2, box_2d: [0, 0, 500, 500] }; // x0-50,y0-25: IoU with rice 0.69 -> wins
+  const carrotDup = { ingredient: 'carrot', menu_id: 2, box_2d: [0, 0, 480, 480] }; // same piece in pass 2, smaller -> kept, A dropped
+  const pepper = { ingredient: 'pepper strip', menu_id: 2, box_2d: [800, 800, 1000, 1000] }; // only pass 2 finds it
+  const { attempt, localization } = await analyzeCaptureWithMasks(twoPass([rice, carrotA], [carrotDup, pepper]), sam, input);
+  assert.deepEqual(localization, { passes: 2, passBoxes: [2, 2], failedPasses: [], mergedBoxes: 2 });
+  assert.deepEqual(attempt.segmentation!.regions.map((r) => r.visualLabel), ['carrot', 'pepper strip']);
+  assert.equal(attempt.promptVersion, 'scrap-localize-v3+closeup');
+  assert.equal(sam.calls.length, 1, 'SAM still runs once per plate on the merged boxes');
+});
+
+test('two passes: a failed or invalid pass falls back to the other; [] loses to a pass with pieces', async () => {
+  const burger = [{ ingredient: 'burger', menu_id: 1, box_2d: burgerBox }];
+  const failed = await analyzeCaptureWithMasks(twoPass(new Error('timeout'), burger), boxFiller(), input);
+  assert.equal(failed.attempt.status, 'succeeded');
+  assert.deepEqual(failed.localization.passBoxes, [null, 1]);
+  assert.equal(failed.localization.failedPasses.length, 1);
+
+  const invalid = await analyzeCaptureWithMasks(twoPass(burger, 'not json'), boxFiller(), input);
+  assert.equal(invalid.attempt.status, 'succeeded');
+  assert.deepEqual(invalid.localization.failedPasses, ['invalid:invalid_json']);
+
+  const emptyVsPieces = await analyzeCaptureWithMasks(twoPass([], burger), boxFiller(), input);
+  assert.equal(emptyVsPieces.attempt.segmentation!.countStatus, 'complete');
+  assert.equal(emptyVsPieces.attempt.segmentation!.capturePixelsWasted, 400);
+
+  const bothEmpty = await analyzeCaptureWithMasks(twoPass([], []), boxFiller(), input);
+  assert.equal(bothEmpty.attempt.segmentation!.countStatus, 'empty');
+
+  const bothFail = await analyzeCaptureWithMasks(twoPass('nope', new Error('down')), boxFiller(), input);
+  assert.equal(bothFail.attempt.status, 'failed');
+  assert.equal(bothFail.attempt.segmentation!.countStatus, 'unavailable');
+});
+
+test('GEMINI_PASSES=1 makes a single localization call with the unchanged base prompt', async () => {
+  const seen: string[] = [];
+  const gw = createGeminiGateway({
+    env: {},
+    mockTransport: (req) => {
+      // The concurrent plate-calibration request (calibration.ts) is not a localization pass.
+      if (req.systemInstruction === PLATE_SYSTEM_INSTRUCTION) return '{}';
+      seen.push(req.parts.filter((p): p is { text: string } => 'text' in p).map((p) => p.text).join(''));
+      return JSON.stringify([{ ingredient: 'burger', menu_id: 1, box_2d: burgerBox }]);
+    },
+  });
+  const { attempt, localization } = await analyzeCaptureWithMasks(gw, boxFiller(), { ...input, geminiPasses: 1 });
+  assert.equal(seen.length, 1);
+  assert.ok(!seen[0]!.includes('Look especially closely'));
+  assert.equal(attempt.promptVersion, 'scrap-localize-v3');
+  assert.deepEqual(localization.passBoxes, [1]);
 });

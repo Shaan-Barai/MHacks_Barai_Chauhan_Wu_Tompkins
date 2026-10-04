@@ -175,6 +175,14 @@ r.diagnostics;   // { calibrationError?, plateRimPoints?, pixelsOutsideDish?, ov
   `sharp` is loaded lazily; a missing module or undecodable image gives
   `overlay: null` + `diagnostics.overlayError`. Rendered for complete,
   partial, and empty-plate captures; null when nothing was countable.
+- Two localization passes (user change, `menu-source-experiment` fef1065):
+  by default Gemini localizes twice in parallel (base prompt, and base +
+  a "look closely at mixed piles" line); boxes are merged by IoU > 0.5
+  keeping the smaller box. `GEMINI_PASSES=1` / `geminiPasses: 1` uses one
+  pass. `promptVersion` is `scrap-localize-v3+closeup` for two passes,
+  `scrap-localize-v3` for one; `result.localization` reports boxes per pass.
+  With calibration on, a capture makes **3 Gemini calls** (2 localize + 1
+  plate box, all concurrent) and 2 SAM calls (food, then plate).
 - Localize prompt `scrap-localize-v3`: every numbered menu line is
   `n. name — description` (the demo menu's descriptions are Gemini
   visible-component text); descriptions are sanitized (control chars,

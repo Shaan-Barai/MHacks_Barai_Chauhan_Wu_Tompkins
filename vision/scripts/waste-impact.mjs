@@ -29,6 +29,7 @@
  *   RUNS=n                      repeat every photo n times per source
  *   EXPERIMENT_CSV=path         write photo,menu_source,run,dish,pixels,grams,unknown_pct
  *   MAX_GEMINI_CALLS=n          abort if Gemini calls exceed n (runaway guard)
+ *   GEMINI_PASSES=1|2           localization passes per plate (default 2; read by the pipeline)
  */
 
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
@@ -292,7 +293,7 @@ for (const [step, { source, run, file }] of plan.entries()) {
   });
   const total = items.reduce((s, i) => s + (i.impact?.usd ?? 0), 0);
   const row = {
-    file, menuSource: source, run, unknownPixels: counts.unclassifiedPx,
+    file, menuSource: source, run, localization: analysis.localization, unknownPixels: counts.unclassifiedPx,
     unknownPct: counts.capturePx > 0 ? (100 * counts.unclassifiedPx) / counts.capturePx : 0,
     width: W, height: H, status: analysis.attempt.status, countStatus: seg.countStatus, flags: analysis.attempt.qualityFlags,
     capturePixels: counts.capturePx, pixelsOutsideDish: outsideDish, plate: plate.error ? { error: plate.error } : { dishType: plate.dishType, fullyVisible: plate.fullyVisible, diameterPx: plate.diameterPx, cm2PerPx: plate.cm2PerPx },
@@ -302,7 +303,13 @@ for (const [step, { source, run, file }] of plan.entries()) {
   results.push(row);
 
   const keyOf = (itemId) => itemId ?? 'unknown';
-  const foodMasks = clipped.map((m) => ({ bitmap: m.bitmap, key: keyOf(m.itemId) }));
+  // Paint what was COUNTED: each food's exclusive pixels after smallest-first
+  // overlap resolution (not raw SAM regions, which overlap and would be drawn
+  // last-on-top).
+  const foodMasks = [
+    ...[...counts.itemBitmaps].map(([itemId, bitmap]) => ({ bitmap, key: keyOf(itemId) })),
+    { bitmap: counts.unclassifiedBitmap, key: keyOf(null) },
+  ];
   const legend = measurements.map((m, k) => {
     const it = items[k];
     return {
@@ -317,6 +324,9 @@ for (const [step, { source, run, file }] of plan.entries()) {
 
   console.log(`\n[${step + 1}/${plan.length}] ${file}  menu=${source} run=${run}  ${analysis.attempt.status}/${seg.countStatus}  ${row.seconds.toFixed(1)}s` +
     (analysis.attempt.error ? `  ${analysis.attempt.error.code}` : '') + `  | Gemini API calls so far: ${gateway.callCount}`);
+  const loc = analysis.localization;
+  console.log(`  boxes: ${loc.passBoxes.map((n, k) => `pass ${k + 1}=${n ?? 'failed'}`).join(', ')}, after merge=${loc.mergedBoxes}` +
+    (loc.failedPasses.length ? ` (failed: ${loc.failedPasses.join(', ')})` : ''));
   if (gateway.callCount > MAX_CALLS) throw new Error(`Gemini call guard: ${gateway.callCount} calls > MAX_GEMINI_CALLS=${MAX_CALLS}; stopping.`);
   console.log(plate.error ? `  calibration FAILED: ${plate.error}` :
     `  dish: ${plate.dishType}, diameter ${plate.diameterPx}px -> ${plate.cm2PerPx.toFixed(5)} cm²/px${plate.fullyVisible ? '' : '  [dish cut off / touches frame: calibration unreliable]'}${plate.dishType === 'bowl' ? '  [bowl: 26.7 cm plate assumption likely wrong]' : ''}` +

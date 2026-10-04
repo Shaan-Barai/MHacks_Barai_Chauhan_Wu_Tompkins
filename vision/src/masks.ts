@@ -48,6 +48,15 @@ export function geminiBoxToPixels(gemini: unknown, width: number, height: number
   };
 }
 
+/** Intersection-over-union of two pixel XYXY boxes. */
+export function boxIoU(a: [number, number, number, number], b: [number, number, number, number]): number {
+  const ix = Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0]));
+  const iy = Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]));
+  const inter = ix * iy;
+  const union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter;
+  return union > 0 ? inter / union : 0;
+}
+
 export type MaskResult = { ok: true; bitmap: Uint8Array; pixels: number } | { ok: false; reason: string };
 
 /**

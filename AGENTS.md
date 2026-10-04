@@ -33,7 +33,7 @@ The object-storage provider is still undecided. Cloudflare R2, Supabase Storage,
 
 Use the official [SpacetimeDB external-file storage guidance](https://spacetimedb.com/docs/tables/file-storage/) when implementing this pattern. If R2 is selected, consult its [presigned URL guidance](https://developers.cloudflare.com/r2/api/s3/presigned-urls/) for upload/read access and expiration behavior. These references inform implementation; they do not select a provider.
 
-Do not add model training, real swipe-system integration, purchasing automation, or production camera infrastructure unless requested. Do not present estimated pixel area as measured grams, kilograms, volume, cost, or environmental impact without an independently specified conversion. The 2026-10-03 waste-impact conversion (§7, BIG-PLAN.md) is that specification: its grams, CO2e, water and dollar values are always labeled estimates, never measurements.
+Do not add model training, real swipe-system integration, purchasing automation, or production camera infrastructure unless requested. Do not present estimated pixel area as measured grams, kilograms, volume, cost, or environmental impact without an independently specified conversion. No such conversion exists yet (2026-10-04, BIG-PLAN v2): plates come in several sizes, so plate-size calibration was dropped. The app reports pixels and unitless **relative impact points** (§7) only.
 
 ## 3. Working rules for every agent
 
@@ -316,17 +316,19 @@ Rank recommendations by the available per-item rate. Mention missing benchmarks 
 
 Agent 2 owns portion validation/schema, Agent 5 owns snapshot API/persistence, Agent 6 owns the calculation and recommendations, Agent 7 owns entry/CSV/benchmark screens, and Agent 8 verifies the flow. Agent 1 owns the additive contracts. Automated serving-system connections and live segmentation remain separate pending work.
 
-### Waste impact and waste per portion (2026-10-03, BIG-PLAN.md D1–D8)
+### Relative impact and waste per portion (2026-10-04, BIG-PLAN.md v2)
 
 ```text
-cm2_per_px      = (26.7 cm / plate_diameter_px)^2        per capture (plate-fit-v1, else PLATE_DIAMETER_PX + calibration_default)
-grams_i         = pixels_wasted_i × cm2_per_px × weight_g_per_cm2_i
-kg_co2e_i       = kg_i × C_i            water_m3_i = kg_i × W_i
-impact_usd_i    = kg_i × (0.19·C_i + 1.50·W_i)            nutrition is NOT in the score
-grams_per_portion_i = Σ grams_i / Σ portions_served_i     same service/menu version; sum then divide
+pixels_per_portion_i = Σ pixels_wasted_i / Σ portions_served_i      same service/menu version; sum then divide
+base_i               = pixels_wasted_i / 1000 × weight_g_per_cm2_i
+co2_points_i         = base_i × C_i          water_points_i = base_i × W_i
+impact_points_i      = base_i × (0.19·C_i + 1.50·W_i)                nutrition is NOT in the score
+nutrition_points_i   = base_i × nutrient_days_per_kg_i               reported separately
 ```
 
-Factors come from `menu_waste_factors.csv` (nutrition: `menu_nutrition_factors.csv`, reported separately as nutrition lost). Pixels wasted remains the raw stored measurement; grams and impact are derived by `analytics` at read time and labeled estimates. Items without a factor or calibration are unavailable, never zero. "Foods to target" ranks by grams per portion; "Most wasted" by total grams. Portion counts in the demo are labeled `demo`.
+Points are unitless and only compare foods with each other. Never present them as kg, litres or dollars. Factors come from `menu_waste_factors.csv` (nutrition: `menu_nutrition_factors.csv`). Pixels wasted is the stored measurement and the headline unit; points are derived by `analytics` at read time. Items without a factor have null points, never zero. "Foods to target" ranks by pixels per portion; "Most wasted" by total pixels. Demo portion counts are labeled `demo`. No plate-size calibration is used.
+
+**Target-dish counting (`target-dish-v1`).** Each capture counts only the dish being scanned. Gemini marks the target dish (most centered, most fully in frame) and whether each food box is on it. Food on other dishes is dropped, and the remaining masks are clipped to the target dish's region. Flags: `neighbor_food_excluded`, or `target_dish_unavailable` when there was no clip. A neighboring plate is counted in its own capture; the bridge's same-dish judgment keeps each physical plate counted once.
 
 ## 8. Implementation phases and parallel work
 

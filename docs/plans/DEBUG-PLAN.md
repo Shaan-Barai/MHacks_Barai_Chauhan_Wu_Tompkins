@@ -134,6 +134,9 @@ Priority: **P1** wrong numbers or a broken path a user sees; **P2** reliability 
 | D15 | fixed (copy) | — | `4aa8c7d` | review of server timeouts | Upload page now says one at a time, last 20 kept, lost on restart. No local timeout on queued waits; a Cloudflare tunnel (~100 s) could still cut long waits (unchecked) |
 
 ### Log
+- 2026-10-04: D7 live: after `deploy/local.sh restart`, `/api/health` reports commit, start time and
+  `waste-factors-v7`, and `local.sh status` prints "matches checkout". Same deploy shipped the new
+  Try an Image tab (Behind the scenes) on scrapsaver.app.
 - 2026-10-04: phases 0–3. Baseline 12/12 suites green (72 s). Nine Sonnet 5.5 subagents in worktrees, one per
   item group; coordinator reviewed each diff and cherry-picked to `main` (`93a4b76`…`e093a1d`); `./test-all.sh`
   12/12 green after the merges. No Gemini calls made. Pending: phase 4 live checks (backend restart for D7,

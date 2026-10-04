@@ -1,6 +1,6 @@
 # Verification report — Agent 8
 
-**Date:** 2026-10-04. The newest section is IT_4 (calibration, estimated grams / CO2e / water, auth). Then BIG-PLAN v2 (`scrap`: pixels only, relative impact points,
+**Date:** 2026-10-04. The newest section is the IT_4 amendment (Depth Anything V2 removed, `./test-all.sh`). Then IT_4 (calibration, estimated grams / CO2e / water, auth). Then BIG-PLAN v2 (`scrap`: pixels only, relative impact points,
 target-dish counting). Below it: the v1 BIG-PLAN end-to-end run (retired `scrap-bigplan`), the Phase 3
 vertical slice, and the mask pipeline.
 **Scope:** fixture/unit suites, live Gemini smoke test, live API e2e against a
@@ -14,6 +14,52 @@ portions → replay capture → object storage → live Gemini analysis →
 SpacetimeDB persistence → analytics + simulated attendance → grounded
 suggestion → dashboard. Camera hardware and a cloud object-storage provider
 are **not** tested (neither exists yet).
+
+## IT_4 amendment: Depth Anything V2 removed, `./test-all.sh` — 2026-10-04 (workstream R3)
+
+The user removed Depth Anything V2 (IT_4.md §10). Calibration is area-only (`reference-area-v1` →
+`area-calibrated-v1`); grams = area × `weight_g_per_cm2`. **Why depth went:** on close top-down photos
+(test2/, 22–30 cm) DAv2 Metric Indoor Small read distances 3–5× too far and put food at or below the
+plate, so every food fell back to area anyway (details in the K section below and
+[calibration.md](calibration.md)). The depth results in the K section are historical.
+
+### Offline: `./test-all.sh` on `main` @ `5aaeff7` (after R1/R2's depth removal), no network
+
+| Suite | Result |
+| --- | --- |
+| install | PASS (node_modules present) |
+| data | 38/38 |
+| vision | 88/88 |
+| analytics | 72/72 |
+| capture | 53/53 (activateCalibration sends only `{hallId, activeCalibrationId}`; describeCalibration shows k + camera height) |
+| backend | 68 pass, 1 skipped |
+| frontend | 95/95 (vitest) |
+| frontend-build | PASS (`tsc -b && vite build`) |
+| db | PASS (typecheck) |
+| tests | 22/22 (contract fixtures, integration incl. calibrate → capture through the CLIs without `--depth`; live E2E skipped) |
+| python | 66/66 (capture/uno-q, simulated board) |
+| scripts | 28/28 (`bash -n` + shellcheck on deploy scripts and test-all.sh, `node --check`, Python syntax, `demo.py --list`, JSON configs, launchd plist lint) |
+
+Total about 70 s on the team Mac.
+
+### Live: not run against current code
+
+The stack running on the team Mac (backend pid started 04:15, from the main checkout) **predates the
+amendment**: its `/api/ready` still checks `depthWorker`, and `GET /api/settings/measurement` still
+returns `depthEnabled`/`plateThicknessCm`. A `./test-all.sh --live` run against it would test old code, so
+it was not run. Read-only checks that were run against it:
+
+- `SCRAP_RUN_DIR=<main>/deploy/.run ./test-all.sh --only stack`: PASS. `deploy/local.sh up` reused
+  SpacetimeDB and SAM (external), recognised its own api pid, started nothing, killed nothing, and
+  reported the leftover depth worker (pid from `depth.pid`, :8791) as `removed`, to be stopped by `down`.
+- `node deploy/smoke.mjs http://127.0.0.1:8787 --no-roundtrip`: 11 PASS, 0 FAIL (health, ready, dashboard
+  HTML + deep link, security headers, impact JSON, four unauthenticated writes → 401, wrong passcode → 401).
+- `python3 demo.py --events <one calibrated, one uncalibrated capture> --only area`: the new `area` step
+  printed per-food area cm² / g / kg CO2e / L water, totals and coverage (1 of 2 plates calibrated); the
+  uncalibrated plate is a WARN with "pixels only", never 0.
+
+**To finish the live check (user):** `deploy/local.sh restart` from an up-to-date main checkout (this
+also stops the old depth worker), then `./test-all.sh --live`.
 
 ## IT_4: camera calibration, estimated grams / CO2e / water, auth — 2026-10-04 (workstream K)
 

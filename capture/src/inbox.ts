@@ -21,7 +21,16 @@ export interface InboxFrame {
   photoPath: string;
   /** 'interval' frames come from `--auto`; 'manual' from Enter / `--once`. */
   trigger: 'manual' | 'interval';
+  /**
+   * True when metadata.captureSource is 'simulated_camera' (written by
+   * `npm run simulate-camera`, not the Uno Q). The bridge labels such dishes
+   * `source: 'replay'` so simulated photos never pass as real camera captures.
+   */
+  simulated: boolean;
 }
+
+/** metadata.captureSource written by capture/scripts/simulate-camera.mjs. */
+export const SIMULATED_CAPTURE_SOURCE = 'simulated_camera';
 
 export interface InboxIssue {
   captureId: string;
@@ -41,6 +50,7 @@ interface UnoQMetadata {
   byteLength?: unknown;
   sha256?: unknown;
   triggerSource?: unknown;
+  captureSource?: unknown;
 }
 
 function issue(captureId: string, code: string, message: string, retryable: boolean): InboxIssue {
@@ -82,6 +92,7 @@ async function readFrame(inbox: string, name: string): Promise<InboxFrame | Inbo
     capturedAt: new Date(capturedAt).toISOString(),
     photoPath: path.join(dir, 'photo.jpg'),
     trigger: metadata.triggerSource === 'interval' ? 'interval' : 'manual',
+    simulated: metadata.captureSource === SIMULATED_CAPTURE_SOURCE,
   };
 }
 

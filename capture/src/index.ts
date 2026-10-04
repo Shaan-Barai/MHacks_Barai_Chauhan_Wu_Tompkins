@@ -71,7 +71,7 @@ export {
   type ManualUploadOptions,
 } from './adapter.js';
 
-export { scanInbox, type InboxFrame, type InboxIssue, type InboxScan } from './inbox.js';
+export { SIMULATED_CAPTURE_SOURCE, scanInbox, type InboxFrame, type InboxIssue, type InboxScan } from './inbox.js';
 
 export { DEFAULT_PREFILTER_MAD, PREFILTER_VERSION, fingerprint, meanAbsDiff, thumbnail } from './frames.js';
 
@@ -87,3 +87,12 @@ export {
 } from './dishGrouper.js';
 
 export { InboxBridge, type BridgeEvent, type InboxBridgeOptions, type PassResult } from './inboxBridge.js';
+
+export {
+  MAX_SIMULATED_JPEG_BYTES,
+  listPhotos,
+  simulateCamera,
+  type SimulateCameraOptions,
+  type SimulatedCapture,
+  type SimulatedCaptureMetadata,
+} from './simulateCamera.js';

@@ -289,17 +289,23 @@ images/arduino-inbox/
 
 The metadata contains a transport capture UUID, UTC timestamp, actual width/height, camera device, raw-image status, byte length, and SHA-256. It is **local transport metadata**, not a SpacetimeDB row or a project `CaptureEvent` payload. The transport UUID is not the existing adapter's canonical event ID.
 
-When connecting this to your subsequent upload work:
+**Next stage: the inbox bridge.** `cd capture && npm run ingest-inbox -- --service <serviceId>` reads
+this folder, groups frames into dishes, and submits one `source: 'camera'` capture per dish (normalize →
+R2 upload → finalize → `POST /api/captures` → Gemini + SAM analysis → SpacetimeDB). See
+[BRIDGE.md](BRIDGE.md).
 
-| Local value | Use in the existing capture flow |
+| Local value | Use in the bridge |
 | --- | --- |
-| Full path to `photo.jpg` | `ReplayCaptureAdapter.ingestFile()` → `imagePath` |
-| `metadata.captureId` | Stable `entryId` for that dish across upload retries |
-| `metadata.capturedAt` | `capturedAt` |
-| Hall/service selected on the laptop | `hallId` and `serviceId`; these are not inferred from the camera |
+| Full path to `photo.jpg` | The dish's representative frame, normalized before upload |
+| `metadata.captureId` | Frame identity; the first frame's ID is the dish's stable retry key |
+| `metadata.capturedAt` | Frame order and the event's `capturedAt` |
+| `metadata.triggerSource` | `interval` (`--auto`) frames need dedupe; manual frames do not |
+| Hall/service selected on the laptop | `--service`; never inferred from the camera |
 | Raw width/height | Provenance; do not claim the raw photo is already normalized |
 
-The existing adapter accepts a manual image file, creates the project's event ID, normalizes the image, and uses the backend upload/finalization flow. See [`capture/src/adapter.ts`](capture/src/adapter.ts), [`capture/src/normalize.ts`](capture/src/normalize.ts), and [`capture/README.md`](capture/README.md). Its `ingestFile()` path currently labels the event `manual_upload`; this guide does not add a new canonical hardware source enum.
+**No board?** `cd capture && npm run simulate-camera -- --count 3` writes `test2/` photos into this
+same folder layout with the same metadata fields, labeled `captureSource: "simulated_camera"` (the
+bridge then submits them as `replay`, not `camera`). See [BRIDGE.md](BRIDGE.md#run-it-without-the-board-simulate-camera).
 
 **Keep the photo raw here.** The project's current normalization is a centered square crop resized to **1024 × 1024**. Fit the entire plate inside the centered square portion of the camera view so that this crop does not cut off leftovers. Keep camera height, angle, and framing consistent; resizing alone does not make differently scaled/perspective captures comparable.
 

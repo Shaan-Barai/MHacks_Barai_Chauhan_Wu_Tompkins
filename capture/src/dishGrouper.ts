@@ -49,6 +49,8 @@ export interface FrameRecord {
   serviceId: string;
   capturedAt: string;
   photoPath: string;
+  /** Written by simulate-camera rather than the Uno Q (absent = real camera). */
+  simulated?: boolean;
   /** Dish group this frame belongs to; null for a no-plate frame. */
   groupId: string | null;
   verdict: FrameVerdict;
@@ -244,6 +246,7 @@ export class DishGrouper {
       serviceId,
       capturedAt: frame.capturedAt,
       photoPath: frame.photoPath,
+      ...(frame.simulated ? { simulated: true } : {}),
       groupId,
       verdict,
     };

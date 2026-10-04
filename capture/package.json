@@ -11,7 +11,8 @@
     "build": "tsc",
     "test": "tsc && node --test dist/test/*.test.js",
     "replay": "tsc && node scripts/replay.mjs",
-    "ingest-inbox": "tsc && node scripts/ingest-inbox.mjs"
+    "ingest-inbox": "tsc && node scripts/ingest-inbox.mjs",
+    "simulate-camera": "tsc && node scripts/simulate-camera.mjs"
   },
   "dependencies": {
     "sharp": "^0.33.5"

@@ -49,7 +49,14 @@ SpacetimeDB) plus the SAM worker (`SAM_WORKER_URL`, default `http://127.0.0.1:87
 ```bash
 cd tests
 SCRAP_E2E=1 SPACETIMEDB_MODULE=scrap-bigplan npm run test:e2e:bigplan   # loads ../.env; shell vars win
+# worktree without ../.env: node --env-file=/path/to/.env --test e2e/bigplan-live.test.mjs
+# SCRAP_E2E_PHOTO_DIR=<dir> picks the photos; SCRAP_E2E_EVENT_IDS=cap_…,cap_… re-checks an earlier
+# run without new captures; SCRAP_E2E_START/END=2026-10-03 pins the dashboard window
 ```
+
+Last live run: 2026-10-03. Three `test2` photos (IMG_2695/2697/2701) against R2 + `scrap-bigplan` +
+Gemini + SAM. The first run passed 7/8: the SQL check failed because of a test-helper bug, now fixed.
+A re-check of the same events then passed 8/8. Results are in `docs/verification-report.md`.
 
 The real-hardware counterpart is `capture/scripts/live_camera_test.py` (board + C920 + bridge
 `--watch`, `source = camera`); this E2E swaps only the board for `simulate-camera` and goes on to

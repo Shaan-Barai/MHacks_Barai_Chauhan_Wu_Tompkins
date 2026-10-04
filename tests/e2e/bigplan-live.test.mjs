@@ -27,7 +27,11 @@ import { fileURLToPath } from 'node:url';
  *   SAM_WORKER_URL         default http://127.0.0.1:8790
  *   SCRAP_E2E_SERVICE      default svc_hall-main_2026-10-03_dinner (seeded with
  *                          `cd backend && npm run seed` when missing)
- *   SCRAP_E2E_PHOTOS       photos from test2/ to send, 1-4 (default 3)
+ *   SCRAP_E2E_PHOTOS       photos to send, 1-4 (default 3): the first N by name
+ *   SCRAP_E2E_PHOTO_DIR    folder (or one JPEG) to take them from (default <repo>/test2)
+ *   SCRAP_E2E_EVENT_IDS    comma-separated eventIds from an earlier run: skip the
+ *                          simulator/bridge step and re-verify those captures
+ *                          (no new Gemini/SAM calls except the recommendation)
  *   SCRAP_E2E_DEDUPE=1     run the bridge with Gemini dish grouping instead of
  *                          --no-dedupe (see "Dedupe" below)
  *   SCRAP_E2E_TIMEOUT_S    max wait for analysis (default 900)
@@ -52,6 +56,9 @@ const API = (process.env.API_URL ?? 'http://localhost:8787').replace(/\/$/, '');
 const SAM = (process.env.SAM_WORKER_URL ?? 'http://127.0.0.1:8790').replace(/\/$/, '');
 const SERVICE = process.env.SCRAP_E2E_SERVICE ?? 'svc_hall-main_2026-10-03_dinner';
 const PHOTO_COUNT = Number(process.env.SCRAP_E2E_PHOTOS ?? 3);
+const PHOTO_DIR = process.env.SCRAP_E2E_PHOTO_DIR;
+/** Comma-separated eventIds of an earlier run: re-check them without new captures. */
+const VERIFY_ONLY = process.env.SCRAP_E2E_EVENT_IDS?.split(',').map((s) => s.trim()).filter(Boolean) ?? null;
 const DEDUPE = process.env.SCRAP_E2E_DEDUPE === '1';
 const TIMEOUT_MS = Number(process.env.SCRAP_E2E_TIMEOUT_S ?? 900) * 1000;
 const STDB = process.env.SPACETIMEDB_URI
@@ -103,7 +110,7 @@ async function sql(query) {
     headers,
     body: query,
   });
-  assert.equal(res.ok, true, `SpacetimeDB SQL failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
+  if (!res.ok) assert.fail(`SpacetimeDB SQL failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
   const [result] = await res.json();
   if (!result) return [];
   const names = result.schema.elements.map((e) => (typeof e.name === 'string' ? e.name : e.name?.some));
@@ -177,7 +184,12 @@ describe('BIG-PLAN live e2e: simulated camera → R2/SpacetimeDB → Gemini+SAM 
     window = windowDates(service.serviceDate);
   });
 
-  it('simulate-camera → bridge (one pass) → exactly one capture per photo', { timeout: TIMEOUT_MS }, async () => {
+  it('simulate-camera → bridge (one pass) → exactly one capture per photo', { timeout: TIMEOUT_MS }, async (t) => {
+    if (VERIFY_ONLY) {
+      eventIds = VERIFY_ONLY;
+      t.skip('SCRAP_E2E_EVENT_IDS set: verifying existing captures, no new photos (no Gemini spend)');
+      return;
+    }
     const build = run('npm', ['run', 'build'], { cwd: capture });
     assert.equal(build.status, 0, `capture build failed:\n${build.out.slice(-1500)}`);
     const inbox = path.join(tmp, 'inbox');
@@ -187,6 +199,7 @@ describe('BIG-PLAN live e2e: simulated camera → R2/SpacetimeDB → Gemini+SAM 
       path.join(capture, 'scripts', 'simulate-camera.mjs'),
       '--inbox', inbox,
       '--count', String(PHOTO_COUNT),
+      ...(PHOTO_DIR ? ['--photos', PHOTO_DIR] : []),
     ]);
     assert.equal(sim.status, 0, sim.out);
 
@@ -213,7 +226,7 @@ describe('BIG-PLAN live e2e: simulated camera → R2/SpacetimeDB → Gemini+SAM 
   });
 
   it('analysis finishes for every capture; each is a simulated (replay) capture with a calibration', { timeout: TIMEOUT_MS }, async () => {
-    assert.equal(eventIds.length, PHOTO_COUNT, 'previous step produced the captures');
+    assert.ok(eventIds.length > 0, 'previous step produced the captures');
     const deadline = Date.now() + TIMEOUT_MS;
     const details = new Map();
     while (details.size < eventIds.length) {

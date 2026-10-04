@@ -251,6 +251,8 @@ the backend's validated API, so it lands in `scrap` when the backend uses it):
 - `--live-dinner[=YYYY-MM-DD]` also seeds the 26-food dinner plus demo portions
   for that hall-local date (default: today in America/Detroit) so live camera
   captures resolve to `svc_hall-main_<date>_dinner`.
+- IT_4: creates default `measurement_settings` (depth off, no calibration,
+  plate 1.5 cm) for each seeded hall that has none; an existing row is kept.
 - Idempotent: a second run creates and revises nothing.
 
 `scrap` after `npm run seed -- --live-dinner=2026-10-04` (2026-10-04): 10

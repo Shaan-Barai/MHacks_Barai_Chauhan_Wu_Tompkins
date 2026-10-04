@@ -308,13 +308,13 @@ export class IngestionService {
     const { jpeg, widthPx, heightPx } = overlay;
     const isJpeg = jpeg instanceof Uint8Array && jpeg.length > 3 && jpeg[0] === 0xff && jpeg[1] === 0xd8;
     if (!isJpeg || !Number.isInteger(widthPx) || !Number.isInteger(heightPx) || widthPx <= 0 || heightPx <= 0) {
-      console.warn(`[backend] OVERLAY_INVALID for capture ${eventId}; stored without an overlay`);
+      log.warn('OVERLAY_INVALID; stored without an overlay', { eventId });
       return undefined;
     }
     try {
       return (await this.images.storeOverlay(eventId, attemptId, jpeg, widthPx, heightPx)).objectId;
     } catch {
-      console.warn(`[backend] OVERLAY_STORE_FAILED for capture ${eventId}; stored without an overlay`);
+      log.warn('OVERLAY_STORE_FAILED; stored without an overlay', { eventId });
       return undefined;
     }
   }

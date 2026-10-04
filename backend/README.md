@@ -65,8 +65,55 @@ throwaway database (e.g. `scrap-test`), then
 | `BACKEND_DATA_FILE` | *(unset = in-memory)* | Optional JSON snapshot file for the offline repository |
 | `ATTENDANCE_MIN/MAX/SEED` | `300`/`1200`/– | Passed through for Agent 6's generator |
 | `SAM_WORKER_URL` | `http://127.0.0.1:8790` | SAM 2.1 worker (`vision/sam/worker.py`) |
+| `DEPTH_WORKER_URL` | `http://127.0.0.1:8791` | Depth Anything V2 worker (`vision/depth/worker.py`), IT_4 volume |
+| `WORKER_TOKEN` | – | Sent as `X-Worker-Token` to both workers (must match the workers' `WORKER_TOKEN`) |
+| `NODE_ENV` | – | `production` ⇒ the three auth secrets below are required (startup refuses otherwise), cookie `Secure`, HSTS |
+| `SCRAP_INGEST_TOKEN` | – | Bearer token for the camera bridge and scripts (`Authorization: Bearer …`) |
+| `SCRAP_ADMIN_PASSCODE` | – | Dashboard admin passcode (`POST /api/auth/login`) |
+| `SESSION_SECRET` | – | HMAC-SHA256 key for session cookies, ≥ 16 chars (dev without it: per-process random key) |
+| `SESSION_TTL_HOURS` | `12` | Admin session lifetime |
+| `SESSION_COOKIE_SECURE` | production | `0` to allow the cookie over plain `http://` (Safari on `http://localhost`) |
+| `TRUST_PROXY` | off | Express `trust proxy` hop count, only behind a reverse proxy (client IP for rate limits) |
+| `RATE_LIMIT_LOGIN_PER_15MIN` | `10` | Per-IP login attempts |
+| `RATE_LIMIT_GEMINI_PER_MIN` | `30` | Per-IP cap on Gemini-cost calls (captures, dish-match, recommendation, calibrations); ×10 for the ingest token |
+| `JSON_BODY_LIMIT` | `1mb` | JSON request body limit |
+| `HOST` / `PORT` | all interfaces / `8787` | Bind address |
+| `SERVE_FRONTEND` / `FRONTEND_DIST` | off / `../frontend/dist` | `1` serves the built dashboard with SPA fallback |
+| `SCRAP_LOG_LEVEL` | info | `warn` / `error` / `silent` (tests use `warn`) |
 
 `npm start` loads the repo-root `.env` (real environment variables win).
+
+## Auth and production mode (IT_4 I11)
+
+- **Reads are public** (`GET`/`HEAD`). **Every other `/api` request** needs
+  `Authorization: Bearer $SCRAP_INGEST_TOKEN` (bridge, scripts, `npm run seed`
+  reads it from the env or the repo-root `.env`) **or** an admin session cookie.
+  Missing/invalid ⇒ `401 AUTH_REQUIRED`. Exempt: login/logout and the local-dev
+  upload `PUT` (authorized by its own upload token, like an R2 presigned URL).
+- `POST /api/auth/login {passcode}` (constant-time compare, per-IP rate limit)
+  sets `scrap_session` — httpOnly, `SameSite=Strict`, `Secure` in production,
+  HMAC-SHA256-signed with `SESSION_SECRET`, 12 h — and returns
+  `{ admin: true, authRequired: true, expiresAt }`; wrong passcode
+  `401 INVALID_PASSCODE`. `POST /api/auth/logout` clears and revokes it.
+  `GET /api/auth/me` → `{ admin, authRequired }`. A cookie-authenticated mutation
+  from another `Origin` is `403 ORIGIN_MISMATCH`.
+- Dev (`NODE_ENV` not `production`) with neither token nor passcode set: open,
+  with a startup warning (`me` reports `admin: true, authRequired: false`).
+  `NODE_ENV=production` without `SCRAP_INGEST_TOKEN`, `SCRAP_ADMIN_PASSCODE` and
+  `SESSION_SECRET` refuses to start.
+- Rate limits: `429 RATE_LIMITED` + `Retry-After`. Helmet-equivalent headers
+  (CSP allowing the R2 endpoint for presigned images/uploads, nosniff,
+  frame-deny, no-referrer, HSTS in production), no `X-Powered-By`.
+- Logs are JSON lines (`{ts, level, msg, …}`): request method/path/status/ms,
+  never query strings, tokens, passcodes or signed URLs.
+- `SERVE_FRONTEND=1` serves `FRONTEND_DIST` from the same origin: `assets/*`
+  `Cache-Control: immutable` (1 year), everything else `no-cache`, SPA fallback
+  to `index.html` for non-`/api` GETs.
+- Local production run (what `deploy/local-up.sh` does):
+  `NODE_ENV=production SERVE_FRONTEND=1 PORT=8787 npm start` with the secrets
+  in `.env`. SpacetimeDB maincloud URIs use the same `/v1/database/<db>/{call,sql}`
+  HTTP paths, so only `SPACETIMEDB_URI`/`TOKEN` change (not exercised: Fly.io
+  and maincloud were dropped for IT_4).
 
 ## Endpoints
 
@@ -94,7 +141,7 @@ Every error returns the shared envelope `{ "error": { code, message, details?, r
 - `GET|PUT /api/portions-served?serviceId&hallId`, `POST /api/portions-served/csv`, `GET /api/portions-served/benchmark` — replacement snapshots per service + menu version. `PUT` bodies may carry `"source": "demo"` (seed only); otherwise counts are `manual`.
 
 ### Image uploads (two-step; AGENTS.md 5.7/5.8)
-- `POST /api/images/uploads` — authorize: `{ associationKind: "capture"|"reference",
+- `POST /api/images/uploads` — authorize: `{ associationKind: "capture"|"reference"|"calibration",
   associationId, mimeType, sizeBytes, widthPx?, heightPx? }` →
   `{ objectId, objectKey, uploadUrl, expiresAt }`. MIME/size validated here.
 - `PUT <uploadUrl>` — raw bytes (local-dev stand-in for a presigned PUT).
@@ -129,6 +176,46 @@ Every error returns the shared envelope `{ "error": { code, message, details?, r
 - `GET /api/captures/:eventId` — event + all attempts + counted measurements.
 - `GET /api/observations?hallId=…&serviceId=…` — events with their counted
   (latest succeeded attempt) measurements only; superseded attempts are history.
+
+### Camera calibration + measurement settings (IT_4)
+- Upload the calibration photo with `associationKind: "calibration"` and
+  `associationId` = **the new calibration id you choose** (e.g. `cal_<random>`),
+  PUT, finalize. Same frame size as the captures it will measure.
+- `POST /api/calibrations` `{ hallId, cameraId, imageObjectId, knownAreaCm2, referenceLabel }`
+  → `201 CameraCalibration` (bare contract object). Runs vision's
+  `runCalibration` (Gemini box → SAM 2.1 → N_ref, k = knownAreaCm2 / N_ref,
+  C920s intrinsics, geometric height; DAv2 scale + table plane when the depth
+  worker answers, else flag `depth_unavailable`). The overlay JPEG and reference
+  mask are stored as `calibration_overlay` images and the depth PNG as `depth`
+  (association id = calibrationId). Reference not found ⇒ a stored
+  `status: "failed"` calibration with `error`; provider/worker failures ⇒
+  `503` (retryable, nothing stored). Repeating the POST with the same upload
+  returns the stored calibration (`200`). `503 CALIBRATION_UNAVAILABLE` without
+  a Gemini key.
+- `GET /api/calibrations?hallId` → `{ calibrations: CameraCalibration[] }` newest first;
+  `GET /api/calibrations/:id` → `CameraCalibration`;
+  `GET /api/calibrations/:id/images` → `{ calibrationId, photo, overlay, referenceMask, depth }`
+  (each `SignedImage | null`).
+- `GET /api/settings/measurement?hallId` → `MeasurementSettings` (unsaved defaults:
+  depth off, no calibration, plate 1.5 cm, `updatedAt` 1970-01-01).
+  `PUT /api/settings/measurement` `{ hallId, depthEnabled?, activeCalibrationId?, plateThicknessCm? }`
+  — partial update; the active calibration must be a **succeeded calibration of
+  that hall** (`400 INVALID_CALIBRATION`), `plateThicknessCm` 0–10.
+- Ingestion snapshots the hall's settings per attempt: `attempt.calibrationId`
+  (the active calibration, even when it could not be applied), `physicalMethod`
+  (`area-calibrated-v1` | `volume-dav2-v1`, only when applied) and
+  `depthObjectId` (DAv2 depth PNG, association `depth` / eventId). Each
+  measurement gets `physical` (PhysicalEstimate) only with a compatible
+  calibration (same resolution). Depth worker down ⇒ area method + flag
+  `depth_unavailable`; SAM down ⇒ the existing failed/retryable path. Pixels
+  are never changed. Activating another calibration never rewrites history.
+- `GET /api/dashboard/impact` carries analytics' WasteImpact `grams`/`kgCo2e`/
+  `waterLitres`/`physicalMethod`/`physicalUnavailableReason`,
+  `totals.physicalCoverage`, `perPortion.grams`; `GET /api/captures` items add
+  `grams`, `kgCo2e`, `waterLitres`, `volumeCm3`, `areaCm2` (null, never 0) and
+  each capture `calibrationId` / `physicalMethod`. A snapshotted calibration of
+  another resolution reports `incompatible_geometry`. The overlay legend shows
+  `38 g · 1.1 kg CO2e · 18 L water (est.)` after each food's pixels.
 
 ### Attendance
 - `GET /api/attendance?serviceId=…` — stored simulated record or `ATTENDANCE_NOT_FOUND`.
@@ -203,7 +290,10 @@ unitless and only compare foods with each other. A legacy attempt's stored
 - `POST /api/suggestions` — write path for Agent 6's suggestion service.
 
 ### Misc
-- `GET /api/health`
+- `GET /api/health` — liveness.
+- `GET /api/ready` — `{ ready, checks: { database, objectStorage, samWorker, depthWorker } }`,
+  each `{ ok, required, latencyMs, error? }`; `503` when a required check fails
+  (database and storage always; SAM only with live Gemini; depth never required).
 
 ## Interfaces exposed to other agents
 
@@ -305,7 +395,10 @@ provider-independent.
 - Orphan ages for `pending_upload` records are tracked in-process; after a
   restart, pending uploads are immediately orphanable (their upload tokens are
   gone anyway). Finalized objects are never touched by cleanup.
-- No auth: hackathon prototype on a trusted network, like the rest of the demo.
+- Auth is I11's bearer-token-or-admin-session model above; SpacetimeDB reducers
+  still trust their caller (only the backend holds the owner token).
+- Calibration ids are client-chosen (the upload's `associationId`), which makes
+  `POST /api/calibrations` idempotent without an extra field.
 
 ## Remaining work
 

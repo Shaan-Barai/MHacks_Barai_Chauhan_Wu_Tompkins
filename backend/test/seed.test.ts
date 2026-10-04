@@ -24,7 +24,14 @@ test('npm run seed is idempotent and labels portions served as demo', async (t) 
   const env = { ...process.env, API_URL: s.baseUrl, SEED_FILE: seedFile };
 
   await run(process.execPath, [script], { env });
+  // IT_4: default settings were created once; a hall's own choice survives a re-seed.
+  const created = await s.repo.getMeasurementSettings('hall-main');
+  assert.equal(created?.depthEnabled, false);
+  assert.equal(created?.activeCalibrationId, null);
+  assert.equal(created?.plateThicknessCm, 1.5);
+  await s.repo.upsertMeasurementSettings({ ...created!, plateThicknessCm: 2 });
   await run(process.execPath, [script], { env });
+  assert.equal((await s.repo.getMeasurementSettings('hall-main'))?.plateThicknessCm, 2);
 
   const services = await s.repo.listServices();
   assert.equal(services.length, new Set(seed.menus.map((m: any) => m.service.serviceId)).size);

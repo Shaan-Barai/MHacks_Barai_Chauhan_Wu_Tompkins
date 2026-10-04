@@ -10,6 +10,7 @@
 
 import { analyzeCaptureWithMasks, type GeminiGateway, type Segmenter } from '@scrap/vision';
 import type { Analyzer, AnalyzerInput } from './analyzer.js';
+import { log } from '../log.js';
 import type { AnalysisResult } from '../types.js';
 
 export class MaskAnalyzer implements Analyzer {
@@ -35,25 +36,22 @@ export class MaskAnalyzer implements Analyzer {
       ...(input.labelSuffix ? { labelSuffix: input.labelSuffix } : {}),
     });
     const phys = result.physical;
-    if (phys.status !== 'not_requested') {
-      console.log(
-        `[vision] ${input.event.eventId}: physical ${phys.status}` +
-          (phys.method ? ` (${phys.method})` : '') +
-          (phys.reason ? ` reason=${phys.reason}` : '') +
-          (phys.depthError ? ` depth=${phys.depthError.code}` : ''),
-      );
-    }
     const loc = result.localization;
-    console.log(
-      `[vision] ${input.event.eventId}: Gemini boxes ${loc.passBoxes.map((n, k) => `pass ${k + 1}=${n ?? 'failed'}`).join(', ')}, after merge=${loc.mergedBoxes}` +
-        (loc.failedPasses.length ? ` (failed: ${loc.failedPasses.join(', ')})` : ''),
-    );
     const dish = result.targetDish;
-    console.log(
-      `[vision] ${input.event.eventId}: target dish ${dish.found ? dish.dishType ?? 'found' : 'not found'}, ` +
-        (dish.clipApplied ? `clipped ${dish.clippedPx} px` : `no clip (${dish.clipUnavailableReason ?? 'n/a'})`) +
-        `, other-dish boxes ${dish.excludedBoxes}, other-dish px ${dish.otherDishPx}`,
-    );
+    log.info('vision analysis', {
+      eventId: input.event.eventId,
+      geminiBoxes: loc.passBoxes.map((n) => n ?? 'failed').join(','),
+      mergedBoxes: loc.mergedBoxes,
+      ...(loc.failedPasses.length ? { failedPasses: loc.failedPasses.join(',') } : {}),
+      targetDish: dish.found ? dish.dishType ?? 'found' : 'not found',
+      clip: dish.clipApplied ? `${dish.clippedPx} px` : `none (${dish.clipUnavailableReason ?? 'n/a'})`,
+      otherDishBoxes: dish.excludedBoxes,
+      otherDishPx: dish.otherDishPx,
+      physical: phys.status,
+      ...(phys.method ? { physicalMethod: phys.method } : {}),
+      ...(phys.reason ? { physicalReason: phys.reason } : {}),
+      ...(phys.depthError ? { depthError: phys.depthError.code } : {}),
+    });
     return result;
   }
 }

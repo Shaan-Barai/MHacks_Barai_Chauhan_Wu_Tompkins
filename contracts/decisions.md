@@ -599,3 +599,9 @@ choice) with `READ_ONLY=1`:
   Everything binds 127.0.0.1, and the firewall allows SSH only.
 - The Mac keeps the full app (`deploy/local.sh`, demo.py, camera bridge) unchanged.
 
+## 2026-10-06 — Every page opens on the last 30 days
+
+Dashboard, Statistics, Behind the scenes and Admin all open on **Last 30 days**, and each offers
+**Last 7 days** (a rolling 7 days, replacing the calendar "This week", which was empty on Mondays).
+Dashboard and Behind the scenes keep **Today**; Statistics and Admin keep **Last 90 days**. Frontend
+only (`frontend/src/components/DateRangePicker.tsx`); no API change.

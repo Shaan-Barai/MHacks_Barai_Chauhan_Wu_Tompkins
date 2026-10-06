@@ -1,5 +1,5 @@
 /**
- * Statistics: the last 30 or 90 days. Headline estimates, carbon emissions by
+ * Statistics: the last 7, 30 or 90 days. Headline estimates, carbon emissions by
  * day, foods to target (per portion), most wasted foods, and the AI
  * recommendation (regenerated on demand, except on the read-only site).
  */
@@ -8,7 +8,7 @@ import { getImpactDashboard, getRecommendation, regenerateRecommendation } from 
 import type { Recommendation } from '../data/types'
 import { useAsync } from '../lib/useAsync'
 import { CarbonByDay } from '../components/CarbonByDay'
-import { DateRangePicker, rangeForDays, STATISTICS_PRESETS, type DateRange } from '../components/DateRangePicker'
+import { DateRangePicker, defaultRange, STATISTICS_PRESETS, type DateRange } from '../components/DateRangePicker'
 import { FoodsToTarget } from '../components/FoodsToTarget'
 import { HeadlineCards } from '../components/HeadlineCards'
 import { MostWasted } from '../components/MostWasted'
@@ -18,7 +18,7 @@ import { useAuth } from '../state/auth'
 
 export function StatisticsPage({ dataRevision = 0 }: { dataRevision?: number }) {
   const { readOnly } = useAuth()
-  const [range, setRange] = useState<DateRange>(() => rangeForDays(30))
+  const [range, setRange] = useState<DateRange>(defaultRange)
   const deps = [range.start, range.end, dataRevision]
   const impact = useAsync(() => getImpactDashboard(range.start, range.end), deps)
   const rec = useAsync(() => getRecommendation(range.start, range.end), deps)

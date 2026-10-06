@@ -11,7 +11,7 @@ import { getAdminCaptures, getCaptureImages, setCaptureVisibility } from '../dat
 import type { AdminCaptureItem, CaptureImages } from '../data/types'
 import { formatNumber } from '../lib/format'
 import { useAuth } from '../state/auth'
-import { DateRangePicker, rangeForDays, STATISTICS_PRESETS, type DateRange } from '../components/DateRangePicker'
+import { DateRangePicker, defaultRange, STATISTICS_PRESETS, type DateRange } from '../components/DateRangePicker'
 import { Card, EmptyState, GhostButton, LoadingBlock, PrimaryButton, inputClass } from '../components/ui'
 
 type Filter = 'all' | 'shown' | 'hidden'
@@ -62,7 +62,7 @@ function useImages(ids: string[]): Record<string, CaptureImages | 'error'> {
 export function AdminPage() {
   const { status, signIn, readOnly } = useAuth()
   const unlocked = status === 'signedIn' && !readOnly
-  const [range, setRange] = useState<DateRange>(() => rangeForDays(90))
+  const [range, setRange] = useState<DateRange>(defaultRange)
   const [plates, setPlates] = useState<AdminCaptureItem[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<Filter>('all')

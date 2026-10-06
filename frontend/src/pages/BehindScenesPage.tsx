@@ -7,17 +7,11 @@
 import { useState } from 'react'
 import { getCaptures } from '../data/api'
 import { useAsync } from '../lib/useAsync'
-import { DateRangePicker, rangeForDays, thisWeek, type RangePreset, type DateRange } from '../components/DateRangePicker'
+import { DASHBOARD_PRESETS, DateRangePicker, defaultRange, type DateRange } from '../components/DateRangePicker'
 import { PlatesGallery } from '../components/PlatesGallery'
 import { TryImage } from '../components/TryImage'
 import { EmptyState, LoadingBlock } from '../components/ui'
 import { useAuth } from '../state/auth'
-
-const PRESETS: RangePreset[] = [
-  { label: 'Today', range: () => rangeForDays(1) },
-  { label: 'This week', range: thisWeek },
-  { label: 'Last 30 days', range: () => rangeForDays(30) },
-]
 
 export const PLATES_PATH = '/behind-the-scenes'
 export const TRY_PATH = '/behind-the-scenes/try-an-image'
@@ -28,12 +22,11 @@ const TABS = [
 ] as const
 
 function ScannedPlates() {
-  // Opens on the last 30 days so recent plates show even early in a week.
-  const [range, setRange] = useState<DateRange>(() => rangeForDays(30))
+  const [range, setRange] = useState<DateRange>(defaultRange)
   const plates = useAsync(() => getCaptures(range.start, range.end), [range.start, range.end])
   return (
     <div className="space-y-5">
-      <DateRangePicker value={range} onChange={setRange} presets={PRESETS} />
+      <DateRangePicker value={range} onChange={setRange} presets={DASHBOARD_PRESETS} />
       {plates.status === 'loading' && !plates.data && <LoadingBlock label="Loading plates" />}
       {plates.status === 'error' && <EmptyState title="Couldn't load the plates." />}
       {plates.data && <PlatesGallery captures={plates.data} />}

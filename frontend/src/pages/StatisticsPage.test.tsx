@@ -25,6 +25,7 @@ describe('StatisticsPage (mock data)', () => {
     expect(screen.getByRole('heading', { name: 'Statistics', level: 1 })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Last 30 days' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: 'Last 90 days' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: 'Last 7 days' })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.queryByRole('button', { name: 'Today' })).toBeNull()
 
     // the mock calibrated the camera 20 days ago, so the last 30 days have estimates

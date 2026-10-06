@@ -857,8 +857,8 @@ def step_dashboard(demo):
         else:
             demo.check("FAIL", f"Dashboard not running at {url} (cd frontend && npm run dev, or deploy/local.sh up)")
             return
-    print("  ScrapSaver → Get started → Dashboard (Today / This week: carbon, water, food, plates; carbon by day),")
-    print("  Statistics (Last 30 / 90 days, recommendations, foods to target, most wasted), Behind the scenes (plates).")
+    print("  ScrapSaver → Get started → Dashboard (opens on Last 30 days; Today / Last 7 days: carbon, water, food, plates; carbon by day),")
+    print("  Statistics (Last 7 / 30 / 90 days, recommendations, foods to target, most wasted), Behind the scenes (plates).")
     if not demo.args.no_open:
         webbrowser.open(url)
     demo.check("PASS", f"Opened {url}")

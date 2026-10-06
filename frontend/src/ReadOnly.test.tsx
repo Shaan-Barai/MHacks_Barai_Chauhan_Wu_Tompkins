@@ -72,7 +72,7 @@ describe('read-only site', () => {
     const status = vi.spyOn(api, 'getTryImageStatus')
     open('/behind-the-scenes/try-an-image')
     expect(await screen.findByText(NOTICE)).toBeInTheDocument()
-    expect(await screen.findByRole('button', { name: 'This week' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Last 7 days' })).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: 'Try an Image' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Upload a photo' })).toBeNull()
     expect(status).not.toHaveBeenCalled()

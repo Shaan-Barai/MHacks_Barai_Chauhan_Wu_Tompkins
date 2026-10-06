@@ -1,5 +1,8 @@
-/** Range toggles: Today / This week on the dashboard, Last 30 / 90 days on Statistics. */
-import { addDays, startOfWeek, todayIso } from '../lib/dates'
+/**
+ * Range toggles. Every page opens on the last 30 days; the last 7 days is one
+ * click away. Today on the dashboard and plates, 90 days on Statistics and Admin.
+ */
+import { addDays, todayIso } from '../lib/dates'
 import type { IsoDate } from '../data/types'
 
 export interface DateRange {
@@ -17,21 +20,17 @@ export function rangeForDays(days: number): DateRange {
   return { start: addDays(today, -(days - 1)), end: today }
 }
 
-/** Monday to today. */
-export function thisWeek(): DateRange {
-  const today = todayIso()
-  return { start: startOfWeek(today), end: today }
-}
+/** Where every page's range picker starts. */
+export const defaultRange = (): DateRange => rangeForDays(30)
 
-export const DASHBOARD_PRESETS: RangePreset[] = [
-  { label: 'Today', range: () => rangeForDays(1) },
-  { label: 'This week', range: thisWeek },
-]
+const TODAY: RangePreset = { label: 'Today', range: () => rangeForDays(1) }
+const LAST_7: RangePreset = { label: 'Last 7 days', range: () => rangeForDays(7) }
+const LAST_30: RangePreset = { label: 'Last 30 days', range: defaultRange }
+const LAST_90: RangePreset = { label: 'Last 90 days', range: () => rangeForDays(90) }
 
-export const STATISTICS_PRESETS: RangePreset[] = [
-  { label: 'Last 30 days', range: () => rangeForDays(30) },
-  { label: 'Last 90 days', range: () => rangeForDays(90) },
-]
+export const DASHBOARD_PRESETS: RangePreset[] = [TODAY, LAST_7, LAST_30]
+
+export const STATISTICS_PRESETS: RangePreset[] = [LAST_7, LAST_30, LAST_90]
 
 export function DateRangePicker({
   value,
@@ -42,7 +41,6 @@ export function DateRangePicker({
   onChange: (r: DateRange) => void
   presets?: RangePreset[]
 }) {
-  // On a Monday "Today" and "This week" are the same range: only the first match is pressed.
   const active = presets.find((p) => {
     const r = p.range()
     return r.start === value.start && r.end === value.end

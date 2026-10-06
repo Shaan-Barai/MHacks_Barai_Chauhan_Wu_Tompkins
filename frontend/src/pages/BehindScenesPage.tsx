@@ -28,7 +28,8 @@ const TABS = [
 ] as const
 
 function ScannedPlates() {
-  const [range, setRange] = useState<DateRange>(thisWeek)
+  // Opens on the last 30 days so recent plates show even early in a week.
+  const [range, setRange] = useState<DateRange>(() => rangeForDays(30))
   const plates = useAsync(() => getCaptures(range.start, range.end), [range.start, range.end])
   return (
     <div className="space-y-5">

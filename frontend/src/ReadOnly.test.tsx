@@ -124,3 +124,13 @@ describe('normal site (not read-only)', () => {
     expect(within(card).getByRole('button', { name: 'Load dummy data' })).toBeInTheDocument()
   })
 })
+
+describe('Behind the scenes', () => {
+  it('opens on the last 30 days, so recent plates show early in the week', async () => {
+    const captures = vi.spyOn(api, 'getCaptures')
+    open('/behind-the-scenes')
+    expect(await screen.findByRole('button', { name: 'Last 30 days' })).toHaveAttribute('aria-pressed', 'true')
+    const [start, end] = captures.mock.calls[0]!
+    expect((Date.parse(end) - Date.parse(start)) / 86_400_000).toBe(29)
+  })
+})

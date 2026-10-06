@@ -77,6 +77,17 @@ SCRAP_PROD_URL=https://scrapsaver.app python3 demo.py --only deploy
 node deploy/smoke.mjs https://scrapsaver.app                # 0 failed; writes → 403 READ_ONLY
 ```
 
+**Speed on a small VM.** The read-only backend keeps every successful GET answer in memory
+until it restarts. Answers holding presigned R2 photo links are kept for 2 minutes, because those
+links last 10. `push` and `sync-db` then run `warm`, which fetches the dashboard's first pages
+in the background. On a free e2-micro, the first computation of a dashboard window takes 10–20
+seconds, and cached answers are instant. Logs of the warm-up are in `/var/lib/scrapsaver/warm.log`.
+
+**Current server (2026-10-06):** Google Cloud e2-micro (free tier), `us-central1-a`, Ubuntu 24.04,
+`SCRAP_SERVER=mike@34.59.116.242`, SSH key `~/.ssh/scrap_server`. The external IP is
+**ephemeral**: if the VM is stopped and started, look up the new IP in the console. The site keeps
+working regardless, because the tunnel connects outward.
+
 ## Day to day
 
 | Task | Command |

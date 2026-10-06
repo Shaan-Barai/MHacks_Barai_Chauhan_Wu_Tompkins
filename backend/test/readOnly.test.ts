@@ -87,3 +87,36 @@ test('read-only production starts without auth secrets and never goes live on Ge
   assert.match(backend.tryImage!.status().reason ?? '', /not configured/);
   assert.throws(() => buildBackend({ config: loadConfig({ NODE_ENV: 'production' }) }), /SCRAP_INGEST_TOKEN/);
 });
+
+test('read-only: GET answers are cached in memory (any query order); health/ready/auth are always fresh', async (t) => {
+  const s = await startTestServer(undefined, { config: { readOnly: true } });
+  t.after(() => s.close());
+  await s.repo.upsertMenu(MENU);
+
+  const first = await fetch(`${s.baseUrl}/api/services?hallId=${HALL}`);
+  assert.equal(first.status, 200);
+  assert.equal(first.headers.get('x-cache'), null);
+  const firstBody = await first.json();
+  const second = await fetch(`${s.baseUrl}/api/services?hallId=${HALL}`);
+  assert.equal(second.headers.get('x-cache'), 'hit');
+  assert.match(second.headers.get('content-type') ?? '', /application\/json/);
+  assert.deepEqual(await second.json(), firstBody);
+
+  // Errors are never cached.
+  assert.equal((await fetch(`${s.baseUrl}/api/menus?hallId=${HALL}`)).status, 400);
+  assert.equal((await fetch(`${s.baseUrl}/api/menus?hallId=${HALL}`)).headers.get('x-cache'), null);
+
+  for (const path of ['/api/health', '/api/auth/me']) {
+    await fetch(`${s.baseUrl}${path}`);
+    assert.equal((await fetch(`${s.baseUrl}${path}`)).headers.get('x-cache'), null, path);
+  }
+});
+
+test('read-only cache: query parameter order does not matter', async (t) => {
+  const s = await startTestServer(undefined, { config: { readOnly: true } });
+  t.after(() => s.close());
+  await fetch(`${s.baseUrl}/api/dashboard/impact?hallId=${HALL}&start=2026-10-01&end=2026-10-03`);
+  const r = await fetch(`${s.baseUrl}/api/dashboard/impact?end=2026-10-03&start=2026-10-01&hallId=${HALL}`);
+  assert.equal(r.status, 200);
+  assert.equal(r.headers.get('x-cache'), 'hit');
+});

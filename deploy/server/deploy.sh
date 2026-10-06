@@ -11,6 +11,7 @@
 #                                       Writes /etc/scrapsaver/scrap.env the first time (or with --env).
 #   deploy/server/deploy.sh tunnel      run the Cloudflare Tunnel (scrapsaver.app) on the server too
 #   deploy/server/deploy.sh retire-mac  stop the Mac's tunnel connector, so only the server serves
+#   deploy/server/deploy.sh warm        fill the read-only cache with the dashboard's first pages (push/sync-db do this)
 #   deploy/server/deploy.sh status      services + health on the server and the public site
 #   deploy/server/deploy.sh logs [unit] last 100 lines of scrap-api (or scrap-spacetimedb, cloudflared)
 #
@@ -175,6 +176,7 @@ systemctl try-restart scrap-api
 echo "SpacetimeDB up with database scrap (previous copy kept in data.prev)"
 REMOTE
   say "database synced"
+  cmd_warm
 }
 
 # ---------------------------------------------------------------- push
@@ -232,6 +234,7 @@ curl -sf -m 2 http://127.0.0.1:8787/api/health || { journalctl -u scrap-api -n 3
 echo
 REMOTE
   say "site is running $(git -C "$REPO" rev-parse --short HEAD) on the server"
+  cmd_warm
 }
 
 # ---------------------------------------------------------------- tunnel
@@ -279,6 +282,32 @@ cmd_retire_mac() {
   say "the Mac's tunnel connector is off; $PUBLIC_URL is served by the server only"
 }
 
+# ---------------------------------------------------------------- warm
+
+# The read-only backend caches GET answers until it restarts. Fill that cache in the
+# background with what the dashboard asks for first (hall-local dates), so visitors
+# never wait for the slow first computation on a small VM.
+cmd_warm() {
+  remote <<'REMOTE'
+set -euo pipefail
+HALL="$(sed -n 's/^HALL_ID=//p' /etc/scrapsaver/scrap.env | tail -1)"
+nohup env HALL="${HALL:-hall-main}" bash -c '
+  export TZ=America/Detroit
+  today=$(date +%F); week=$(date -d "-$(( $(date +%u) - 1 )) days" +%F)
+  d30=$(date -d "-29 days" +%F); d90=$(date -d "-89 days" +%F)
+  for _ in $(seq 1 60); do curl -sf -m 2 http://127.0.0.1:8787/api/health >/dev/null && break; sleep 1; done
+  get() { curl -s -o /dev/null -m 300 "http://127.0.0.1:8787/api/$1"; }
+  get "dashboard/totals?hallId=$HALL&today=$today"
+  for start in "$today" "$week" "$d30" "$d90"; do
+    for path in dashboard/impact dashboard/impact/daily recommendation captures; do
+      get "$path?hallId=$HALL&start=$start&end=$today"
+    done
+  done
+' >/var/lib/scrapsaver/warm.log 2>&1 </dev/null &
+echo "warming the dashboard cache in the background (about 5 minutes on a small VM)"
+REMOTE
+}
+
 # ---------------------------------------------------------------- status / logs
 
 cmd_status() {
@@ -305,7 +334,8 @@ case "${1:-}" in
   push) shift; cmd_push "$@" ;;
   tunnel) cmd_tunnel ;;
   retire-mac) cmd_retire_mac ;;
+  warm) cmd_warm ;;
   status) cmd_status ;;
   logs) shift; cmd_logs "$@" ;;
-  *) sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 2 ;;
+  *) sed -n '2,/^set -euo/p' "${BASH_SOURCE[0]}" | grep '^#' | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

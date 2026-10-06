@@ -51,6 +51,42 @@ import {
   validateReferencePortion,
 } from '../services/validation.js';
 
+/** READ_ONLY=1 GET cache: always-fresh routes, entry cap, and the lifetime of answers with presigned URLs. */
+const READ_ONLY_UNCACHED = new Set(['/api/health', '/api/ready', '/api/auth/me']);
+const READ_ONLY_CACHE_MAX = 1000;
+const PRESIGNED_CACHE_MS = 2 * 60_000;
+
+function readOnlyCache(now: () => number) {
+  const cache = new Map<string, { body: string; type: string; expiresAt: number }>();
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (req.method !== 'GET' || !req.path.startsWith('/api/') || READ_ONLY_UNCACHED.has(req.path)) return next();
+    // Same answer whatever order the query parameters come in.
+    const query = new URLSearchParams(req.originalUrl.split('?')[1] ?? '');
+    query.sort();
+    const key = `${req.path}?${query}`;
+    const hit = cache.get(key);
+    if (hit && hit.expiresAt > now()) {
+      res.setHeader('X-Cache', 'hit');
+      res.type(hit.type).send(hit.body);
+      return;
+    }
+    const send = res.send.bind(res);
+    res.send = (body?: unknown) => {
+      if (res.statusCode === 200 && typeof body === 'string') {
+        if (cache.size >= READ_ONLY_CACHE_MAX) cache.delete(cache.keys().next().value as string);
+        const presigned = body.includes('X-Amz-Signature');
+        cache.set(key, {
+          body,
+          type: String(res.getHeader('Content-Type') ?? 'application/json'),
+          expiresAt: presigned ? now() + PRESIGNED_CACHE_MS : Number.POSITIVE_INFINITY,
+        });
+      }
+      return send(body);
+    };
+    next();
+  };
+}
+
 /** Routes READ_ONLY=1 refuses even for GET: they run Gemini/SAM or reach the camera. */
 const READ_ONLY_BLOCKED = ['/api/try-image', '/api/camera'];
 
@@ -111,6 +147,12 @@ export function createApp(deps: AppDeps): express.Express {
       });
     });
   }
+
+  // READ_ONLY=1 data only changes when the database copy is replaced (which
+  // restarts the server), so successful GET answers are kept in memory: the
+  // first visitor computes a dashboard, everyone after gets it at once. Answers
+  // that carry presigned R2 URLs expire well before those URLs do.
+  if (config.readOnly) app.use(readOnlyCache(now));
 
   // Every /api mutation needs the ingest token or an admin session (I11).
   const revoked = new Set<string>();

@@ -17,11 +17,14 @@
 # Environment:
 #   SCRAP_SERVER    required: ssh target, e.g. root@203.0.113.7 (root or a passwordless-sudo user;
 #                   key-based ssh, no password prompt)
+#   SCRAP_SSH_KEY   ssh private key for the server (default ~/.ssh/scrap_server, if present)
 #   SCRAP_ENV_FILE  the Mac's secrets file (default <repo>/.env; values are never printed)
 #   SERVER_R2_ACCESS_KEY_ID / SERVER_R2_SECRET_ACCESS_KEY
 #                   optional: a read-only R2 token for the server instead of the Mac's read/write one
 #   PUBLIC_URL      default https://scrapsaver.app
 set -euo pipefail
+# Under pipefail, never end a pipe with a reader that quits early (grep -q, head, awk exit):
+# the writer gets SIGPIPE and the pipe fails with 141. Use `grep … >/dev/null` and `sed -n 1p`.
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 HERE="$REPO/deploy/server"
@@ -31,6 +34,9 @@ PUBLIC_URL="${PUBLIC_URL:-https://scrapsaver.app}"
 STDB_VERSION=2.10.2
 NODE_MAJOR=22
 SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15)
+# SCRAP_SSH_KEY: the key for the server (default ~/.ssh/scrap_server when it exists).
+SSH_KEY="${SCRAP_SSH_KEY:-$HOME/.ssh/scrap_server}"
+[ -f "$SSH_KEY" ] && SSH_OPTS+=(-i "$SSH_KEY" -o IdentitiesOnly=yes)
 
 say()  { printf '[server] %s\n' "$*"; }
 warn() { printf '[server] WARNING: %s\n' "$*" >&2; }
@@ -94,7 +100,7 @@ if [ ! -x "$SP" ]; then
   sudo -u scrap -H bash -c 'curl -sSf https://install.spacetimedb.com | sh -s -- --yes' >/dev/null
 fi
 [ -x "$SP" ] || { echo "spacetime not found at $SP after install" >&2; exit 1; }
-sudo -u scrap -H "$SP" version list 2>/dev/null | grep -q "^$STDB_VERSION" \
+sudo -u scrap -H "$SP" version list 2>/dev/null | grep "^$STDB_VERSION" >/dev/null \
   || sudo -u scrap -H "$SP" version install "$STDB_VERSION" --yes >/dev/null
 sudo -u scrap -H "$SP" version use "$STDB_VERSION" >/dev/null
 
@@ -105,14 +111,14 @@ if [ "$(swapon --show --noheadings | wc -l)" -eq 0 ] && [ "$(awk '/MemTotal/{pri
 fi
 
 # Only SSH is open: the site leaves through the Cloudflare Tunnel (outbound), everything binds 127.0.0.1.
-SSH_PORT="$(sshd -T 2>/dev/null | awk '/^port /{print $2; exit}')"
+SSH_PORT="$(sshd -T 2>/dev/null | awk '/^port / && !p {p=$2} END {print p}')"
 ufw allow "${SSH_PORT:-22}/tcp" >/dev/null
 ufw --force enable >/dev/null
 
 systemctl daemon-reload
 systemctl enable scrap-spacetimedb scrap-api >/dev/null 2>&1
-echo "node $(node --version), $(sudo -u scrap -H "$SP" --version 2>&1 | grep -o 'tool version [0-9.]*'), $(cloudflared --version | head -1)"
-echo "firewall: $(ufw status | head -1); allowed ssh port ${SSH_PORT:-22}"
+echo "node $(node --version), $(sudo -u scrap -H "$SP" --version 2>&1 | grep -o 'tool version [0-9.]*'), $(cloudflared --version | sed -n 1p)"
+echo "firewall: $(ufw status | sed -n 1p); allowed ssh port ${SSH_PORT:-22}"
 REMOTE
   say "setup done. Next: deploy/server/deploy.sh sync-db"
 }
@@ -133,7 +139,7 @@ cmd_sync_db() {
   local pidfile="$RUN/spacetimedb.pid" pid="" restart=0
   if curl -sf -m 3 http://127.0.0.1:3000/v1/ping >/dev/null 2>&1; then
     pid="$(cat "$pidfile" 2>/dev/null || true)"
-    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && ps -p "$pid" -o command= | grep -q spacetime; then
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && ps -p "$pid" -o command= | grep spacetime >/dev/null; then
       say "pausing the Mac's SpacetimeDB (pid $pid) for a consistent copy"
       kill -TERM "$pid"
       for _ in $(seq 1 15); do kill -0 "$pid" 2>/dev/null || break; sleep 1; done
@@ -233,7 +239,7 @@ REMOTE
 cmd_tunnel() {
   local cf="${CLOUDFLARED_DIR:-$HOME/.cloudflared}" id
   [ -f "$cf/config.yml" ] || die "no $cf/config.yml (docs/deploy.md step 9)"
-  id="$(sed -n 's/^tunnel: *//p' "$cf/config.yml" | head -1)"
+  id="$(sed -n 's/^tunnel: *//p' "$cf/config.yml" | sed -n 1p)"
   [ -n "$id" ] && [ -f "$cf/$id.json" ] || die "tunnel credentials $cf/$id.json not found"
   grep -q 'service: http://127.0.0.1:8787' "$cf/config.yml" || die "config.yml does not point at http://127.0.0.1:8787"
   ssh "${SSH_OPTS[@]}" "$(server)" "sudo -n install -d -m 755 /etc/cloudflared"
@@ -243,11 +249,11 @@ cmd_tunnel() {
   remote <<'REMOTE'
 set -euo pipefail
 curl -sf -m 3 http://127.0.0.1:8787/api/health >/dev/null || { echo "the site is not running on the server yet (push first)" >&2; exit 1; }
-systemctl list-unit-files cloudflared.service --no-legend | grep -q cloudflared || cloudflared service install >/dev/null 2>&1
+systemctl list-unit-files cloudflared.service --no-legend | grep cloudflared >/dev/null || cloudflared service install >/dev/null 2>&1
 systemctl enable cloudflared >/dev/null 2>&1
 systemctl restart cloudflared
 for _ in $(seq 1 30); do
-  journalctl -u cloudflared --since '-2min' --no-pager | grep -q 'Registered tunnel connection' && break; sleep 1
+  journalctl -u cloudflared --since '-2min' --no-pager | grep 'Registered tunnel connection' >/dev/null && break; sleep 1
 done
 n="$(journalctl -u cloudflared --since '-2min' --no-pager | grep -c 'Registered tunnel connection' || true)"
 [ "$n" -gt 0 ] || { journalctl -u cloudflared -n 30 --no-pager; exit 1; }
@@ -260,11 +266,11 @@ cmd_retire_mac() {
   local hits=0 plist="$HOME/Library/LaunchAgents/com.cloudflare.cloudflared.plist"
   # Both connectors share the traffic; make sure the server really answers before the Mac stops.
   for _ in $(seq 1 12); do
-    curl -sf -m 5 "$PUBLIC_URL/api/health" | grep -q '"readOnly":true' && hits=$((hits + 1))
+    curl -sf -m 5 "$PUBLIC_URL/api/health" | grep '"readOnly":true' >/dev/null && hits=$((hits + 1))
   done
   [ "$hits" -gt 0 ] || die "$PUBLIC_URL never answered from the server (readOnly); run tunnel first. The Mac keeps serving."
   say "$hits/12 public requests answered by the server"
-  if launchctl list 2>/dev/null | grep -q com.cloudflare.cloudflared; then
+  if launchctl list 2>/dev/null | grep com.cloudflare.cloudflared >/dev/null; then
     launchctl bootout "gui/$(id -u)/com.cloudflare.cloudflared" 2>/dev/null || true
   fi
   # Renamed, not deleted: `mv <plist>.disabled <plist>` and `launchctl bootstrap gui/$(id -u) <plist>` undo it.

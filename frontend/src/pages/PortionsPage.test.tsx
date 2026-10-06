@@ -49,3 +49,16 @@ describe('Portions served', () => {
     expect(await screen.findByText('Add this meal’s menu first.')).toBeInTheDocument()
   })
 })
+
+describe('Portions served on the read-only site', () => {
+  it('lists the saved counts as text, with no inputs, save or upload', async () => {
+    render(<AuthProvider initialStatus="signedOut" initialReadOnly><Page onSaved={vi.fn()} /></AuthProvider>)
+    expect(await screen.findByText('400')).toBeInTheDocument()
+    expect(screen.getByText('Unknown')).toBeInTheDocument()
+    expect(screen.queryByRole('spinbutton')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Save portions served' })).toBeNull()
+    expect(screen.queryByLabelText('Upload filled portions sheet')).toBeNull()
+    expect(await screen.findByRole('table')).toHaveTextContent('Waste per portion')
+    expect(savePortions).not.toHaveBeenCalled()
+  })
+})

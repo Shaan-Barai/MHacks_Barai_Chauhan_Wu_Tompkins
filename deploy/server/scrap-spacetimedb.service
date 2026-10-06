@@ -1,0 +1,26 @@
+# ScrapSaver read-only server: SpacetimeDB holding the `scrap` database copied from the Mac
+# (deploy/server/deploy.sh sync-db). Installed by deploy/server/deploy.sh setup.
+[Unit]
+Description=ScrapSaver SpacetimeDB (database scrap)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=scrap
+Group=scrap
+Environment=HOME=/var/lib/scrapsaver
+ExecStart=/var/lib/scrapsaver/.local/bin/spacetime start --non-interactive \
+  --listen-addr 127.0.0.1:3000 \
+  --data-dir /var/lib/scrapsaver/stdb/data \
+  --jwt-pub-key-path /var/lib/scrapsaver/stdb/keys/id_ecdsa.pub \
+  --jwt-priv-key-path /var/lib/scrapsaver/stdb/keys/id_ecdsa
+Restart=always
+RestartSec=5
+LimitNOFILE=65536
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/scrapsaver
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

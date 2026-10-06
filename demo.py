@@ -936,7 +936,7 @@ def step_upload_site(demo):
 
 
 def step_deploy(demo):
-    """The production URL (SCRAP_PROD_URL) answers: health, readiness, dashboard over HTTPS."""
+    """The production URL (SCRAP_PROD_URL) answers: health, readiness, dashboard over HTTPS; read-only if offsite."""
     url = (demo.args.prod_url or "").rstrip("/")
     if not url:
         demo.check("WARN", "SCRAP_PROD_URL is not set: no production URL to check (local stack: deploy/local.sh status)")
@@ -959,6 +959,12 @@ def step_deploy(demo):
     ok, body = http_ok(url + "/", timeout=15)
     html = ok and b"<html" in body[:4000].lower()
     demo.check("PASS" if html else "FAIL", f"{url}/ serves the dashboard HTML" if html else f"{url}/ did not return the dashboard")
+    if isinstance(health, dict) and health.get("readOnly"):
+        # The offsite server (docs/deploy-server.md): recorded data only, every write refused.
+        status, body = demo.request("POST", "/api/captures", body={}, base=url, timeout=15, anonymous=True)
+        code = ((body or {}).get("error") or {}).get("code") if isinstance(body, dict) else None
+        demo.check("PASS" if status == 403 and code == "READ_ONLY" else "FAIL",
+                   f"{url} is the read-only offsite server: a write is refused (HTTP {status} {code})")
     if html and not demo.args.no_open and demo.args.only and "deploy" in demo.args.only:
         webbrowser.open(url + "/")
 

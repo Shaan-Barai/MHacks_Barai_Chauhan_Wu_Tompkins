@@ -8,7 +8,7 @@ import { NotFoundPage } from './pages/NotFoundPage'
 import { PortionsPage } from './pages/PortionsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { StatisticsPage } from './pages/StatisticsPage'
-import { AuthProvider } from './state/auth'
+import { AuthProvider, useAuth } from './state/auth'
 import { DEFAULT_SETTINGS, useHallSettings } from './state/settings'
 
 type Page = 'landing' | 'dashboard' | 'statistics' | 'menus' | 'portions' | 'behind' | 'settings' | 'admin'
@@ -58,6 +58,7 @@ export default function App() {
 
 function Shell() {
   const { settings, update } = useHallSettings()
+  const { readOnly } = useAuth()
   const [path, go] = usePath()
   const page = pageForPath(path)
   const [dataRevision, setDataRevision] = useState(0)
@@ -111,6 +112,11 @@ function Shell() {
       </nav>
 
       <main id="main" className="min-w-0 flex-1 overflow-y-auto bg-cream p-4 sm:p-6">
+        {readOnly && (
+          <p role="note" className="mb-5 rounded-card border border-linen bg-cream px-4 py-2 text-sm text-ink">
+            Read-only view: this site shows recorded data. Uploads and edits are turned off.
+          </p>
+        )}
         {page === 'dashboard' && <DashboardPage dataRevision={dataRevision} />}
         {page === 'statistics' && <StatisticsPage dataRevision={dataRevision} />}
         {page === 'menus' && <MenusPage />}

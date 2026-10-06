@@ -56,6 +56,8 @@ export const getCalibrations = impl.getCalibrations
 export const getCalibration = impl.getCalibration
 export const createCalibration = impl.createCalibration
 export const getCalibrationImages = impl.getCalibrationImages
+/** Tests: make the demo backend report a read-only site. */
+export const setMockReadOnly = mock.setMockReadOnly
 /** Demo-mode passcode (mock only; the live passcode is set on the server). */
 export const MOCK_PASSCODE = mock.MOCK_PASSCODE
 

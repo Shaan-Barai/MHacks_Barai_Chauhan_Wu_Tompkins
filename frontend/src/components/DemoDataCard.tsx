@@ -1,4 +1,7 @@
-/** Settings card: load labeled sample scans, hide older scans, or restore the default view. Real scans are never deleted. */
+/**
+ * Settings card: load labeled sample scans, hide older scans, or restore the default view. Real scans are never deleted.
+ * The read-only site shows the current mode only.
+ */
 import { useCallback, useEffect, useState } from 'react'
 import { clearDemoData, getDemoStatus, loadDemoData, restoreDemoData } from '../data/api'
 import { AuthRequiredError } from '../data/authEvents'
@@ -18,7 +21,7 @@ export function demoStatusText(s: DemoStatus): string {
 }
 
 export function DemoDataCard({ onDataChanged }: { onDataChanged?: () => void }) {
-  const { openSignIn } = useAuth()
+  const { openSignIn, readOnly } = useAuth()
   const [status, setStatus] = useState<DemoStatus | null>(null)
   const [busy, setBusy] = useState(false)
   const [confirming, setConfirming] = useState(false)
@@ -55,12 +58,26 @@ export function DemoDataCard({ onDataChanged }: { onDataChanged?: () => void }) 
     [onDataChanged],
   )
 
+  const statusLine = (
+    <p role="status" className="mt-2">
+      {status ? demoStatusText(status) : error ? 'Could not check the demo data mode.' : 'Checking demo data…'}
+    </p>
+  )
+
+  // Read-only site: say which data is shown; nothing can be changed.
+  if (readOnly) {
+    return (
+      <Card>
+        <h2 className="text-lg font-semibold">Demo data</h2>
+        {statusLine}
+      </Card>
+    )
+  }
+
   return (
     <Card>
       <h2 className="text-lg font-semibold">Demo data</h2>
-      <p role="status" className="mt-2">
-        {status ? demoStatusText(status) : error ? 'Could not check the demo data mode.' : 'Checking demo data…'}
-      </p>
+      {statusLine}
       <p className="mt-1 text-sm">Real scans are never deleted. Restore default returns the dashboard to how it looked before.</p>
 
       <div className="mt-3 flex flex-wrap gap-3">
@@ -113,11 +130,12 @@ export function DemoDataCard({ onDataChanged }: { onDataChanged?: () => void }) 
 
 /** Subtle dashboard line when the view is cleared. */
 export function ClearedNotice({ status }: { status: DemoStatus | null }) {
+  const { readOnly } = useAuth()
   if (status?.mode !== 'cleared') return null
   const when = status.clearedAt ? new Date(status.clearedAt).toLocaleString() : 'the clear time'
   return (
     <p role="note" className="text-sm text-ink">
-      Showing scans since {when}. Restore the default view in Settings.
+      Showing scans since {when}.{readOnly ? '' : ' Restore the default view in Settings.'}
     </p>
   )
 }

@@ -51,6 +51,9 @@ import {
   validateReferencePortion,
 } from '../services/validation.js';
 
+/** Routes READ_ONLY=1 refuses even for GET: they run Gemini/SAM or reach the camera. */
+const READ_ONLY_BLOCKED = ['/api/try-image', '/api/camera'];
+
 export interface AppDeps {
   config: BackendConfig;
   repo: Repository;
@@ -96,6 +99,19 @@ export function createApp(deps: AppDeps): express.Express {
     next();
   });
 
+  // READ_ONLY=1 (the public offsite site): reads only. Mutations, Try an Image
+  // and the camera are refused before auth, so no token or session unlocks them.
+  if (config.readOnly) {
+    app.use((req, res, next) => {
+      if (!req.path.startsWith('/api/')) return next();
+      const write = req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS';
+      if (!write && !READ_ONLY_BLOCKED.some((prefix) => req.path === prefix || req.path.startsWith(`${prefix}/`))) return next();
+      res.status(403).json({
+        error: apiError('READ_ONLY', 'This site is read-only: it shows recorded data. Uploads and edits are turned off.', false),
+      });
+    });
+  }
+
   // Every /api mutation needs the ingest token or an admin session (I11).
   const revoked = new Set<string>();
   app.use(authGate(security, now, revoked));
@@ -136,7 +152,7 @@ export function createApp(deps: AppDeps): express.Express {
   // ---- liveness / readiness ----
   const build = readBuildInfo();
   app.get('/api/health', (_req, res) => {
-    res.json({ ok: true, provider: storage.provider, ...build });
+    res.json({ ok: true, provider: storage.provider, readOnly: Boolean(config.readOnly), ...build });
   });
 
   app.get(
@@ -179,7 +195,7 @@ export function createApp(deps: AppDeps): express.Express {
 
   app.get('/api/auth/me', (_req, res) => {
     const principal = res.locals.principal;
-    res.json({ admin: principal === 'admin' || principal === 'open', authRequired: !security.open });
+    res.json({ admin: principal === 'admin' || principal === 'open', authRequired: !security.open, readOnly: Boolean(config.readOnly) });
   });
 
   // ---- menus ----

@@ -11,8 +11,10 @@
  *   3. GET /  and a deep SPA route → dashboard HTML (SERVE_FRONTEND)
  *   4. GET /api/dashboard/impact (hall-main, last 7 days) → JSON with totals
  *   5. Mutations without credentials → 401 (POST /api/captures, POST /api/menus/upload,
- *      POST /api/auth/login with a wrong passcode)
- *   6. With SCRAP_INGEST_TOKEN: menu → upload → finalize → capture → analysis round trip on
+ *      POST /api/auth/login with a wrong passcode). On a read-only server (READ_ONLY=1,
+ *      health says readOnly) every mutation → 403 READ_ONLY instead, even with the token,
+ *      and so is GET /api/try-image/status.
+ *   6. With SCRAP_INGEST_TOKEN (skipped on a read-only server): menu → upload → finalize → capture → analysis round trip on
  *      the dedicated smoke hall `hall-smoke` (the dashboard shows hall-main by default).
  *      This makes ONE live Gemini + SAM analysis call.
  *
@@ -97,9 +99,11 @@ async function step(name, fn) {
 
 console.log(`Smoke test against ${base}${strict ? ' (strict)' : ''}\n`);
 
+let readOnly = false;
 await step('GET /api/health', async () => {
   const r = await http('GET', '/api/health');
-  if (r.status === 200 && r.json?.ok === true) pass('GET /api/health', `storage ${r.json.provider ?? '?'}`);
+  readOnly = r.json?.readOnly === true;
+  if (r.status === 200 && r.json?.ok === true) pass('GET /api/health', `storage ${r.json.provider ?? '?'}${readOnly ? ', read-only' : ''}`);
   else fail('GET /api/health', `HTTP ${r.status}`);
 });
 
@@ -134,8 +138,29 @@ await step('GET /api/dashboard/impact', async () => {
   } else fail('GET /api/dashboard/impact', `HTTP ${r.status}: ${errCode(r)}`);
 });
 
+// Read-only server: every mutation (token or not) and Try an Image are refused with 403 READ_ONLY.
+async function readOnlyRefusals() {
+  const probes = [
+    ['POST', '/api/captures', {}, false],
+    ['POST', '/api/captures', {}, true],
+    ['POST', '/api/menus/upload', {}, true],
+    ['POST', '/api/images/uploads', {}, true],
+    ['PUT', '/api/settings/measurement', {}, false],
+    ['POST', '/api/auth/login', { passcode: 'definitely-not-the-passcode' }, false],
+    ['GET', '/api/try-image/status', undefined, false],
+  ];
+  for (const [method, path, body, auth] of probes) {
+    const name = `${method} ${path}${auth ? ' with a token' : ''} → 403 READ_ONLY`;
+    if (auth && !token) continue;
+    const r = await http(method, path, { body, auth });
+    if (r.status === 403 && errCode(r) === 'READ_ONLY') pass(name);
+    else fail(name, `got HTTP ${r.status} (${errCode(r)})`);
+  }
+}
+
 // Mutations without credentials must be refused before any validation or cost.
 await step('unauthenticated mutations', async () => {
+  if (readOnly) return readOnlyRefusals();
   const probes = [
     ['POST', '/api/captures', {}],
     ['POST', '/api/menus/upload', {}],
@@ -186,6 +211,7 @@ const TERMINAL = new Set(['succeeded', 'needs_review', 'failed']);
 async function roundTrip() {
   const name = `round trip on ${SMOKE_HALL}`;
   if (flag('--no-roundtrip')) return skip(name, '--no-roundtrip');
+  if (readOnly) return skip(name, 'read-only server: uploads are turned off');
   if (!token) return skip(name, 'set SCRAP_INGEST_TOKEN to run upload → capture → analysis');
 
   const date = localDate();

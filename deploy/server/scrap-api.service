@@ -1,0 +1,24 @@
+# ScrapSaver read-only server: backend + built dashboard on 127.0.0.1:8787 (READ_ONLY=1 in
+# /etc/scrapsaver/scrap.env). Only cloudflared reaches it. Installed by deploy/server/deploy.sh setup.
+[Unit]
+Description=ScrapSaver backend + dashboard (read-only)
+After=network-online.target scrap-spacetimedb.service
+Wants=network-online.target scrap-spacetimedb.service
+
+[Service]
+User=scrap
+Group=scrap
+WorkingDirectory=/opt/scrapsaver/app
+EnvironmentFile=/etc/scrapsaver/scrap.env
+# GIT_COMMIT of the shipped release (written by deploy.sh push).
+EnvironmentFile=-/etc/scrapsaver/release.env
+ExecStart=/usr/bin/node backend/dist/backend/src/server.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

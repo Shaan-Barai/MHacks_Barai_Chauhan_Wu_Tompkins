@@ -20,21 +20,23 @@ const { app, config, security, demo } = built;
 
 const onListen = () => {
   const persistence = config.spacetime ? `SpacetimeDB ${config.spacetime.module}` : 'in-memory/JSON';
-  const vision = process.env.GEMINI_API_KEY
-    ? `Gemini classification + SAM 2.1 masks (${config.samWorkerUrl})`
-    : 'mock analyzer';
+  const vision = config.readOnly
+    ? 'off (read-only)'
+    : process.env.GEMINI_API_KEY
+      ? `Gemini classification + SAM 2.1 masks (${config.samWorkerUrl})`
+      : 'mock analyzer';
   log.info('Scrap API listening', {
     host: config.host ?? '(all interfaces)',
     port: config.port,
     mode: security.production ? 'production' : 'development',
-    auth: security.open ? 'open' : 'required for mutations',
+    auth: config.readOnly ? 'read-only (every mutation refused)' : security.open ? 'open' : 'required for mutations',
     storage: config.objectStorage.provider,
     persistence,
     vision,
     frontend: config.frontendDist ? 'served' : 'not served',
   });
   // DEMO_SEED=1: fill ~14 days of labeled sample history (skips slots already filled).
-  if (config.demoSeed && demo) {
+  if (config.demoSeed && demo && !config.readOnly) {
     const endDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Detroit' }).format(new Date());
     demo
       .seedHistory({ hallId: process.env.HALL_ID || 'hall-main', endDate })

@@ -57,7 +57,7 @@ test('reads are public; every mutation needs the bearer token or an admin sessio
   // Public reads.
   assert.equal((await raw(s.baseUrl, 'GET', '/api/health')).status, 200);
   assert.equal((await raw(s.baseUrl, 'GET', `/api/services?hallId=${HALL}`)).status, 200);
-  assert.deepEqual((await raw(s.baseUrl, 'GET', '/api/auth/me')).json, { admin: false, authRequired: true });
+  assert.deepEqual((await raw(s.baseUrl, 'GET', '/api/auth/me')).json, { admin: false, authRequired: true, readOnly: false });
 
   // Mutations without credentials: 401 envelope, nothing stored.
   for (const [method, path] of [
@@ -97,7 +97,7 @@ test('reads are public; every mutation needs the bearer token or an admin sessio
   assert.doesNotMatch(setCookie, /Secure/); // dev (cookieSecure false)
   const cookie = setCookie.split(';')[0]!;
 
-  assert.deepEqual((await raw(s.baseUrl, 'GET', '/api/auth/me', { cookie })).json, { admin: true, authRequired: true });
+  assert.deepEqual((await raw(s.baseUrl, 'GET', '/api/auth/me', { cookie })).json, { admin: true, authRequired: true, readOnly: false });
   const asAdmin = await raw(s.baseUrl, 'PUT', '/api/attendance', { cookie }, {
     hallId: HALL, serviceId: MENU.service.serviceId, serviceDate: '2026-10-03', count: 500,
     source: 'simulated', configuredMin: 300, configuredMax: 1200, generatorVersion: 'g1',

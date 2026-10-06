@@ -1,7 +1,8 @@
 /**
  * Behind the scenes: every scanned plate, its photo next to the AI outlines,
  * and each food's Pixels wasted (the raw measurement behind the estimates).
- * A second tab, "Try an Image", runs the same pipeline on one uploaded photo.
+ * A second tab, "Try an Image", runs the same pipeline on one uploaded photo
+ * (not on the read-only public site, which shows the scanned plates only).
  */
 import { useState } from 'react'
 import { getCaptures } from '../data/api'
@@ -10,6 +11,7 @@ import { DateRangePicker, rangeForDays, thisWeek, type RangePreset, type DateRan
 import { PlatesGallery } from '../components/PlatesGallery'
 import { TryImage } from '../components/TryImage'
 import { EmptyState, LoadingBlock } from '../components/ui'
+import { useAuth } from '../state/auth'
 
 const PRESETS: RangePreset[] = [
   { label: 'Today', range: () => rangeForDays(1) },
@@ -40,6 +42,7 @@ function ScannedPlates() {
 
 /** `path`/`onNavigate` come from the app shell; standalone use falls back to local state. */
 export function BehindScenesPage({ path, onNavigate }: { path?: string; onNavigate?: (path: string) => void }) {
+  const { status, readOnly } = useAuth()
   const [localPath, setLocalPath] = useState(PLATES_PATH)
   const current = (path ?? localPath).replace(/\/+$/, '')
   const active = current === TRY_PATH ? 'try' : 'plates'
@@ -51,6 +54,15 @@ export function BehindScenesPage({ path, onNavigate }: { path?: string; onNaviga
     const next = TABS[(i + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length]
     go(next.path)
     requestAnimationFrame(() => document.getElementById(`behind-tab-${next.id}`)?.focus())
+  }
+
+  if (readOnly) {
+    return (
+      <div className="space-y-5">
+        <h1 className="font-display text-3xl font-bold tracking-tight text-ink">Behind the scenes</h1>
+        <ScannedPlates />
+      </div>
+    )
   }
 
   return (
@@ -77,7 +89,8 @@ export function BehindScenesPage({ path, onNavigate }: { path?: string; onNaviga
         ))}
       </div>
       <div id="behind-panel" role="tabpanel" aria-labelledby={`behind-tab-${active}`}>
-        {active === 'try' ? <TryImage /> : <ScannedPlates />}
+        {/* Wait for the session check so a read-only site never calls Try an Image. */}
+        {active === 'plates' ? <ScannedPlates /> : status === 'checking' ? <LoadingBlock label="Loading Try an Image" /> : <TryImage />}
       </div>
     </div>
   )

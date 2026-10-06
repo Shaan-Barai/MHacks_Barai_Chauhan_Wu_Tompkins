@@ -146,7 +146,7 @@ describe('Behind the scenes tabs', () => {
     expect(screen.getByRole('tab', { name: 'Scanned plates' }).getAttribute('aria-selected')).toBe('true')
     fireEvent.click(screen.getByRole('tab', { name: 'Try an Image' }))
     expect(window.location.pathname).toBe('/behind-the-scenes/try-an-image')
-    expect(screen.getByText('Use the sample photo')).toBeTruthy()
+    expect(await screen.findByText('Use the sample photo')).toBeTruthy()
     fireEvent.click(screen.getByRole('tab', { name: 'Scanned plates' }))
     expect(window.location.pathname).toBe('/behind-the-scenes')
   })

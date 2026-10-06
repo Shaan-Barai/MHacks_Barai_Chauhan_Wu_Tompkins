@@ -44,9 +44,11 @@ export interface ResolvedSecurity extends SecurityConfig {
 
 /**
  * Validate and resolve. Production requires SCRAP_INGEST_TOKEN,
- * SCRAP_ADMIN_PASSCODE and SESSION_SECRET (≥ 16 chars) and throws otherwise.
+ * SCRAP_ADMIN_PASSCODE and SESSION_SECRET (≥ 16 chars) and throws otherwise,
+ * unless the server is read-only (READ_ONLY=1: no mutation is ever accepted,
+ * so there is nothing to sign in to).
  */
-export function assertSecurity(sec: SecurityConfig | undefined): ResolvedSecurity {
+export function assertSecurity(sec: SecurityConfig | undefined, readOnly = false): ResolvedSecurity {
   const s: SecurityConfig = sec ?? {
     production: false,
     sessionTtlMs: 12 * 3600 * 1000,
@@ -56,7 +58,7 @@ export function assertSecurity(sec: SecurityConfig | undefined): ResolvedSecurit
     geminiRateLimit: 30,
     jsonBodyLimit: '1mb',
   };
-  if (s.production) {
+  if (s.production && !readOnly) {
     const missing = [
       !s.ingestToken && 'SCRAP_INGEST_TOKEN',
       !s.adminPasscode && 'SCRAP_ADMIN_PASSCODE',
@@ -66,7 +68,7 @@ export function assertSecurity(sec: SecurityConfig | undefined): ResolvedSecurit
       throw new Error(`NODE_ENV=production requires ${missing.join(', ')}. Refusing to start without auth.`);
     }
   }
-  const open = !s.production && !s.ingestToken && !s.adminPasscode;
+  const open = !readOnly && !s.production && !s.ingestToken && !s.adminPasscode;
   let sessionSecret = s.sessionSecret;
   if (!sessionSecret) {
     sessionSecret = randomBytes(32).toString('hex');

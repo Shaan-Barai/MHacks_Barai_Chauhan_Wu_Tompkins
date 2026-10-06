@@ -1,7 +1,7 @@
 /**
  * Statistics: the last 30 or 90 days. Headline estimates, carbon emissions by
  * day, foods to target (per portion), most wasted foods, and the AI
- * recommendation (regenerated on demand).
+ * recommendation (regenerated on demand, except on the read-only site).
  */
 import { useEffect, useState } from 'react'
 import { getImpactDashboard, getRecommendation, regenerateRecommendation } from '../data/api'
@@ -14,8 +14,10 @@ import { HeadlineCards } from '../components/HeadlineCards'
 import { MostWasted } from '../components/MostWasted'
 import { RecommendationCard } from '../components/RecommendationCard'
 import { Badge, EmptyState, LoadingBlock } from '../components/ui'
+import { useAuth } from '../state/auth'
 
 export function StatisticsPage({ dataRevision = 0 }: { dataRevision?: number }) {
+  const { readOnly } = useAuth()
   const [range, setRange] = useState<DateRange>(() => rangeForDays(30))
   const deps = [range.start, range.end, dataRevision]
   const impact = useAsync(() => getImpactDashboard(range.start, range.end), deps)
@@ -46,7 +48,7 @@ export function StatisticsPage({ dataRevision = 0 }: { dataRevision?: number }) 
       {recommendation && !noPlates && (
         <RecommendationCard
           rec={recommendation}
-          onRegenerate={async () => setRegenerated(await regenerateRecommendation(range.start, range.end))}
+          onRegenerate={readOnly ? undefined : async () => setRegenerated(await regenerateRecommendation(range.start, range.end))}
         />
       )}
 

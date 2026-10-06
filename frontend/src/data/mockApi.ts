@@ -410,9 +410,16 @@ function requireSession(): void {
   }
 }
 
+let mockReadOnly = false
+
+/** Tests: make the demo backend report a read-only site (like READ_ONLY=1). */
+export function setMockReadOnly(on: boolean): void {
+  mockReadOnly = on
+}
+
 export async function getSession(): Promise<AuthSession> {
   await wait()
-  return { signedIn: mockSignedIn(), authAvailable: true }
+  return { signedIn: mockSignedIn(), authAvailable: true, readOnly: mockReadOnly }
 }
 
 export async function login(passcode: string): Promise<AuthSession> {

@@ -4,6 +4,10 @@
  * open, so saves just work. When the backend does require the passcode, a
  * save that comes back 401 opens a small passcode prompt, and the unlisted
  * /admin page unlocks with it. The session lives in an httpOnly cookie.
+ *
+ * Read-only sites (the public scrapsaver.app, backend READ_ONLY=1) report
+ * `readOnly: true`: pages hide every control that changes data or starts AI or
+ * camera work, and the passcode prompt never opens.
  */
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { getSession, login, logout } from '../data/api'
@@ -17,6 +21,8 @@ export interface AuthValue {
   canEdit: true
   /** False when the backend has no sign-in at all (older local backends). */
   authAvailable: boolean
+  /** True on the public read-only site: recorded data only, no uploads or edits. */
+  readOnly: boolean
   signIn: (passcode: string) => Promise<void>
   signOut: () => Promise<void>
   /** Open the sign-in dialog, optionally explaining why. */
@@ -27,6 +33,7 @@ const SIGNED_OUT: AuthValue = {
   status: 'signedOut',
   canEdit: true,
   authAvailable: true,
+  readOnly: false,
   signIn: async () => {},
   signOut: async () => {},
   openSignIn: () => {},
@@ -41,13 +48,19 @@ export function useAuth(): AuthValue {
 export function AuthProvider({
   children,
   initialStatus,
+  initialReadOnly = false,
 }: {
   children: ReactNode
   /** Tests: skip the session check and start in this state. */
   initialStatus?: Exclude<AuthStatus, 'checking'>
+  /** Tests (with initialStatus): start as a read-only site. */
+  initialReadOnly?: boolean
 }) {
   const [status, setStatus] = useState<AuthStatus>(initialStatus ?? 'checking')
   const [authAvailable, setAuthAvailable] = useState(true)
+  const [readOnly, setReadOnly] = useState(initialReadOnly)
+  const readOnlyRef = useRef(readOnly)
+  readOnlyRef.current = readOnly
   const [dialog, setDialog] = useState<{ open: boolean; reason?: string }>({ open: false })
   const returnFocus = useRef<HTMLElement | null>(null)
 
@@ -58,6 +71,7 @@ export function AuthProvider({
       (s) => {
         if (!alive) return
         setAuthAvailable(s.authAvailable)
+        setReadOnly(s.readOnly === true)
         setStatus(s.signedIn ? 'signedIn' : 'signedOut')
       },
       () => alive && setStatus('signedOut'),
@@ -68,6 +82,8 @@ export function AuthProvider({
   }, [initialStatus])
 
   const openSignIn = useCallback((reason?: string) => {
+    // Nothing can be changed on a read-only site, so there is nothing to unlock.
+    if (readOnlyRef.current) return
     returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     setDialog({ open: true, reason })
   }, [])
@@ -105,14 +121,14 @@ export function AuthProvider({
   }, [])
 
   const value = useMemo<AuthValue>(
-    () => ({ status, canEdit: true as const, authAvailable, signIn, signOut, openSignIn }),
-    [status, authAvailable, signIn, signOut, openSignIn],
+    () => ({ status, canEdit: true as const, authAvailable, readOnly, signIn, signOut, openSignIn }),
+    [status, authAvailable, readOnly, signIn, signOut, openSignIn],
   )
 
   return (
     <AuthContext.Provider value={value}>
       {children}
-      {dialog.open && <SignInDialog reason={dialog.reason} onSignIn={signIn} onClose={closeDialog} />}
+      {dialog.open && !readOnly && <SignInDialog reason={dialog.reason} onSignIn={signIn} onClose={closeDialog} />}
     </AuthContext.Provider>
   )
 }

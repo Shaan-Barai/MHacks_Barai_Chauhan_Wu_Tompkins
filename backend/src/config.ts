@@ -63,6 +63,12 @@ export interface BackendConfig {
   attendance: { min: number; max: number; seed?: string };
   /** DEMO_SEED=1: fill ~14 days of labeled sample history at startup (idempotent). */
   demoSeed?: boolean;
+  /**
+   * READ_ONLY=1: the public offsite site (docs/deploy-server.md). Only reads are
+   * served; every mutation, Try an Image and the camera answer 403 READ_ONLY,
+   * and Gemini/SAM are never called. Auth secrets are not required.
+   */
+  readOnly?: boolean;
 }
 
 function int(name: string, fallback: number, env: NodeJS.ProcessEnv = process.env): number {
@@ -161,5 +167,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BackendConfig 
       seed: env.ATTENDANCE_SEED || undefined,
     },
     demoSeed: env.DEMO_SEED === '1' || env.DEMO_SEED === 'true',
+    readOnly: env.READ_ONLY === '1' || env.READ_ONLY === 'true',
   };
 }

@@ -4,7 +4,7 @@
  * per plate and bulk Show/Hide for the plates listed. Hiding never deletes a
  * plate; it only leaves it out of every dashboard number and gallery.
  * Unlisted: the owner opens /admin directly. When the backend requires the
- * passcode, the page asks for it inline.
+ * passcode, the page asks for it inline. Not available on the read-only site.
  */
 import { useEffect, useMemo, useState } from 'react'
 import { getAdminCaptures, getCaptureImages, setCaptureVisibility } from '../data/api'
@@ -60,8 +60,8 @@ function useImages(ids: string[]): Record<string, CaptureImages | 'error'> {
 }
 
 export function AdminPage() {
-  const { status, signIn } = useAuth()
-  const unlocked = status === 'signedIn'
+  const { status, signIn, readOnly } = useAuth()
+  const unlocked = status === 'signedIn' && !readOnly
   const [range, setRange] = useState<DateRange>(() => rangeForDays(90))
   const [plates, setPlates] = useState<AdminCaptureItem[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -104,6 +104,14 @@ export function AdminPage() {
   }
 
   if (status === 'checking') return <LoadingBlock label="Checking access" />
+  if (readOnly) {
+    return (
+      <div className="space-y-5">
+        <h1 className="font-display text-3xl font-bold tracking-tight text-ink">Admin</h1>
+        <p className="text-base">Admin is not available on the public site.</p>
+      </div>
+    )
+  }
   if (!unlocked) return <Unlock onUnlock={signIn} />
 
   const counts = {

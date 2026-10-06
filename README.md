@@ -52,6 +52,9 @@ physical numbers are blank, never zero.
 
 **Run the whole stack locally in production mode:**
 `deploy/local.sh up | status | smoke | down` ([docs/deploy.md](docs/deploy.md)).
+**Public site without the Mac:** scrapsaver.app runs **read-only** on an offsite Linux server
+(`READ_ONLY=1`: recorded data only, no uploads, edits, Gemini or SAM):
+`deploy/server/deploy.sh setup | sync-db | push | tunnel | status` ([docs/deploy-server.md](docs/deploy-server.md)).
 
 ## Demo
 
@@ -81,6 +84,7 @@ photos and logs to `images/demo-runs/` (gitignored). **Adding a feature? Add a d
 ## Documents
 
 - [`IT_4.md`](docs/plans/IT_4.md) — calibrated area, estimated CO2e/water, local production stack (plan + tracker; Depth Anything V2 was tried and removed).
+- [`docs/deploy-server.md`](docs/deploy-server.md) — **read-only public site on an offsite server** (the Mac can be off); `sync-db` copies new data up.
 - [`docs/deploy.md`](docs/deploy.md) — **deploy the website**: local production stack (`deploy/local.sh`) + Cloudflare Tunnel + custom domain, step by step.
 - [`BIG-PLAN.md`](docs/plans/BIG-PLAN.md) — the camera → impact → dashboard plan and its tracker.
 - [`EXPLAIN.md`](docs/EXPLAIN.md) — the whole database (SpacetimeDB + R2) in plain language.
@@ -110,7 +114,7 @@ photos and logs to `images/demo-runs/` (gitignored). **Adding a feature? Add a d
 | `docs/`, `tests/` | Agent 8 | Demo docs, fixtures, integration/e2e tests |
 | `factors/` | Agents 2+6 | Per-food waste/nutrition factor CSVs (East Quad, Halal Bros, 500 common foods), menu labels, and the formula README; `data/` generates its tables from them |
 | `docs/plans/` | Agent 1 | Planning/spec docs and trackers (BIG-PLAN, IT_4, DEBUG-PLAN, UI, AI, MVP_AI) |
-| `deploy/` | — | Local production stack, smoke test, Cloudflare Tunnel |
+| `deploy/` | — | Local production stack, smoke test, Cloudflare Tunnel; `deploy/server/` for the read-only offsite server |
 | `experiments/` | — | One-off segmentation/menu experiment outputs and `test_sam.py` (not used at runtime) |
 | `test2/`, `demo_pictures/`, `upload_demo/` | — | Demo plate photos, pipeline pictures, upload demo site (used by `demo.py`) |
 | `archive/preview-app/` | — | Earlier standalone preview app, superseded by `frontend/` + `backend/` (not used at runtime) |

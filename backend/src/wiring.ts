@@ -101,7 +101,7 @@ function storageOrigins(config: BackendConfig): string[] {
 export function buildBackend(options: BuildOptions = {}): AppDeps & { app: ReturnType<typeof createApp> } {
   const config = options.config ?? loadConfig();
   // IT_4 I11: production refuses to start without its auth secrets.
-  const security = assertSecurity(config.security);
+  const security = assertSecurity(config.security, config.readOnly);
   const now = options.now ?? (() => Date.now());
   // SpacetimeDB when configured (SPACETIMEDB_URI); otherwise the offline
   // in-memory/JSON repository used by tests and fixture-only machines.
@@ -114,7 +114,9 @@ export function buildBackend(options: BuildOptions = {}): AppDeps & { app: Retur
   // (contracts/measurement.md). If the SAM worker is down, captures fail
   // retryably; there is no fallback to Gemini-guessed areas. Without a key
   // the deterministic mock runs. Mock gateway text is never a suggestion.
-  const gateway = options.gateway ?? createGeminiGateway();
+  // READ_ONLY=1 never calls Gemini, even when a key is present: the mock
+  // gateway is used, so recommendations show the last stored one or rules.
+  const gateway = options.gateway ?? createGeminiGateway(config.readOnly ? { apiKey: '' } : undefined);
   // The SAM worker gets the shared X-Worker-Token when WORKER_TOKEN is set (IT_4 I10).
   const segmenter = options.segmenter ?? createSamWorkerClient(config.samWorkerUrl, undefined, config.workerToken ?? '');
   const analyzer = options.analyzer ?? (gateway.mode === 'live' ? new MaskAnalyzer(gateway, segmenter) : new MockAnalyzer());

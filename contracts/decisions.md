@@ -577,3 +577,25 @@ root to `factors/` (the README is now `factors/README.md`). File names are uncha
 data tests, `demo.py` and `upload_demo/` read them from there. The superseded `mhacks/` preview app
 moved to `archive/preview-app/`; nothing at runtime uses it. Older plan and decision entries keep the
 old root paths as history.
+
+## 2026-10-05: Public site on an offsite server, read-only (user decision)
+
+The user wants scrapsaver.app up without the Mac, with **no live uploading** and **no Gemini / SAM
+2.1** on the server. The public site now runs on a small rented Linux VM (provider still the user's
+choice) with `READ_ONLY=1`:
+
+- **Backend.** Every non-GET `/api` request, and `/api/try-image/*` and `/api/camera/*` even for GET,
+  answers `403 READ_ONLY` before auth, so no token or session unlocks writes. The Gemini gateway is
+  forced to mock mode, so recommendations show the last stored Gemini text (labeled stale) or the
+  rule-based fallback. Production starts without the ingest token, passcode and session secret.
+  `/api/health` and `/api/auth/me` report `readOnly`.
+- **Dashboard.** Reads `readOnly` from `/api/auth/me` and hides every write, AI and camera control,
+  with a "Read-only view" notice. The passcode dialog never opens.
+- **Data.** SpacetimeDB 2.10.2 runs on the server with a copy of the Mac's data folder and JWT
+  signing keys (`deploy/server/deploy.sh sync-db`), so the existing token and every row carry over.
+  New Mac captures appear online only after another `sync-db` (one-way, Mac → server, replacing the
+  copy). Images stay in R2 (a read-only R2 token is recommended for the server).
+- **Network.** The existing `scrapsaver` Cloudflare Tunnel moves to the server (no DNS change).
+  Everything binds 127.0.0.1, and the firewall allows SSH only.
+- The Mac keeps the full app (`deploy/local.sh`, demo.py, camera bridge) unchanged.
+

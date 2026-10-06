@@ -360,6 +360,8 @@ interface MeBody {
   role?: string
   /** false = this server runs without sign-in (local open mode). */
   authRequired?: boolean
+  /** true = the public read-only site: no uploads, edits, AI or camera calls. */
+  readOnly?: boolean
   expiresAt?: string
 }
 
@@ -373,9 +375,11 @@ export async function getSession(): Promise<AuthSession> {
     return {
       signedIn: signedInFrom(body),
       authAvailable: body.authRequired !== false,
+      ...(body.readOnly === true ? { readOnly: true } : {}),
       ...(body.expiresAt ? { expiresAt: body.expiresAt } : {}),
     }
   } catch (err) {
+    if (err instanceof ApiRequestError && err.code === 'READ_ONLY') return { signedIn: false, authAvailable: true, readOnly: true }
     if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) return { signedIn: false, authAvailable: true }
     // An older backend without sign-in: changes are not gated there.
     if (err instanceof ApiRequestError && err.status === 404) return { signedIn: true, authAvailable: false }

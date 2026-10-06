@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { getPortionService, getPortionBenchmark, savePortions, importPortionsCsv, USE_MOCK } from '../data/api'
-import type { MealLabel, PortionService } from '../data/types'
+import type { MealLabel, PortionBenchmark, PortionService } from '../data/types'
 import { MEALS, MEAL_NAME } from '../data/types'
 import { todayIso } from '../lib/dates'
-import { useAsync } from '../lib/useAsync'
+import { useAsync, type AsyncState } from '../lib/useAsync'
 import { downloadCsv } from '../lib/csv'
 import { Badge, Card, EmptyState, FieldLabel, GhostButton, inputClass, PrimaryButton } from '../components/ui'
 import { PortionBenchmarkView } from '../components/PortionBenchmark'
+import { useAuth } from '../state/auth'
 
 export function PortionsPage({ onSaved }: { onSaved: () => void }) {
+  const { readOnly } = useAuth()
   const [date, setDate] = useState(todayIso)
   const [meal, setMeal] = useState<MealLabel>('lunch')
   const [revision, setRevision] = useState(0)
@@ -26,9 +28,33 @@ export function PortionsPage({ onSaved }: { onSaved: () => void }) {
     {selected.status === 'loading' && <Busy label="Loading counts" />}
     {selected.status === 'error' && <EmptyState title="Couldn't load portions.">{selected.error}</EmptyState>}
     {selected.status === 'ready' && (selected.data
-      ? <PortionsEditor key={`${date}-${meal}-${revision}`} service={selected.data} onSaved={() => { setRevision(r => r + 1); setSavedNote(true); onSaved() }} />
-      : <EmptyState title="Add this meal’s menu first." />)}
+      ? readOnly
+        ? <PortionsView service={selected.data} />
+        : <PortionsEditor key={`${date}-${meal}-${revision}`} service={selected.data} onSaved={() => { setRevision(r => r + 1); setSavedNote(true); onSaved() }} />
+      : <EmptyState title={readOnly ? 'No menu for this meal.' : 'Add this meal’s menu first.'} />)}
   </div>
+}
+
+/** Read-only site: the saved counts as text, plus waste per portion. */
+function PortionsView({ service }: { service: PortionService }) {
+  const benchmark = useAsync(() => getPortionBenchmark(service.serviceId), [service.serviceId])
+  return <>
+    <Card>
+      <h2 className="text-lg font-semibold text-ink">Counts for this meal</h2>
+      <dl className="mt-3 grid gap-3 sm:grid-cols-2">{service.items.map(item => <div key={item.itemId}>
+        <dt className="text-base font-medium text-thyme">{item.displayName}</dt>
+        <dd className="text-base">{service.portions.find(p => p.itemId === item.itemId)?.count.toLocaleString() ?? 'Unknown'}</dd>
+      </div>)}</dl>
+    </Card>
+    <BenchmarkCard benchmark={benchmark} />
+  </>
+}
+
+function BenchmarkCard({ benchmark }: { benchmark: AsyncState<PortionBenchmark> }) {
+  return <Card>{benchmark.status === 'loading' && <Busy label="Loading waste per portion" />}
+    {benchmark.status === 'error' && <EmptyState title="Couldn't load waste per portion.">{benchmark.error}</EmptyState>}
+    {benchmark.status === 'ready' && <PortionBenchmarkView benchmark={benchmark.data} />}
+  </Card>
 }
 
 function PortionsEditor({ service, onSaved }: { service: PortionService; onSaved: () => void }) {
@@ -79,10 +105,7 @@ function PortionsEditor({ service, onSaved }: { service: PortionService; onSaved
       </div>
       {error && <p role="alert" className="font-semibold text-ink">{error}</p>}
     </form></Card>
-    <Card>{benchmark.status === 'loading' && <Busy label="Loading waste per portion" />}
-      {benchmark.status === 'error' && <EmptyState title="Couldn't load waste per portion.">{benchmark.error}</EmptyState>}
-      {benchmark.status === 'ready' && <PortionBenchmarkView benchmark={benchmark.data} />}
-    </Card>
+    <BenchmarkCard benchmark={benchmark} />
   </>
 }
 

@@ -46,6 +46,26 @@ describe('sign-in', () => {
     expect(await getSession()).toEqual({ signedIn: true, authAvailable: false })
   })
 
+  it('reads readOnly from /api/auth/me (absent = false) and from a READ_ONLY refusal', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json(200, { admin: false, authRequired: true, readOnly: true })))
+    expect(await getSession()).toEqual({ signedIn: false, authAvailable: true, readOnly: true })
+    vi.stubGlobal('fetch', vi.fn(async () => json(200, { admin: false, authRequired: true, readOnly: false })))
+    expect((await getSession()).readOnly).toBeFalsy()
+    vi.stubGlobal('fetch', vi.fn(async () => json(403, { error: { code: 'READ_ONLY', message: 'This site is read-only.', retryable: false } })))
+    expect(await getSession()).toEqual({ signedIn: false, authAvailable: true, readOnly: true })
+  })
+
+  it('a READ_ONLY refusal surfaces its message and never asks for the passcode', async () => {
+    const heard = vi.fn()
+    window.addEventListener(AUTH_REQUIRED_EVENT, heard)
+    vi.stubGlobal('fetch', vi.fn(async () => json(403, { error: { code: 'READ_ONLY', message: 'This site is read-only.', retryable: false } })))
+    await expect(
+      savePortions({ serviceId: 'svc', menuVersion: 1, items: [], portions: [] }, [{ itemId: 'rice', count: 1 }]),
+    ).rejects.toThrow('This site is read-only.')
+    window.removeEventListener(AUTH_REQUIRED_EVENT, heard)
+    expect(heard).not.toHaveBeenCalled()
+  })
+
   it('posts the passcode and explains a wrong one or too many tries, without firing the sign-in event', async () => {
     const fetchMock = vi.fn(async () => json(200, { authenticated: true }))
     vi.stubGlobal('fetch', fetchMock)

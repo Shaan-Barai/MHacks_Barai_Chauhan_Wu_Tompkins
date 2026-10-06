@@ -434,6 +434,8 @@ export interface NewCalibration {
 export interface AuthSession {
   signedIn: boolean
   authAvailable: boolean
+  /** The public read-only site (backend READ_ONLY=1). Absent = false. */
+  readOnly?: boolean
   expiresAt?: string
 }
 

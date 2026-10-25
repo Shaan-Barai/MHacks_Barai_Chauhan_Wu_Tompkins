@@ -14,16 +14,26 @@
  * experiment (100% recall, 92.3% precision) is reported as a REGRESSION.
  * A report (per-photo results + local copies of the overlays) is written to
  * images/live-test/<time>/ (gitignored).
+ *
+ * LIVE_STACK=supabase runs the same flow on Supabase instead (Postgres +
+ * Storage): a throwaway hall `hall-live-<time>` and a test/live-<time>/ prefix,
+ * both deleted at the end unless KEEP_LIVE_DATA=1. GEMINI_CAP (default 60)
+ * stops ingesting photos before the run can exceed that many Gemini calls.
  */
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import {
   REPO,
   backend,
   cleanR2Prefix,
+  cleanSupabasePrefix,
+  listSupabase,
+  supabaseAvailable,
+  supabaseObjectStorage,
   data,
   deleteThrowaway,
   httpAdapter,
@@ -43,7 +53,10 @@ import { BASELINE, loadGroundTruth, scoreRuns } from '../support/scoring.mjs';
 const RUN = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15);
 const DB = `scrap-test-live-${RUN.toLowerCase()}`;
 const PREFIX = `test/live-${RUN.toLowerCase()}/`;
-const HALL = 'hall-main';
+const SUPA = process.env.LIVE_STACK === 'supabase';
+// Supabase is the real project: never write test scans into a real hall.
+const HALL = SUPA ? `hall-live-${RUN.toLowerCase()}` : 'hall-main';
+const GEMINI_CAP = Number(process.env.GEMINI_CAP ?? 60);
 const DATE = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Detroit' }).format(new Date());
 const SAM_URL = process.env.SAM_WORKER_URL ?? 'http://127.0.0.1:8790';
 const OUT = path.join(REPO, 'images', 'live-test', RUN);
@@ -51,9 +64,13 @@ const OUT = path.join(REPO, 'images', 'live-test', RUN);
 async function why() {
   if (process.env.RUN_LIVE !== '1') return 'set RUN_LIVE=1 to run the live image tests (they call Gemini)';
   if (!process.env.GEMINI_API_KEY) return 'GEMINI_API_KEY is not set in .env';
-  if (!r2Available()) return 'R2 credentials are not set in .env';
-  const st = await spacetimeAvailable();
-  if (st) return st;
+  if (SUPA) {
+    if (!supabaseAvailable()) return 'SUPABASE_URL (https://<ref>.supabase.co) and SUPABASE_SERVICE_ROLE_KEY are not set in .env';
+  } else {
+    if (!r2Available()) return 'R2 credentials are not set in .env';
+    const st = await spacetimeAvailable();
+    if (st) return st;
+  }
   try {
     const res = await fetch(`${SAM_URL}/health`, { signal: AbortSignal.timeout(5000) });
     if (!res.ok) return `the SAM worker at ${SAM_URL} answered ${res.status}`;
@@ -78,14 +95,19 @@ describe('live image tests: test2/ through the full pipeline', { skip: skip ?? f
 
   before(async () => {
     mkdirSync(OUT, { recursive: true });
-    publishThrowaway(DB);
-    repo = spacetimeRepo(DB);
+    if (SUPA) {
+      const { SupabaseRepository } = await import(path.join(REPO, 'backend/dist/backend/src/repo/supabaseRepository.js'));
+      repo = new SupabaseRepository({ url: process.env.SUPABASE_URL, serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY });
+    } else {
+      publishThrowaway(DB);
+      repo = spacetimeRepo(DB);
+    }
     gateway = vision.createGeminiGateway();
     const sam = vision.createSamWorkerClient(SAM_URL);
     s = await startBackend({
       repo,
       gateway,
-      objectStorage: r2ObjectStorage(PREFIX),
+      objectStorage: SUPA ? supabaseObjectStorage(PREFIX) : r2ObjectStorage(PREFIX),
       analyzer: new backend.maskAnalyzer.MaskAnalyzer(gateway, sam),
     });
     // The 23-food dinner (Gemini menu descriptions) with dummy portions (source 'demo').
@@ -104,14 +126,31 @@ describe('live image tests: test2/ through the full pipeline', { skip: skip ?? f
     };
     await repo.upsertMenu(menu);
     await repo.replacePortionsServed(serviceId, 1, seedModule.buildDemoPortions(menu));
-    console.log(`[live] database ${DB}, R2 prefix ${PREFIX}, ${menu.items.length} menu items, report → ${path.relative(REPO, OUT)}`);
+    console.log(`[live] ${SUPA ? `Supabase, hall ${HALL}, storage prefix` : `database ${DB}, R2 prefix`} ${PREFIX}, ${menu.items.length} menu items, Gemini cap ${GEMINI_CAP}, report → ${path.relative(REPO, OUT)}`);
   });
 
   after(async () => {
     await s?.close();
     writeFileSync(path.join(OUT, 'report.json'), JSON.stringify({ run: RUN, database: DB, prefix: PREFIX, geminiCalls: gateway?.callCount, results, failures }, null, 2));
     if (process.env.KEEP_LIVE_DATA === '1') {
-      console.log(`[live] KEEP_LIVE_DATA=1: kept database ${DB} and R2 prefix ${PREFIX}`);
+      console.log(`[live] KEEP_LIVE_DATA=1: kept ${SUPA ? `hall ${HALL}` : `database ${DB}`} and prefix ${PREFIX}`);
+      return;
+    }
+    if (SUPA) {
+      // Delete exactly this run's rows (children cascade) and objects.
+      const { createClient } = createRequire(`${REPO}backend/package.json`)('@supabase/supabase-js');
+      const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+      const events = (await db.from('capture_event').select('event_id').eq('hall_id', HALL)).data ?? [];
+      await db.from('capture_event').delete().eq('hall_id', HALL);
+      await db.from('image_object').delete().like('object_key', `${PREFIX}%`);
+      if (events.length) await db.from('image_object').delete().in('association_id', events.map((e) => e.event_id));
+      await db.from('insight').delete().eq('hall_id', HALL);
+      await db.from('meal_service').delete().eq('hall_id', HALL);
+      await db.from('menu_item').delete().like('item_id', `%${HALL}%`);
+      await db.from('hall').delete().eq('hall_id', HALL);
+      const removed = await cleanSupabasePrefix(PREFIX).catch((e) => `failed: ${e.message}`);
+      const left = await listSupabase(PREFIX).catch(() => ['?']);
+      console.log(`[live] cleanup: ${removed} storage objects deleted (${left.length} left), rows of ${HALL} deleted`);
       return;
     }
     const removed = await cleanR2Prefix(PREFIX).catch((e) => `failed: ${e.message}`);
@@ -120,11 +159,16 @@ describe('live image tests: test2/ through the full pipeline', { skip: skip ?? f
     console.log(`[live] cleanup: ${removed} R2 objects deleted (${left.length} left), database ${dbErr ? `NOT deleted: ${dbErr}` : 'deleted'}`);
   });
 
-  it('every photo: raw + segmented images in R2, scan complete in SpacetimeDB, overlay and pixels present', async () => {
+  it(`every photo: raw + segmented images in ${SUPA ? 'Supabase Storage' : 'R2'}, scan complete in ${SUPA ? 'Postgres' : 'SpacetimeDB'}, overlay and pixels present`, async () => {
     const photos = await test2Photos();
     const { adapter } = httpAdapter(s.baseUrl);
     for (const [i, photo] of photos.entries()) {
       const name = path.basename(photo);
+      // Budget guard: a photo costs a few Gemini calls (more with retries); stop well before the cap.
+      if (gateway.callCount + 8 > GEMINI_CAP) {
+        fail(name, `not run: Gemini call cap ${GEMINI_CAP} would be exceeded (${gateway.callCount} used)`);
+        continue;
+      }
       const t0 = Date.now();
       const r = await adapter.ingestPhoto({
         photoPath: photo,

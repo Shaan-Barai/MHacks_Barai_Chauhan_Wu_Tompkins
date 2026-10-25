@@ -4,9 +4,9 @@
 
 - **Branch:** `supabase-migration` (Part A). Part B moves to `overnight-supabase`, branched from `supabase-migration`.
 - **Last commit:** `cee58a0` gitignore the Supabase CLI cache
-- **Next step:** A4 (rest), the live test2 run on Supabase (`tests/live/images.test.mjs` adapted). Count Gemini calls. Then commit and start Part B.
-- **Gemini calls used so far:** 0 of 150.
-- **Long-running processes to restart:** the SpacetimeDB **copy** on `127.0.0.1:3901`. If it's down:
+- **Next step:** Part B, Phase 0: create branch `overnight-supabase` from `supabase-migration`.
+- **Gemini calls used so far:** 32 of 150.
+- **Long-running processes to restart:** the SAM worker (`.venv/bin/python vision/sam/worker.py`, :8790; `sam2` was pip-installed into `.venv` tonight from the pinned commit) and the SpacetimeDB **copy** on `127.0.0.1:3901`. If it's down:
   `spacetime start --listen-addr 127.0.0.1:3901 --data-dir <scratchpad>/stdb-copy --jwt-pub-key-path ~/.config/spacetime/id_ecdsa.pub --jwt-priv-key-path ~/.config/spacetime/id_ecdsa --non-interactive`.
   If the scratchpad is gone, re-copy `~/.local/share/spacetime/data` first and delete `spacetime.pid` *in the copy*. Never start a server on the original folder.
 - **SUPABASE_URL override:** `.env` still has a dashboard link. Run commands with
@@ -29,7 +29,7 @@
 - [x] Step 4: backend on Postgres (`SupabaseRepository`, `DATABASE_PROVIDER=supabase`)
 - [x] Step 5: dashboard Realtime refresh
 - [x] Step 6: one-time import (local SpacetimeDB and `backend/.local-storage` into Supabase). Every count matches.
-- [ ] Step 7: tests, and the live test2 run
+- [x] Step 7: tests, and the live test2 run (13/13 photos; 32 Gemini calls)
 
 ### Part B: overnight run (`overnight-supabase`)
 - [ ] Phase 0: setup
@@ -43,7 +43,7 @@
 
 | When | What | Calls | Running total |
 |---|---|---|---|
-| — | — | 0 | 0 |
+| 21:35 | Live test2 run on Supabase (13 photos: classify + box passes; 1 recommendation) | 32 | 32 |
 
 ## Known facts (checked)
 
@@ -131,3 +131,14 @@
     - 47 demo markers from the run that hit bug 1.
     - **The first endpoint-level parity run wrote to both sides.** Dashboard GETs generate simulated attendance on first view, even with `READ_ONLY=1`. That added 9 rows to Supabase and 9 to the *scratch copy* of SpacetimeDB. I deleted the 9 from Supabase and rebuilt the scratch copy from the original folder (the original was never served). Counts are back to exactly the imported numbers, and parity was re-run on the clean copy: 366 reads, 0 differences.
   - `./test-all.sh`: ALL PASSED (tests 26 now).
+- 21:45. Step 7, the live test2 run (`tests/live/images.test.mjs` with the new `LIVE_STACK=supabase` mode, `GEMINI_CAP=60`).
+  - Throwaway hall `hall-live-20261025t013228`, Storage prefix `test/live-20261025t013228/`, real Gemini, local SAM 2.1 on MPS.
+  - **13/13 photos succeeded.** Each scan is complete in Postgres, with the raw photo and segmented overlay in Storage, signed through `/api/captures/:id/images`.
+  - Waste Impact formula check passes. **Dashboard totals = scan rows: 1,582,804 px over 13 plates.**
+  - The Gemini recommendation was generated and saved.
+  - Cleanup: 208 Storage objects and all of the hall's rows deleted, 0 left.
+  - **Gemini calls: 32** (31 for photos + 1 recommendation). Report: `images/live-test/20261025T013228/report.json` (gitignored).
+  - Detection scoring was skipped: `ground_truth.csv` isn't in the repo (removed 2026-10-04, per the test).
+  - **Setup change:** the SAM worker couldn't start because `.venv` had no `sam2` package. I installed it with `pip install --no-deps` at the commit pinned in `vision/sam/requirements.txt`; no other package versions changed.
+  - `./test-all.sh`: ALL PASSED.
+- **Part A complete.**

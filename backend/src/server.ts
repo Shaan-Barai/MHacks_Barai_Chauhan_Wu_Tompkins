@@ -19,7 +19,11 @@ try {
 const { app, config, security, demo } = built;
 
 const onListen = () => {
-  const persistence = config.spacetime ? `SpacetimeDB ${config.spacetime.module}` : 'in-memory/JSON';
+  const persistence = config.supabaseDb
+    ? `Supabase Postgres (${new URL(config.supabaseDb.url).host})`
+    : config.spacetime
+      ? `SpacetimeDB ${config.spacetime.module}`
+      : 'in-memory/JSON';
   const vision = config.readOnly
     ? 'off (read-only)'
     : process.env.GEMINI_API_KEY

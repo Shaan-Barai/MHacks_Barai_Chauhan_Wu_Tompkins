@@ -60,7 +60,12 @@ export interface BackendConfig {
   dataFile?: string;
   /** SAM 2.1 segmentation worker (vision/sam/worker.py). */
   samWorkerUrl: string;
-  /** SpacetimeDB persistence; when unset the JSON/in-memory repository is used. */
+  /**
+   * Supabase Postgres persistence (DATABASE_PROVIDER=supabase). Takes precedence
+   * over SpacetimeDB. The service role key is server-side only.
+   */
+  supabaseDb?: { url: string; serviceRoleKey: string };
+  /** Legacy SpacetimeDB persistence; when neither is set the JSON/in-memory repository is used. */
   spacetime?: { uri: string; module: string; token?: string };
   attendance: { min: number; max: number; seed?: string };
   /** DEMO_SEED=1: fill ~14 days of labeled sample history at startup (idempotent). */
@@ -81,6 +86,18 @@ function int(name: string, fallback: number, env: NodeJS.ProcessEnv = process.en
     throw new Error(`Invalid integer for env var ${name}`);
   }
   return Math.floor(n);
+}
+
+/** DATABASE_PROVIDER=supabase needs the project URL and service role key; other values keep SpacetimeDB/JSON. */
+function supabaseDb(env: NodeJS.ProcessEnv): BackendConfig['supabaseDb'] {
+  if ((env.DATABASE_PROVIDER ?? '').trim().toLowerCase() !== 'supabase') return undefined;
+  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error('DATABASE_PROVIDER=supabase needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.');
+  }
+  if (!/^https:\/\/[^/]+\/?$/.test(env.SUPABASE_URL)) {
+    throw new Error('SUPABASE_URL must be the project API address, https://<project-ref>.supabase.co (not a dashboard link).');
+  }
+  return { url: env.SUPABASE_URL, serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY };
 }
 
 /** '' or one or more `segment/` parts of letters, digits, '-' or '_' (e.g. 'test/'). */
@@ -160,6 +177,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BackendConfig 
     },
     dataFile: env.BACKEND_DATA_FILE || undefined,
     samWorkerUrl: env.SAM_WORKER_URL || 'http://127.0.0.1:8790',
+    supabaseDb: supabaseDb(env),
     spacetime: env.SPACETIMEDB_URI
       ? {
           uri: env.SPACETIMEDB_URI,

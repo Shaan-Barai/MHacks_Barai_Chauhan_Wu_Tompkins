@@ -16,6 +16,7 @@ import { findWasteFactor } from 'scrap-data';
 import type { LabelSuffixFactory } from './services/ingestionService.js';
 import { JsonFileRepository } from './repo/jsonFileRepository.js';
 import { SpacetimeRepository } from './repo/spacetimeRepository.js';
+import { SupabaseRepository } from './repo/supabaseRepository.js';
 import { LocalDevStorage } from './storage/localDevStorage.js';
 import { R2Storage } from './storage/r2Storage.js';
 import { SupabaseStorage } from './storage/supabaseStorage.js';
@@ -117,11 +118,15 @@ export function buildBackend(options: BuildOptions = {}): AppDeps & { app: Retur
   // IT_4 I11: production refuses to start without its auth secrets.
   const security = assertSecurity(config.security, config.readOnly);
   const now = options.now ?? (() => Date.now());
-  // SpacetimeDB when configured (SPACETIMEDB_URI); otherwise the offline
-  // in-memory/JSON repository used by tests and fixture-only machines.
+  // Supabase Postgres when DATABASE_PROVIDER=supabase, else legacy SpacetimeDB
+  // (SPACETIMEDB_URI), else the offline in-memory/JSON repository used by tests.
   const repo =
     options.repo ??
-    (config.spacetime ? new SpacetimeRepository(config.spacetime) : new JsonFileRepository(config.dataFile));
+    (config.supabaseDb
+      ? new SupabaseRepository(config.supabaseDb)
+      : config.spacetime
+        ? new SpacetimeRepository(config.spacetime)
+        : new JsonFileRepository(config.dataFile));
   const storage = options.storage ?? createStorage(config, now);
   const images = new ImageService(repo, storage, now, config.objectStorage.keyPrefix ?? '');
   // Live: Gemini classification + boxes -> SAM 2.1 masks -> counted pixels

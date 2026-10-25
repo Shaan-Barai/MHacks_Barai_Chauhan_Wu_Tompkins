@@ -93,11 +93,16 @@ export const physicalLabelSuffix: LabelSuffixFactory = (menu) => {
   };
 };
 
-/** Origins the browser reaches directly for signed storage reads/uploads (CSP). */
+/**
+ * Origins the browser reaches directly (CSP): signed storage reads/uploads, and
+ * the Supabase Realtime websocket the dashboard uses to refresh on new scans.
+ */
 function storageOrigins(config: BackendConfig): string[] {
-  if (config.objectStorage.provider === 'supabase' && config.objectStorage.supabase) {
+  const supabaseUrl = config.objectStorage.supabase?.url ?? config.supabaseDb?.url;
+  if (config.objectStorage.provider === 'supabase' || config.supabaseDb) {
     try {
-      return [new URL(config.objectStorage.supabase.url).origin];
+      const origin = new URL(supabaseUrl ?? '').origin;
+      return [origin, origin.replace(/^https:/, 'wss:')];
     } catch {
       return [];
     }

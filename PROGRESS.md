@@ -4,7 +4,7 @@
 
 - **Branch:** `supabase-migration` (Part A). Part B moves to `overnight-supabase`, branched from `supabase-migration`.
 - **Last commit:** `cee58a0` gitignore the Supabase CLI cache
-- **Next step:** A2, Step 5: Realtime publication migration + frontend `useLiveScans` hook + CSP.
+- **Next step:** A3, Step 6: `backend/scripts/import-spacetime-to-supabase.mjs` (start a COPY of the SpacetimeDB data dir first).
 - **Gemini calls used so far:** 0 of 150.
 - **Long-running processes to restart:** none yet.
 - **SUPABASE_URL override:** `.env` still has a dashboard link. Run commands with
@@ -25,7 +25,7 @@
 - [x] Step 2: schema, write functions and RLS migrations (applied live: 28 tables, RLS on all)
 - [x] Step 3: private `scrap-images` bucket and the `SupabaseStorage` adapter (live round trip passes)
 - [x] Step 4: backend on Postgres (`SupabaseRepository`, `DATABASE_PROVIDER=supabase`)
-- [ ] Step 5: dashboard Realtime refresh
+- [x] Step 5: dashboard Realtime refresh
 - [ ] Step 6: one-time import (local SpacetimeDB and `backend/.local-storage` into Supabase)
 - [ ] Step 7: tests, and the live test2 run
 
@@ -66,3 +66,14 @@
   - **Decision:** the copied SpacetimeDB live test re-uploaded menu v1 after v2 and expected success. The current reducer (and now Postgres) rejects that, so the old SpacetimeDB test is stale on this point. The Supabase copy asserts the rejection instead.
   - **Decision:** kept the `segmentation_region.mask_object_id -> image_object` foreign key. The real pipeline (`ImageService.storeMask`) registers each mask before `recordAnalysis`; the test now does the same.
   - `./test-all.sh`: ALL PASSED (backend 116 pass / 2 skipped, frontend 128, vision 91, analytics 73, capture 66, data 41, tests 23, python 70, scripts 27).
+- 21:15. Step 5, the Realtime refresh.
+  - Migration `…06_realtime.sql` (applied live) adds `capture_event` and `food_measurement` to `supabase_realtime`.
+  - The frontend `useLiveScans` hook (`frontend/src/lib/liveScans.ts`) subscribes with the publishable key and bumps the existing `dataRevision`. The Dashboard, Statistics and Scanned plates pages then refetch from `/api`, so every number and chart is computed exactly as before. It only adds automatic refresh.
+  - **Decision:** Vite reads only `SUPABASE_URL` and `SUPABASE_ANON_KEY` from the root `.env`, through an explicit allow-list (no env prefix), so the service key can't be bundled. The build refuses a key that looks secret. Live refresh stays off until `SUPABASE_URL` is a real API URL, which means **it is off with the current `.env`.**
+  - CSP `connect-src`/`img-src` now include the Supabase `https` and `wss` origins.
+  - Tests:
+    - New live `tests/system/supabase-realtime.test.mjs`: **passes** (anon receives INSERT and UPDATE of a scan).
+    - New `tests/integration/bundle-secrets.test.mjs`: **passes** (no `sb_secret_`, no service key value or name in `frontend/dist`; a secret key in the browser slot fails the build).
+    - 3 new frontend unit tests (debounce, unsubscribe).
+  - Found while testing: Realtime drops writes made within ~1 s of `SUBSCRIBED`. That doesn't affect the dashboard (long-lived subscription); the test waits 3 s.
+  - `./test-all.sh`: ALL PASSED (frontend 131, tests 25, backend 116 pass / 2 skipped).

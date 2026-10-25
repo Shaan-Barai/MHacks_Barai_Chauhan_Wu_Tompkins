@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useLiveScans } from './lib/liveScans'
 import { AdminPage } from './pages/AdminPage'
 import { BehindScenesPage, TRY_PATH } from './pages/BehindScenesPage'
 import { DashboardPage } from './pages/DashboardPage'
@@ -62,6 +63,8 @@ function Shell() {
   const [path, go] = usePath()
   const page = pageForPath(path)
   const [dataRevision, setDataRevision] = useState(0)
+  // Supabase Realtime: new or finished scans refresh the open page's numbers.
+  useLiveScans(() => setDataRevision((r) => r + 1))
 
   const title = page === 'landing' ? null : page ? [...NAV, ...HIDDEN].find((n) => n.page === page)!.label : 'Page not found'
   useEffect(() => {
@@ -121,7 +124,7 @@ function Shell() {
         {page === 'statistics' && <StatisticsPage dataRevision={dataRevision} />}
         {page === 'menus' && <MenusPage />}
         {page === 'portions' && <PortionsPage onSaved={() => setDataRevision((r) => r + 1)} />}
-        {page === 'behind' && <BehindScenesPage path={path} onNavigate={go} />}
+        {page === 'behind' && <BehindScenesPage path={path} onNavigate={go} dataRevision={dataRevision} />}
         {page === 'settings' && <SettingsPage settings={hall} onSave={update} onDataChanged={() => setDataRevision((r) => r + 1)} />}
         {page === 'admin' && <AdminPage />}
         {page === null && <NotFoundPage onHome={() => go('/dashboard')} />}

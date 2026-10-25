@@ -237,3 +237,10 @@
   - Final checks: `./test-all.sh` ALL PASSED; live Supabase system tests 13/13; live repository test 13/13; import dry-run "every count matches" after all of tonight's testing.
   - Wrote `OVERNIGHT_REPORT.md`.
   - **Gemini total: 32 of 150.**
+- 22:25. **Extra tests for weak spots** (`forecast/tests/test_worker.py`, +7):
+  - The worker uses only the past and labels simulated inputs.
+  - The menu cycle decides dishes, and unknown dishes are skipped.
+  - No history gives no forecast (not 0).
+  - Simulated menus are deterministic and balanced; simulated tray waste stays within 4–14%.
+  - The client refuses a dashboard URL, a missing key, and an unfiltered DELETE or UPDATE.
+  - Forecast suite: 27 tests. `./test-all.sh`: ALL PASSED. **Stopping here.**

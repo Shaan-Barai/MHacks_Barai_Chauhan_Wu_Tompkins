@@ -6,7 +6,7 @@ untouched**. The step-by-step log, with every number, is in [PROGRESS.md](PROGRE
 
 **Final test run.**
 - `./test-all.sh`: **ALL PASSED** (data 41, vision 99, analytics 77, capture 66, backend 124 + 2
-  opt-in skipped, frontend 137 + build, db typecheck, tests 26, python 70, forecast 20, scripts 28).
+  opt-in skipped, frontend 137 + build, db typecheck, tests 26, python 70, forecast 27, scripts 28).
 - Live Supabase checks: 13/13 system tests and 13/13 repository round trips.
 
 **Gemini calls: 32 of 150** (all from the live test2 run).
@@ -101,7 +101,7 @@ untouched**. The step-by-step log, with every number, is in [PROGRESS.md](PROGRE
   - **Ran-out meals are treated as censored.**
   - The evaluation harness writes `forecast_outcome` and needs no code changes for real data.
   - One labeled simulated dataset, removable with one command.
-  - 20 unit tests, now a `forecast` suite in `test-all.sh`.
+  - 27 unit tests, now a `forecast` suite in `test-all.sh`.
 - **Phase 4:**
   - Printable prep sheets (one HTML page per station per meal, with a SIMULATED banner when relevant).
   - `GET /api/forecast/summary` (formulas in `analytics/`; reproduces the Python evaluation exactly).

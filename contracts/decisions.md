@@ -605,3 +605,26 @@ Dashboard, Statistics, Behind the scenes and Admin all open on **Last 30 days**,
 **Last 7 days** (a rolling 7 days, replacing the calendar "This week", which was empty on Mondays).
 Dashboard and Behind the scenes keep **Today**; Statistics and Admin keep **Last 90 days**. Frontend
 only (`frontend/src/components/DateRangePicker.tsx`); no API change.
+
+## 2026-10-24 — Move to Supabase (Postgres + Storage + Realtime) (user decision, in progress)
+
+Branch `supabase-migration`. SpacetimeDB and R2 code, data and buckets stay until the user approves removal.
+
+- **Schema** lives in `supabase/migrations/` (Supabase CLI format). One table per former SpacetimeDB
+  table with the same name, except `attendance` → **`simulated_attendance`**. `attendance` now holds real
+  15-minute swipe counts for forecasting. New: `hall` (created automatically by triggers on first use)
+  and `dish`, the stable dish ID that forecasting uses across cycle days (`menu_item.dish_id`, nullable).
+- **Forecasting tables** (`menu_cycle`, `production_log`, `attendance`, `context_day`, `forecast`,
+  `forecast_outcome`) are created empty. `forecast_outcome.tray_waste_lb` stays null until a
+  pixel-to-pound conversion is specified; `tray_pixels_wasted` holds the measured value.
+- **Multi-row reducers** became Postgres functions (`upsert_menu`, `record_analysis`,
+  `replace_portions_served`, `set_capture_visibility`, `upsert_camera_calibration`,
+  `upsert_measurement_settings`, `clear_demo_data`), one transaction each, with the same checks and
+  error messages. Foreign keys are now enforced; children of a capture or attempt cascade on delete.
+- **RLS on every table.** Anon and signed-in users may only read the dashboard tables (formerly public
+  in SpacetimeDB, plus hall/dish/forecasting). Private tables (`image_object`, `analysis_attempt`,
+  `capture_count`, `segmentation_region`, `attempt_calibration`, `capture_visibility`, `dashboard_view`,
+  `scan_info`, `demo_marker`) have no anon access. Only the service role writes. TODO: per-hall
+  manager policies once logins exist.
+- **Dashboard** keeps reading numbers through the backend API (so `analytics/` stays the one place
+  for the math). Supabase Realtime with the anon key signals new scans so pages refresh themselves.

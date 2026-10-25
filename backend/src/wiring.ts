@@ -17,6 +17,8 @@ import type { LabelSuffixFactory } from './services/ingestionService.js';
 import { JsonFileRepository } from './repo/jsonFileRepository.js';
 import { SpacetimeRepository } from './repo/spacetimeRepository.js';
 import { SupabaseRepository } from './repo/supabaseRepository.js';
+import { InMemoryProductionStore, SupabaseProductionStore, type ProductionStore } from './repo/productionStore.js';
+import { ProductionSheetService } from './services/productionSheetService.js';
 import { LocalDevStorage } from './storage/localDevStorage.js';
 import { R2Storage } from './storage/r2Storage.js';
 import { SupabaseStorage } from './storage/supabaseStorage.js';
@@ -54,6 +56,8 @@ export interface BuildOptions {
   calibrationRunner?: CalibrationRunner;
   /** 'Try an Image' analysis runner; defaults to the lazy upload_demo pipeline. */
   tryImageRunner?: TryImageRunner;
+  /** production_log store; defaults to Supabase when DATABASE_PROVIDER=supabase, else in memory. */
+  productionStore?: ProductionStore;
   now?: () => number;
 }
 
@@ -166,6 +170,10 @@ export function buildBackend(options: BuildOptions = {}): AppDeps & { app: Retur
   const calibrationRunner =
     options.calibrationRunner ?? (gateway.mode === 'live' ? new VisionCalibrationRunner(gateway, segmenter) : undefined);
   const calibration = new CalibrationService(repo, images, calibrationRunner, now);
+  // Forecasting tables live only in Supabase; other setups get an in-memory store.
+  const productionStore = options.productionStore ?? (config.supabaseDb ? new SupabaseProductionStore(config.supabaseDb) : new InMemoryProductionStore());
+  // Sheets are read by live Gemini only: mock text never becomes production rows.
+  const production = new ProductionSheetService(repo, storage, productionStore, gateway.mode === 'live' ? gateway : undefined);
   const deps: AppDeps = {
     config,
     repo,
@@ -184,6 +192,7 @@ export function buildBackend(options: BuildOptions = {}): AppDeps & { app: Retur
     storageOrigins: storageOrigins(config),
     camera,
     demo,
+    production,
     tryImage: new TryImageService({
       runner: options.tryImageRunner ?? createPipelineRunner({ samWorkerUrl: config.samWorkerUrl, workerToken: config.workerToken }),
       unavailableReason:

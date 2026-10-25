@@ -50,6 +50,7 @@ import {
   validateMenuBundle,
   validateReferencePortion,
 } from '../services/validation.js';
+import type { ProductionSheetService } from '../services/productionSheetService.js';
 
 /** READ_ONLY=1 GET cache: always-fresh routes, entry cap, and the lifetime of answers with presigned URLs. */
 const READ_ONLY_UNCACHED = new Set(['/api/health', '/api/ready', '/api/auth/me']);
@@ -114,6 +115,8 @@ export interface AppDeps {
   demo?: DemoService;
   /** Public 'Try an Image' analyses (in memory only). */
   tryImage?: TryImageService;
+  /** Production sheets -> production_log (forecasting); optional in tests. */
+  production?: ProductionSheetService;
 }
 
 export function createApp(deps: AppDeps): express.Express {
@@ -922,6 +925,55 @@ export function createApp(deps: AppDeps): express.Express {
       res.json(await impact.recommendation(parseWindow(req.body ?? {}), { regenerate: true }));
     }),
   );
+
+  // ---- production sheets -> production_log (forecasting; rows start unconfirmed) ----
+  const production = (): ProductionSheetService => {
+    if (!deps.production) throw notFound('ROUTE_NOT_FOUND', 'Production logs are not available on this server.');
+    return deps.production;
+  };
+  const rowId = (req: Request): number => {
+    const id = Number(param(req, 'id'));
+    if (!Number.isInteger(id) || id < 1) throw badRequest('INVALID_PARAMETER', 'Row id must be a positive whole number.');
+    return id;
+  };
+  app.get('/api/dishes', wrap(async (_req, res) => {
+    res.json({ dishes: await production().dishes() });
+  }));
+  app.post('/api/production-sheets/extract', geminiCap, wrap(async (req, res) => {
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    if (typeof b.objectId !== 'string' || typeof b.hallId !== 'string') {
+      throw badRequest('MISSING_PARAMETER', "'objectId' (the uploaded sheet photo) and 'hallId' are required.");
+    }
+    res.json(await production().extract({
+      objectId: b.objectId,
+      hallId: b.hallId,
+      ...(typeof b.serviceDate === 'string' ? { serviceDate: b.serviceDate } : {}),
+      ...(typeof b.mealLabel === 'string' ? { mealLabel: b.mealLabel as 'breakfast' | 'lunch' | 'dinner' } : {}),
+    }));
+  }));
+  app.get('/api/production-log', wrap(async (req, res) => {
+    const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+    if (status !== undefined && !['unconfirmed', 'confirmed', 'rejected'].includes(status)) {
+      throw badRequest('INVALID_PARAMETER', "'status' must be unconfirmed, confirmed or rejected.");
+    }
+    res.json({
+      available: production().available,
+      rows: await production().list(requireQuery(req, 'hallId'), {
+        ...(status ? { status: status as 'unconfirmed' | 'confirmed' | 'rejected' } : {}),
+        ...(typeof req.query.start === 'string' ? { start: req.query.start } : {}),
+        ...(typeof req.query.end === 'string' ? { end: req.query.end } : {}),
+      }),
+    });
+  }));
+  app.patch('/api/production-log/:id', wrap(async (req, res) => {
+    res.json({ row: await production().edit(rowId(req), (req.body ?? {}) as Record<string, unknown>) });
+  }));
+  app.post('/api/production-log/:id/confirm', wrap(async (req, res) => {
+    res.json({ row: await production().confirm(rowId(req), (req.body ?? {}).confirmedBy) });
+  }));
+  app.post('/api/production-log/:id/reject', wrap(async (req, res) => {
+    res.json({ row: await production().reject(rowId(req)) });
+  }));
 
   // ---- suggestions (stored Insights; generation is Agent 6's) ----
   app.get(

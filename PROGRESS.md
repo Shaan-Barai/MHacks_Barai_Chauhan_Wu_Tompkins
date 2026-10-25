@@ -4,7 +4,7 @@
 
 - **Branch:** `overnight-supabase` (Part B), branched from `supabase-migration` at `350a034`.
 - **Last commit:** `cee58a0` gitignore the Supabase CLI cache
-- **Next step:** Phase 2, the production sheet reader (`vision/src/productionSheet.ts` → backend service and routes → frontend review page). Mocked Gemini only, because there are no sheet photos.
+- **Next step:** Phase 2 frontend: the "Production sheets" page (upload, review table with flagged cells, edit, confirm). The backend and vision parts are committed.
 - **Gemini calls used so far:** 32 of 150.
 - **Long-running processes to restart:** the SAM worker (`.venv/bin/python vision/sam/worker.py`, :8790; `sam2` was pip-installed into `.venv` tonight from the pinned commit) and the SpacetimeDB **copy** on `127.0.0.1:3901`. If it's down:
   `spacetime start --listen-addr 127.0.0.1:3901 --data-dir <scratchpad>/stdb-copy --jwt-pub-key-path ~/.config/spacetime/id_ecdsa.pub --jwt-priv-key-path ~/.config/spacetime/id_ecdsa --non-interactive`.
@@ -155,3 +155,24 @@
   - **Decision:** a sheet line Gemini reads as "leftover > prepped" is stored as unconfirmed and flagged, not rejected. The constraint applies only once a person confirms it.
   - The offline migration test gained 7 forecasting checks. The live RLS test still passes (all tables).
   - `./test-all.sh`: ALL PASSED.
+- 22:05. **Phase 2 backend (checkpoint).**
+  - `vision/src/productionSheet.ts`: prompt plus a strict JSON schema with `{value, confidence}` for every field (dish, station, meal, date, prepped lb, portions, pan leftover lb, ran-out time).
+    - The validator **flags rather than corrects** doubtful values: low confidence (< 0.7), leftover > prepped, negative or implausible numbers, bad date/time, ran-out outside the meal's hours, ran out yet leftover in the pan, an unknown dish, and a date that differs from the one given at upload.
+    - Dishes are matched only by exact normalized name or alias, so text on the sheet can't rename anything.
+  - Backend:
+    - `ProductionStore` (Supabase plus an in-memory version with the same rules) and `ProductionSheetService`.
+    - Routes: `POST /api/production-sheets/extract`, `GET /api/production-log`, `PATCH /api/production-log/:id`, `POST …/confirm` and `…/reject`, `GET /api/dishes`.
+    - The sheet photo uploads through the normal flow as the new kind `production_sheet` (`production-sheets/<date>/<id>_<rand>.<ext>`). Rows keep its path and object ID.
+  - **Decisions:**
+    1. **Live Gemini only.** Mock text never becomes rows; without a key the endpoint returns 503 `SHEET_READER_UNAVAILABLE`.
+    2. **Re-reading the same photo returns its existing rows** instead of calling Gemini again and duplicating them.
+    3. **Some flags block confirmation** (unknown/missing dish, missing date or meal, leftover > prepped, negative values, no prepped amount). **Low confidence doesn't block**: confirming means a person looked.
+    4. An edited field counts as fully confident, and flags are recomputed from the values.
+    5. **Confirmed rows are locked.**
+    6. **`confirmedBy` is a typed name.** There are no user logins yet; the TODO is per-hall manager auth.
+    7. **Ran-out time:** entered as hall-local `HH:MM`, stored as a UTC instant using the hall's timezone (DST-safe; tested).
+  - **No production-sheet photos are in the repo, so every test uses mocked Gemini answers. 0 Gemini calls. Testing on a real sheet still needs a photo.**
+  - Tests:
+    - 8 vision tests (clean, smudged, impossible, malformed, injection, uploader date/meal) and 6 backend HTTP tests (extract → flags → edit → confirm/reject, locking, uniqueness, no-live-Gemini, wrong photo kind, DST).
+    - Live `tests/system/supabase-production.test.mjs`: the real table enforces "confirmed needs a dish", "leftover ≤ prepped" and one confirmed row per dish × station × meal.
+  - `./test-all.sh`: ALL PASSED (vision 99, backend 122 + 2 skipped).

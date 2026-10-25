@@ -138,3 +138,15 @@ export type { ClassificationResult, ClassifiedItem, UnknownFood, ValidationOutco
 
 export type * from './contracts.js';
 export { NEIGHBOR_FOOD_EXCLUDED, TARGET_DISH_UNAVAILABLE } from './contracts.js';
+export {
+  DEFAULT_MEAL_WINDOWS,
+  EXTRACTED_FIELDS,
+  LOW_CONFIDENCE,
+  PRODUCTION_SHEET_PROMPT_VERSION,
+  buildProductionSheetSchema,
+  extractProductionSheet,
+  matchDish,
+  reviewFlagsFor,
+  validateProductionSheetText,
+} from './productionSheet.js';
+export type { ExtractSheetInput, ExtractSheetResult, ExtractedField, ExtractedProductionRow, KnownDish, SheetMeal } from './productionSheet.js';

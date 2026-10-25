@@ -13,6 +13,7 @@ import type { GeminiGateway } from '@scrap/vision';
 import type { TryImageRunner } from '../src/services/tryImageService.js';
 import type { MenuBundle, ReferencePortion } from '../src/types.js';
 import type { Repository } from '../src/repo/repository.js';
+import type { ProductionStore } from '../src/repo/productionStore.js';
 
 export const HALL = 'hall-main';
 export const SERVICE = 'svc_hall-main_2026-10-03_lunch';
@@ -81,6 +82,7 @@ export async function startTestServer(
     headers?: Record<string, string>;
     calibrationRunner?: CalibrationRunner;
     tryImageRunner?: TryImageRunner;
+    productionStore?: ProductionStore;
   } = {},
 ): Promise<TestServer> {
   const fixtures: Record<string, MockFixture> = {};

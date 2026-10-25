@@ -74,8 +74,10 @@ export interface ImageObject {
    * 'original' = the raw, un-normalized photo exactly as the camera (or phone)
    * produced it; `id` is the capture eventId. Analysis uses the 'capture'
    * (normalized) image; the original is kept for audit and display.
+   * 'production_sheet' = a photo of a handwritten production sheet; `id` is the
+   * sheet upload id (one sheet can be re-photographed, so keys get a random suffix).
    */
-  association: { kind: 'capture' | 'reference' | 'mask' | 'overlay' | 'calibration' | 'calibration_overlay' | 'original'; id: string };
+  association: { kind: 'capture' | 'reference' | 'mask' | 'overlay' | 'calibration' | 'calibration_overlay' | 'original' | 'production_sheet'; id: string };
   state: UploadState;
 }
 

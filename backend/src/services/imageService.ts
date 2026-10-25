@@ -41,7 +41,7 @@ export type RequestUploadResponse =
   | { objectId: string; objectKey: string; alreadyFinalized: true };
 
 /** Client-uploadable kinds; masks and overlays are server-produced only. */
-const UPLOAD_KINDS: UploadAssociationKind[] = ['capture', 'original', 'reference', 'calibration'];
+const UPLOAD_KINDS: UploadAssociationKind[] = ['capture', 'original', 'reference', 'calibration', 'production_sheet'];
 
 export class ImageService {
   /**
@@ -68,13 +68,13 @@ export class ImageService {
    */
   async requestUpload(body: RequestUploadBody): Promise<RequestUploadResponse> {
     if (!UPLOAD_KINDS.includes(body.associationKind)) {
-      throw badRequest('INVALID_ASSOCIATION', "associationKind must be 'capture', 'original', 'reference' or 'calibration'.");
+      throw badRequest('INVALID_ASSOCIATION', "associationKind must be 'capture', 'original', 'reference', 'calibration' or 'production_sheet'.");
     }
     if (!body.associationId || typeof body.associationId !== 'string') {
       throw badRequest('INVALID_ASSOCIATION', 'associationId is required.');
     }
     const existing =
-      body.associationKind === 'reference' || body.associationKind === 'calibration'
+      body.associationKind === 'reference' || body.associationKind === 'calibration' || body.associationKind === 'production_sheet'
         ? undefined
         : (await this.repo.findImageObjectsByAssociation(body.associationKind, body.associationId)).find(
             (o) => o.state !== 'orphaned',

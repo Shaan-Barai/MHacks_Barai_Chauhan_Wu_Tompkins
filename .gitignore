@@ -35,3 +35,6 @@ CAMERA-GUIDE.md
 
 # Supabase CLI local cache (project ref, pooler host)
 supabase/.temp/
+
+# Forecast prep sheets (generated HTML)
+forecast/out/

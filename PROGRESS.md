@@ -4,7 +4,7 @@
 
 - **Branch:** `overnight-supabase` (Part B), branched from `supabase-migration` at `350a034`.
 - **Last commit:** `cee58a0` gitignore the Supabase CLI cache
-- **Next step:** Phase 3, the forecast worker (`forecast/`: model, config, evaluate, simulate, worker, tests).
+- **Next step:** Phase 4: `forecast/prep_sheet.py` (printable HTML per station per meal), backend `GET /api/forecast/summary`, and the frontend Forecast page with a SIMULATED DATA banner.
 - **Gemini calls used so far:** 32 of 150.
 - **Long-running processes to restart:** the SAM worker (`.venv/bin/python vision/sam/worker.py`, :8790; `sam2` was pip-installed into `.venv` tonight from the pinned commit) and the SpacetimeDB **copy** on `127.0.0.1:3901`. If it's down:
   `spacetime start --listen-addr 127.0.0.1:3901 --data-dir <scratchpad>/stdb-copy --jwt-pub-key-path ~/.config/spacetime/id_ecdsa.pub --jwt-priv-key-path ~/.config/spacetime/id_ecdsa --non-interactive`.
@@ -35,7 +35,7 @@
 - [x] Phase 0: setup (branch `overnight-supabase` from `supabase-migration`; all keys present)
 - [x] Phase 1: the migration was done in Part A; plus `docs/supabase-migration-plan.md` and the forecasting additions migration
 - [x] Phase 2: production sheet reader (backend + review page; mocked Gemini only, no sheet photos in the repo)
-- [ ] Phase 3: baseline forecast and prep buffer
+- [x] Phase 3: baseline forecast and prep buffer (worker, evaluation, simulated dataset, 18 unit tests)
 - [ ] Phase 4: prep sheets and forecast dashboard
 - [ ] Phase 5: cleanup and report
 
@@ -185,3 +185,32 @@
   - 3 new page tests (read → flags; fix → save → confirm → appears in Recently confirmed; reject), and the nav test was updated.
   - **Not visually checked in a browser yet** (jsdom tests only).
   - `./test-all.sh`: ALL PASSED (frontend 134).
+- 22:30. **Phase 3, the forecast worker** (`forecast/`; stdlib Python; README in `forecast/README.md`).
+  - **Model `baseline-v1`:** same dish, same cycle day, last cycle → fallbacks (dish weekday-meal average → dish meal average → hall weekday-meal average) → scaled by expected/actual diners → expected eaten = demand × (1 − tray waste share) → newsvendor prep at q = Cu / (Cu + Co).
+    - Co = food cost + Waste Impact Score from the factors CSVs.
+    - The percentile comes from walk-forward relative errors (42 days), with a ±25% normal spread under 5 errors.
+    - **Ran-out meals are censored** (lower bounds) in both the baseline and the error spread.
+  - `config.toml` defaults: q ≈ 0.85 entrée / 0.60 side / 0.42 self-serve / 0.45 dessert (checked by a test).
+  - Worker CLI and HTTP service (`/health`, `POST /run`) in the SAM worker's style. The evaluation harness writes `forecast_outcome` and prints WAPE, stockouts, leftover lb and $, ours vs. FSS.
+  - Migration `…12` (applied live): `forecast.demand_lb`, `service_level_q`, `basis` and `why`, so prep sheets and the dashboard can explain each number.
+  - **Simulated dataset** (`python3 -m forecast.simulate generate|remove`), hall `hall-main`, 2026-09-12 to 2026-10-23 (6 weeks), lunch and dinner, 15 dishes from the factors table, seed `sim-v1` (no `ATTENDANCE_SEED` set), attendance 300–1200 from `.env`.
+    - Written: 15 dishes, 504 menu-cycle rows, 42 context days, 1,260 fifteen-minute swipe rows, 504 confirmed production rows (88 ran out), 588 FSS forecasts. **Every row has `is_simulated = true`.**
+    - `remove` deletes only flagged rows; proven by regenerating, which removed exactly the previous set, including resetting `hall.menu_cycle_start`.
+  - **Run (all simulated):** 420 forecasts (backtest 2026-09-26 to 10-23 plus next week 10-24 to 10-30) and 336 evaluated outcomes:
+    - **Ours:** demand WAPE **18.2%**, 132 stockouts, would leave **1,838 lb**.
+    - **FSS:** WAPE **40.9%**, 58 stockouts (= the 58 actual ran-out meals, a consistency check), **4,680 lb** leftover ($23,796 at Co).
+    - **Our stockout rate matches the newsvendor target per style** (entrée 22.3% vs 1−q 20.8%; side 39.3% vs 35.0%; self-serve 56.2% vs 54.6%). The extra stockouts are the configured cost trade-off, not a bug.
+    - Tray waste: 1,056 lb, **simulated** (no calibrated scans exist).
+  - **Decisions:**
+    1. **Prep covers demand (taken lb), not eaten lb.** Eaten = demand × (1 − tray waste) is reported alongside.
+    2. **Tray waste share only from calibrated scans covering ≥ 80% of diners.** Smaller samples would be an extrapolation (AGENTS.md §7). With no calibrated scans it is 0, logged in the worker's notes.
+    3. **FSS forecasts are stored as `forecast` rows with `model_version='fss'`** (there was no other place for them).
+    4. **Outcomes score our demand forecast for WAPE, but our prep amount for stockouts and leftover.**
+    5. **Simulated data lives on `hall-main`, flagged.** The forecast page shows a SIMULATED banner and `remove` deletes it.
+    6. **Expected diners have no context adjustment yet** (exam week, home game, holiday). `context_day` is stored for a later model.
+  - **Bugs found and fixed while running:**
+    - (a) The first simulated FSS ran out 38% of the time. My expected-demand figure undercounted weekday diners; recalibrated to the week-average diners × 1.25, giving 17%.
+    - (b) A stockout metric that missed meals prepped at exactly the forecast that ran out. Fixed, with a test.
+    - (c) python.org Python on this Mac has no CA bundle, so TLS failed. The client now loads `/etc/ssl/cert.pem` when Python's store is empty; verification stays on.
+  - **For the morning:** the default costs make self-serve run short about 55% of the time (q ≈ 0.42), because self-serve is assumed to be refilled. Raise `running_out_usd_per_lb.self_serve` if that's wrong.
+  - `./test-all.sh`: ALL PASSED, now including a **forecast** suite (18 tests).

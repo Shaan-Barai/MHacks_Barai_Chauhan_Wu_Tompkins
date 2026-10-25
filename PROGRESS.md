@@ -2,9 +2,9 @@
 
 ## Resume here
 
-- **Branch:** `supabase-migration` (Part A). Part B moves to `overnight-supabase`, branched from `supabase-migration`.
+- **Branch:** `overnight-supabase` (Part B), branched from `supabase-migration` at `350a034`.
 - **Last commit:** `cee58a0` gitignore the Supabase CLI cache
-- **Next step:** Part B, Phase 0: create branch `overnight-supabase` from `supabase-migration`.
+- **Next step:** Phase 2, the production sheet reader (`vision/src/productionSheet.ts` → backend service and routes → frontend review page). Mocked Gemini only, because there are no sheet photos.
 - **Gemini calls used so far:** 32 of 150.
 - **Long-running processes to restart:** the SAM worker (`.venv/bin/python vision/sam/worker.py`, :8790; `sam2` was pip-installed into `.venv` tonight from the pinned commit) and the SpacetimeDB **copy** on `127.0.0.1:3901`. If it's down:
   `spacetime start --listen-addr 127.0.0.1:3901 --data-dir <scratchpad>/stdb-copy --jwt-pub-key-path ~/.config/spacetime/id_ecdsa.pub --jwt-priv-key-path ~/.config/spacetime/id_ecdsa --non-interactive`.
@@ -32,8 +32,8 @@
 - [x] Step 7: tests, and the live test2 run (13/13 photos; 32 Gemini calls)
 
 ### Part B: overnight run (`overnight-supabase`)
-- [ ] Phase 0: setup
-- [ ] Phase 1: migration gaps (plan doc, forecasting additions)
+- [x] Phase 0: setup (branch `overnight-supabase` from `supabase-migration`; all keys present)
+- [x] Phase 1: the migration was done in Part A; plus `docs/supabase-migration-plan.md` and the forecasting additions migration
 - [ ] Phase 2: production sheet reader
 - [ ] Phase 3: baseline forecast and prep buffer
 - [ ] Phase 4: prep sheets and forecast dashboard
@@ -142,3 +142,16 @@
   - **Setup change:** the SAM worker couldn't start because `.venv` had no `sam2` package. I installed it with `pip install --no-deps` at the commit pinned in `vision/sam/requirements.txt`; no other package versions changed.
   - `./test-all.sh`: ALL PASSED.
 - **Part A complete.**
+- 21:42. **Part B, Phase 0.** Branch `overnight-supabase` created from `supabase-migration` (`350a034`). `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_URL` and `GEMINI_API_KEY` are all present (values not printed). `SUPABASE_URL` is still the dashboard link (see Known facts).
+- 21:50. **Phase 1.** Part A already covered inventory, schema, RLS, storage, backend, Realtime, import and tests. Added:
+  - `docs/supabase-migration-plan.md`: inventory, old → new mapping, security model, findings, re-import steps, removal steps.
+  - Migration `…11_forecasting_additions.sql` (applied live; forecasting tables were empty, so no data changed):
+    - `is_simulated` on dish and all six forecasting tables.
+    - `forecast_outcome` re-keyed to dish × hall × date × meal × model, with its actuals and $ columns; an outcome can exist for the FSS forecast alone.
+    - `production_log` review fields: `status` unconfirmed/confirmed/rejected, `dish_name_raw`, `field_confidence`, `review_flags`, `sheet_image_object_id`, `extraction_model`. Only confirmed rows must have a dish, leftover ≤ prepped, and be unique.
+    - `hall.menu_cycle_start` (a Monday) and `menu_cycle_weeks`.
+    - `dish.service_style`, `portion_lb`, `food_cost_usd_per_lb` and `impact_food_name`.
+  - **Decision:** the overnight spec lists `attendance` with `is_simulated` and `production_log` with `confirmed at`. Both were added (`confirmed_at` already existed).
+  - **Decision:** a sheet line Gemini reads as "leftover > prepped" is stored as unconfirmed and flagged, not rejected. The constraint applies only once a person confirms it.
+  - The offline migration test gained 7 forecasting checks. The live RLS test still passes (all tables).
+  - `./test-all.sh`: ALL PASSED.

@@ -65,8 +65,19 @@ describe('Supabase migrations on an in-memory Postgres', () => {
     await throws('interval must be 15-min aligned', "insert into attendance values ('h1','2026-10-24 12:07:00+00','2026-10-24','lunch',5)", /check constraint/);
     await db.exec("insert into dish values ('mac-cheese','Mac and cheese')");
     await db.exec("insert into forecast (hall_id,service_date,meal_label,dish_id,low_lb,high_lb,model_version) values ('h1','2026-10-25','lunch','mac-cheese',10,20,'v0')");
-    await db.exec("insert into forecast_outcome (forecast_id,error_lb,fss_error_lb) select forecast_id, 2, -5 from forecast");
+    await db.exec("insert into forecast_outcome (forecast_id,hall_id,service_date,meal_label,dish_id,model_version,error_lb,fss_error_lb) select forecast_id, hall_id, service_date, meal_label, dish_id, model_version, 2, -5 from forecast");
     ok('ours_better generated', (await q('select ours_better from forecast_outcome'))[0].ours_better === true);
+    // forecasting additions
+    await db.exec("update hall set menu_cycle_start = '2026-09-07' where hall_id = 'h1'");
+    await throws('cycle start must be a Monday', "update hall set menu_cycle_start = '2026-09-08' where hall_id = 'h1'", /check constraint/);
+    await db.exec("insert into production_log (hall_id, service_date, meal_label, dish_id, prepped_lb, pan_leftover_lb, source, status, dish_name_raw, field_confidence, review_flags) values ('h1','2026-10-20','lunch',null,10,12,'sheet_photo','unconfirmed','Mac n chz','{\"prepped_lb\":0.4}','{leftover_exceeds_prepped}')");
+    ok('unconfirmed extraction may lack a dish and have leftover > prepped', (await q("select count(*)::int n from production_log where status='unconfirmed'"))[0].n === 1);
+    await throws('confirmed rows need a dish', "update production_log set status='confirmed', confirmed_by='x' where status='unconfirmed'", /production_log_confirmed_dish/);
+    await throws('confirmed rows need leftover <= prepped', "update production_log set status='confirmed', confirmed_by='x', dish_id='mac-cheese' where status='unconfirmed'", /production_log_leftover_le_prepped/);
+    await db.exec("update production_log set status='confirmed', confirmed_by='chef', dish_id='mac-cheese', pan_leftover_lb=2 where status='unconfirmed'");
+    await throws('one confirmed row per dish x station x meal', "insert into production_log (hall_id, service_date, meal_label, dish_id, source, status, confirmed_by) values ('h1','2026-10-20','lunch','mac-cheese','manual','confirmed','chef')", /production_log_confirmed_unique|duplicate key/);
+    await db.exec("insert into forecast_outcome (hall_id, service_date, meal_label, dish_id, model_version, error_lb, fss_error_lb, is_simulated) values ('h1','2026-10-20','lunch','mac-cheese','fss-only',null,3,true)");
+    ok('an outcome can exist without our forecast', (await q("select count(*)::int n from forecast_outcome where forecast_id is null"))[0].n === 1);
     // demo clear
     await db.exec(`insert into image_object values ('img2','supabase','scrap-images','captures/x/ev2.jpg',null,'image/jpeg',1,1,1,now(),'capture','ev2','finalized');
       select upsert_menu('${JSON.stringify({ service: { serviceId: 'svc_demo', hallId: 'h1', hallTimezone: 'America/Detroit', serviceDate: '2026-10-01', mealLabel: 'dinner', menuId: 'menu_demo', menuVersion: 1 }, items: [{ itemId: 'item_demo', menuId: 'menu_demo', displayName: 'Demo' }] })}');

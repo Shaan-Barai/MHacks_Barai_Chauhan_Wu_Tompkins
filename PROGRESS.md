@@ -244,3 +244,7 @@
   - Simulated menus are deterministic and balanced; simulated tray waste stays within 4–14%.
   - The client refuses a dashboard URL, a missing key, and an unfiltered DELETE or UPDATE.
   - Forecast suite: 27 tests. `./test-all.sh`: ALL PASSED. **Stopping here.**
+- 2026-10-25. The user updated `.env`: `SUPABASE_URL` is now the API address and `DATABASE_PROVIDER=supabase`. Checked with **no command-line overrides**:
+  - Live Supabase system tests: 13/13 pass, none skipped.
+  - The backend started from `.env` alone reports `persistence: Supabase Postgres`, `storage: supabase`, and `/api/ready` is green (database, Storage, SAM worker, Gemini). Plates and forecast data are served from Supabase.
+  - **Open item:** `.env` has `OBJECT_STORAGE_PROVIDER` twice (`local-dev`, then `supabase`). Shell `source` and Node keep the last value; loaders that keep the first (such as `forecast/db.py`'s) get `local-dev`. Delete the `local-dev` line.

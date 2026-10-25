@@ -55,6 +55,12 @@ import type {
   TryImageJob,
   TryImageStatus,
   TryImageSubmitted,
+  Dish,
+  ProductionEdit,
+  ProductionLog,
+  ProductionRow,
+  ProductionStatus,
+  SheetReadResult,
 } from './types'
 import { MEALS } from './types'
 
@@ -585,4 +591,102 @@ export async function takePhoto(): Promise<TakePhotoResult> {
 export async function regenerateRecommendation(start: IsoDate, end: IsoDate): Promise<Recommendation> {
   await wait()
   return mockRecommendation(mockImpactDashboard(start, end, todayIso()), new Date())
+}
+
+// ---------------------------------------------------------------------------
+// Production sheets (demo data; the live API reads real sheet photos with Gemini)
+// ---------------------------------------------------------------------------
+
+const MOCK_DISHES: Dish[] = [
+  { dishId: 'mac-and-cheese', displayName: 'Mac and Cheese', category: 'Comfort', serviceStyle: 'entree', isSimulated: false },
+  { dishId: 'sticky-rice', displayName: 'Sticky Rice', category: 'Wok', serviceStyle: 'side', isSimulated: false },
+  { dishId: 'teriyaki-salmon', displayName: 'Teriyaki Salmon', category: 'Entrees', serviceStyle: 'entree', isSimulated: false },
+]
+
+const BLOCKING = ['missing_dish', 'unknown_dish', 'missing_meal', 'missing_date', 'leftover_exceeds_prepped', 'missing_prepped_amount']
+
+function mockFlags(r: ProductionRow): string[] {
+  const flags = Object.entries(r.fieldConfidence ?? {}).filter(([, c]) => c < 0.7).map(([f]) => `low_confidence:${f}`)
+  if (r.dishId === null) flags.push(r.dishNameRaw ? 'unknown_dish' : 'missing_dish')
+  if (r.preppedLb !== null && r.panLeftoverLb !== null && r.panLeftoverLb > r.preppedLb) flags.push('leftover_exceeds_prepped')
+  return flags
+}
+
+function mockRow(id: number, over: Partial<ProductionRow>): ProductionRow {
+  const row: ProductionRow = {
+    productionLogId: id, hallId: 'hall-main', serviceDate: todayIso(), mealLabel: 'lunch', dishId: 'mac-and-cheese', dishNameRaw: 'Mac and Cheese',
+    station: 'Comfort', preppedLb: 24, preppedPortions: 96, panLeftoverLb: 3.5, ranOutTime: null, source: 'sheet_photo', status: 'unconfirmed',
+    fieldConfidence: { dish: 0.95, station: 0.95, mealLabel: 0.95, serviceDate: 0.95, preppedLb: 0.95, preppedPortions: 0.95, panLeftoverLb: 0.95, ranOutTime: 0.95 },
+    reviewFlags: [], blockingFlags: [], confirmedBy: null, confirmedAt: null, isSimulated: false, ...over,
+  }
+  row.reviewFlags = mockFlags(row)
+  row.blockingFlags = row.reviewFlags.filter((f) => BLOCKING.includes(f))
+  return row
+}
+
+let mockProduction: ProductionRow[] = []
+let mockNextRow = 1
+
+/** Test hook: start from an empty production log. */
+export function resetMockProduction(): void {
+  mockProduction = []
+  mockNextRow = 1
+}
+
+export async function getDishes(): Promise<Dish[]> {
+  await wait()
+  return MOCK_DISHES
+}
+
+export async function getProductionLog(status?: ProductionStatus): Promise<ProductionLog> {
+  await wait()
+  return { available: true, rows: mockProduction.filter((r) => !status || r.status === status).map((r) => ({ ...r })) }
+}
+
+export async function readProductionSheet(input: { photo: File; serviceDate: string; mealLabel: MealLabel }): Promise<SheetReadResult> {
+  await wait()
+  if (mockReadOnly) throw new Error('This site is read-only.')
+  const rows = [
+    mockRow(mockNextRow++, { serviceDate: input.serviceDate, mealLabel: input.mealLabel }),
+    mockRow(mockNextRow++, {
+      serviceDate: input.serviceDate, mealLabel: input.mealLabel, dishId: null, dishNameRaw: 'Stiky rice?', station: 'Wok', preppedLb: 10, preppedPortions: 40, panLeftoverLb: 12,
+      fieldConfidence: { dish: 0.5, station: 0.9, mealLabel: 0.95, serviceDate: 0.95, preppedLb: 0.6, preppedPortions: 0.9, panLeftoverLb: 0.9, ranOutTime: 0.9 },
+    }),
+  ]
+  mockProduction.push(...rows)
+  return { readable: true, notes: 'Sample sheet (demo data).', rows: rows.map((r) => ({ ...r })) }
+}
+
+function mockUnconfirmed(id: number): ProductionRow {
+  const row = mockProduction.find((r) => r.productionLogId === id)
+  if (!row) throw new Error('That row does not exist.')
+  if (row.status !== 'unconfirmed') throw new Error(`This row is already ${row.status}.`)
+  return row
+}
+
+export async function editProductionRow(id: number, edit: ProductionEdit): Promise<ProductionRow> {
+  await wait()
+  const row = mockUnconfirmed(id)
+  const conf = { ...(row.fieldConfidence ?? {}) }
+  for (const k of Object.keys(edit)) conf[k === 'dishId' ? 'dish' : k] = 1
+  const next = mockRow(id, { ...row, ...edit, fieldConfidence: conf })
+  mockProduction = mockProduction.map((r) => (r.productionLogId === id ? next : r))
+  return { ...next }
+}
+
+export async function confirmProductionRow(id: number, confirmedBy: string): Promise<ProductionRow> {
+  await wait()
+  const row = mockUnconfirmed(id)
+  if (!confirmedBy.trim()) throw new Error("Enter who checked this row.")
+  if (row.blockingFlags.length) throw new Error('Fix the flagged values before confirming.')
+  const next = { ...row, status: 'confirmed' as const, confirmedBy: confirmedBy.trim(), confirmedAt: new Date().toISOString() }
+  mockProduction = mockProduction.map((r) => (r.productionLogId === id ? next : r))
+  return { ...next }
+}
+
+export async function rejectProductionRow(id: number): Promise<ProductionRow> {
+  await wait()
+  const next = { ...mockUnconfirmed(id), status: 'rejected' as const }
+  mockProduction = mockProduction.map((r) => (r.productionLogId === id ? next : r))
+  return { ...next }
 }

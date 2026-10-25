@@ -4,7 +4,7 @@
 
 - **Branch:** `overnight-supabase` (Part B), branched from `supabase-migration` at `350a034`.
 - **Last commit:** `cee58a0` gitignore the Supabase CLI cache
-- **Next step:** Phase 2 frontend: the "Production sheets" page (upload, review table with flagged cells, edit, confirm). The backend and vision parts are committed.
+- **Next step:** Phase 3, the forecast worker (`forecast/`: model, config, evaluate, simulate, worker, tests).
 - **Gemini calls used so far:** 32 of 150.
 - **Long-running processes to restart:** the SAM worker (`.venv/bin/python vision/sam/worker.py`, :8790; `sam2` was pip-installed into `.venv` tonight from the pinned commit) and the SpacetimeDB **copy** on `127.0.0.1:3901`. If it's down:
   `spacetime start --listen-addr 127.0.0.1:3901 --data-dir <scratchpad>/stdb-copy --jwt-pub-key-path ~/.config/spacetime/id_ecdsa.pub --jwt-priv-key-path ~/.config/spacetime/id_ecdsa --non-interactive`.
@@ -34,7 +34,7 @@
 ### Part B: overnight run (`overnight-supabase`)
 - [x] Phase 0: setup (branch `overnight-supabase` from `supabase-migration`; all keys present)
 - [x] Phase 1: the migration was done in Part A; plus `docs/supabase-migration-plan.md` and the forecasting additions migration
-- [ ] Phase 2: production sheet reader
+- [x] Phase 2: production sheet reader (backend + review page; mocked Gemini only, no sheet photos in the repo)
 - [ ] Phase 3: baseline forecast and prep buffer
 - [ ] Phase 4: prep sheets and forecast dashboard
 - [ ] Phase 5: cleanup and report
@@ -176,3 +176,12 @@
     - 8 vision tests (clean, smudged, impossible, malformed, injection, uploader date/meal) and 6 backend HTTP tests (extract → flags → edit → confirm/reject, locking, uniqueness, no-live-Gemini, wrong photo kind, DST).
     - Live `tests/system/supabase-production.test.mjs`: the real table enforces "confirmed needs a dish", "leftover ≤ prepped" and one confirmed row per dish × station × meal.
   - `./test-all.sh`: ALL PASSED (vision 99, backend 122 + 2 skipped).
+- 22:15. **Phase 2 frontend.** New "Production sheets" page (`/production`, in the nav after Portions served).
+  - Upload a sheet photo with its date and meal; the original is kept, not cropped to the plate square, and is re-encoded to JPEG only if needed.
+  - The server reads it. Each row shows what was written on the sheet, with editable fields.
+  - **Flagged fields are outlined (dashed border) with a written reason and confidence**, e.g. "Check: The AI was not sure it read this correctly. (60% sure)". The theme is black and white, so nothing relies on color.
+  - Confirm stays disabled until blocking flags are fixed, changes are saved and a reviewer name is entered. Reject is always available.
+  - The read-only site shows rows without the upload or edit controls.
+  - 3 new page tests (read → flags; fix → save → confirm → appears in Recently confirmed; reject), and the nav test was updated.
+  - **Not visually checked in a browser yet** (jsdom tests only).
+  - `./test-all.sh`: ALL PASSED (frontend 134).

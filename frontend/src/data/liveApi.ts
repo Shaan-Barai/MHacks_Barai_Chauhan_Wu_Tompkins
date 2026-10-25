@@ -42,6 +42,12 @@ import type {
   TryImageJob,
   TryImageStatus,
   TryImageSubmitted,
+  Dish,
+  ProductionEdit,
+  ProductionLog,
+  ProductionRow,
+  ProductionStatus,
+  SheetReadResult,
 } from './types'
 import { MEALS } from './types'
 import { todayIso } from '../lib/dates'
@@ -589,3 +595,75 @@ function demoPost(action: 'load' | 'clear-data' | 'restore'): Promise<DemoStatus
 export const loadDemoData = () => demoPost('load')
 export const clearDemoData = () => demoPost('clear-data')
 export const restoreDemoData = () => demoPost('restore')
+
+// ---------------------------------------------------------------------------
+// Production sheets (forecasting)
+// ---------------------------------------------------------------------------
+
+const SHEET_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const SHEET_MAX_BYTES = 10 * 1024 * 1024
+const SHEET_MAX_SIDE_PX = 2400
+
+/**
+ * Sheet photos keep their full layout (no plate crop): handwriting must stay
+ * legible. Only re-encode to JPEG when the type is not accepted or the file is
+ * too big, scaling the long side to at most 2400 px.
+ */
+async function prepareSheetPhoto(file: File): Promise<File> {
+  if (SHEET_TYPES.includes(file.type) && file.size <= SHEET_MAX_BYTES) return file
+  const bitmap = await createImageBitmap(file)
+  const scale = Math.min(1, SHEET_MAX_SIDE_PX / Math.max(bitmap.width, bitmap.height))
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round(bitmap.width * scale)
+  canvas.height = Math.round(bitmap.height * scale)
+  canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9))
+  if (!blob) throw new Error("This photo can't be read. Try a JPEG or PNG.")
+  return new File([blob], 'sheet.jpg', { type: 'image/jpeg' })
+}
+
+export async function getDishes(): Promise<Dish[]> {
+  return unwrap<Dish[]>(await call('/api/dishes'), 'dishes') ?? []
+}
+
+export async function getProductionLog(status?: ProductionStatus): Promise<ProductionLog> {
+  return call<ProductionLog>(`/api/production-log?${q({ hallId: hallId(), ...(status ? { status } : {}) })}`)
+}
+
+/** Upload a sheet photo through the storage flow, then have the server read it. */
+export async function readProductionSheet(input: { photo: File; serviceDate: string; mealLabel: MealLabel }): Promise<SheetReadResult> {
+  const file = await prepareSheetPhoto(input.photo)
+  const sheetId = `sheet_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
+  const grant = await call<UploadGrant>('/api/images/uploads', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ associationKind: 'production_sheet', associationId: sheetId, mimeType: file.type, sizeBytes: file.size }),
+  })
+  let put: Response
+  try {
+    put = await fetch(grant.uploadUrl, { method: 'PUT', headers: grant.uploadHeaders ?? { 'Content-Type': file.type }, body: file })
+  } catch {
+    throw new Error("The photo didn't upload. Check the connection and try again.")
+  }
+  if (!put.ok) throw new Error("The photo didn't upload. Try again.")
+  await call(`/api/images/${encodeURIComponent(grant.objectId)}/finalize`, { method: 'POST' })
+  return call<SheetReadResult>('/api/production-sheets/extract', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ objectId: grant.objectId, hallId: hallId(), serviceDate: input.serviceDate, mealLabel: input.mealLabel }),
+  })
+}
+
+export async function editProductionRow(id: number, edit: ProductionEdit): Promise<ProductionRow> {
+  const body = await call(`/api/production-log/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(edit) })
+  return unwrap(body, 'row')
+}
+
+export async function confirmProductionRow(id: number, confirmedBy: string): Promise<ProductionRow> {
+  const body = await call(`/api/production-log/${id}/confirm`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmedBy }) })
+  return unwrap(body, 'row')
+}
+
+export async function rejectProductionRow(id: number): Promise<ProductionRow> {
+  return unwrap(await call(`/api/production-log/${id}/reject`, { method: 'POST' }), 'row')
+}

@@ -519,3 +519,57 @@ export interface DemoStatus {
   sampleCaptures: number
   clearedAt: string | null
 }
+
+// ---------------------------------------------------------------------------
+// Production sheets (forecasting): rows read from sheet photos, reviewed by staff
+// ---------------------------------------------------------------------------
+
+export type ProductionStatus = 'unconfirmed' | 'confirmed' | 'rejected'
+
+export interface Dish {
+  dishId: string
+  displayName: string
+  category: string | null
+  serviceStyle: string
+  isSimulated: boolean
+}
+
+export interface ProductionRow {
+  productionLogId: number
+  hallId: string
+  serviceDate: string | null
+  mealLabel: MealLabel | null
+  dishId: string | null
+  /** As written on the sheet. */
+  dishNameRaw: string | null
+  station: string | null
+  preppedLb: number | null
+  preppedPortions: number | null
+  panLeftoverLb: number | null
+  /** Hall-local HH:MM; null = did not run out. */
+  ranOutTime: string | null
+  source: 'manual' | 'sheet_photo' | 'csv' | 'demo'
+  status: ProductionStatus
+  /** 0..1 per field: dish, station, mealLabel, serviceDate, preppedLb, preppedPortions, panLeftoverLb, ranOutTime. */
+  fieldConfidence: Record<string, number> | null
+  reviewFlags: string[]
+  /** Flags that must be fixed before the row can be confirmed. */
+  blockingFlags: string[]
+  confirmedBy: string | null
+  confirmedAt: string | null
+  isSimulated: boolean
+}
+
+export type ProductionEdit = Partial<Pick<ProductionRow, 'dishId' | 'station' | 'mealLabel' | 'serviceDate' | 'preppedLb' | 'preppedPortions' | 'panLeftoverLb' | 'ranOutTime'>>
+
+export interface ProductionLog {
+  /** False when the server cannot read sheets (no live Gemini). */
+  available: boolean
+  rows: ProductionRow[]
+}
+
+export interface SheetReadResult {
+  readable: boolean
+  notes: string | null
+  rows: ProductionRow[]
+}

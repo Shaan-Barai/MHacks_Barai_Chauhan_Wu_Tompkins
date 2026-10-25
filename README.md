@@ -112,6 +112,8 @@ photos and logs to `images/demo-runs/` (gitignored). **Adding a feature? Add a d
 | `analytics/` | Agent 6 | Aggregates, simulated attendance, suggestions |
 | `frontend/` | Agent 7 | ScrapSaver dashboard (React + Tailwind) |
 | `docs/`, `tests/` | Agent 8 | Demo docs, fixtures, integration/e2e tests |
+| `supabase/` | Agent 1 | Postgres schema, RLS and Storage bucket as Supabase CLI migrations (`supabase/migrations/`) |
+| `forecast/` | — | Forecast worker, evaluation, prep sheets and the simulated test dataset (Python, stdlib) |
 | `factors/` | Agents 2+6 | Per-food waste/nutrition factor CSVs (East Quad, Halal Bros, 500 common foods), menu labels, and the formula README; `data/` generates its tables from them |
 | `docs/plans/` | Agent 1 | Planning/spec docs and trackers (BIG-PLAN, IT_4, DEBUG-PLAN, UI, AI, MVP_AI) |
 | `deploy/` | — | Local production stack, smoke test, Cloudflare Tunnel; `deploy/server/` for the read-only offsite server |
@@ -122,7 +124,62 @@ photos and logs to `images/demo-runs/` (gitignored). **Adding a feature? Add a d
 Root files: `demo.py` (one-command demo) and `test-all.sh` (every test).
 `images/` holds local, gitignored photos and demo-run logs.
 
-## Setup
+## Setup (Supabase: Postgres + Storage + Realtime)
+
+Records live in **Supabase Postgres**, images in a private **Supabase Storage** bucket, and the
+dashboard refreshes itself through **Supabase Realtime**. The plan, mapping and security model are in
+[docs/supabase-migration-plan.md](docs/supabase-migration-plan.md).
+
+Environment (`.env` at the repo root; gitignored, never commit it; see `.env.example`):
+
+| Variable | Used by | Notes |
+| --- | --- | --- |
+| `SUPABASE_URL` | backend, workers, dashboard build | The **API address** `https://<project-ref>.supabase.co` (Project Settings → API), not a dashboard link |
+| `SUPABASE_ANON_KEY` | dashboard build | Publishable key; RLS lets it read dashboard tables only |
+| `SUPABASE_SERVICE_ROLE_KEY` | backend, workers, scripts | Secret key, **server only**. The dashboard build refuses it |
+| `SUPABASE_DB_URL` | migrations, one-time import | Session pooler connection string |
+| `DATABASE_PROVIDER=supabase` | backend | Use Postgres (otherwise SpacetimeDB/in-memory) |
+| `OBJECT_STORAGE_PROVIDER=supabase`, `OBJECT_STORAGE_CONTAINER=scrap-images` | backend | Private bucket; signed upload and read URLs |
+| `GEMINI_API_KEY` | backend | Live classification and production-sheet reading |
+
+```bash
+set -a; . ./.env; set +a      # load the variables into this shell (the backend and workers read the environment)
+
+# 1. Schema, RLS, functions and the private bucket (idempotent; review with --dry-run first)
+npx supabase db push --db-url "$SUPABASE_DB_URL" --dry-run
+npx supabase db push --db-url "$SUPABASE_DB_URL"
+
+# 2. SAM 2.1 worker (see vision/sam/README.md) and the backend (http://localhost:8787)
+.venv/bin/python vision/sam/worker.py
+cd backend && npm ci && DATABASE_PROVIDER=supabase OBJECT_STORAGE_PROVIDER=supabase npm start
+
+# 3. Dashboard (http://localhost:5173); reads SUPABASE_URL + SUPABASE_ANON_KEY for live refresh
+cd frontend && npm ci && npm run dev
+
+# One-time import of old SpacetimeDB data + local-dev images (re-runnable; prints old vs. new counts)
+cd backend && SPACETIMEDB_URI=http://127.0.0.1:3901 node scripts/import-spacetime-to-supabase.mjs --dry-run
+```
+
+### Forecasting
+
+Production sheets (dashboard → **Production sheets**) are read by Gemini into *unconfirmed* rows; a
+person checks and confirms each one. The forecast worker turns confirmed history, swipes and the menu
+cycle into prep amounts; **Forecast** compares them with what happened and with the FSS forecast.
+Details: [forecast/README.md](forecast/README.md).
+
+```bash
+python3 -m forecast.worker run --hall hall-main --start 2026-10-25 --end 2026-10-31   # write forecasts
+python3 -m forecast.worker serve                                                     # or as a service (:8791)
+python3 -m forecast.evaluate --hall hall-main --start 2026-09-26 --end 2026-10-23     # score past forecasts
+python3 -m forecast.prep_sheet --hall hall-main --date 2026-10-25                      # printable sheets -> forecast/out/
+```
+
+**Simulated data.** Until real production sheets exist, `python3 -m forecast.simulate generate --hall
+hall-main` writes one made-up dataset (every row `is_simulated = true`; the dashboard and prep sheets
+show a SIMULATED banner). **Remove it with one command:** `python3 -m forecast.simulate remove --hall
+hall-main` (deletes only `is_simulated` rows).
+
+## Legacy setup (SpacetimeDB + R2; kept until their removal is approved)
 
 Prerequisites: Node.js 20.12+ and the SpacetimeDB CLI 2.10.x
 (`curl -sSf https://install.spacetimedb.com | sh`).
@@ -178,6 +235,16 @@ store. `VITE_USE_MOCK=1 npm run dev` runs the dashboard on demo data alone.
 ./test-all.sh            # offline: every package, dashboard build, db typecheck, integration, Python, scripts
 ./test-all.sh --live     # + starts the local stack: smoke test, live E2E suites, demo.py --simulate (test halls only)
 ./test-all.sh --list     # suites; --only a,b / --skip a,b / --install / --fail-fast
+```
+
+Supabase checks (live project; each cleans up after itself; need the `SUPABASE_*` variables):
+
+```bash
+cd tests && node --env-file=../.env --test system/supabase-storage.test.mjs system/supabase-rls.test.mjs \
+  system/supabase-realtime.test.mjs system/supabase-pipeline.test.mjs system/supabase-production.test.mjs
+cd backend && npm run build && SCRAP_LIVE_REPO_TEST=1 node --env-file=../.env --test dist/backend/test/supabaseRepository.live.test.js
+cd tests && LIVE_STACK=supabase GEMINI_CAP=60 npm run test:images     # LIVE: all test2/ photos on Supabase (~32 Gemini calls)
+python3 -m unittest discover -s forecast/tests -t .                  # forecast formulas (no database)
 ```
 
 Or one command per test level (details: [docs/testing.md](docs/testing.md)):

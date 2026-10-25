@@ -4,7 +4,7 @@
 
 - **Branch:** `overnight-supabase` (Part B), branched from `supabase-migration` at `350a034`.
 - **Last commit:** `cee58a0` gitignore the Supabase CLI cache
-- **Next step:** Phase 5: update the README and `.env.example`, run the full suite, write `OVERNIGHT_REPORT.md`, commit. Then extra tests for weak spots if time allows.
+- **Next step:** all phases are done; see `OVERNIGHT_REPORT.md`. Optional: more tests for weak spots.
 - **Gemini calls used so far:** 32 of 150.
 - **Long-running processes to restart:** the SAM worker (`.venv/bin/python vision/sam/worker.py`, :8790; `sam2` was pip-installed into `.venv` tonight from the pinned commit) and the SpacetimeDB **copy** on `127.0.0.1:3901`. If it's down:
   `spacetime start --listen-addr 127.0.0.1:3901 --data-dir <scratchpad>/stdb-copy --jwt-pub-key-path ~/.config/spacetime/id_ecdsa.pub --jwt-priv-key-path ~/.config/spacetime/id_ecdsa --non-interactive`.
@@ -37,7 +37,7 @@
 - [x] Phase 2: production sheet reader (backend + review page; mocked Gemini only, no sheet photos in the repo)
 - [x] Phase 3: baseline forecast and prep buffer (worker, evaluation, simulated dataset, 18 unit tests)
 - [x] Phase 4: prep sheets and forecast dashboard
-- [ ] Phase 5: cleanup and report
+- [x] Phase 5: cleanup and report (README, `.env.example`, `OVERNIGHT_REPORT.md`)
 
 ## Gemini call log
 
@@ -231,3 +231,9 @@
   - **Found while checking the dashboard:** with the imported data, "Plates scanned" is 0 for the last 30 days. The 6 imported hall-main scans from Oct 2–4 are listed in Scanned plates as "Not counted in the totals: its pixel counts lack validated mask provenance" (the legacy `sam2_mask_pixel_count` rows). That's how the current code treats this old data; it was **not caused by the migration** (parity verified). Worth deciding whether to re-run those 10 photos through the current pipeline.
   - Tests: analytics +4 (hand-checked WAPE and stockouts), backend +2 (summary route, unavailable, bad params), frontend +3 (tiles, banner, unavailable), forecast +2 (prep sheet banner and escaping).
   - `./test-all.sh`: ALL PASSED (analytics 77, backend 124 + 2 skipped, frontend 137, forecast 20).
+- 22:20. **Phase 5.**
+  - README: Supabase setup with an env-var table, forecasting commands, removing simulated data, and the live Supabase test commands. The old SpacetimeDB setup is kept as "Legacy setup".
+  - `.env.example`: `DATABASE_PROVIDER`, `FORECAST_PORT` and the Vite allow-list note; placeholders only (checked).
+  - Final checks: `./test-all.sh` ALL PASSED; live Supabase system tests 13/13; live repository test 13/13; import dry-run "every count matches" after all of tonight's testing.
+  - Wrote `OVERNIGHT_REPORT.md`.
+  - **Gemini total: 32 of 150.**

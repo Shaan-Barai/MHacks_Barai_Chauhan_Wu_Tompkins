@@ -118,12 +118,14 @@ export class SupabaseRepository implements Repository {
   }
 
   /** Every row matching `filters` (column -> value), paged past PostgREST's row limit. */
-  private async select(table: string, filters: Row = {}, orderBy?: string): Promise<Row[]> {
+  private async select(table: string, filters: Row = {}, orderBy?: string | string[]): Promise<Row[]> {
     const rows: Row[] = [];
     for (let from = 0; ; from += PAGE) {
       let q = this.db.from(table).select('*');
       for (const [col, val] of Object.entries(filters)) q = q.eq(col, val);
-      if (orderBy) q = q.order(orderBy, { ascending: true });
+      for (const col of orderBy === undefined ? [] : Array.isArray(orderBy) ? orderBy : [orderBy]) {
+        q = q.order(col, { ascending: true, nullsFirst: false });
+      }
       const { data, error } = await q.range(from, from + PAGE - 1);
       if (error) this.fail(`select ${table}`, error);
       rows.push(...(data ?? []));
@@ -170,13 +172,14 @@ export class SupabaseRepository implements Repository {
     }
   }
   private toMenuItem(row: Row): MenuItem {
-    const { dishId: _dish, ...item } = fromRow(row);
+    const { dishId: _dish, position: _position, ...item } = fromRow(row);
     return item as MenuItem;
   }
   private async bundles(services: Row[]): Promise<MenuBundle[]> {
     const out: MenuBundle[] = [];
     for (const service of services) {
-      const items = await this.select('menu_item', { menu_id: service.menu_id }, 'item_id');
+      // Upload order, as the menu was entered (SpacetimeDB returned insertion order).
+      const items = await this.select('menu_item', { menu_id: service.menu_id }, ['position', 'item_id']);
       out.push({ service: fromRow(service) as MealService, items: items.map((i) => this.toMenuItem(i)) });
     }
     return out;

@@ -138,6 +138,15 @@ export class SpacetimeRepository implements Repository {
     return result.rows.map((r) => decode(r, rowType) as Row);
   }
 
+  /**
+   * Every row of one table, decoded to camelCase (options none = absent). Used by the
+   * one-time Supabase import (scripts/import-spacetime-to-supabase.mjs); read-only.
+   */
+  async dumpTable(table: string): Promise<Row[]> {
+    if (!/^[a-z_]+$/.test(table)) throw new Error(`bad table name ${table}`);
+    return this.sql(`SELECT * FROM ${table}`);
+  }
+
   /** Readiness: one tiny query proves the server, database and token work. */
   async ping(): Promise<void> {
     await this.sql('SELECT * FROM meal_service LIMIT 1');

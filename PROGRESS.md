@@ -4,7 +4,7 @@
 
 - **Branch:** `supabase-migration` (Part A). Part B moves to `overnight-supabase`, branched from `supabase-migration`.
 - **Last commit:** `cee58a0` gitignore the Supabase CLI cache
-- **Next step:** A4, Step 7: tests (upload→Storage+Postgres path, RLS with the publishable key, totals = sum of scan rows, migration harness in repo), then the live test2 run.
+- **Next step:** A4 (rest), the live test2 run on Supabase (`tests/live/images.test.mjs` adapted). Count Gemini calls. Then commit and start Part B.
 - **Gemini calls used so far:** 0 of 150.
 - **Long-running processes to restart:** the SpacetimeDB **copy** on `127.0.0.1:3901`. If it's down:
   `spacetime start --listen-addr 127.0.0.1:3901 --data-dir <scratchpad>/stdb-copy --jwt-pub-key-path ~/.config/spacetime/id_ecdsa.pub --jwt-priv-key-path ~/.config/spacetime/id_ecdsa --non-interactive`.
@@ -113,3 +113,21 @@
     - Recommendation cache keys use integer pixel counts only, so the 4 stored Gemini insights still match and won't regenerate.
   - **Cleanup:** a first, endpoint-level parity attempt made the Supabase backend cache 14 fallback recommendations as `insight` rows. `GET /api/recommendation` writes a cache row even with `READ_ONLY=1`, which is existing behavior. I deleted exactly those 14 rows (created tonight; IDs not in the source).
   - `./test-all.sh`: ALL PASSED.
+- 21:30. Step 7, tests (all green against the live project):
+  - **`tests/system/supabase-pipeline.test.mjs`** (the twin of the SpacetimeDB system test; per-run hall and `test/<run>/` prefix, all deleted afterwards; fake Gemini and SAM, so **0 real Gemini calls**): **5/5 pass**.
+    - An upload lands in Storage and Postgres stores only its path (provider `supabase`, key under the prefix, row < 800 bytes, no image data).
+    - **Dashboard totals equal the sum of the scan rows** (`/api/dashboard/impact` and `/api/dashboard/totals` against `sumScanRows`).
+    - `record_analysis` is atomic; portions replace; demo data clears only its own rows.
+  - **`tests/system/supabase-rls.test.mjs`** (publishable key): **5/5 pass**.
+    - All 28 tables refuse insert, update and delete with a *permission* error.
+    - All 7 write functions refuse to run.
+    - The 9 private tables are unreadable; the 19 dashboard tables are readable.
+    - The bucket refuses list, upload and signed URLs.
+  - **`tests/integration/supabase-migrations.test.mjs`** (offline, runs in `test-all.sh`): all migrations applied to an in-memory Postgres (PGlite), 27 checks. A deliberately wrong expectation makes it fail, so the checks are real.
+  - **Real bugs the live tests found and fixed:**
+    1. **Demo seeding failed:** sample captures use the sentinel `imageObjectId 'demo:none'` (no photo), which the `capture_event.image_object_id` foreign key rejected. Migration `…09` drops that one FK (index kept); the import's orphan check no longer uses it.
+    2. **"Clear sample data" failed:** Supabase's API role loads `safeupdate`, which refuses a `DELETE` without `WHERE`. Migration `…10` makes `clear_demo_data` say `where true`. The PGlite harness can't load `safeupdate`, so only the live test catches this class of bug.
+  - **Test leftovers cleaned (all created tonight):**
+    - 47 demo markers from the run that hit bug 1.
+    - **The first endpoint-level parity run wrote to both sides.** Dashboard GETs generate simulated attendance on first view, even with `READ_ONLY=1`. That added 9 rows to Supabase and 9 to the *scratch copy* of SpacetimeDB. I deleted the 9 from Supabase and rebuilt the scratch copy from the original folder (the original was never served). Counts are back to exactly the imported numbers, and parity was re-run on the clean copy: 366 reads, 0 differences.
+  - `./test-all.sh`: ALL PASSED (tests 26 now).

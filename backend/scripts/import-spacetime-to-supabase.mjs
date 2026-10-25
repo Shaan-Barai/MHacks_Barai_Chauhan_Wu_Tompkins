@@ -113,7 +113,6 @@ const TABLES = [
 /** Foreign keys checked before loading: [table, column, parent table, parent key]. */
 const FOREIGN_KEYS = [
   ['capture_event', 'service_id', 'meal_service', 'service_id'],
-  ['capture_event', 'image_object_id', 'image_object', 'object_id'],
   ['reference_portion', 'reference_image_object_id', 'image_object', 'object_id'],
   ['camera_calibration', 'image_object_id', 'image_object', 'object_id'],
   ['camera_calibration', 'overlay_object_id', 'image_object', 'object_id'],

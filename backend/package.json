@@ -21,6 +21,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1146.0",
     "@scrap/analytics": "file:../analytics",
     "@scrap/vision": "file:../vision",
+    "@supabase/supabase-js": "^2.118.0",
     "express": "^4.21.2",
     "scrap-data": "file:../data"
   },

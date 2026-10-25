@@ -18,6 +18,7 @@ import { JsonFileRepository } from './repo/jsonFileRepository.js';
 import { SpacetimeRepository } from './repo/spacetimeRepository.js';
 import { LocalDevStorage } from './storage/localDevStorage.js';
 import { R2Storage } from './storage/r2Storage.js';
+import { SupabaseStorage } from './storage/supabaseStorage.js';
 import type { ObjectStorageAdapter } from './storage/objectStorage.js';
 import { ImageService } from './services/imageService.js';
 import { IngestionService } from './services/ingestionService.js';
@@ -55,9 +56,15 @@ export interface BuildOptions {
   now?: () => number;
 }
 
-/** Cloudflare R2 when OBJECT_STORAGE_PROVIDER=r2, else the offline local-dev filesystem. */
+/** Supabase Storage or Cloudflare R2 by OBJECT_STORAGE_PROVIDER, else the offline local-dev filesystem. */
 function createStorage(config: BackendConfig, now: () => number): ObjectStorageAdapter {
   const os = config.objectStorage;
+  if (os.provider === 'supabase') {
+    if (!os.supabase) {
+      throw new Error('OBJECT_STORAGE_PROVIDER=supabase needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.');
+    }
+    return new SupabaseStorage({ ...os, ...os.supabase, bucket: os.container, now });
+  }
   if (os.provider === 'r2') {
     if (!os.r2) {
       throw new Error('OBJECT_STORAGE_PROVIDER=r2 needs R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, and R2_SECRET_ACCESS_KEY.');
@@ -65,7 +72,7 @@ function createStorage(config: BackendConfig, now: () => number): ObjectStorageA
     return new R2Storage({ ...os, ...os.r2, bucket: os.container, now });
   }
   if (os.provider !== 'local-dev') {
-    throw new Error(`Object storage provider '${os.provider}' is not implemented; use 'r2' or 'local-dev'.`);
+    throw new Error(`Object storage provider '${os.provider}' is not implemented; use 'supabase', 'r2' or 'local-dev'.`);
   }
   return new LocalDevStorage({ ...os, now });
 }
@@ -85,8 +92,15 @@ export const physicalLabelSuffix: LabelSuffixFactory = (menu) => {
   };
 };
 
-/** Origins the browser reaches directly for presigned R2 reads/uploads (CSP). */
+/** Origins the browser reaches directly for signed storage reads/uploads (CSP). */
 function storageOrigins(config: BackendConfig): string[] {
+  if (config.objectStorage.provider === 'supabase' && config.objectStorage.supabase) {
+    try {
+      return [new URL(config.objectStorage.supabase.url).origin];
+    } catch {
+      return [];
+    }
+  }
   const r2 = config.objectStorage.provider === 'r2' ? config.objectStorage.r2 : undefined;
   if (!r2) return [];
   try {

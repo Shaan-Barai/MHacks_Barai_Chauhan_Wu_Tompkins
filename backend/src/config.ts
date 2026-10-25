@@ -37,7 +37,7 @@ export interface BackendConfig {
   /** Shared secret sent as X-Worker-Token to the SAM worker (WORKER_TOKEN). */
   workerToken?: string;
   objectStorage: {
-    provider: string; // 'r2' (Cloudflare R2) or 'local-dev' (offline filesystem)
+    provider: string; // 'supabase' (Supabase Storage), 'r2' (Cloudflare R2) or 'local-dev' (offline filesystem)
     container: string;
     localDir: string; // local-dev adapter root; gitignored (.local-storage/)
     allowedMimeTypes: string[];
@@ -47,12 +47,14 @@ export interface BackendConfig {
     /** Uploads never finalized after this long count as orphans. */
     orphanMaxAgeMs: number;
     /**
-     * Prepended to every object key (env R2_KEY_PREFIX), e.g. 'test/' so
+     * Prepended to every object key (env OBJECT_STORAGE_KEY_PREFIX, formerly R2_KEY_PREFIX), e.g. 'test/' so
      * tests write under one prefix they can delete afterwards. '' in normal use.
      */
     keyPrefix?: string;
     /** Cloudflare R2 credentials (provider 'r2'); server-side only. */
     r2?: { accountId: string; accessKeyId: string; secretAccessKey: string; endpoint?: string };
+    /** Supabase project (provider 'supabase'); the service role key is server-side only. */
+    supabase?: { url: string; serviceRoleKey: string };
   };
   /** Optional JSON persistence file for the offline/test repository. */
   dataFile?: string;
@@ -87,7 +89,7 @@ export function keyPrefix(raw: string | undefined): string {
   if (value === '') return '';
   const withSlash = value.endsWith('/') ? value : `${value}/`;
   if (!/^([A-Za-z0-9_-]+\/)+$/.test(withSlash)) {
-    throw new Error("R2_KEY_PREFIX must look like 'test/' (letters, digits, '-', '_', separated by '/').");
+    throw new Error("OBJECT_STORAGE_KEY_PREFIX must look like 'test/' (letters, digits, '-', '_', separated by '/').");
   }
   return withSlash;
 }
@@ -133,7 +135,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BackendConfig 
       provider: env.OBJECT_STORAGE_PROVIDER ?? 'local-dev',
       container: env.OBJECT_STORAGE_CONTAINER ?? 'scrap-images',
       localDir: env.OBJECT_STORAGE_LOCAL_DIR ?? '.local-storage',
-      keyPrefix: keyPrefix(env.R2_KEY_PREFIX),
+      keyPrefix: keyPrefix(env.OBJECT_STORAGE_KEY_PREFIX ?? env.R2_KEY_PREFIX),
       allowedMimeTypes: (env.UPLOAD_ALLOWED_MIME_TYPES ?? 'image/jpeg,image/png,image/webp')
         .split(',')
         .map((s) => s.trim())
@@ -150,6 +152,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BackendConfig 
               secretAccessKey: env.R2_SECRET_ACCESS_KEY,
               endpoint: env.R2_ENDPOINT || undefined,
             }
+          : undefined,
+      supabase:
+        env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY
+          ? { url: env.SUPABASE_URL, serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY }
           : undefined,
     },
     dataFile: env.BACKEND_DATA_FILE || undefined,

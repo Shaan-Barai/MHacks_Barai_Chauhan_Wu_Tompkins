@@ -13,29 +13,50 @@ REPO = Path(__file__).resolve().parent.parent
 CONFIG_PATH = Path(os.environ.get("FORECAST_CONFIG", REPO / "forecast" / "config.toml"))
 
 
+LB_PER_KG = 2.2046226218
+
+
 @dataclass(frozen=True)
 class Settings:
     default_food_cost_usd_per_lb: float
-    running_out_usd_per_lb: dict[str, float]
+    reference_impact_usd_per_kg: float
+    service_level: dict[str, float]
     error_window_days: int
     default_timezone: str
     meals: dict[str, tuple[str, str]]
     factor_files: list[Path]
+    context: dict[str, object]
+
+    @property
+    def reference_cost_over(self) -> float:
+        """Co of a typical dish: default food cost + the reference impact score per lb."""
+        return self.default_food_cost_usd_per_lb + self.reference_impact_usd_per_kg / LB_PER_KG
+
+    def target_q(self, service_style: str) -> float:
+        return self.service_level.get(service_style, self.service_level["other"])
 
     def cost_under(self, service_style: str) -> float:
-        return self.running_out_usd_per_lb.get(service_style, self.running_out_usd_per_lb["other"])
+        """Cu per lb short, chosen so a typical dish of this style gets exactly its service level."""
+        q = self.target_q(service_style)
+        return q / (1.0 - q) * self.reference_cost_over
 
 
 @lru_cache(maxsize=4)
 def load_settings(path: str | None = None) -> Settings:
     raw = tomllib.loads(Path(path or CONFIG_PATH).read_text())
+    levels = {k: float(v) for k, v in raw["service_level"].items()}
+    for style, q in levels.items():
+        if not 0.5 <= q < 1.0:
+            raise ValueError(f"service_level.{style} = {q}: use a value from 0.5 up to (not including) 1")
     return Settings(
         default_food_cost_usd_per_lb=float(raw["costs"]["default_food_cost_usd_per_lb"]),
-        running_out_usd_per_lb={k: float(v) for k, v in raw["costs"]["running_out_usd_per_lb"].items()},
+        reference_impact_usd_per_kg=float(raw["costs"]["reference_impact_usd_per_kg"]),
+        service_level=levels,
         error_window_days=int(raw["model"]["error_window_days"]),
         default_timezone=str(raw["model"]["default_timezone"]),
         meals={k: (v[0], v[1]) for k, v in raw["meals"].items()},
         factor_files=[REPO / f for f in raw["factors"]["files"]],
+        context=dict(raw.get("context", {})),
     )
 
 

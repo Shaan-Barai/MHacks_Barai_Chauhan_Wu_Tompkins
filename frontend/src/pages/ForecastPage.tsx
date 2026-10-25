@@ -66,10 +66,15 @@ function ForecastBody({ data }: { data: Extract<ForecastSummary, { available: tr
   }
   return (
     <>
-      <Totals t={t} />
+      <Totals t={t} label={data.comparisonLabel} />
       <DishTable data={data} />
-      <Upcoming rows={data.upcoming} />
+      <Upcoming rows={data.upcoming} label={data.comparisonLabel} />
       <p className="text-sm text-thyme">
+        {data.comparisonLabel !== 'FSS' && (
+          <>
+            “{data.comparisonLabel}” stands in for the dining hall’s FSS forecast until a real FSS export is loaded; it is not real FSS data.{' '}
+          </>
+        )}
         Error is the weighted absolute % difference between forecast and what was used, on meals that did not run out (when a dish runs out, true demand is
         unknown). A stockout is a meal where that amount would not have been enough. Dollar amounts are food cost plus each dish’s Waste Impact Score.
         Model {data.model}.
@@ -78,12 +83,12 @@ function ForecastBody({ data }: { data: Extract<ForecastSummary, { available: tr
   )
 }
 
-function Totals({ t }: { t: ForecastComparison }) {
+function Totals({ t, label }: { t: ForecastComparison; label: string }) {
   const traySource = t.trayWasteSources.includes('simulated') ? 'simulated' : t.trayWasteSources.length ? 'from calibrated scans (estimate)' : 'needs calibrated scans'
   return (
     <section aria-label="Forecast results for the selected days" className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-      <Tile title="Forecast error: ours vs. FSS" value={`${pct(t.ourWape)} vs. ${pct(t.fssWape)}`} detail={`over ${formatNumber(t.meals - t.ranOutMeals)} meals that did not run out`} />
-      <Tile title="Stockouts: ours vs. FSS" value={`${formatNumber(t.ourStockouts)} vs. ${t.fssStockouts === null ? '—' : formatNumber(t.fssStockouts)}`} detail={`${formatNumber(t.ranOutMeals)} of ${formatNumber(t.meals)} meals actually ran out`} />
+      <Tile title={`Forecast error: ours vs. ${label}`} value={`${pct(t.ourWape)} vs. ${pct(t.fssWape)}`} detail={`over ${formatNumber(t.meals - t.ranOutMeals)} meals that did not run out`} />
+      <Tile title={`Stockouts: ours vs. ${label}`} value={`${formatNumber(t.ourStockouts)} vs. ${t.fssStockouts === null ? '—' : formatNumber(t.fssStockouts)}`} detail={`${formatNumber(t.ranOutMeals)} of ${formatNumber(t.meals)} meals actually ran out`} />
       <Tile title="Pan leftover" value={lb(t.panLeftoverLb)} detail={`${usd(t.panLeftoverUsd)} · our forecast would have left ${lb(t.ourWouldLeaveLb)}`} />
       <Tile title="Tray waste" value={lb(t.trayWasteLb)} detail={`${usd(t.trayWasteUsd)} · ${traySource}`} />
     </section>
@@ -102,9 +107,9 @@ function DishTable({ data }: { data: Extract<ForecastSummary, { available: true 
             <tr className="border-b-2 border-linen text-sm">
               <th className="py-2 pr-3">Dish</th>
               <th className="pr-3 text-right">Our prep</th>
-              <th className="pr-3 text-right">FSS</th>
+              <th className="max-w-[9rem] pr-3 text-right">{data.comparisonLabel}</th>
               <th className="pr-3 text-right">Used</th>
-              <th className="pr-3 text-right">Error ours / FSS</th>
+              <th className="pr-3 text-right">Error ours / {data.comparisonLabel === 'FSS' ? 'FSS' : 'sim. FSS'}</th>
               <th className="pr-3 text-right">Ran out</th>
               <th className="pr-3 text-right">Pan leftover</th>
               <th className="text-right">Tray waste</th>
@@ -117,13 +122,13 @@ function DishTable({ data }: { data: Extract<ForecastSummary, { available: true 
                   {d.displayName}
                   {d.simulated && <span className="ml-1 text-sm">(simulated)</span>}
                 </td>
-                <td className="pr-3 text-right tabular-nums">{lb(d.avgRecommendedPrepLb)}</td>
-                <td className="pr-3 text-right tabular-nums">{lb(d.avgFssLb)}</td>
-                <td className="pr-3 text-right tabular-nums">{lb(d.avgConsumedLb)}</td>
-                <td className="pr-3 text-right tabular-nums">{pct(d.ourWape)} / {pct(d.fssWape)}</td>
-                <td className="pr-3 text-right tabular-nums">{formatNumber(d.ranOutMeals)} of {formatNumber(d.meals)}</td>
-                <td className="pr-3 text-right tabular-nums">{lb(d.panLeftoverLb)}<span className="block text-sm">{usd(d.panLeftoverUsd)}</span></td>
-                <td className="text-right tabular-nums">{lb(d.trayWasteLb)}<span className="block text-sm">{usd(d.trayWasteUsd)}</span></td>
+                <td className="whitespace-nowrap pr-3 text-right tabular-nums">{lb(d.avgRecommendedPrepLb)}</td>
+                <td className="whitespace-nowrap pr-3 text-right tabular-nums">{lb(d.avgFssLb)}</td>
+                <td className="whitespace-nowrap pr-3 text-right tabular-nums">{lb(d.avgConsumedLb)}</td>
+                <td className="whitespace-nowrap pr-3 text-right tabular-nums">{pct(d.ourWape)} / {pct(d.fssWape)}</td>
+                <td className="whitespace-nowrap pr-3 text-right tabular-nums">{formatNumber(d.ranOutMeals)} of {formatNumber(d.meals)}</td>
+                <td className="whitespace-nowrap pr-3 text-right tabular-nums">{lb(d.panLeftoverLb)}<span className="block text-sm">{usd(d.panLeftoverUsd)}</span></td>
+                <td className="whitespace-nowrap text-right tabular-nums">{lb(d.trayWasteLb)}<span className="block text-sm">{usd(d.trayWasteUsd)}</span></td>
               </tr>
             ))}
           </tbody>
@@ -133,7 +138,7 @@ function DishTable({ data }: { data: Extract<ForecastSummary, { available: true 
   )
 }
 
-function Upcoming({ rows }: { rows: UpcomingForecast[] }) {
+function Upcoming({ rows, label }: { rows: UpcomingForecast[]; label: string }) {
   if (rows.length === 0) return null
   const mealOrder: Record<string, number> = { breakfast: 0, lunch: 1, dinner: 2 }
   const sorted = [...rows].sort((a, b) => a.serviceDate.localeCompare(b.serviceDate) || (mealOrder[a.mealLabel] ?? 9) - (mealOrder[b.mealLabel] ?? 9))
@@ -158,7 +163,7 @@ function Upcoming({ rows }: { rows: UpcomingForecast[] }) {
                     <span className="min-w-[14rem] font-medium">{r.displayName}{r.simulated && <span className="ml-1 text-sm font-normal">(simulated)</span>}</span>
                     <span className="tabular-nums font-bold">{lb(r.recommendedPrepLb)}</span>
                     <span className="tabular-nums text-sm">range {lb(r.lowLb)}–{lb(r.highLb)}</span>
-                    {r.fssForecastLb !== null && <span className="tabular-nums text-sm">FSS {lb(r.fssForecastLb)}</span>}
+                    {r.fssForecastLb !== null && <span className="tabular-nums text-sm">{label}: {lb(r.fssForecastLb)}</span>}
                     {r.why && <span className="basis-full text-sm text-thyme">{r.why}</span>}
                   </li>
                 ))}

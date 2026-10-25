@@ -17,8 +17,10 @@ What the simulation assumes (all invented, documented so nobody mistakes it):
     -20% at dinner on simulated home-game Saturdays, +8% in the simulated
     exam week; swipes spread over 15-minute intervals with a midday peak.
   * True demand = diners x take rate x portion lb x random noise (sd ~18%).
-  * The kitchen preps what a simulated "FSS" forecast says: the average demand
-    x 1.25 x noise (it over-preps and ignores attendance swings).
+  * The kitchen preps what a "Simulated FSS (assumed +25% over-prep)" forecast
+    says: the average demand x 1.25 x noise (it over-preps and ignores
+    attendance swings). It stands in for the real FSS forecast until an export
+    is available, and is always labeled that way.
   * Ran out when demand > prepped (time scaled within the meal); leftover =
     prepped - demand otherwise. Tray waste is a fixed 4-14% of eaten food per dish.
 """
@@ -201,7 +203,7 @@ def generate(db: Supabase, hall_id: str, end: date, weeks: int = 6, seed: str = 
                 fss_rows.append({
                     "hall_id": hall_id, "service_date": day.isoformat(), "meal_label": m, "dish_id": d,
                     "recommended_prep_lb": fss, "fss_forecast_lb": fss, "model_version": "fss", "basis": "fss",
-                    "why": "Simulated FSS (existing system) forecast.", "is_simulated": True,
+                    "why": "Simulated FSS (assumed +25% over-prep): stands in for the real FSS forecast.", "is_simulated": True,
                 })
                 if not past:
                     continue

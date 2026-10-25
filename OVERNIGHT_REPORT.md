@@ -35,11 +35,10 @@ untouched**. The step-by-step log, with every number, is in [PROGRESS.md](PROGRE
      differences).
    - If you want them counted, re-run those photos through the current pipeline (about 2–3 Gemini calls
      each).
-5. **Self-serve dishes run short about 55% of the time by design.**
-   - With the default costs in `forecast/config.toml`, self-serve gets q ≈ 0.42, on the assumption that
-     staff refill it.
-   - If running out of soup or salad is worse than that, raise `running_out_usd_per_lb.self_serve`.
-   - Entrées are q ≈ 0.85 and sides q ≈ 0.60, as asked.
+5. ~~Self-serve dishes run short about 55% of the time by design.~~ **Superseded (2026-10-25 follow-up):**
+   the defaults are now conservative service levels (entrée 0.95, side 0.90, self-serve 0.85, dessert
+   0.85), and the unconfirmed "staff refill self-serve" assumption is gone. See the corrected table in
+   section 1.
 6. **No production-sheet photo exists in the repo**, so the sheet reader was tested only with mocked
    Gemini answers. Upload one real sheet on `/production` to see how it reads handwriting.
 7. **This Mac's SpacetimeDB data is from an older module version.** It lacks seven later tables, so the
@@ -105,23 +104,28 @@ untouched**. The step-by-step log, with every number, is in [PROGRESS.md](PROGRE
 - **Phase 4:**
   - Printable prep sheets (one HTML page per station per meal, with a SIMULATED banner when relevant).
   - `GET /api/forecast/summary` (formulas in `analytics/`; reproduces the Python evaluation exactly).
-  - New **Forecast** page: ours vs. FSS error and stockouts, pan leftover and tray waste in lb and $,
+  - New **Forecast** page: ours vs. the comparison forecast (labeled "Simulated FSS (assumed +25% over-prep)" while it is simulated): error and stockouts, pan leftover and tray waste in lb and $,
     per-dish forecast vs. actual, the next 7 days to prep, and the SIMULATED DATA banner. Checked in
     Chrome at desktop and phone width.
 - **Phase 5:** README (Supabase setup, env vars, workers, tests, removing simulated data),
   `.env.example` (placeholders only), this report.
 
-**Simulated results.** These are SIMULATED and say nothing about a real hall. Backtest of 336 dish-meals,
-2026-09-26 to 10-23:
+**Simulated results.** These are SIMULATED and say nothing about a real hall. The comparison forecast
+is the simulator's stand-in, **"Simulated FSS (assumed +25% over-prep)"**, not real FSS data.
 
-| | Ours (`baseline-v1`) | FSS |
-|---|---|---|
-| Forecast error (WAPE) | 18.2% | 40.9% |
-| Stockouts | 132 | 58 |
-| Pan leftover | would leave 1,838 lb | 4,680 lb ($23,796) |
+> **Corrected 2026-10-25.** Last night's table compared pan leftover at very different stockout counts
+> (132 vs. 58), which is apples to oranges, and used defaults that assumed staff refill self-serve. The
+> table below uses the new conservative defaults and adds a fair comparison at matched stockouts.
+> Backtest of 336 dish-meals, 2026-09-26 to 10-23.
 
-Our stockout rate matches the configured target for each dish type (entrée 22% vs. 21%, side 39% vs.
-35%, self-serve 56% vs. 55%).
+| | Ours, new defaults (mean q 0.90) | Ours, matched stockouts (mean q 0.84) | Simulated FSS (assumed +25% over-prep) |
+|---|---|---|---|
+| Forecast error (WAPE) | 18.2% | 18.2% | 40.9% |
+| Stockouts | 41 | 58 | 58 |
+| Leftover (meals that did not run out) | 3,973 lb · $20,054 | 3,356 lb · $16,715 | 4,680 lb · $23,796 |
+
+At matched stockouts, ours leaves 1,324 lb (28%) and $7,081 (30%) less than the simulated FSS. These
+numbers come from simulated data and do not show a real-world gain.
 
 ## 2. What didn't get done, and why
 
@@ -173,7 +177,7 @@ Our stockout rate matches the configured target for each dish type (entrée 22% 
     - WAPE scores our demand forecast; stockouts and leftovers score our prep amount.
     - Expected diners have no exam-week, game or holiday adjustment yet (the data is stored for later).
 12. **Simulated data lives on `hall-main`, flagged.** Its assumptions are listed at the top of
-    `forecast/simulate.py`, including an FSS that over-preps by about 25%. I recalibrated it once
+    `forecast/simulate.py`, including a "Simulated FSS (assumed +25% over-prep)" comparison forecast. I recalibrated it once
     because the first version ran out on 38% of meals.
 13. **Installed the `sam2` package into `.venv`** (`--no-deps`, at the commit pinned in
     `vision/sam/requirements.txt`) so the live test2 run could use SAM. No other package versions

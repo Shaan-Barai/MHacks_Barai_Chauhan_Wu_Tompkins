@@ -625,6 +625,8 @@ export type ForecastSummary =
       hallId: string
       window: { start: string; end: string }
       model: string
+      /** Name for the comparison forecast: 'FSS', or 'Simulated FSS (assumed +25% over-prep)' for the simulator's stand-in. */
+      comparisonLabel: string
       /** Any simulated row shown: the page must show the SIMULATED DATA banner. */
       simulated: boolean
       totals: ForecastComparison

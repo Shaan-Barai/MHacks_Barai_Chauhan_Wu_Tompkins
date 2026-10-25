@@ -11,7 +11,7 @@ const totals = {
   panLeftoverLb: 40, panLeftoverUsd: 203.2, trayWasteLb: null, trayWasteUsd: null, trayWasteSources: [], simulated: false,
 }
 const real: ForecastSummary = {
-  available: true, hallId: 'hall-main', window: { start: '2026-10-01', end: '2026-10-23' }, model: 'baseline-v1', simulated: false,
+  available: true, hallId: 'hall-main', window: { start: '2026-10-01', end: '2026-10-23' }, model: 'baseline-v1', comparisonLabel: 'FSS', simulated: false,
   totals,
   dishes: [{ ...totals, dishId: 'rice', displayName: 'Sticky Rice', serviceStyle: 'side', avgRecommendedPrepLb: 38, avgFssLb: null, avgConsumedLb: 36.1 }],
   upcoming: [{ serviceDate: '2026-10-25', mealLabel: 'lunch', dishId: 'rice', displayName: 'Sticky Rice', recommendedPrepLb: 38.5, lowLb: 29, highLb: 44, fssForecastLb: null, expectedDiners: 690, why: 'Sticky Rice: 36 lb expected.', simulated: false }],
@@ -35,9 +35,13 @@ describe('Forecast', () => {
   })
 
   it('shows the SIMULATED DATA banner whenever simulated rows are shown', async () => {
-    vi.mocked(getForecastSummary).mockResolvedValue({ ...real, simulated: true, totals: { ...totals, simulated: true, trayWasteLb: 5, trayWasteUsd: 25, trayWasteSources: ['simulated'] } })
+    vi.mocked(getForecastSummary).mockResolvedValue({ ...real, comparisonLabel: 'Simulated FSS (assumed +25% over-prep)', simulated: true, totals: { ...totals, simulated: true, trayWasteLb: 5, trayWasteUsd: 25, trayWasteSources: ['simulated'] } })
     render(<ForecastPage />)
     expect(await screen.findByRole('note')).toHaveTextContent(/Simulated data/i)
+    // The simulated comparison is never called plain "FSS".
+    expect(screen.getByLabelText('Forecast error: ours vs. Simulated FSS (assumed +25% over-prep): 18% vs. 41%')).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Simulated FSS (assumed +25% over-prep)' })).toBeInTheDocument()
+    expect(screen.getByText(/it is not real FSS data/)).toBeInTheDocument()
     expect(screen.getByText(/· simulated/)).toBeInTheDocument()
   })
 

@@ -19,6 +19,7 @@ from forecast.model import (
     expected_diners,
     make_forecast,
     newsvendor_q,
+    shift_q,
     prep_from_errors,
     quantile,
     relative_errors,
@@ -74,6 +75,16 @@ class Newsvendor(unittest.TestCase):
         self.assertLess(low, 100.0)
         self.assertGreater(high, 100.0)
 
+    def test_shift_q_moves_every_level_together_and_keeps_their_order(self):
+        self.assertEqual(shift_q(0.9, 0.0), 0.9)
+        levels = [0.85, 0.90, 0.95]
+        for shift in (-2.0, -0.5, 0.5, 2.0):
+            moved = [shift_q(q, shift) for q in levels]
+            self.assertEqual(moved, sorted(moved), "order kept")
+            self.assertTrue(all(0 < q < 1 for q in moved))
+            self.assertTrue(all((m > q) == (shift > 0) for m, q in zip(moved, levels)))
+        self.assertAlmostEqual(shift_q(shift_q(0.9, 1.3), -1.3), 0.9)
+
     def test_prep_never_negative(self):
         self.assertEqual(prep_from_errors(10.0, [-2.0] * 6, 0.1)[0], 0.0)
 
@@ -86,10 +97,14 @@ class Newsvendor(unittest.TestCase):
 
     def test_config_defaults_give_the_target_service_levels(self):
         s = load_settings()
-        co = cost_of_waste_per_lb(s.default_food_cost_usd_per_lb, 2.40)
-        self.assertAlmostEqual(newsvendor_q(s.cost_under("entree"), co), 0.85, places=2)
-        self.assertAlmostEqual(newsvendor_q(s.cost_under("side"), co), 0.60, places=2)
-        self.assertLess(newsvendor_q(s.cost_under("self_serve"), co), 0.5)
+        co = s.reference_cost_over  # a typical dish: default food cost + reference impact score
+        self.assertAlmostEqual(newsvendor_q(s.cost_under("entree"), co), 0.95)
+        self.assertAlmostEqual(newsvendor_q(s.cost_under("side"), co), 0.90)
+        self.assertAlmostEqual(newsvendor_q(s.cost_under("self_serve"), co), 0.85)
+        self.assertAlmostEqual(newsvendor_q(s.cost_under("dessert"), co), 0.85)
+        self.assertAlmostEqual(newsvendor_q(s.cost_under("unknown-style"), co), 0.90, msg="falls back to 'other'")
+        # A high-impact dish (ham, $5.07/kg) gets a slightly lower q than a typical entree.
+        self.assertLess(newsvendor_q(s.cost_under("entree"), cost_of_waste_per_lb(3.0, 5.07)), 0.95)
         self.assertEqual(impact_score_for("Baked Boneless Ham"), 5.07)
         self.assertIsNone(impact_score_for("Not A Food"))
 

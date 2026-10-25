@@ -1,26 +1,41 @@
 # Forecast worker settings (forecast/README.md). Costs are per POUND of food.
 #
-# Newsvendor prep buffer: recommended prep = the q-th percentile of demand, with
-#   q = Cu / (Cu + Co)
-#   Cu = cost of running out (per lb short): an unhappy diner, a substitute dish,
-#        staff cooking a rush batch. Set per service style below.
+# Newsvendor prep buffer: recommended prep = the q-th percentile of demand,
+#   q = Cu / (Cu + Co)     ("how often prep should cover demand")
 #   Co = cost of one wasted lb = food cost + the dish's Waste Impact Score
-#        (impact_score_usd_per_kg in factors/menu_waste_factors_*.csv, / 2.2046).
+#        (impact_score_usd_per_kg in factors/menu_waste_factors_*.csv, / 2.2046)
+#   Cu = cost of running out per lb, derived from the service level below.
 #
-# With the defaults (food cost $3.00/lb, a typical impact score of ~$2.40/kg =
-# ~$1.09/lb, so Co ~ $4.09/lb): entree q ~ 0.85, side q ~ 0.60, self-serve
-# q ~ 0.42, dessert q ~ 0.45. A dish with a higher impact score gets a slightly
-# lower q (wasting it costs more). Change these to match the hall's priorities.
+# The service levels are conservative STARTING POINTS a kitchen manager can
+# accept: running out is visible to diners and hard to fix mid-meal, so prep
+# covers demand most of the time. They are not tuned on real data (there is
+# none yet); revisit them once real production sheets exist. No assumption is
+# made that staff refill any station mid-meal (M-Dining has not confirmed one).
+#
+# Each level applies to a dish with the reference waste cost below; a dish whose
+# Waste Impact Score is higher gets a slightly lower q (wasting it costs more),
+# a lower-impact dish a slightly higher one.
+
+[service_level]
+# Entrées: the main thing a diner came for; running out means a visible
+# substitute or a rushed batch. Cover demand 95% of meals.
+entree = 0.95
+# Sides: still noticed when gone, but easier to substitute. 90%.
+side = 0.90
+# Self-serve (soup, salad bar): diners expect it to be there all meal; without
+# a confirmed mid-meal refill routine, treat it almost like a side. 85%.
+self_serve = 0.85
+# Desserts: lower priority than the meal itself, but an empty tray still draws
+# complaints. 85%.
+dessert = 0.85
+# Anything not classified yet: the side level.
+other = 0.90
 
 [costs]
 default_food_cost_usd_per_lb = 3.00
-
-[costs.running_out_usd_per_lb]
-entree = 23.20
-side = 6.15
-self_serve = 3.00
-dessert = 3.35
-other = 6.15
+# A typical dish's Waste Impact Score (USD/kg); the service levels above are
+# exact for a dish with this score and the default food cost.
+reference_impact_usd_per_kg = 2.40
 
 [model]
 # Days of history used for the walk-forward error spread.

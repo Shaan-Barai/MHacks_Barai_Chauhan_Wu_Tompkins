@@ -64,6 +64,15 @@ def newsvendor_q(cost_under: float, cost_over: float) -> float:
     return cost_under / (cost_under + cost_over)
 
 
+def shift_q(q: float, shift: float) -> float:
+    """Move a service level by `shift` in log-odds (0 = unchanged). Used to tune every dish's q
+    together while keeping their differences, e.g. to match another forecast's stockouts."""
+    if shift == 0.0:
+        return q
+    x = math.log(q / (1.0 - q)) + shift
+    return 1.0 / (1.0 + math.exp(-x))
+
+
 def quantile(values: list[float], q: float) -> float:
     """Linear-interpolated q-quantile (the usual 'type 7'); q in [0, 1]."""
     if not values:
@@ -289,13 +298,14 @@ def make_forecast(
     cost_over: float,
     tray_waste_share: float | None,
     errors: list[float],
+    q_shift: float = 0.0,
 ) -> Forecast | None:
     b = baseline(history, target, meal, dish_id, cycle_start, weeks)
     if b is None:
         return None
     diners = expected_diners(attendance, target, meal)
     demand, scale = scaled_demand(b, diners)
-    q = newsvendor_q(cost_under, cost_over)
+    q = shift_q(newsvendor_q(cost_under, cost_over), q_shift)
     prep, low, high, method = prep_from_errors(demand, errors, q)
     share = tray_waste_share if tray_waste_share is not None else 0.0
     eaten = waste_adjusted(demand, share)

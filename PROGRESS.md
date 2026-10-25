@@ -4,7 +4,7 @@
 
 - **Branch:** `overnight-supabase` (Part B), branched from `supabase-migration` at `350a034`.
 - **Last commit:** `cee58a0` gitignore the Supabase CLI cache
-- **Next step:** all phases are done; see `OVERNIGHT_REPORT.md`. Optional: more tests for weak spots.
+- **Next step:** Follow-up task 3: GET requests must never write (simulated attendance and recommendation cache). Add a row-count test and clean up rows the GETs created after the import.
 - **Gemini calls used so far:** 32 of 150.
 - **Long-running processes to restart:** the SAM worker (`.venv/bin/python vision/sam/worker.py`, :8790; `sam2` was pip-installed into `.venv` tonight from the pinned commit) and the SpacetimeDB **copy** on `127.0.0.1:3901`. If it's down:
   `spacetime start --listen-addr 127.0.0.1:3901 --data-dir <scratchpad>/stdb-copy --jwt-pub-key-path ~/.config/spacetime/id_ecdsa.pub --jwt-priv-key-path ~/.config/spacetime/id_ecdsa --non-interactive`.
@@ -248,3 +248,35 @@
   - Live Supabase system tests: 13/13 pass, none skipped.
   - The backend started from `.env` alone reports `persistence: Supabase Postgres`, `storage: supabase`, and `/api/ready` is green (database, Storage, SAM worker, Gemini). Plates and forecast data are served from Supabase.
   - **Open item:** `.env` has `OBJECT_STORAGE_PROVIDER` twice (`local-dev`, then `supabase`). Shell `source` and Node keep the last value; loaders that keep the first (such as `forecast/db.py`'s) get `local-dev`. Delete the `local-dev` line.
+
+## Follow-up (2026-10-25): tasks 2, 3, 4, 6, 7 on `overnight-supabase`
+
+The user confirmed in their own words: do tasks 2–7, task 1 is already done, and **skip task 5** (no production-sheet photo yet). The duplicate `OBJECT_STORAGE_PROVIDER=local-dev` line is gone from `.env` (checked: one line, `supabase`).
+
+- **Decision:** the SAM worker (:8790) and the scratch SpacetimeDB copy (:3901) stay running until the end. Task 4 needs SAM, and task 3 needs the untouched import source to tell imported rows from rows created later by GETs. Both are stopped when the follow-up is done.
+- **Task 5 skipped:** there is no production-sheet photo yet. The sheet reader has still only been tested with mocked Gemini answers.
+- **Task 2 done: a fair forecast comparison.**
+  - **New defaults** (`forecast/config.toml`): service levels are now stated directly, each with a comment explaining it. Entrée 0.95, side 0.90, self-serve 0.85, dessert 0.85, other 0.90.
+    - Cu per dish type is derived so a typical dish (reference impact $2.40/kg) gets exactly that q. Higher-impact dishes get slightly lower q; ham's entrée q is 0.936.
+    - **The unconfirmed "staff refill self-serve" assumption is removed.** No station is assumed to be refilled mid-meal.
+  - **Matched-stockouts mode** (`python3 -m forecast.evaluate`, now `--mode default|matched|both`): one shared log-odds shift of every dish's q, found by bisection as the smallest shift with our stockouts ≤ the comparison forecast's. Leftover lb and $ are then compared with the same formula for both (meals that did not run out). In memory; writes nothing.
+  - **Label:** whenever the comparison rows are the simulator's, they are "Simulated FSS (assumed +25% over-prep)" everywhere:
+    - evaluation output (`comparisonLabel`);
+    - the API (`comparisonLabel`);
+    - Forecast page tiles, table header, the next-week list, and a footnote "not real FSS data";
+    - the simulator's docstring and the `why` text of its 588 FSS rows (updated in place).
+    - **Prep sheets never show the comparison forecast**, so nothing to relabel there.
+  - **Re-run (all SIMULATED, 336 dish-meals, 2026-09-26 to 10-23):**
+
+    | | Ours, new defaults (mean q 0.902) | Ours, matched stockouts (shift −0.539, mean q 0.844) | Simulated FSS (assumed +25% over-prep) |
+    |---|---|---|---|
+    | WAPE | 18.2% | 18.2% | 40.9% |
+    | Stockouts | 41 | 58 | 58 |
+    | Leftover lb | 3,973 | 3,356 | 4,680 |
+    | Leftover $ | $20,054 | $16,715 | $23,796 |
+
+    At matched stockouts, ours leaves 28% fewer lb and 30% fewer $ (simulated, not a real-world claim). At the new defaults ours has **fewer** stockouts (41 vs. 58) and less leftover.
+  - Tests: forecast +1 (q shift keeps order and moves together) and the updated defaults test; backend +1 (a real FSS export is labeled "FSS"); frontend: the simulated label replaces "FSS" in tiles and header.
+  - The page was checked in Chrome. Fixed numeric cells wrapping ("53.7 / lb").
+  - OVERNIGHT_REPORT.md: the results table is replaced (marked "Corrected 2026-10-25"), and the self-serve item is struck through and superseded.
+  - `./test-all.sh`: ALL PASSED.

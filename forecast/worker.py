@@ -44,8 +44,11 @@ def _dates(start: date, end: date):
         d += timedelta(days=1)
 
 
-def build_forecasts(data: HallData, start: date, end: date, meals: tuple[str, ...] = MEALS) -> tuple[list[dict], list[str]]:
-    """Forecast rows for every dish x meal in [start, end], each using only data before its date."""
+def build_forecasts(
+    data: HallData, start: date, end: date, meals: tuple[str, ...] = MEALS, q_shift: float = 0.0
+) -> tuple[list[dict], list[str]]:
+    """Forecast rows for every dish x meal in [start, end], each using only data before its date.
+    `q_shift` moves every dish's service level in log-odds (evaluation's matched-stockouts mode)."""
     s = load_settings()
     rows: list[dict] = []
     skipped: list[str] = []
@@ -69,7 +72,7 @@ def build_forecasts(data: HallData, start: date, end: date, meals: tuple[str, ..
                     history=data.history, attendance=data.attendance, target=day, meal=meal, dish_id=dish_id,
                     dish_name=dish.display_name, portion_lb=dish.portion_lb, cycle_start=data.cycle_start, weeks=data.cycle_weeks,
                     cost_under=s.cost_under(dish.service_style), cost_over=co,
-                    tray_waste_share=data.tray_waste_share.get(dish_id), errors=errors,
+                    tray_waste_share=data.tray_waste_share.get(dish_id), errors=errors, q_shift=q_shift,
                 )
                 if fc is None:
                     skipped.append(f"{day} {meal} {dish_id}: no history yet")

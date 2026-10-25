@@ -697,7 +697,7 @@ export async function getForecastSummary(start: string, end: string): Promise<Fo
   await wait()
   const base = { ranOutMeals: 2, trayWasteSources: ['simulated'], simulated: true }
   return {
-    available: true, hallId: 'hall-main', window: { start, end }, model: 'baseline-v1', simulated: true,
+    available: true, hallId: 'hall-main', window: { start, end }, model: 'baseline-v1', comparisonLabel: 'Simulated FSS (assumed +25% over-prep)', simulated: true,
     totals: { ...base, meals: 24, ourWape: 0.18, fssWape: 0.41, ourStockouts: 6, fssStockouts: 2, ourWouldLeaveLb: 61.5, panLeftoverLb: 140.2, panLeftoverUsd: 712.4, trayWasteLb: 31.9, trayWasteUsd: 162.1 },
     dishes: [
       { ...base, dishId: 'sim-baked-boneless-ham', displayName: 'Baked Boneless Ham', serviceStyle: 'entree', meals: 12, ourWape: 0.15, fssWape: 0.38, ourStockouts: 2, fssStockouts: 1, ourWouldLeaveLb: 30.1, panLeftoverLb: 80.4, panLeftoverUsd: 425.0, trayWasteLb: 18.2, trayWasteUsd: 96.2, avgRecommendedPrepLb: 54.1, avgFssLb: 61.0, avgConsumedLb: 47.3 },

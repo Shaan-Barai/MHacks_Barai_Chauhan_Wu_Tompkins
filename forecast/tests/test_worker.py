@@ -20,7 +20,7 @@ def hall(history, *, simulated_dish=False, attendance=None, menu_cycle=None):
             "ham": Dish("ham", "Baked Boneless Ham", "entree", 0.38, None, "Baked Boneless Ham", False),
         },
         history=history, attendance=attendance or {}, attendance_simulated=False,
-        menu_cycle=menu_cycle or {}, menu_cycle_simulated=False, fss={}, tray_waste_share={}, notes=[],
+        menu_cycle=menu_cycle or {}, menu_cycle_simulated=False, fss={}, fss_simulated=False, tray_waste_share={}, notes=[],
     )
 
 

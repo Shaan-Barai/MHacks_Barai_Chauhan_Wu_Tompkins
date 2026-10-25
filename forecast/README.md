@@ -44,22 +44,40 @@ Environment: `SUPABASE_URL` (the API address, `https://<ref>.supabase.co`),
    scans (calibrated area × the dish's g/cm² from the factors table) and only for meals where scans
    cover at least 80% of diners. Otherwise it is 0, and the worker says so in its notes.
 5. **Prep buffer (newsvendor):** recommended prep = the q-th percentile of demand, with
-   q = Cu ÷ (Cu + Co). Cu = cost of running out per lb (per service style, `config.toml`). Co = food
+   q = Cu ÷ (Cu + Co). Cu = cost of running out per lb, derived from the service level for the dish's
+   type in `config.toml` (so a typical dish gets exactly that level). Co = food
    cost + the dish's Waste Impact Score (`impact_score_usd_per_kg` in `factors/menu_waste_factors_*.csv`,
    ÷ 2.2046). The percentile comes from this model's walk-forward relative errors over the last 42 days;
    with fewer than 5 errors it uses a ±25% normal spread. Low/high = the 10th/90th percentiles.
-   Default costs give q ≈ 0.85 for entrées, 0.60 for sides and 0.42 for self-serve.
+   **Default service levels** (conservative starting points, explained in `config.toml`): entrée 0.95,
+   side 0.90, self-serve 0.85, dessert 0.85. A dish with a higher Waste Impact Score gets a slightly
+   lower q. No mid-meal refill of any station is assumed.
 
-Each `forecast` row stores its demand, q, basis and a one-line `why`. FSS forecasts (the existing
-system's) are stored as `forecast` rows with `model_version = 'fss'`.
+Each `forecast` row stores its demand, q, basis and a one-line `why`. The comparison forecast (the
+dining hall's FSS) is stored as `forecast` rows with `model_version = 'fss'`. While those rows come from
+the simulator they are labeled **"Simulated FSS (assumed +25% over-prep)"** everywhere: the evaluation
+output, the API (`comparisonLabel`) and the Forecast page. Real FSS numbers replace them once an export
+exists.
 
 ## Evaluation (`evaluate.py`)
 
+Two modes, both printed by default (`--mode default|matched|both`):
+
+- **default:** our stored forecasts at the configured service levels vs. the comparison forecast.
+  Writes `forecast_outcome`.
+- **matched:** a fair leftover comparison. Every dish's q moves together (one shared shift in
+  log-odds, so dish types keep their differences) until our stockouts are no more than the comparison
+  forecast's. Then leftover lb and $ are compared at equal stockouts. Computed in memory; writes
+  nothing.
+
+Metrics:
+
 - **WAPE:** Σ|forecast − consumed| ÷ Σ consumed, over meals that did not run out. Ours is scored on
-  its demand forecast; FSS on its own forecast.
+  its demand forecast; the comparison forecast on its own.
 - **Stockouts:** meals where the prep amount would not have covered demand. A ran-out meal prepped at
   exactly that amount counts.
-- **Leftover lb:** what the prep amount would have left in the pan.
+- **Leftover lb:** what the prep amount would have left in the pan on meals that did not run out (the
+  same formula for both forecasts).
 - **Costs:** pan leftover and tray waste are converted to $ with Co. Tray waste in lb exists only from
   calibrated scans, or labeled `simulated`.
 
@@ -69,6 +87,6 @@ It reads whatever is in the tables, so it runs on real data with no code changes
 
 `simulate.py` writes one invented dataset so the pipeline can run end to end before real production
 sheets exist. Every row gets `is_simulated = true`, the dashboard shows a SIMULATED DATA banner, and
-`remove` deletes only those rows. Its assumptions (attendance pattern, take rates, an FSS that
+`remove` deletes only those rows. Its assumptions (attendance pattern, take rates, a "Simulated FSS" that
 over-preps by about 25%, 4–14% tray waste) are listed at the top of the file. **None of its numbers
 describe a real dining hall.**

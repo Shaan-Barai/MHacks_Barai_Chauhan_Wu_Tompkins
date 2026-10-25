@@ -45,6 +45,7 @@ class HallData:
     menu_cycle: dict[tuple[int, int, str], list[str]]  # (week, weekday, meal) -> dish ids
     menu_cycle_simulated: bool
     fss: dict[tuple[date, str, str], float]  # (date, meal, dish) -> FSS forecast lb
+    fss_simulated: bool  # the FSS rows are the simulator's stand-in, not a real FSS export
     tray_waste_share: dict[str, float]  # dish -> share (only with enough scan coverage)
     notes: list[str]
 
@@ -106,7 +107,8 @@ def load_hall(db: Supabase, hall_id: str, settings: Settings | None = None) -> H
         menu_cycle[(r["cycle_week"], r["weekday"], r["meal_label"])].append(r["dish_id"])
 
     fss: dict[tuple[date, str, str], float] = {}
-    for r in db.select("forecast", {"hall_id": f"eq.{hall_id}", "model_version": "eq.fss"}, "service_date,meal_label,dish_id,fss_forecast_lb"):
+    fss_rows = db.select("forecast", {"hall_id": f"eq.{hall_id}", "model_version": "eq.fss"}, "service_date,meal_label,dish_id,fss_forecast_lb,is_simulated")
+    for r in fss_rows:
         if r.get("fss_forecast_lb") is not None:
             fss[(_d(r["service_date"]), r["meal_label"], r["dish_id"])] = float(r["fss_forecast_lb"])
 
@@ -123,6 +125,7 @@ def load_hall(db: Supabase, hall_id: str, settings: Settings | None = None) -> H
         menu_cycle=dict(menu_cycle),
         menu_cycle_simulated=any(r.get("is_simulated") for r in mc_rows),
         fss=fss,
+        fss_simulated=any(r.get("is_simulated") for r in fss_rows),
         tray_waste_share=share,
         notes=notes,
     )

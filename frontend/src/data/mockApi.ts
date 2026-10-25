@@ -61,6 +61,7 @@ import type {
   ProductionRow,
   ProductionStatus,
   SheetReadResult,
+  ForecastSummary,
 } from './types'
 import { MEALS } from './types'
 
@@ -689,4 +690,21 @@ export async function rejectProductionRow(id: number): Promise<ProductionRow> {
   const next = { ...mockUnconfirmed(id), status: 'rejected' as const }
   mockProduction = mockProduction.map((r) => (r.productionLogId === id ? next : r))
   return { ...next }
+}
+
+/** Demo forecast summary: SIMULATED numbers (the live API reads the forecast worker's tables). */
+export async function getForecastSummary(start: string, end: string): Promise<ForecastSummary> {
+  await wait()
+  const base = { ranOutMeals: 2, trayWasteSources: ['simulated'], simulated: true }
+  return {
+    available: true, hallId: 'hall-main', window: { start, end }, model: 'baseline-v1', simulated: true,
+    totals: { ...base, meals: 24, ourWape: 0.18, fssWape: 0.41, ourStockouts: 6, fssStockouts: 2, ourWouldLeaveLb: 61.5, panLeftoverLb: 140.2, panLeftoverUsd: 712.4, trayWasteLb: 31.9, trayWasteUsd: 162.1 },
+    dishes: [
+      { ...base, dishId: 'sim-baked-boneless-ham', displayName: 'Baked Boneless Ham', serviceStyle: 'entree', meals: 12, ourWape: 0.15, fssWape: 0.38, ourStockouts: 2, fssStockouts: 1, ourWouldLeaveLb: 30.1, panLeftoverLb: 80.4, panLeftoverUsd: 425.0, trayWasteLb: 18.2, trayWasteUsd: 96.2, avgRecommendedPrepLb: 54.1, avgFssLb: 61.0, avgConsumedLb: 47.3 },
+      { ...base, dishId: 'sim-sticky-rice', displayName: 'Sticky Rice', serviceStyle: 'side', meals: 12, ourWape: 0.21, fssWape: 0.44, ourStockouts: 4, fssStockouts: 1, ourWouldLeaveLb: 31.4, panLeftoverLb: 59.8, panLeftoverUsd: 287.4, trayWasteLb: 13.7, trayWasteUsd: 65.9, avgRecommendedPrepLb: 38.0, avgFssLb: 44.5, avgConsumedLb: 36.1 },
+    ],
+    upcoming: [
+      { serviceDate: end, mealLabel: 'lunch', dishId: 'sim-sticky-rice', displayName: 'Sticky Rice', recommendedPrepLb: 38.5, lowLb: 29.0, highLb: 44.0, fssForecastLb: 46.0, expectedDiners: 690, why: 'Sticky Rice: 36.2 lb expected from same cycle day last cycle; prep covers demand 61% of the time.', simulated: true },
+    ],
+  }
 }

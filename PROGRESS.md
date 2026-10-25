@@ -4,7 +4,7 @@
 
 - **Branch:** `overnight-supabase` (Part B), branched from `supabase-migration` at `350a034`.
 - **Last commit:** `cee58a0` gitignore the Supabase CLI cache
-- **Next step:** Phase 4: `forecast/prep_sheet.py` (printable HTML per station per meal), backend `GET /api/forecast/summary`, and the frontend Forecast page with a SIMULATED DATA banner.
+- **Next step:** Phase 5: update the README and `.env.example`, run the full suite, write `OVERNIGHT_REPORT.md`, commit. Then extra tests for weak spots if time allows.
 - **Gemini calls used so far:** 32 of 150.
 - **Long-running processes to restart:** the SAM worker (`.venv/bin/python vision/sam/worker.py`, :8790; `sam2` was pip-installed into `.venv` tonight from the pinned commit) and the SpacetimeDB **copy** on `127.0.0.1:3901`. If it's down:
   `spacetime start --listen-addr 127.0.0.1:3901 --data-dir <scratchpad>/stdb-copy --jwt-pub-key-path ~/.config/spacetime/id_ecdsa.pub --jwt-priv-key-path ~/.config/spacetime/id_ecdsa --non-interactive`.
@@ -36,7 +36,7 @@
 - [x] Phase 1: the migration was done in Part A; plus `docs/supabase-migration-plan.md` and the forecasting additions migration
 - [x] Phase 2: production sheet reader (backend + review page; mocked Gemini only, no sheet photos in the repo)
 - [x] Phase 3: baseline forecast and prep buffer (worker, evaluation, simulated dataset, 18 unit tests)
-- [ ] Phase 4: prep sheets and forecast dashboard
+- [x] Phase 4: prep sheets and forecast dashboard
 - [ ] Phase 5: cleanup and report
 
 ## Gemini call log
@@ -214,3 +214,20 @@
     - (c) python.org Python on this Mac has no CA bundle, so TLS failed. The client now loads `/etc/ssl/cert.pem` when Python's store is empty; verification stays on.
   - **For the morning:** the default costs make self-serve run short about 55% of the time (q ≈ 0.42), because self-serve is assumed to be refilled. Raise `running_out_usd_per_lb.self_serve` if that's wrong.
   - `./test-all.sh`: ALL PASSED, now including a **forecast** suite (18 tests).
+- 22:45. **Phase 4.**
+  - **Prep sheets:** `python3 -m forecast.prep_sheet --hall hall-main --date YYYY-MM-DD` writes `forecast/out/<date>/` (gitignored), one print-styled HTML page per station per meal plus an `index.html` with all of them.
+    - Each line shows the dish, recommended lb (large), portions, likely range (10th–90th percentile), the one-line "why" and a "made" checkbox.
+    - **Simulated forecasts print a boxed "SIMULATED DATA … Do not prep from this sheet" banner.**
+    - Rendered in Chrome print mode and checked visually. Fixed a doubled "))" in the why-line along the way.
+  - **API:** `GET /api/forecast/summary?hallId&start&end[&today]` returns `{available, simulated, totals, dishes[], upcoming[]}`.
+    - The math is in `analytics/src/forecast.ts` (same definitions as the Python evaluation). **Live, it reproduces the Python numbers exactly** (WAPE 18.2% / 40.9%, stockouts 132 / 58, pan leftover 4,680 lb / $23,796).
+  - **Dashboard:** new "Forecast" page (`/forecast`).
+    - A boxed **SIMULATED DATA banner** whenever any simulated row is shown.
+    - Four stat tiles: forecast error ours vs. FSS, stockouts ours vs. FSS, pan leftover lb and $ (plus what our forecast would have left), tray waste lb and $ with its source.
+    - A forecast-vs-actual table per dish, and "What to prep: next 7 days" with each "why".
+    - Unknown values show "—", never 0.
+    - **Form choice (dataviz skill):** stat tiles and a table, no plotted chart. The job is a few headline comparisons plus a per-dish lookup, and the app's theme is black and white, so no palette was needed.
+    - Screenshots at 1280 px and 390 px in Chrome with no console errors. Fixed tile values that wrapped or overflowed on phones, and Dinner listed before Lunch.
+  - **Found while checking the dashboard:** with the imported data, "Plates scanned" is 0 for the last 30 days. The 6 imported hall-main scans from Oct 2–4 are listed in Scanned plates as "Not counted in the totals: its pixel counts lack validated mask provenance" (the legacy `sam2_mask_pixel_count` rows). That's how the current code treats this old data; it was **not caused by the migration** (parity verified). Worth deciding whether to re-run those 10 photos through the current pipeline.
+  - Tests: analytics +4 (hand-checked WAPE and stockouts), backend +2 (summary route, unavailable, bad params), frontend +3 (tiles, banner, unavailable), forecast +2 (prep sheet banner and escaping).
+  - `./test-all.sh`: ALL PASSED (analytics 77, backend 124 + 2 skipped, frontend 137, forecast 20).

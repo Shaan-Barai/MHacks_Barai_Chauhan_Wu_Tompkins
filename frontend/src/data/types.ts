@@ -573,3 +573,61 @@ export interface SheetReadResult {
   notes: string | null
   rows: ProductionRow[]
 }
+
+// ---------------------------------------------------------------------------
+// Forecast vs. actual (forecast worker output)
+// ---------------------------------------------------------------------------
+
+export interface ForecastComparison {
+  meals: number
+  ranOutMeals: number
+  /** Weighted absolute % error, 0..1 (meals that did not run out). */
+  ourWape: number | null
+  fssWape: number | null
+  ourStockouts: number
+  fssStockouts: number | null
+  ourWouldLeaveLb: number
+  panLeftoverLb: number | null
+  panLeftoverUsd: number | null
+  trayWasteLb: number | null
+  trayWasteUsd: number | null
+  trayWasteSources: string[]
+  simulated: boolean
+}
+
+export interface ForecastDishRow extends ForecastComparison {
+  dishId: string
+  displayName: string
+  serviceStyle: string
+  avgRecommendedPrepLb: number
+  avgFssLb: number | null
+  avgConsumedLb: number
+}
+
+export interface UpcomingForecast {
+  serviceDate: string
+  mealLabel: string
+  dishId: string
+  displayName: string
+  recommendedPrepLb: number
+  lowLb: number | null
+  highLb: number | null
+  fssForecastLb: number | null
+  expectedDiners: number | null
+  why: string | null
+  simulated: boolean
+}
+
+export type ForecastSummary =
+  | { available: false; hallId: string; window: { start: string; end: string }; model: string }
+  | {
+      available: true
+      hallId: string
+      window: { start: string; end: string }
+      model: string
+      /** Any simulated row shown: the page must show the SIMULATED DATA banner. */
+      simulated: boolean
+      totals: ForecastComparison
+      dishes: ForecastDishRow[]
+      upcoming: UpcomingForecast[]
+    }

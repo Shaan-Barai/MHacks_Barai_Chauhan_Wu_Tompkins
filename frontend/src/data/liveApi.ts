@@ -48,6 +48,7 @@ import type {
   ProductionRow,
   ProductionStatus,
   SheetReadResult,
+  ForecastSummary,
 } from './types'
 import { MEALS } from './types'
 import { todayIso } from '../lib/dates'
@@ -666,4 +667,8 @@ export async function confirmProductionRow(id: number, confirmedBy: string): Pro
 
 export async function rejectProductionRow(id: number): Promise<ProductionRow> {
   return unwrap(await call(`/api/production-log/${id}/reject`, { method: 'POST' }), 'row')
+}
+
+export async function getForecastSummary(start: string, end: string): Promise<ForecastSummary> {
+  return call<ForecastSummary>(`/api/forecast/summary?${q({ hallId: hallId(), start, end, today: todayIso() })}`)
 }

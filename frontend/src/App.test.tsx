@@ -69,6 +69,7 @@ describe('routes', () => {
       'Menus',
       'Portions served',
       'Production sheets',
+      'Forecast',
       'Behind the scenes',
       'Settings',
     ])

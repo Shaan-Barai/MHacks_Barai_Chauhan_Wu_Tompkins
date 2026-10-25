@@ -137,7 +137,7 @@ export function ProductionPage() {
               <tbody>
                 {confirmed.map((r) => (
                   <tr key={r.productionLogId} className="border-b border-linen/30">
-                    <td className="py-2 pr-3">{r.serviceDate}</td>
+                    <td className="whitespace-nowrap py-2 pr-3">{r.serviceDate}</td>
                     <td className="pr-3">{r.mealLabel ? MEAL_NAME[r.mealLabel] : ''}</td>
                     <td className="pr-3">{(dishes.data ?? []).find((d) => d.dishId === r.dishId)?.displayName ?? r.dishId}{r.isSimulated && ' (simulated)'}</td>
                     <td className="pr-3">{r.station ?? ''}</td>

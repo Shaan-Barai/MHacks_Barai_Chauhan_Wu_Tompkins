@@ -181,3 +181,11 @@ export {
   PIXEL_SUGGESTION_PROMPT_VERSION,
   type PixelSuggestionRequest,
 } from './pixelSuggestions.js';
+export {
+  compareForecasts,
+  summarizeForecastOutcomes,
+  type ForecastComparison,
+  type ForecastDishInfo,
+  type ForecastDishRow,
+  type ForecastOutcomeInput,
+} from './forecast.js';

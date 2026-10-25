@@ -14,6 +14,7 @@ import type { TryImageRunner } from '../src/services/tryImageService.js';
 import type { MenuBundle, ReferencePortion } from '../src/types.js';
 import type { Repository } from '../src/repo/repository.js';
 import type { ProductionStore } from '../src/repo/productionStore.js';
+import type { ForecastSource } from '../src/services/forecastService.js';
 
 export const HALL = 'hall-main';
 export const SERVICE = 'svc_hall-main_2026-10-03_lunch';
@@ -83,6 +84,7 @@ export async function startTestServer(
     calibrationRunner?: CalibrationRunner;
     tryImageRunner?: TryImageRunner;
     productionStore?: ProductionStore;
+    forecastSource?: ForecastSource;
   } = {},
 ): Promise<TestServer> {
   const fixtures: Record<string, MockFixture> = {};

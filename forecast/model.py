@@ -265,11 +265,11 @@ def prep_from_errors(demand_lb: float, errors: list[float], q: float) -> tuple[f
         up = quantile(errors, q)
         lo = quantile(errors, LOW_Q)
         hi = quantile(errors, HIGH_Q)
-        method = f"empirical ({len(errors)} recent errors)"
+        method = f"from {len(errors)} recent forecast errors"
     else:
         z = NormalDist()
         up, lo, hi = DEFAULT_CV * z.inv_cdf(q), DEFAULT_CV * z.inv_cdf(LOW_Q), DEFAULT_CV * z.inv_cdf(HIGH_Q)
-        method = f"default spread (only {len(errors)} recent errors)"
+        method = f"using a default ±25% spread (only {len(errors)} recent errors)"
     clamp = lambda x: max(0.0, round(demand_lb * (1.0 + x), 2))  # noqa: E731
     return clamp(up), clamp(lo), clamp(hi), method
 
@@ -310,7 +310,7 @@ def make_forecast(
     parts = [f"{dish_name}: {demand:.1f} lb expected from {basis_text}"]
     if abs(scale - 1.0) >= 0.03:
         parts.append(f"x{scale:.2f} for {diners:.0f} expected diners")
-    parts.append(f"prep covers demand {round(q * 100)}% of the time ({method})")
+    parts.append(f"prep covers demand {round(q * 100)}% of the time, {method}")
     if share > 0:
         parts.append(f"{share * 100:.0f}% tray waste from calibrated scans")
     return Forecast(

@@ -8,12 +8,13 @@ import { MenusPage } from './pages/MenusPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { PortionsPage } from './pages/PortionsPage'
 import { ProductionPage } from './pages/ProductionPage'
+import { ForecastPage } from './pages/ForecastPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { StatisticsPage } from './pages/StatisticsPage'
 import { AuthProvider, useAuth } from './state/auth'
 import { DEFAULT_SETTINGS, useHallSettings } from './state/settings'
 
-type Page = 'landing' | 'dashboard' | 'statistics' | 'menus' | 'portions' | 'production' | 'behind' | 'settings' | 'admin'
+type Page = 'landing' | 'dashboard' | 'statistics' | 'menus' | 'portions' | 'production' | 'forecast' | 'behind' | 'settings' | 'admin'
 
 const NAV: { page: Page; label: string; path: string }[] = [
   { page: 'dashboard', label: 'Dashboard', path: '/dashboard' },
@@ -21,6 +22,7 @@ const NAV: { page: Page; label: string; path: string }[] = [
   { page: 'menus', label: 'Menus', path: '/menus' },
   { page: 'portions', label: 'Portions served', path: '/portions' },
   { page: 'production', label: 'Production sheets', path: '/production' },
+  { page: 'forecast', label: 'Forecast', path: '/forecast' },
   { page: 'behind', label: 'Behind the scenes', path: '/behind-the-scenes' },
   { page: 'settings', label: 'Settings', path: '/settings' },
 ]
@@ -127,6 +129,7 @@ function Shell() {
         {page === 'menus' && <MenusPage />}
         {page === 'portions' && <PortionsPage onSaved={() => setDataRevision((r) => r + 1)} />}
         {page === 'production' && <ProductionPage />}
+        {page === 'forecast' && <ForecastPage dataRevision={dataRevision} />}
         {page === 'behind' && <BehindScenesPage path={path} onNavigate={go} dataRevision={dataRevision} />}
         {page === 'settings' && <SettingsPage settings={hall} onSave={update} onDataChanged={() => setDataRevision((r) => r + 1)} />}
         {page === 'admin' && <AdminPage />}

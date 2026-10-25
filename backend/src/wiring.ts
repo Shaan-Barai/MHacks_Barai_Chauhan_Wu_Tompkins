@@ -19,6 +19,7 @@ import { SpacetimeRepository } from './repo/spacetimeRepository.js';
 import { SupabaseRepository } from './repo/supabaseRepository.js';
 import { InMemoryProductionStore, SupabaseProductionStore, type ProductionStore } from './repo/productionStore.js';
 import { ProductionSheetService } from './services/productionSheetService.js';
+import { ForecastService, SupabaseForecastSource, type ForecastSource } from './services/forecastService.js';
 import { LocalDevStorage } from './storage/localDevStorage.js';
 import { R2Storage } from './storage/r2Storage.js';
 import { SupabaseStorage } from './storage/supabaseStorage.js';
@@ -58,6 +59,8 @@ export interface BuildOptions {
   tryImageRunner?: TryImageRunner;
   /** production_log store; defaults to Supabase when DATABASE_PROVIDER=supabase, else in memory. */
   productionStore?: ProductionStore;
+  /** Forecast read model source; defaults to Supabase when DATABASE_PROVIDER=supabase, else none. */
+  forecastSource?: ForecastSource;
   now?: () => number;
 }
 
@@ -174,6 +177,7 @@ export function buildBackend(options: BuildOptions = {}): AppDeps & { app: Retur
   const productionStore = options.productionStore ?? (config.supabaseDb ? new SupabaseProductionStore(config.supabaseDb) : new InMemoryProductionStore());
   // Sheets are read by live Gemini only: mock text never becomes production rows.
   const production = new ProductionSheetService(repo, storage, productionStore, gateway.mode === 'live' ? gateway : undefined);
+  const forecast = new ForecastService(options.forecastSource ?? (config.supabaseDb ? new SupabaseForecastSource(config.supabaseDb) : undefined));
   const deps: AppDeps = {
     config,
     repo,
@@ -193,6 +197,7 @@ export function buildBackend(options: BuildOptions = {}): AppDeps & { app: Retur
     camera,
     demo,
     production,
+    forecast,
     tryImage: new TryImageService({
       runner: options.tryImageRunner ?? createPipelineRunner({ samWorkerUrl: config.samWorkerUrl, workerToken: config.workerToken }),
       unavailableReason:

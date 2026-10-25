@@ -60,7 +60,7 @@ class Newsvendor(unittest.TestCase):
         self.assertAlmostEqual(prep, 114.0)
         self.assertAlmostEqual(low, 100.0 * (1 + quantile(errors, 0.10)))
         self.assertAlmostEqual(high, 100.0 * (1 + quantile(errors, 0.90)))
-        self.assertIn("empirical", method)
+        self.assertIn("recent forecast errors", method)
 
     def test_higher_q_never_preps_less(self):
         errors = [-0.3, -0.1, 0.0, 0.05, 0.1, 0.2, 0.4]
@@ -69,7 +69,7 @@ class Newsvendor(unittest.TestCase):
 
     def test_too_few_errors_use_a_default_spread(self):
         prep, low, high, method = prep_from_errors(100.0, [0.1, -0.1], 0.85)
-        self.assertIn("default spread", method)
+        self.assertIn("default ±25% spread", method)
         self.assertAlmostEqual(prep, 100.0 * (1 + 0.25 * 1.0364333894937898), places=1)  # z(0.85) ~ 1.036
         self.assertLess(low, 100.0)
         self.assertGreater(high, 100.0)

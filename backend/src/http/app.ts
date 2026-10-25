@@ -51,6 +51,7 @@ import {
   validateReferencePortion,
 } from '../services/validation.js';
 import type { ProductionSheetService } from '../services/productionSheetService.js';
+import type { ForecastService } from '../services/forecastService.js';
 
 /** READ_ONLY=1 GET cache: always-fresh routes, entry cap, and the lifetime of answers with presigned URLs. */
 const READ_ONLY_UNCACHED = new Set(['/api/health', '/api/ready', '/api/auth/me']);
@@ -117,6 +118,8 @@ export interface AppDeps {
   tryImage?: TryImageService;
   /** Production sheets -> production_log (forecasting); optional in tests. */
   production?: ProductionSheetService;
+  /** Forecast vs. actual read model (forecasting); optional in tests. */
+  forecast?: ForecastService;
 }
 
 export function createApp(deps: AppDeps): express.Express {
@@ -973,6 +976,14 @@ export function createApp(deps: AppDeps): express.Express {
   }));
   app.post('/api/production-log/:id/reject', wrap(async (req, res) => {
     res.json({ row: await production().reject(rowId(req)) });
+  }));
+
+  // ---- forecast vs. actual (forecast worker output; formulas in analytics/) ----
+  app.get('/api/forecast/summary', wrap(async (req, res) => {
+    if (!deps.forecast) throw notFound('ROUTE_NOT_FOUND', 'Forecasts are not available on this server.');
+    const window = parseWindow(req.query);
+    const today = typeof req.query.today === 'string' ? req.query.today : new Date(now()).toISOString().slice(0, 10);
+    res.json(await deps.forecast.summary(requireQuery(req, 'hallId'), window.start, window.end, today));
   }));
 
   // ---- suggestions (stored Insights; generation is Agent 6's) ----

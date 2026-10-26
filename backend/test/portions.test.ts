@@ -53,7 +53,9 @@ test('dashboard uses mask pixels/portions, preserves counts without baselines, a
   assert.equal(response.json.insight.source, 'fallback_rules');
   const version = response.json.insight.dataVersion;
   const repeat = await s.api('GET', `/api/dashboard/meal?hallId=${HALL}&date=2026-10-03&meal=lunch`);
-  assert.equal(repeat.json.insight.insightId, response.json.insight.insightId);
+  // A GET computes the labeled fallback in memory (nothing stored): same data, same tip.
+  assert.equal(repeat.json.insight.dataVersion, response.json.insight.dataVersion);
+  assert.equal(repeat.json.insight.recommendation, response.json.insight.recommendation);
   await s.api('PUT', path, { ...input, entries: [{ itemId: 'item_eggs', count: 1000 }, { itemId: 'item_toast', count: 1000 }] });
   const corrected = await s.api('GET', `/api/dashboard/meal?hallId=${HALL}&date=2026-10-03&meal=lunch`);
   assert.notEqual(corrected.json.insight.dataVersion, version);

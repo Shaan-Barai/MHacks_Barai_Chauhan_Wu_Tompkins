@@ -239,7 +239,7 @@ function liveGateway(generate: () => Promise<string>, calls: { n: number }): Gem
   } as unknown as GeminiGateway;
 }
 
-test('GET /api/recommendation: provider failure -> labeled fallback; results cached per input', async (t) => {
+test('GET /api/recommendation never calls Gemini or writes; with nothing saved it shows the labeled rule-based text', async (t) => {
   const calls = { n: 0 };
   const s = await seeded({
     gateway: liveGateway(async () => {
@@ -247,24 +247,22 @@ test('GET /api/recommendation: provider failure -> labeled fallback; results cac
     }, calls),
   });
   t.after(() => s.close());
+  const before = (await s.repo.listInsights()).length;
   const first = await s.api('GET', `/api/recommendation?start=${DATE}&end=${DATE}`);
   assert.equal(first.status, 200, JSON.stringify(first.json));
   assert.equal(first.json.source, 'fallback');
-  const callsAfterFirst = calls.n;
-  assert.ok(callsAfterFirst >= 1, 'Gemini was tried');
   const second = await s.api('GET', `/api/recommendation?start=${DATE}&end=${DATE}`);
-  assert.deepEqual(second.json, first.json, 'same statistics -> cached answer');
-  assert.equal(calls.n, callsAfterFirst, 'no second provider call for identical input');
+  assert.equal(second.json.text, first.json.text, 'same statistics -> same rule-based text');
+  assert.equal(calls.n, 0, 'a GET never calls Gemini');
+  assert.equal((await s.repo.listInsights()).length, before, 'a GET never writes');
 
-  // New data changes the input, so a new recommendation is generated.
-  s.fixtures.cap_d = { measurements: [{ itemId: POTATOES, remainingAreaPx: 2000 }] };
-  await capture(s, 'cap_d', `${DATE}T23:30:00.000Z`);
-  const third = await s.api('GET', `/api/recommendation?start=${DATE}&end=${DATE}`);
-  assert.equal(third.json.source, 'fallback');
-  assert.ok(calls.n > callsAfterFirst, 'changed input -> Gemini tried again');
+  // Asking explicitly (POST) tries Gemini; it is down, so the labeled fallback is saved.
+  const asked = await s.api('POST', '/api/recommendation/regenerate', { start: DATE, end: DATE });
+  assert.equal(asked.json.source, 'fallback');
+  assert.equal(calls.n, 1, 'the POST tried Gemini once');
 });
 
-test('GET /api/recommendation: valid Gemini answer is served as source gemini and cached', async (t) => {
+test('POST /api/recommendation/regenerate: a valid Gemini answer is saved; GETs then serve it without new calls', async (t) => {
   const calls = { n: 0 };
   let metrics: string[] = [];
   const s = await seeded({
@@ -285,14 +283,15 @@ test('GET /api/recommendation: valid Gemini answer is served as source gemini an
   metrics = recommendationFacts(dash.json).allowedMetrics;
   assert.ok(metrics.includes('Total: 66 relative impact points'), metrics.join(' | '));
   assert.ok(metrics.includes('Baked Boneless Ham: 64 relative impact points'));
-  const first = await s.api('GET', `/api/recommendation?start=${DATE}&end=${DATE}`);
-  assert.equal(first.status, 200, JSON.stringify(first.json));
-  assert.equal(first.json.source, 'gemini');
-  assert.deepEqual(first.json.bullets.map((b: any) => b.metric), ['Baked Boneless Ham: 467 pixels wasted per portion', '2 of 3 plates analyzed']);
-  assert.equal(first.json.inputVersion, recommendationInputVersion(recommendationFacts(dash.json)));
-  const second = await s.api('GET', `/api/recommendation?start=${DATE}&end=${DATE}`);
-  assert.deepEqual(second.json, first.json);
-  assert.equal(calls.n, 1, 'one Gemini call for identical statistics');
+  const made = await s.api('POST', '/api/recommendation/regenerate', { start: DATE, end: DATE });
+  assert.equal(made.status, 200, JSON.stringify(made.json));
+  assert.equal(made.json.source, 'gemini');
+  assert.deepEqual(made.json.bullets.map((b: any) => b.metric), ['Baked Boneless Ham: 467 pixels wasted per portion', '2 of 3 plates analyzed']);
+  assert.equal(made.json.inputVersion, recommendationInputVersion(recommendationFacts(dash.json)));
+  const read = await s.api('GET', `/api/recommendation?start=${DATE}&end=${DATE}`);
+  assert.deepEqual(read.json, made.json, 'the saved Gemini recommendation is served');
+  await s.api('GET', `/api/recommendation?start=${DATE}&end=${DATE}`);
+  assert.equal(calls.n, 1, 'one Gemini call, from the POST only');
 });
 
 test('GET /api/dashboard/daily: pixels per day, no grams; null (never 0) without counted plates', async (t) => {
@@ -385,9 +384,10 @@ test('recommendations are saved with their inputs; regenerate asks again; Gemini
   t.after(() => s.close());
   metrics = recommendationFacts((await s.api('GET', `/api/dashboard/impact?start=${DATE}&end=${DATE}`)).json).allowedMetrics;
 
-  const first = await s.api('GET', `/api/recommendation?start=${DATE}&end=${DATE}`);
+  const first = await s.api('POST', '/api/recommendation/regenerate', { start: DATE, end: DATE });
   assert.equal(first.json.source, 'gemini');
   assert.deepEqual(first.json.window, { start: DATE, end: DATE });
+  assert.deepEqual((await s.api('GET', `/api/recommendation?start=${DATE}&end=${DATE}`)).json, first.json, 'GET serves what the POST saved');
   const saved = (await s.repo.listInsights()).filter((i) => i.metrics.kind === 'impact-recommendation');
   assert.equal(saved.length, 1);
   assert.equal(saved[0]!.source, 'gemini');

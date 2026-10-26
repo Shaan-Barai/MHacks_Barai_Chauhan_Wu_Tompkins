@@ -43,6 +43,7 @@ import { CalibrationService } from './services/calibrationService.js';
 import type { CalibrationRunner } from './analysis/calibrationRunner.js';
 import type { Analyzer } from './analysis/analyzer.js';
 import type { Repository } from './repo/repository.js';
+import { HttpError, apiError } from './errors.js';
 
 export interface BuildOptions {
   config?: BackendConfig;
@@ -132,13 +133,15 @@ export function buildBackend(options: BuildOptions = {}): AppDeps & { app: Retur
   const now = options.now ?? (() => Date.now());
   // Supabase Postgres when DATABASE_PROVIDER=supabase, else legacy SpacetimeDB
   // (SPACETIMEDB_URI), else the offline in-memory/JSON repository used by tests.
-  const repo =
+  let repo: Repository =
     options.repo ??
     (config.supabaseDb
       ? new SupabaseRepository(config.supabaseDb)
       : config.spacetime
         ? new SpacetimeRepository(config.spacetime)
         : new JsonFileRepository(config.dataFile));
+  // READ_ONLY=1: the repository itself refuses every write, so nothing can slip through a GET.
+  if (config.readOnly) repo = readOnlyRepository(repo);
   const storage = options.storage ?? createStorage(config, now);
   const images = new ImageService(repo, storage, now, config.objectStorage.keyPrefix ?? '');
   // Live: Gemini classification + boxes -> SAM 2.1 masks -> counted pixels
@@ -207,4 +210,25 @@ export function buildBackend(options: BuildOptions = {}): AppDeps & { app: Retur
     }),
   };
   return { ...deps, app: createApp(deps) };
+}
+
+/** Repository methods that change data. */
+const WRITE_METHOD = /^(upsert|add|record|replace|set|delete|clear)/;
+
+/**
+ * READ_ONLY=1: every write method throws (HTTP 403 READ_ONLY) instead of writing.
+ * Reads pass through unchanged.
+ */
+export function readOnlyRepository(repo: Repository): Repository {
+  return new Proxy(repo, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver);
+      if (typeof prop === 'string' && WRITE_METHOD.test(prop) && typeof value === 'function') {
+        return async () => {
+          throw new HttpError(403, apiError('READ_ONLY', `This site is read-only: ${prop} is not allowed.`, false));
+        };
+      }
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
 }

@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { buildBackend } from './wiring.js';
 import { log } from './log.js';
+import { backfillAttendance } from './services/dashboardService.js';
 
 // Load the repo-root .env (server-side secrets) when present; real env vars win.
 const envFile = fileURLToPath(new URL('../../../../.env', import.meta.url));
@@ -16,7 +17,7 @@ try {
   log.error('startup refused', { reason: err instanceof Error ? err.message : String(err) });
   process.exit(1);
 }
-const { app, config, security, demo } = built;
+const { app, config, security, demo, repo, dashboard } = built;
 
 const onListen = () => {
   const persistence = config.supabaseDb
@@ -44,7 +45,10 @@ const onListen = () => {
     const endDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Detroit' }).format(new Date());
     demo
       .seedHistory({ hallId: process.env.HALL_ID || 'hall-main', endDate })
-      .then((r) => log.info('sample history added (remove with npm run demo:clear)', { services: r.services, captures: r.captures }))
+      .then(async (r) => {
+        log.info('sample history added (remove with npm run demo:clear)', { services: r.services, captures: r.captures });
+        await backfillAttendance(repo, dashboard);
+      })
       .catch((e) => log.error('sample history failed', { reason: e instanceof Error ? e.message : String(e) }));
   }
 };

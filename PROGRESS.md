@@ -4,7 +4,7 @@
 
 - **Branch:** `overnight-supabase` (Part B), branched from `supabase-migration` at `350a034`.
 - **Last commit:** `cee58a0` gitignore the Supabase CLI cache
-- **Next step:** Follow-up task 3: GET requests must never write (simulated attendance and recommendation cache). Add a row-count test and clean up rows the GETs created after the import.
+- **Next step:** Follow-up task 4: re-run the 10 imported capture photos through the current pipeline (≤ 35 Gemini calls); report Plates scanned and pixels before vs. after.
 - **Gemini calls used so far:** 32 of 150.
 - **Long-running processes to restart:** the SAM worker (`.venv/bin/python vision/sam/worker.py`, :8790; `sam2` was pip-installed into `.venv` tonight from the pinned commit) and the SpacetimeDB **copy** on `127.0.0.1:3901`. If it's down:
   `spacetime start --listen-addr 127.0.0.1:3901 --data-dir <scratchpad>/stdb-copy --jwt-pub-key-path ~/.config/spacetime/id_ecdsa.pub --jwt-priv-key-path ~/.config/spacetime/id_ecdsa --non-interactive`.
@@ -280,3 +280,31 @@ The user confirmed in their own words: do tasks 2–7, task 1 is already done, a
   - The page was checked in Chrome. Fixed numeric cells wrapping ("53.7 / lb").
   - OVERNIGHT_REPORT.md: the results table is replaced (marked "Corrected 2026-10-25"), and the self-serve item is struck through and superseded.
   - `./test-all.sh`: ALL PASSED.
+- **Task 3 done: GET requests never write.**
+  - **What wrote on a GET:**
+    - (a) `GET /api/dashboard/meal` created simulated attendance (`ensureAttendance`).
+    - (b) The same route generated (with Gemini when live) and stored a pixel or portion insight.
+    - (c) `GET /api/recommendation` called Gemini and stored the result.
+    - All three happened even with `READ_ONLY=1` (a and b store rule-based fallbacks there).
+  - **Now:**
+    - GETs only read. Attendance is read, and missing means "attendance_missing", the existing contract the summary tests already encode.
+    - Insights and recommendations return the stored Gemini version for the same inputs, else the last one marked stale, else the labeled rule-based text computed in memory. **No Gemini call and no write on any GET.**
+  - **Generation moved to explicit writes:**
+    - `POST /api/recommendation/regenerate` (the existing "Ask again" button; still shows the last Gemini answer as stale if Gemini fails).
+    - New `POST /api/dashboard/meal/insight`.
+    - Demo seeding, which backfills its sample services.
+    - **New seed script `backend/scripts/backfill-attendance.mjs`** (`--dry-run`; refuses READ_ONLY).
+  - **`READ_ONLY=1` is now enforced in the repository too:** a proxy makes every write method throw 403 `READ_ONLY`.
+  - **Decisions:**
+    1. Saving a menu does NOT create attendance. Tried first; it broke the "attendance is missing until provided" contract (`PUT /api/attendance` is first-write-wins), so it was reverted.
+    2. **No automatic startup backfill.** It would have written attendance for the 9 imported services that have none just by starting the app, changing the imported data. It's an explicit seed step instead.
+    3. **UX change:** the Statistics page shows the stored or stale recommendation, or the labeled rule-based text, until someone presses "Ask again". Before, the first page view called Gemini.
+  - **Tests:**
+    - `backend/test/getsNeverWrite.test.ts` calls **all 43 GET routes** (read from `app.ts`, so a new GET can't be missed) through a repository spy and a Gemini call counter, in normal and READ_ONLY mode: 0 writes, 0 Gemini calls.
+    - Verified it catches a regression: reintroducing the old attendance write made it fail with "GETs wrote: upsertAttendance".
+    - Plus a READ_ONLY guard test.
+    - **Live `tests/system/supabase-gets-readonly.test.mjs`:** counts all 28 tables and every Storage folder, calls all 43 GETs and loads **all 9 dashboard pages in Chrome** on the real backend and Supabase, then counts again: **unchanged (30 counts)**.
+    - 6 existing tests were updated from "GET generates or stores" to "POST generates, GET reads". Read-only tests now seed through a writable repository while the app sees the guarded one.
+  - **Cleanup:** none needed. Supabase still matches the import exactly (import dry-run: every count matches; `simulated_attendance` 5, `insight` 4), so no GET-created rows exist.
+  - Note: `./test-all.sh` doesn't load `.env`, so the live `tests/system/supabase-*` tests skip there. Run them as documented in the README.
+  - `./test-all.sh`: ALL PASSED (backend 128 + 2 skipped).

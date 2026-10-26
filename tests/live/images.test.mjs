@@ -258,8 +258,10 @@ describe('live image tests: test2/ through the full pipeline', { skip: skip ?? f
     writeFileSync(path.join(OUT, 'recommendation.json'), JSON.stringify(rec.json, null, 2));
   });
 
-  // Scored only when ground_truth.csv is present (it was removed from the repo root on 2026-10-04).
-  const truthFile = path.join(REPO, 'ground_truth.csv');
+  // Scored only when ground_truth.csv is present. It was removed from git on 2026-10-04 and is kept in
+  // the gitignored images/ folder (restore with: git show 174c2d4^:ground_truth.csv > images/ground_truth.csv).
+  const truthFile = [process.env.GROUND_TRUTH_CSV, path.join(REPO, 'images', 'ground_truth.csv'), path.join(REPO, 'ground_truth.csv')]
+    .find((f) => f && existsSync(f)) ?? path.join(REPO, 'images', 'ground_truth.csv');
   const noTruth = existsSync(truthFile) ? false : 'ground_truth.csv is not present: detection is not scored';
   it('detection vs ground_truth.csv: no regression from 100% recall / 92.3% precision', { skip: noTruth }, () => {
     const truth = loadGroundTruth(truthFile);

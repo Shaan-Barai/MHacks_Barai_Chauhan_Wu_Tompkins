@@ -32,7 +32,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from .config import CONFIG_PATH, impact_score_for, load_settings
 from .data import HallData, dishes_for, load_hall
 from .db import Supabase, SupabaseError
-from .model import MODEL_VERSION, cost_of_waste_per_lb, make_forecast, relative_errors
+from .model import MODEL_VERSION, context_multiplier, cost_of_waste_per_lb, make_forecast, relative_errors
 
 MEALS = ("breakfast", "lunch", "dinner")
 
@@ -53,11 +53,20 @@ def build_forecasts(
     rows: list[dict] = []
     skipped: list[str] = []
     now = datetime.now(timezone.utc).isoformat()
+    ctx = s.context
     for day in _dates(start, end):
         for meal in meals:
             served = dishes_for(data, day, meal)
             if not served:
                 continue
+            adjust = (
+                context_multiplier(
+                    data.attendance, data.context, day, meal,
+                    min_days=int(ctx.get("min_days", 2)), lo=float(ctx.get("min_multiplier", 0.3)), hi=float(ctx.get("max_multiplier", 2.0)),
+                )
+                if ctx.get("enabled")
+                else None
+            )
             for dish_id in served:
                 dish = data.dishes.get(dish_id)
                 if dish is None:
@@ -73,6 +82,7 @@ def build_forecasts(
                     dish_name=dish.display_name, portion_lb=dish.portion_lb, cycle_start=data.cycle_start, weeks=data.cycle_weeks,
                     cost_under=s.cost_under(dish.service_style), cost_over=co,
                     tray_waste_share=data.tray_waste_share.get(dish_id), errors=errors, q_shift=q_shift,
+                    context_adjustment=adjust,
                 )
                 if fc is None:
                     skipped.append(f"{day} {meal} {dish_id}: no history yet")

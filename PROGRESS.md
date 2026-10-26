@@ -4,7 +4,7 @@
 
 - **Branch:** `overnight-supabase` (Part B), branched from `supabase-migration` at `350a034`.
 - **Last commit:** `cee58a0` gitignore the Supabase CLI cache
-- **Next step:** Follow-up task 6: context adjustments (off by default, with tests) and the `ground_truth.csv` search.
+- **Next step:** Follow-up task 7: write MERGE_REVIEW.md; confirm the removal steps in `docs/supabase-migration-plan.md`; stop the SAM worker and the scratch SpacetimeDB copy.
 - **Gemini calls used so far:** 52 (32 overnight + 20 in follow-up task 4).
 - **Long-running processes to restart:** the SAM worker (`.venv/bin/python vision/sam/worker.py`, :8790; `sam2` was pip-installed into `.venv` tonight from the pinned commit) and the SpacetimeDB **copy** on `127.0.0.1:3901`. If it's down:
   `spacetime start --listen-addr 127.0.0.1:3901 --data-dir <scratchpad>/stdb-copy --jwt-pub-key-path ~/.config/spacetime/id_ecdsa.pub --jwt-priv-key-path ~/.config/spacetime/id_ecdsa --non-interactive`.
@@ -327,3 +327,15 @@ The user confirmed in their own words: do tasks 2–7, task 1 is already done, a
     hall-main's 748,986 = the sum of its 6 captures' new mask counts (196,563 + 108,678 + 173,240 + 2,814 + 83,763 + 183,928).
   - **The 23 legacy `sam2_mask_pixel_count` rows are kept** (count verified), plus 24 new `mask_pixel_count` rows.
   - **Found:** the 4 `hall-e2e-*` captures are **the same photo** (identical 289,794-byte images), replayed into 4 throwaway test halls by earlier e2e runs that ended up in this Mac's SpacetimeDB data. They're test data, not real scans; hide or delete them if they shouldn't appear (the user's call).
+- **Task 6 done: context adjustments and `ground_truth.csv`.**
+  - **Context adjustments** (`forecast/model.py` `context_multiplier`, `[context]` in `config.toml`): **OFF by default** (`enabled = false`).
+    - When on, the hall's exam week, home game and holiday flags from `context_day` adjust expected diners. Each flag's ratio is **estimated from the hall's own past flagged days** (vs. the same weekday and meal without flags).
+    - Needs ≥ `min_days` (2) examples, flags multiply, the result is clamped to [0.3, 2.0], and only days before the target are used.
+    - The why-line says e.g. "diners adjusted for home game x0.60 (estimated from past days)".
+    - 8 unit tests (off by default, estimation, too little history, multiply and clamp, no look-ahead, disabled = unchanged forecasts, applied = scaled and explained). **No accuracy gain is claimed.**
+  - **`ground_truth.csv` found:** added in git `b62ed8c`, deleted `174c2d4` (2026-10-04); an identical copy is at `~/Desktop/MHacks/scrap/ground_truth.csv` (12 photos).
+    - Restored to **`images/ground_truth.csv`** (gitignored; confirmed not tracked).
+    - `tests/live/images.test.mjs` now looks for `GROUND_TRUTH_CSV`, then `images/ground_truth.csv`, then the repo root.
+  - **Scored last night's live run offline** (from its saved report, 0 Gemini calls): **recall 94.4%, precision 81.0%** (17 correct, 1 missed, 4 wrong over 12 photos) vs. the recorded baseline of 100% / 92.3%, **so the live test would now report a REGRESSION.**
+    - Misses and extras: IMG_2696 +Cheese Bread; IMG_2700 +Lettuce; IMG_2702 Cheese Bread instead of Pepperoni Pizza; IMG_2703 +Halal Rice.
+    - Detection is the vision pipeline, which the migration didn't change. The cause isn't investigated (Gemini run-to-run variation is one possibility). Logged for the user.

@@ -53,6 +53,12 @@ Environment: `SUPABASE_URL` (the API address, `https://<ref>.supabase.co`),
    side 0.90, self-serve 0.85, dessert 0.85. A dish with a higher Waste Impact Score gets a slightly
    lower q. No mid-meal refill of any station is assumed.
 
+6. **Context (optional, OFF by default):** with `[context] enabled = true` in `config.toml`, expected
+   diners are adjusted for exam weeks, home games and holidays recorded in `context_day`. Each flag's
+   effect is *estimated from this hall's own history* (diners on past flagged days ÷ the same weekday
+   and meal without the flag). It needs at least `min_days` past examples, multiplies across flags, and
+   is clamped. No accuracy gain is claimed: there is no real data yet to test it on.
+
 Each `forecast` row stores its demand, q, basis and a one-line `why`. The comparison forecast (the
 dining hall's FSS) is stored as `forecast` rows with `model_version = 'fss'`. While those rows come from
 the simulator they are labeled **"Simulated FSS (assumed +25% over-prep)"** everywhere: the evaluation

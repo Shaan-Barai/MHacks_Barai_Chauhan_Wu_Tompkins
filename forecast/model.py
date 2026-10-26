@@ -197,6 +197,54 @@ def expected_diners(attendance: dict[tuple[date, str], float], target: date, mea
     return fmean(vals) if vals else None
 
 
+CONTEXT_FLAGS = ("exam_week", "home_game", "is_holiday")
+
+
+@dataclass(frozen=True)
+class ContextAdjustment:
+    multiplier: float
+    applied: dict[str, float]  # flag -> its estimated ratio (only flags with enough history)
+    skipped: list[str]  # flags set on the target day but without enough history
+
+
+def context_multiplier(
+    attendance: dict[tuple[date, str], float],
+    context: dict[date, set[str]],
+    target: date,
+    meal: str,
+    *,
+    min_days: int = 2,
+    lo: float = 0.3,
+    hi: float = 2.0,
+) -> ContextAdjustment:
+    """Expected-diners multiplier for the target day's context flags, ESTIMATED from history.
+
+    For each flag set on the target day: the mean over past flagged days of
+    (diners that day / mean diners on unflagged days with the same weekday and
+    meal). Flags with fewer than `min_days` usable past days are skipped (1.0).
+    Flags multiply; the result is clamped to [lo, hi]. No flags -> 1.0.
+    """
+    flags = [f for f in CONTEXT_FLAGS if f in context.get(target, set())]
+    applied: dict[str, float] = {}
+    skipped: list[str] = []
+    for flag in flags:
+        ratios = []
+        for (day, m), n in attendance.items():
+            if m != meal or day >= target or flag not in context.get(day, set()):
+                continue
+            normal = [v for (d, mm), v in attendance.items() if mm == meal and d < target and d.isoweekday() == day.isoweekday() and not (context.get(d, set()) & set(CONTEXT_FLAGS))]
+            if normal:
+                ratios.append(n / fmean(normal))
+        if len(ratios) >= min_days:
+            applied[flag] = fmean(ratios)
+        else:
+            skipped.append(flag)
+    mult = 1.0
+    for r in applied.values():
+        mult *= r
+    return ContextAdjustment(min(hi, max(lo, mult)), applied, skipped)
+
+
 def scaled_demand(b: Baseline, diners_expected: float | None) -> tuple[float, float]:
     """(demand lb, attendance scale factor). Scales the baseline by expected / baseline-meal diners."""
     if diners_expected and b.diners_then and b.diners_then > 0:
@@ -299,11 +347,14 @@ def make_forecast(
     tray_waste_share: float | None,
     errors: list[float],
     q_shift: float = 0.0,
+    context_adjustment: ContextAdjustment | None = None,
 ) -> Forecast | None:
     b = baseline(history, target, meal, dish_id, cycle_start, weeks)
     if b is None:
         return None
     diners = expected_diners(attendance, target, meal)
+    if diners is not None and context_adjustment is not None:
+        diners *= context_adjustment.multiplier
     demand, scale = scaled_demand(b, diners)
     q = shift_q(newsvendor_q(cost_under, cost_over), q_shift)
     prep, low, high, method = prep_from_errors(demand, errors, q)
@@ -320,6 +371,9 @@ def make_forecast(
     parts = [f"{dish_name}: {demand:.1f} lb expected from {basis_text}"]
     if abs(scale - 1.0) >= 0.03:
         parts.append(f"x{scale:.2f} for {diners:.0f} expected diners")
+    if context_adjustment is not None and context_adjustment.applied:
+        flags = ", ".join(f"{k.replace('_', ' ')} x{v:.2f}" for k, v in context_adjustment.applied.items())
+        parts.append(f"diners adjusted for {flags} (estimated from past days)")
     parts.append(f"prep covers demand {round(q * 100)}% of the time, {method}")
     if share > 0:
         parts.append(f"{share * 100:.0f}% tray waste from calibrated scans")

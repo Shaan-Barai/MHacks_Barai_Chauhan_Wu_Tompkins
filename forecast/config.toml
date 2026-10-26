@@ -56,3 +56,15 @@ files = [
   "factors/menu_waste_factors_halal_bros.csv",
   "factors/menu_waste_factors_500.csv",
 ]
+
+[context]
+# Adjust expected diners for exam weeks, home games and holidays (context_day).
+# OFF by default: there is no real data yet to show it helps. When on, each
+# flag's effect is ESTIMATED from this hall's own history (diners on past
+# flagged days vs. the same weekday and meal without the flag); a flag with
+# fewer than `min_days` past examples gets no adjustment, and the combined
+# multiplier is clamped to [min_multiplier, max_multiplier].
+enabled = false
+min_days = 2
+min_multiplier = 0.3
+max_multiplier = 2.0

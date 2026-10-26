@@ -47,6 +47,7 @@ class HallData:
     fss: dict[tuple[date, str, str], float]  # (date, meal, dish) -> FSS forecast lb
     fss_simulated: bool  # the FSS rows are the simulator's stand-in, not a real FSS export
     tray_waste_share: dict[str, float]  # dish -> share (only with enough scan coverage)
+    context: dict[date, set[str]]  # day -> context flags set (exam_week, home_game, is_holiday)
     notes: list[str]
 
 
@@ -113,6 +114,11 @@ def load_hall(db: Supabase, hall_id: str, settings: Settings | None = None) -> H
             fss[(_d(r["service_date"]), r["meal_label"], r["dish_id"])] = float(r["fss_forecast_lb"])
 
     share = tray_waste_shares(db, hall_id, dishes, history, attendance, s, notes)
+    context: dict[date, set[str]] = {}
+    for r in db.select("context_day", {"hall_id": f"eq.{hall_id}"}, "service_date,exam_week,home_game,is_holiday"):
+        flags = {f for f in ("exam_week", "home_game", "is_holiday") if r.get(f)}
+        if flags:
+            context[_d(r["service_date"])] = flags
     return HallData(
         hall_id=hall_id,
         timezone=hall.get("timezone") or s.default_timezone,
@@ -127,6 +133,7 @@ def load_hall(db: Supabase, hall_id: str, settings: Settings | None = None) -> H
         fss=fss,
         fss_simulated=any(r.get("is_simulated") for r in fss_rows),
         tray_waste_share=share,
+        context=context,
         notes=notes,
     )
 

@@ -27,7 +27,8 @@ untouched**. The step-by-step log, with every number, is in [PROGRESS.md](PROGRE
 3. **Look at the new pages:** `/forecast` and `/production`.
    - Forecast shows **SIMULATED** numbers on `hall-main`.
    - Remove them any time with `python3 -m forecast.simulate remove --hall hall-main`.
-4. **Imported scans don't count on the dashboard, and they didn't before either.**
+4. **Resolved (2026-10-25 follow-up):** the 10 imported scans were re-analyzed with the current pipeline (20 Gemini calls) and now count; hall-main shows 6 plates and 748,986 px. The original problem was:
+   **Imported scans didn't count on the dashboard, and they didn't before either.**
    - All 23 imported measurements use the old method name `sam2_mask_pixel_count`.
    - Current code counts only `mask_pixel_count`, so the 6 hall-main scans from Oct 2–4 show in Scanned
      plates as "Not counted… lack validated mask provenance", and "Plates scanned" is 0.

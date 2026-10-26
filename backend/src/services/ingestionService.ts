@@ -7,6 +7,10 @@
  *   - `failed`/`needs_review`/`pending` -> a RETRY runs a new analysis
  *     attempt on the SAME event (attempts are append-only history),
  *   - `processing` -> the in-flight state is returned.
+ * reanalyze(eventId) is the one explicit exception: an operator asks for a new
+ * analysis attempt on a SUCCEEDED event (e.g. results stored by an older
+ * pipeline). It appends an attempt to the same event; older attempts and their
+ * measurements stay stored, and the latest succeeded attempt is the one counted.
  *
  * Processing states: pending -> processing -> succeeded | needs_review | failed.
  *
@@ -88,10 +92,32 @@ export class IngestionService {
     }
   }
 
-  async submitCapture(submission: CaptureSubmission): Promise<IngestResult> {
+  /** Run a new analysis attempt on an existing capture with its stored image (see the header). */
+  async reanalyze(eventId: string): Promise<IngestResult> {
+    const event = await this.repo.getCaptureEvent(eventId);
+    if (!event) throw notFound('CAPTURE_NOT_FOUND', 'That capture does not exist.', { eventId });
+    if (event.state === 'processing') {
+      return { event, measurements: await this.countedMeasurements(event), deduplicated: true };
+    }
+    return this.submitCapture(
+      {
+        eventId: event.eventId,
+        hallId: event.hallId,
+        serviceId: event.serviceId,
+        capturedAt: event.capturedAt,
+        imageObjectId: event.imageObjectId,
+        geometry: event.geometry,
+        source: event.source,
+        qualityFlags: event.qualityFlags,
+      },
+      { reanalyze: true },
+    );
+  }
+
+  async submitCapture(submission: CaptureSubmission, opts: { reanalyze?: boolean } = {}): Promise<IngestResult> {
     const existing = await this.repo.getCaptureEvent(submission.eventId);
 
-    if (existing && (existing.state === 'succeeded' || existing.state === 'processing')) {
+    if (existing && (existing.state === 'processing' || (existing.state === 'succeeded' && !opts.reanalyze))) {
       // Idempotent replay: same event, no new observation, no new attempt.
       return {
         event: existing,

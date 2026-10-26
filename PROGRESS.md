@@ -4,8 +4,8 @@
 
 - **Branch:** `overnight-supabase` (Part B), branched from `supabase-migration` at `350a034`.
 - **Last commit:** `cee58a0` gitignore the Supabase CLI cache
-- **Next step:** Follow-up task 4: re-run the 10 imported capture photos through the current pipeline (≤ 35 Gemini calls); report Plates scanned and pixels before vs. after.
-- **Gemini calls used so far:** 32 of 150.
+- **Next step:** Follow-up task 6: context adjustments (off by default, with tests) and the `ground_truth.csv` search.
+- **Gemini calls used so far:** 52 (32 overnight + 20 in follow-up task 4).
 - **Long-running processes to restart:** the SAM worker (`.venv/bin/python vision/sam/worker.py`, :8790; `sam2` was pip-installed into `.venv` tonight from the pinned commit) and the SpacetimeDB **copy** on `127.0.0.1:3901`. If it's down:
   `spacetime start --listen-addr 127.0.0.1:3901 --data-dir <scratchpad>/stdb-copy --jwt-pub-key-path ~/.config/spacetime/id_ecdsa.pub --jwt-priv-key-path ~/.config/spacetime/id_ecdsa --non-interactive`.
   If the scratchpad is gone, re-copy `~/.local/share/spacetime/data` first and delete `spacetime.pid` *in the copy*. Never start a server on the original folder.
@@ -44,6 +44,7 @@
 | When | What | Calls | Running total |
 |---|---|---|---|
 | 21:35 | Live test2 run on Supabase (13 photos: classify + box passes; 1 recommendation) | 32 | 32 |
+| 10-25 20:15 | Follow-up task 4: re-analyze the 10 imported captures (cap 35) | 20 | 52 |
 
 ## Known facts (checked)
 
@@ -308,3 +309,21 @@ The user confirmed in their own words: do tasks 2–7, task 1 is already done, a
   - **Cleanup:** none needed. Supabase still matches the import exactly (import dry-run: every count matches; `simulated_attendance` 5, `insight` 4), so no GET-created rows exist.
   - Note: `./test-all.sh` doesn't load `.env`, so the live `tests/system/supabase-*` tests skip there. Run them as documented in the README.
   - `./test-all.sh`: ALL PASSED (backend 128 + 2 skipped).
+- **Task 4 done: the old scans now count.**
+  - New explicit re-analysis path: `IngestionService.reanalyze(eventId)` and `POST /api/captures/:eventId/reanalyze` (ingest token or admin; Gemini rate cap). It **appends a new attempt to the same capture**; earlier attempts and their measurements stay, and the newest succeeded attempt is the one counted.
+    - A plain resubmit still never re-analyzes (unit-tested).
+    - Script: `backend/scripts/reanalyze-captures.mjs --legacy|--event <id> [--max-gemini N] [--dry-run]`.
+  - **Run:** 10/10 captures succeeded with the current pipeline (Gemini classification + SAM 2.1 masks), **2 Gemini calls each = 20 of the 35 budget**. The 1 imported capture that had *failed* (`cap_e2e_musw2fuw`) succeeded this time.
+  - **Before → after** (dashboard API, 2026-09-01 to 10-31):
+
+    | Hall | Plates scanned | Excluded | Pixels wasted |
+    |---|---|---|---|
+    | hall-main | 0 → **6** | 6 → 0 | 0 → **748,986** |
+    | hall-e2e-musw1war | 0 → 1 | 1 → 0 | 0 → 172,870 |
+    | hall-e2e-musw2fuw | 0 → 1 | 1 → 0 | 0 → 172,870 |
+    | hall-e2e-musw3a06 | 0 → 1 | 1 → 0 | 0 → 172,870 |
+    | hall-e2e-musw3m68 | 0 → 1 | 1 → 0 | 0 → 172,870 |
+
+    hall-main's 748,986 = the sum of its 6 captures' new mask counts (196,563 + 108,678 + 173,240 + 2,814 + 83,763 + 183,928).
+  - **The 23 legacy `sam2_mask_pixel_count` rows are kept** (count verified), plus 24 new `mask_pixel_count` rows.
+  - **Found:** the 4 `hall-e2e-*` captures are **the same photo** (identical 289,794-byte images), replayed into 4 throwaway test halls by earlier e2e runs that ended up in this Mac's SpacetimeDB data. They're test data, not real scans; hide or delete them if they shouldn't appear (the user's call).

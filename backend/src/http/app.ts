@@ -684,6 +684,16 @@ export function createApp(deps: AppDeps): express.Express {
     }),
   );
 
+  // Re-run analysis on an existing capture (e.g. results from an older pipeline). Appends an
+  // attempt to the same capture; earlier attempts stay stored. Needs the ingest token or an admin session.
+  app.post(
+    '/api/captures/:eventId/reanalyze',
+    geminiCap,
+    wrap(async (req, res) => {
+      res.json(await ingestion.reanalyze(param(req, 'eventId')));
+    }),
+  );
+
   // D14: failed / needs_review plates INCLUDING hidden ones, for retry-failed.mjs.
   // Hiding is display-only and must not block a retry; the ingest token may call
   // this (it can already resubmit any capture) but it never lists healthy plates.

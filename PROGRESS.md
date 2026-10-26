@@ -4,9 +4,9 @@
 
 - **Branch:** `overnight-supabase` (Part B), branched from `supabase-migration` at `350a034`.
 - **Last commit:** `cee58a0` gitignore the Supabase CLI cache
-- **Next step:** Follow-up task 7: write MERGE_REVIEW.md; confirm the removal steps in `docs/supabase-migration-plan.md`; stop the SAM worker and the scratch SpacetimeDB copy.
+- **Next step:** follow-up complete (task 5 still waits for a real sheet photo). See `MERGE_REVIEW.md`.
 - **Gemini calls used so far:** 52 (32 overnight + 20 in follow-up task 4).
-- **Long-running processes to restart:** the SAM worker (`.venv/bin/python vision/sam/worker.py`, :8790; `sam2` was pip-installed into `.venv` tonight from the pinned commit) and the SpacetimeDB **copy** on `127.0.0.1:3901`. If it's down:
+- **Long-running processes:** none (both stopped 2026-10-25). For live photo runs, start the SAM worker (`.venv/bin/python vision/sam/worker.py`, :8790; `sam2` was pip-installed into `.venv` tonight from the pinned commit) and the SpacetimeDB **copy** on `127.0.0.1:3901`. If it's down:
   `spacetime start --listen-addr 127.0.0.1:3901 --data-dir <scratchpad>/stdb-copy --jwt-pub-key-path ~/.config/spacetime/id_ecdsa.pub --jwt-priv-key-path ~/.config/spacetime/id_ecdsa --non-interactive`.
   If the scratchpad is gone, re-copy `~/.local/share/spacetime/data` first and delete `spacetime.pid` *in the copy*. Never start a server on the original folder.
 - **SUPABASE_URL override:** `.env` still has a dashboard link. Run commands with
@@ -339,3 +339,9 @@ The user confirmed in their own words: do tasks 2–7, task 1 is already done, a
   - **Scored last night's live run offline** (from its saved report, 0 Gemini calls): **recall 94.4%, precision 81.0%** (17 correct, 1 missed, 4 wrong over 12 photos) vs. the recorded baseline of 100% / 92.3%, **so the live test would now report a REGRESSION.**
     - Misses and extras: IMG_2696 +Cheese Bread; IMG_2700 +Lettuce; IMG_2702 Cheese Bread instead of Pepperoni Pizza; IMG_2703 +Halal Rice.
     - Detection is the vision pipeline, which the migration didn't change. The cause isn't investigated (Gemini run-to-run variation is one possibility). Logged for the user.
+- **Task 7 done.**
+  - `MERGE_REVIEW.md`: how the branches relate (`overnight-supabase` contains all of `supabase-migration`; 20 commits ahead of `origin/main`, 0 behind, merges cleanly), a plain-English summary of the diff (103 files), 9 ranked risks, and a verdict: **ready for one draft PR**, with 4 things to settle before merging.
+  - **Removal steps re-checked; they were out of date.** The import script and the parity test now depend on `spacetimeRepository.ts`, and they missed `demoControls.test.ts`'s SpacetimeDB case, the live test's R2 mode, the e2e/camera tests, `demo.py`, CI and the test-all live suites. `docs/supabase-migration-plan.md` now has ordered steps 0–7, with "import the offsite copy first" as step 0.
+  - **New risk found while writing the review:** `production_log` is anon-readable, so "confirmed by" names and sheet photo paths are visible with the publishable key. Flagged as risk #2 (a one-line fix if names should be private); not changed without the user's say.
+  - Stopped the SAM worker (:8790) and the scratch SpacetimeDB copy (:3901). Confirmed each was the process I started; the original `~/.local/share/spacetime/data` was never served.
+- **Follow-up Gemini total: 20** (task 4). **Overall: 52.**

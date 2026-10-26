@@ -111,13 +111,49 @@ cd ../tests && PARITY_SPACETIMEDB_URI=http://127.0.0.1:3901 node --env-file=../.
 
 ## Removing SpacetimeDB and R2 (only after approval)
 
-1. Delete `db/spacetimedb/`, `backend/src/repo/spacetimeRepository.ts`, `backend/src/storage/r2Storage.ts`,
-   their tests (`backend/test/spacetimeRepository.live.test.ts`, `backend/test/r2Storage.test.ts`,
-   `tests/system/spacetime.test.mjs`, `tests/system/r2.test.mjs`) and the R2/SpacetimeDB helpers in
-   `tests/support/stack.mjs`.
-2. Remove `@aws-sdk/*` from `backend/package.json`; remove `spacetime*`/`r2*` options from
-   `backend/src/config.ts` and `wiring.ts`; drop `SPACETIMEDB_*` and `R2_*` from `.env.example`.
-3. Update `deploy/` (`local.sh`, `server/scrap-spacetimedb.service`, `server/deploy.sh sync-db`,
-   `r2-cors.*.json`) and the docs that mention them.
-4. Only then, and separately: archive or delete `~/.local/share/spacetime/data` (the offsite server's
-   copy too) once its import has been verified.
+Re-checked against the code on 2026-10-25. Do the steps in this order; step 1 must come first because
+the import script and the parity test use the SpacetimeDB repository.
+
+0. **Before removing anything:** import the offsite server's SpacetimeDB copy too, if it differs from
+   this Mac's (`backend/scripts/import-spacetime-to-supabase.mjs` against a copy served on a spare
+   port; then `tests/system/supabase-parity.test.mjs`).
+1. **Delete the one-time migration tools** (they import `spacetimeRepository.ts`):
+   `backend/scripts/import-spacetime-to-supabase.mjs`, `tests/system/supabase-parity.test.mjs`.
+2. **Delete the SpacetimeDB and R2 code and their tests:**
+   - Code: `db/spacetimedb/` (and `db/README.md`), `backend/src/repo/spacetimeRepository.ts`,
+     `backend/src/storage/r2Storage.ts`.
+   - Tests: `backend/test/spacetimeRepository.live.test.ts`, `backend/test/r2Storage.test.ts`, the
+     SpacetimeDB case in `backend/test/demoControls.test.ts` ("SpacetimeDB module without
+     dashboard_view…"), `tests/system/spacetime.test.mjs`, `tests/system/r2.test.mjs`.
+   - In `tests/support/stack.mjs`: the R2 and SpacetimeDB helpers (`r2Available`, `r2ObjectStorage`,
+     `listR2`, `cleanR2Prefix`, `spacetimeAvailable`, `spacetimeRepo`, `publishThrowaway`,
+     `deleteThrowaway`, `sql`, `callReducer`).
+3. **Make Supabase the only path:**
+   - `backend/src/config.ts` and `wiring.ts`: drop the `spacetime` and `r2` options and branches,
+     and the `R2_KEY_PREFIX` fallback.
+   - `backend/src/storage/objectStorage.ts` and `localDevStorage.ts`: drop the R2 comments.
+   - `backend/package.json`: remove `@aws-sdk/client-s3` and `@aws-sdk/s3-request-presigner`.
+   - `tests/live/images.test.mjs`: make `LIVE_STACK=supabase` the only mode.
+   - `tests/e2e/*`, `tests/camera/run.mjs`, `tests/scripts/unit.mjs`: replace R2 and SpacetimeDB setup
+     with Supabase.
+   - `test-all.sh` live suites (`stack`, `e2e-*`, `demo`): move them to Supabase.
+   - `.github/workflows/agent8-verify.yml`: move it to Supabase.
+   - `backend/test/supabaseRepository.live.test.ts`: change its fixture's `provider: 'r2'` to
+     `'supabase'`.
+   - `contracts/types.ts`: drop `'r2'` from `ImageObject.provider` once no stored row uses it (none
+     do).
+4. **Deploy and demo:**
+   - `deploy/local.sh`: stop starting SpacetimeDB.
+   - Delete `deploy/server/scrap-spacetimedb.service` and `deploy/r2-cors.*.json`.
+   - `deploy/server/deploy.sh`: remove `sync-db`; the read-only server just needs the Supabase
+     variables and `READ_ONLY=1`, which now refuses every write.
+   - `demo.py` and `capture/scripts/live_camera_test.py` (`--spacetime-db`): move to Supabase.
+   - `capture/src/http.ts` comments.
+5. **Config and docs:**
+   - Drop `SPACETIMEDB_*` and `R2_*` from `.env.example` and your `.env`.
+   - Remove the README's "Legacy setup" section.
+   - Update the other docs that mention SpacetimeDB or R2 (`git grep -l "SpacetimeDB\|R2" -- "*.md"`;
+     about 34 files).
+6. **Run `./test-all.sh` and the live Supabase tests** (README "Verify").
+7. **Only then, and separately:** archive or delete `~/.local/share/spacetime/data` (and the offsite
+   server's copy). The Cloudflare R2 bucket was never used, so there is nothing to delete there.

@@ -4,7 +4,7 @@ import { ForecastPage } from './ForecastPage'
 import { getForecastSummary } from '../data/api'
 import type { ForecastSummary } from '../data/types'
 
-vi.mock('../data/api', () => ({ getForecastSummary: vi.fn(), USE_MOCK: false }))
+vi.mock('../data/api', () => ({ getForecastSummary: vi.fn(), getForecastModels: vi.fn(async () => ({ available: false, hallId: 'hall-main', rows: [] })), USE_MOCK: false }))
 
 const totals = {
   meals: 10, ranOutMeals: 2, ourWape: 0.18, fssWape: 0.41, ourStockouts: 3, fssStockouts: 2, ourWouldLeaveLb: 12.5,

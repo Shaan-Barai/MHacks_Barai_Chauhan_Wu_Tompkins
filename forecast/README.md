@@ -96,3 +96,30 @@ sheets exist. Every row gets `is_simulated = true`, the dashboard shows a SIMULA
 `remove` deletes only those rows. Its assumptions (attendance pattern, take rates, a "Simulated FSS" that
 over-preps by about 25%, 4–14% tray waste) are listed at the top of the file. **None of its numbers
 describe a real dining hall.**
+
+## Model comparison (Run 3)
+
+```bash
+.venv/bin/python -m forecast.backtest --hall hall-main --start 2026-09-26 --end 2026-10-23 [--no-gbm] [--write]
+```
+
+- **Models** (`forecast/models.py`, each under its own `model_version`): `baseline-v1` (production), `seasonal-naive-v1`, `moving-avg-4-v1`, `exp-smoothing-v1`, and `gbm-v1`.
+  - `gbm-v1` is a scikit-learn `HistGradientBoostingRegressor` on calendar, context and lag features, retrained weekly.
+  - scikit-learn is optional: `.venv/bin/python -m pip install scikit-learn` (see `requirements-models.txt`). Without it, `gbm-v1` is skipped with a note.
+- **Walk-forward with no look-ahead:**
+  - Every forecast goes through a `PastView` cut at its day. A model that asks for later data raises `LookAheadError`.
+  - `forecast/tests/test_backtest.py` poisons the future with absurd rows and fails if any earlier forecast moves.
+- **Intervals:** prep amounts and the 10–90% range come from each model's own past relative errors (same meal, last `error_window_days`). With fewer than 5 errors, a default ±25% spread is used.
+- **Censored meals:** ran-out meals stay censored. They are left out of training targets for the new models, and out of WAPE and bias. They count as stockouts by `model.evaluate`'s rule.
+- **Metrics** (every model on the same meals):
+  - WAPE and bias;
+  - stockouts and pan leftover (lb, $) at default service levels;
+  - the same at **matched stockouts** (each model's q shifted until its stockouts ≤ the comparison forecast's);
+  - 10–90% interval coverage.
+- **Output:**
+  - `forecast/out/model_comparison[_SIMULATED]_….json`;
+  - `--write` stores it in `forecast_model_comparison`;
+  - the Forecast page shows the latest run, under a SIMULATED banner when built from simulated rows.
+- **Unsupervised helpers** (`forecast/unsupervised.py`), both **off** in `config.toml`:
+  - `[clustering]`: k-means day types from attendance profile + context, computed per fold from past days only;
+  - `[anomaly]`: a robust z-score on confirmed production rows. Flagged rows are listed for review and left out of training, never deleted.

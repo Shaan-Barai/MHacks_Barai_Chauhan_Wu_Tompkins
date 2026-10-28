@@ -35,6 +35,29 @@ export interface ForecastSource {
   upcoming(hallId: string, from: string, to: string): Promise<Omit<UpcomingForecast, 'displayName'>[]>;
   /** True when any comparison (FSS) forecast in the range is the simulator's stand-in. */
   comparisonSimulated(hallId: string, from: string, to: string): Promise<boolean>;
+  /** Rows of the latest stored model comparison (forecast/backtest.py --write), or [] (optional). */
+  modelComparison?(hallId: string): Promise<ModelComparisonRow[]>;
+}
+
+/** One row of forecast_model_comparison: a model scored in one mode on one backtest run. */
+export interface ModelComparisonRow {
+  runId: string;
+  windowStart: string;
+  windowEnd: string;
+  modelVersion: string;
+  mode: 'default' | 'matched_stockouts' | 'as_given';
+  meals: number;
+  censoredMeals: number;
+  wape: number | null;
+  bias: number | null;
+  stockouts: number;
+  leftoverLb: number | null;
+  leftoverUsd: number | null;
+  intervalCoverage: number | null;
+  meanQ: number | null;
+  comparisonLabel: string | null;
+  isSimulated: boolean;
+  generatedAt: string;
 }
 
 const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
@@ -105,6 +128,22 @@ export class SupabaseForecastSource implements ForecastSource {
     return (data ?? []).length > 0;
   }
 
+  async modelComparison(hallId: string): Promise<ModelComparisonRow[]> {
+    const latest = await this.db.from('forecast_model_comparison').select('run_id').eq('hall_id', hallId).order('generated_at', { ascending: false }).limit(1);
+    if (latest.error) throw new Error(`Supabase model comparison read failed: ${latest.error.message}`);
+    const runId = latest.data?.[0]?.run_id;
+    if (!runId) return [];
+    const { data, error } = await this.db.from('forecast_model_comparison').select('*').eq('run_id', runId);
+    if (error) throw new Error(`Supabase model comparison read failed: ${error.message}`);
+    return (data ?? []).map((r) => ({
+      runId: r.run_id, windowStart: r.window_start, windowEnd: r.window_end, modelVersion: r.model_version, mode: r.mode,
+      meals: r.meals, censoredMeals: r.censored_meals, wape: num(r.wape), bias: num(r.bias), stockouts: r.stockouts,
+      leftoverLb: num(r.leftover_lb), leftoverUsd: num(r.leftover_usd), intervalCoverage: num(r.interval_coverage),
+      meanQ: num(r.mean_q), comparisonLabel: r.comparison_label ?? null, isSimulated: r.is_simulated === true,
+      generatedAt: new Date(r.generated_at).toISOString(),
+    }));
+  }
+
   async upcoming(hallId: string, from: string, to: string) {
     const rows = await this.all<Record<string, unknown>>((start) =>
       this.db
@@ -138,6 +177,26 @@ const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00
 
 export class ForecastService {
   constructor(private readonly source: ForecastSource | undefined) {}
+
+  /** The latest walk-forward model comparison for a hall, labeled simulated when built from simulated rows. */
+  async models(hallId: string) {
+    if (!hallId) throw badRequest('MISSING_PARAMETER', "'hallId' is required.");
+    const rows = this.source?.modelComparison ? await this.source.modelComparison(hallId) : [];
+    if (rows.length === 0) return { available: false as const, hallId, rows: [] };
+    const order = ['baseline-v1', 'seasonal-naive-v1', 'moving-avg-4-v1', 'exp-smoothing-v1', 'gbm-v1', 'fss'];
+    const modeOrder = ['default', 'matched_stockouts', 'as_given'];
+    rows.sort((a, b) => (order.indexOf(a.modelVersion) - order.indexOf(b.modelVersion)) || (modeOrder.indexOf(a.mode) - modeOrder.indexOf(b.mode)));
+    return {
+      available: true as const,
+      hallId,
+      runId: rows[0]!.runId,
+      window: { start: rows[0]!.windowStart, end: rows[0]!.windowEnd },
+      generatedAt: rows[0]!.generatedAt,
+      simulated: rows.some((r) => r.isSimulated),
+      comparisonLabel: rows.find((r) => r.comparisonLabel)?.comparisonLabel ?? null,
+      rows,
+    };
+  }
 
   async summary(hallId: string, start: string, end: string, today: string) {
     if (!hallId) throw badRequest('MISSING_PARAMETER', "'hallId' is required.");

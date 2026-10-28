@@ -68,3 +68,17 @@ enabled = false
 min_days = 2
 min_multiplier = 0.3
 max_multiplier = 2.0
+
+[clustering]
+# Day-type clustering (forecast/unsupervised.py): k-means on each day's attendance profile + context.
+# Off by default; when on, gbm-v1 gets the day type of the same weekday last week as a feature.
+enabled = false
+k = 4
+seed = 0
+
+[anomaly]
+# Robust z-score on confirmed production_log rows (per dish and meal). Off by default; when on,
+# rows with |z| > threshold are listed for review and left out of model training (never deleted).
+enabled = false
+threshold = 3.5
+min_rows = 5

@@ -5,7 +5,7 @@ from __future__ import annotations
 import csv
 import os
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
@@ -26,6 +26,8 @@ class Settings:
     meals: dict[str, tuple[str, str]]
     factor_files: list[Path]
     context: dict[str, object]
+    clustering: dict[str, object] = field(default_factory=dict)
+    anomaly: dict[str, object] = field(default_factory=dict)
 
     @property
     def reference_cost_over(self) -> float:
@@ -57,6 +59,8 @@ def load_settings(path: str | None = None) -> Settings:
         meals={k: (v[0], v[1]) for k, v in raw["meals"].items()},
         factor_files=[REPO / f for f in raw["factors"]["files"]],
         context=dict(raw.get("context", {})),
+        clustering=dict(raw.get("clustering", {})),
+        anomaly=dict(raw.get("anomaly", {})),
     )
 
 

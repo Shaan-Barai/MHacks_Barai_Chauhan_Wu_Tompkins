@@ -67,6 +67,7 @@ export const confirmProductionRow = impl.confirmProductionRow
 export const rejectProductionRow = impl.rejectProductionRow
 export const resetMockProduction = mock.resetMockProduction
 export const getForecastSummary = impl.getForecastSummary
+export const getForecastModels = impl.getForecastModels
 export const setMockReadOnly = mock.setMockReadOnly
 /** Demo-mode passcode (mock only; the live passcode is set on the server). */
 export const MOCK_PASSCODE = mock.MOCK_PASSCODE

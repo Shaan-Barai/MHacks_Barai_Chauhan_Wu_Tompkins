@@ -368,7 +368,7 @@ Plan: `~/.claude/plans/pasted-content-id-88eb-long-unattended-sequential-pony.md
 - [x] Phase 3: real context data (calendar, football, weather, holidays)
 - [x] Phase 4: importers for M-Dining data + docs/data-intake.md
 - [x] Phase 5: pixels → pounds (plate scale)
-- [ ] Phase 6: forecasting models + walk-forward evaluation
+- [x] Phase 6: forecasting models + walk-forward evaluation
 - [ ] Phase 7: docs/forecasting-methods.md
 - [ ] Phase 8: secret scan, then push/draft PR only if clean
 - [ ] RUN3_REPORT.md
@@ -427,6 +427,13 @@ Plan: `~/.claude/plans/pasted-content-id-88eb-long-unattended-sequential-pony.md
    - The drop is explained by the test menu growing from 23 to 26 foods (real foods added 2026-10-04), not by a bug, and runs are deterministic.
    - I left the menu and pipeline alone and made the live test's regression baseline the measured 26-food result (94.4% / 81.0%). The old 23-food number is kept, labeled as not comparable.
    - The default `GEMINI_TIMEOUT_MS` (30 s) is not changed; raising it is recommended in the doc.
+
+21. **One interval method for every model:** each model's own past relative errors, the same as baseline-v1 in production. So differences in coverage and prep come from the point forecasts, not from different interval machinery. gbm-v1 does not use quantile loss.
+22. **Same meals for every row:** only dish-meals that every model (and the FSS row) can forecast are scored: 291 of the window's meals. Seasonal naive, for example, needs a prior same weekday.
+23. **Matched-stockouts target = the comparison forecast's stockouts** (simulated FSS, 48), the same for all models.
+24. **Censoring in the new models:** ran-out meals are left out of their inputs and training. baseline-v1 keeps its production rule ("at least" via the recent average).
+25. **scikit-learn installed into `.venv`** (1.9.1). This is optional: the forecast suite under system `python3` skips the gbm test, and `forecast/requirements-models.txt` lists it. The comparison runs with `.venv/bin/python`.
+26. **`forecast_model_comparison` is dashboard-readable** (no personal data), like `forecast`. The live RLS test covers it.
 
 ### Log
 
@@ -490,3 +497,29 @@ Plan: `~/.claude/plans/pasted-content-id-88eb-long-unattended-sequential-pony.md
   - **Also found:** the default 30 s Gemini timeout made 2 of the first 4 photos fail (first attempt stopped).
   - Wrote `docs/detection-accuracy.md`. `tests/support/scoring.mjs` BASELINE is now the 26-food measurement; `tests/system/scoring.test.mjs` reads `images/ground_truth.csv` and checks both baselines (2 pass).
   - **Gemini Phase 2 total: 97 of 100.**
+- 03:30. **Phase 6: models and evaluation.**
+  - **New files:**
+    - `forecast/models.py`: `PastView` with `LookAheadError`, and the models baseline-v1, seasonal-naive-v1, moving-avg-4-v1, exp-smoothing-v1 and gbm-v1.
+    - `forecast/backtest.py`: walk-forward, metrics, matched stockouts, `--write`.
+    - `forecast/unsupervised.py`: k-means day types and a robust-z anomaly flag. Both are off in `config.toml`.
+  - Migration `20261028000016_forecast_model_comparison.sql` (applied live; RLS test 5/5).
+  - `GET /api/forecast/models` and a "Model comparison" section on the Forecast page with its own SIMULATED banner.
+  - **Tests:** forecast +14, including a poison test for no look-ahead. I checked that it catches a real leak: future history made visible fails it. A leak of attendance alone does not change any forecast, because models read swipes through `expected_diners`, which filters by date. Also backend +1 and frontend +2.
+  - **SIMULATED comparison** (hall-main, 2026-09-26..10-23, 291 dish-meals, 48 ran out; stored as run `bt_52fc7817e167`):
+
+    | model | mode | WAPE | bias | stockouts | leftover lb | leftover $ | 10–90% coverage | mean q |
+    |---|---|---|---|---|---|---|---|---|
+    | baseline-v1 | default | 18.3% | 1.7% | 21 | 3,558 | $16,404 | 80% | 0.900 |
+    | baseline-v1 | matched | 18.3% | 1.7% | 48 | 2,797 | $13,006 | 80% | 0.826 |
+    | seasonal-naive-v1 | default | 22.3% | -1.2% | 41 | 3,847 | $18,032 | 76% | 0.900 |
+    | seasonal-naive-v1 | matched | 22.3% | -1.2% | 48 | 3,452 | $16,255 | 76% | 0.874 |
+    | moving-avg-4-v1 | default | 19.6% | -0.3% | 36 | 3,048 | $14,529 | 77% | 0.900 |
+    | moving-avg-4-v1 | matched | 19.6% | -0.3% | 48 | 2,784 | $13,362 | 77% | 0.869 |
+    | exp-smoothing-v1 | default | 21.7% | -1.3% | 28 | 4,288 | $19,744 | 79% | 0.900 |
+    | exp-smoothing-v1 | matched | 21.7% | -1.3% | 48 | 3,236 | $15,102 | 79% | 0.809 |
+    | gbm-v1 | default | 17.8% | -0.4% | 10 | 5,132 | $22,148 | 88% | 0.900 |
+    | gbm-v1 | matched | 17.8% | -0.4% | 48 | 2,959 | $12,867 | 88% | 0.790 |
+    | Simulated FSS (+25% over-prep) | as given | 41.6% | 41.6% | 48 | 4,030 | $19,272 | — | — |
+
+  - `./test-all.sh`: ALL PASSED (forecast 74 + 1 skipped gbm test under system python3; it passes under `.venv`).
+  - **Not checked in a browser yet** (jsdom tests only).

@@ -655,3 +655,36 @@ export interface EstimatedWeight {
   items: EstimatedWeightItem[]
   totals: { pixels: number; estimatedLb: number | null; captures: number; capturesWithScale: number }
 }
+
+/** GET /api/forecast/models: the latest walk-forward model comparison (forecast/backtest.py). */
+export interface ModelComparisonRow {
+  runId: string
+  windowStart: string
+  windowEnd: string
+  modelVersion: string
+  mode: 'default' | 'matched_stockouts' | 'as_given'
+  meals: number
+  censoredMeals: number
+  wape: number | null
+  bias: number | null
+  stockouts: number
+  leftoverLb: number | null
+  leftoverUsd: number | null
+  intervalCoverage: number | null
+  meanQ: number | null
+  comparisonLabel: string | null
+  isSimulated: boolean
+  generatedAt: string
+}
+export type ModelComparison =
+  | { available: false; hallId: string; rows: [] }
+  | {
+      available: true
+      hallId: string
+      runId: string
+      window: { start: string; end: string }
+      generatedAt: string
+      simulated: boolean
+      comparisonLabel: string | null
+      rows: ModelComparisonRow[]
+    }

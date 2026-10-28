@@ -59,3 +59,27 @@ test('a real FSS export is labeled plainly', async (t) => {
   const res = await s.api('GET', '/api/forecast/summary?hallId=hall-main&start=2026-10-01&end=2026-10-23&today=2026-10-25');
   assert.equal(res.json.comparisonLabel, 'FSS');
 });
+
+const cmp = (modelVersion: string, mode: 'default' | 'matched_stockouts' | 'as_given', over: Record<string, unknown> = {}) => ({
+  runId: 'bt_1', windowStart: '2026-09-26', windowEnd: '2026-10-23', modelVersion, mode, meals: 291, censoredMeals: 48, wape: 0.18, bias: 0.01,
+  stockouts: 21, leftoverLb: 3558, leftoverUsd: 16404, intervalCoverage: 0.8, meanQ: 0.9, comparisonLabel: 'Simulated FSS (assumed +25% over-prep)',
+  isSimulated: true, generatedAt: '2026-10-28T06:00:00.000Z', ...over,
+});
+
+test('models: the latest comparison, ordered, labeled simulated; unavailable without one', async (t) => {
+  const s = await startTestServer(undefined, {
+    forecastSource: source({ modelComparison: async () => [cmp('fss', 'as_given'), cmp('gbm-v1', 'default'), cmp('baseline-v1', 'matched_stockouts'), cmp('baseline-v1', 'default')] }),
+  });
+  t.after(() => s.close());
+  const res = await s.api('GET', '/api/forecast/models?hallId=hall-main');
+  assert.equal(res.status, 200);
+  assert.equal(res.json.available, true);
+  assert.equal(res.json.simulated, true);
+  assert.equal(res.json.comparisonLabel, 'Simulated FSS (assumed +25% over-prep)');
+  assert.deepEqual(res.json.rows.map((r: { modelVersion: string; mode: string }) => `${r.modelVersion}/${r.mode}`),
+    ['baseline-v1/default', 'baseline-v1/matched_stockouts', 'gbm-v1/default', 'fss/as_given']);
+  const none = await startTestServer(undefined, { forecastSource: source() });
+  t.after(() => none.close());
+  assert.equal((await none.api('GET', '/api/forecast/models?hallId=hall-main')).json.available, false);
+  assert.equal((await none.api('GET', '/api/forecast/models')).status, 400);
+});

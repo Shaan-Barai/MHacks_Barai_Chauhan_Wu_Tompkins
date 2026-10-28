@@ -21,7 +21,7 @@ const skip =
 const DASHBOARD_TABLES = [
   'hall', 'dish', 'meal_service', 'menu_item', 'menu_item_revision', 'reference_portion', 'capture_event', 'food_measurement',
   'simulated_attendance', 'portions_served', 'insight', 'camera_calibration', 'measurement_settings',
-  'menu_cycle', 'attendance', 'context_day', 'forecast', 'forecast_outcome',
+  'menu_cycle', 'attendance', 'context_day', 'forecast', 'forecast_outcome', 'forecast_model_comparison',
 ];
 const PRIVATE_TABLES = [
   'image_object', 'analysis_attempt', 'capture_count', 'segmentation_region', 'attempt_calibration',
@@ -37,7 +37,7 @@ const KEY_COLUMN = {
   menu_cycle: 'hall_id', production_log: 'hall_id', attendance: 'hall_id', context_day: 'hall_id', forecast: 'hall_id',
   forecast_outcome: 'error_lb', image_object: 'object_id', analysis_attempt: 'attempt_id', capture_count: 'attempt_id',
   segmentation_region: 'region_id', attempt_calibration: 'attempt_id', capture_visibility: 'event_id', dashboard_view: 'hall_id',
-  scan_info: 'event_id', demo_marker: 'marker_id', plate_scale_estimate: 'attempt_id',
+  scan_info: 'event_id', demo_marker: 'marker_id', plate_scale_estimate: 'attempt_id', forecast_model_comparison: 'run_id',
 };
 const WRITE_FUNCTIONS = {
   upsert_menu: { p_menu: {} },

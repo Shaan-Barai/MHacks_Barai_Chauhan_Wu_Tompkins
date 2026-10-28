@@ -6,13 +6,14 @@
  * comes from simulated rows. Unknown values show a dash, never 0.
  */
 import { useState } from 'react'
-import { USE_MOCK, getForecastSummary } from '../data/api'
+import { USE_MOCK, getForecastModels, getForecastSummary } from '../data/api'
 import type { ForecastComparison, ForecastSummary, UpcomingForecast } from '../data/types'
 import { MEAL_NAME, type MealLabel } from '../data/types'
 import { useAsync } from '../lib/useAsync'
 import { formatNumber } from '../lib/format'
 import { DateRangePicker, STATISTICS_PRESETS, defaultRange, type DateRange } from '../components/DateRangePicker'
 import { Badge, Card, EmptyState, LoadingBlock } from '../components/ui'
+import { ModelComparison } from '../components/ModelComparison'
 
 const lb = (x: number | null) => (x === null ? '—' : `${x.toLocaleString(undefined, { maximumFractionDigits: 1 })} lb`)
 const usd = (x: number | null) => (x === null ? '—' : x.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }))
@@ -33,6 +34,7 @@ function Tile({ title, value, detail }: { title: string; value: string; detail?:
 export function ForecastPage({ dataRevision = 0 }: { dataRevision?: number } = {}) {
   const [range, setRange] = useState<DateRange>(defaultRange)
   const summary = useAsync(() => getForecastSummary(range.start, range.end), [range.start, range.end, dataRevision])
+  const models = useAsync(() => getForecastModels().catch(() => null), [dataRevision])
   const data = summary.data
   return (
     <div className="space-y-5">
@@ -47,6 +49,7 @@ export function ForecastPage({ dataRevision = 0 }: { dataRevision?: number } = {
         <EmptyState title="Forecasts are not set up on this server.">They need the Supabase database and the forecast worker.</EmptyState>
       )}
       {data?.available && <ForecastBody data={data} />}
+      {models.data?.available && <ModelComparison data={models.data} />}
     </div>
   )
 }

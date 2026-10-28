@@ -1012,6 +1012,10 @@ export function createApp(deps: AppDeps): express.Express {
   }));
 
   // ---- forecast vs. actual (forecast worker output; formulas in analytics/) ----
+  app.get('/api/forecast/models', wrap(async (req, res) => {
+    if (!deps.forecast) throw notFound('ROUTE_NOT_FOUND', 'Forecasts are not available on this server.');
+    res.json(await deps.forecast.models(requireQuery(req, 'hallId')));
+  }));
   app.get('/api/forecast/summary', wrap(async (req, res) => {
     if (!deps.forecast) throw notFound('ROUTE_NOT_FOUND', 'Forecasts are not available on this server.');
     const window = parseWindow(req.query);

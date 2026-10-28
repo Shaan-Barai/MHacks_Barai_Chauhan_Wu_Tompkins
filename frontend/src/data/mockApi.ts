@@ -25,6 +25,8 @@ import {
 import type {
   AuthSession,
   EstimatedWeight,
+  ModelComparison,
+  ModelComparisonRow,
   CalibrationImages,
   CameraCalibration,
   MeasurementSettings,
@@ -705,6 +707,22 @@ export async function rejectProductionRow(id: number): Promise<ProductionRow> {
   const next = { ...mockUnconfirmed(id), status: 'rejected' as const }
   mockProduction = mockProduction.map((r) => (r.productionLogId === id ? next : r))
   return { ...next }
+}
+
+/** Demo model comparison: SIMULATED numbers (the live API reads forecast_model_comparison). */
+export async function getForecastModels(): Promise<ModelComparison> {
+  await wait()
+  const row = (modelVersion: string, mode: ModelComparisonRow['mode'], wape: number, stockouts: number, leftoverLb: number, intervalCoverage: number | null): ModelComparisonRow => ({
+    runId: 'bt_demo', windowStart: '2026-09-26', windowEnd: '2026-10-23', modelVersion, mode, meals: 291, censoredMeals: 48, wape, bias: 0.01, stockouts,
+    leftoverLb, leftoverUsd: leftoverLb * 4.6, intervalCoverage, meanQ: mode === 'as_given' ? null : 0.9, comparisonLabel: 'Simulated FSS (assumed +25% over-prep)',
+    isSimulated: true, generatedAt: '2026-10-28T06:00:00.000Z',
+  })
+  return {
+    available: true, hallId: 'hall-main', runId: 'bt_demo', window: { start: '2026-09-26', end: '2026-10-23' }, generatedAt: '2026-10-28T06:00:00.000Z',
+    simulated: true, comparisonLabel: 'Simulated FSS (assumed +25% over-prep)',
+    rows: [row('baseline-v1', 'default', 0.183, 21, 3558, 0.8), row('baseline-v1', 'matched_stockouts', 0.183, 48, 2797, 0.8),
+      row('gbm-v1', 'default', 0.178, 10, 5132, 0.88), row('fss', 'as_given', 0.416, 48, 4030, null)],
+  }
 }
 
 /** Demo forecast summary: SIMULATED numbers (the live API reads the forecast worker's tables). */

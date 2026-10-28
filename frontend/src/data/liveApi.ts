@@ -22,6 +22,7 @@ import type {
   CaptureListItem,
   ImpactDashboard,
   EstimatedWeight,
+  ModelComparison,
   Recommendation,
   DailyImpactPoint,
   DailyWastePoint,
@@ -673,6 +674,10 @@ export async function confirmProductionRow(id: number, confirmedBy: string): Pro
 
 export async function rejectProductionRow(id: number): Promise<ProductionRow> {
   return unwrap(await call(`/api/production-log/${id}/reject`, { method: 'POST' }), 'row')
+}
+
+export async function getForecastModels(): Promise<ModelComparison> {
+  return call<ModelComparison>(`/api/forecast/models?${q({ hallId: hallId() })}`)
 }
 
 export async function getForecastSummary(start: string, end: string): Promise<ForecastSummary> {

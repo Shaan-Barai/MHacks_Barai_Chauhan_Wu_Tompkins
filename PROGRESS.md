@@ -3,8 +3,8 @@
 ## Resume here
 
 - **Run 3 (started 2026-10-28 01:42 EDT):** branch `forecast-v2` from `overnight-supabase` (`3e20815`). See "Run 3" at the bottom.
-- **Last commit:** `b3d7a33` Run 3 Phase 3 (Phase 1 = `bb99709`).
-- **Next step:** Phase 2 runs are in progress (`tests/live/detection-runs.mjs`, 90 s timeout, cap 84); Phase 4 importers are next.
+- **Last commit:** Run 3 report on `forecast-v2` (pushed as a backup). Draft PR #25 (`overnight-supabase` → main).
+- **Next step:** Run 3 is COMPLETE. See `RUN3_REPORT.md`. Nothing is running (SAM, backend and Vite were stopped).
 - **Gemini calls this run:** 97 / 150 (Phase 2 done; no further Gemini calls planned).
 - Migrations: `npx supabase db push --db-url "$SUPABASE_DB_URL"` (dry run first) inside a subshell that sources `.env`; never echo it.
 
@@ -370,8 +370,8 @@ Plan: `~/.claude/plans/pasted-content-id-88eb-long-unattended-sequential-pony.md
 - [x] Phase 5: pixels → pounds (plate scale)
 - [x] Phase 6: forecasting models + walk-forward evaluation
 - [x] Phase 7: docs/forecasting-methods.md
-- [ ] Phase 8: secret scan, then push/draft PR only if clean
-- [ ] RUN3_REPORT.md
+- [x] Phase 8: secret scan, then push/draft PR only if clean
+- [x] RUN3_REPORT.md
 
 ### Gemini call log (Run 3, cap 150)
 
@@ -537,3 +537,8 @@ Plan: `~/.claude/plans/pasted-content-id-88eb-long-unattended-sequential-pony.md
     - test fixtures (`'ingest-token-for-tests-0123456789'`, `'session-secret-for-tests-0123456789'`, `'it4-fixture-token-6f1c'`, `'tok_secret_value_123'`, `'sb_secret_example'`, `'sb_secret_THIS_MUST_NOT_SHIP_0000'`, `'invalid-key-for-smoke-test'`);
     - `.env.example` placeholders (`your-db-password`, `your-r2-secret-access-key`).
   - **Verdict: clean.** Proceeding with the push allowed by Phase 8.
+- 04:00. **Phase 8: push.**
+  - On `overnight-supabase`: moved PROGRESS.md and OVERNIGHT_REPORT.md into `docs/` (`e61c55f`, plus `8cb9401` for MERGE_REVIEW's pointers). test-all passed after removing 4 stale gitignored `dist/` test files left by the branch switch.
+  - Pushed it and opened **draft PR #25** with MERGE_REVIEW.md as the body.
+  - Pushed `forecast-v2` as a backup (no PR).
+- 04:05. Wrote `RUN3_REPORT.md`. **Run 3 done; stopping.**

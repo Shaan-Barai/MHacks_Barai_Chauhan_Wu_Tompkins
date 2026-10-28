@@ -3,9 +3,9 @@
 ## Resume here
 
 - **Run 3 (started 2026-10-28 01:42 EDT):** branch `forecast-v2` from `overnight-supabase` (`3e20815`). See "Run 3" at the bottom.
-- **Last commit:** (none yet in Run 3)
-- **Next step:** Phase 1, quick fixes.
-- **Gemini calls this run:** 0 / 150.
+- **Last commit:** `b3d7a33` Run 3 Phase 3 (Phase 1 = `bb99709`).
+- **Next step:** Phase 2 runs are in progress (`tests/live/detection-runs.mjs`, 90 s timeout, cap 84); Phase 4 importers are next.
+- **Gemini calls this run:** 16 + the Phase 2 runs (see the call log).
 - Migrations: `npx supabase db push --db-url "$SUPABASE_DB_URL"` (dry run first) inside a subshell that sources `.env`; never echo it.
 
 ### Earlier runs (kept for reference)
@@ -364,7 +364,7 @@ Plan: `~/.claude/plans/pasted-content-id-88eb-long-unattended-sequential-pony.md
 - [x] Phase 1: production_log private, hide hall-e2e-* halls, backfill simulated attendance
 - [ ] Phase 2: detection regression (≤ 100 Gemini calls)
 - [x] Phase 3: real context data (calendar, football, weather, holidays)
-- [ ] Phase 4: importers for M-Dining data + docs/data-intake.md
+- [x] Phase 4: importers for M-Dining data + docs/data-intake.md
 - [ ] Phase 5: pixels → pounds (plate scale)
 - [ ] Phase 6: forecasting models + walk-forward evaluation
 - [ ] Phase 7: docs/forecasting-methods.md
@@ -396,6 +396,22 @@ Plan: `~/.claude/plans/pasted-content-id-88eb-long-unattended-sequential-pony.md
    - The forecast API for the next 16 days; its days before today are marked observed.
    - Later dates have null weather, never a guess.
 
+10. **Mapping files are TOML, not YAML:** Python's built-in `tomllib` reads them, so no new dependency. XLSX is read with a small standard-library reader (no openpyxl).
+11. **Importers never overwrite simulated rows:** intervals or FSS rows that already hold `is_simulated = true` rows are skipped and reported. The fix is to remove the simulated data first. Nothing is deleted by an import.
+12. **Swipe validation thresholds:**
+   - More than 1,500 swipes at a hall in 15 minutes counts as impossible (configurable per mapping).
+   - Hourly-looking exports are imported with a warning, not refused.
+   - Swipes outside every meal's hours are rejected when the file names no meal.
+13. **FSS:**
+   - Matching uses exact normalized names: dish names, menu item names linked to a dish, and mapping aliases. That is the same normalization rule as the sheet reader.
+   - Portions convert to pounds only with the dish's `portion_lb`.
+   - A duplicate row in one file: the later one wins (warned).
+   - The "FSS" label rule stays as it was: plain "FSS" only when no simulated FSS rows are in the hall's comparison.
+14. **Sheet batch:**
+   - It goes through the running backend's HTTP API (upload → finalize → extract), so it uses the exact same reader, flags and dedupe as the page.
+   - Date and meal come from a `YYYY-MM-DD_<meal>` file-name prefix when present.
+   - `--max-gemini` counts photos sent (one request each); server-side retries can add more.
+
 ### Log
 
 - 01:42. Created branch `forecast-v2` from `overnight-supabase` (`3e20815`). `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_URL`, `GEMINI_API_KEY`, `GEMINI_MODEL` and `DATABASE_PROVIDER` are each present once. The `supabase` CLI isn't on PATH; migrations go through `npx supabase` as in the README.
@@ -422,3 +438,11 @@ Plan: `~/.claude/plans/pasted-content-id-88eb-long-unattended-sequential-pony.md
 
     The other 4 home games (Sep 12, 19, 26; Oct 17) fall on simulated days and were not written. All 8 are in the source file and tested.
   - 8 new unit tests (`forecast/tests/test_context_import.py`).
+- 02:25. **Phase 4.** `forecast/importers/`:
+  - `common.py`: TOML mapping, CSV/XLSX reader, date/time parsing, report.
+  - `swipes.py`, `fss.py`, `sheets_batch.py`.
+  - Mapping examples and `samples/sample_SIMULATED_*` (swipes CSV, FSS CSV, 3 grey PNG "sheets").
+  - **Tests:** 14 new (`forecast/tests/test_importers.py`), using a fake DB and a mock backend HTTP server. **0 Gemini calls.** They cover the validation report, dry run, UTC 15-minute intervals, per-swipe counting, the simulated-row guard, units, alias/menu-item matching, the review list, the FSS label switch, and the sheet batch's cap/resume/retry/dry run.
+  - **Live dry runs against Supabase** (samples mapped to hall-main): the swipes guard skipped the 5 intervals that hold simulated attendance, and the FSS run put all 5 sample names into review (none match real dishes). Nothing was written.
+  - `docs/data-intake.md`: formats and what to ask M-Dining for.
+  - `./test-all.sh`: ALL PASSED (forecast 58).

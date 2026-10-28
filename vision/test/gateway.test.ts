@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { GatewayError } from '../src/errors.js';
-import { createGeminiGateway, DEFAULT_MODEL } from '../src/gateway.js';
+import { createGeminiGateway, DEFAULT_MODEL, DEFAULT_TIMEOUT_MS } from '../src/gateway.js';
 
 const noSleep = async () => {};
 
@@ -19,6 +19,15 @@ test('model and retry budget come from env', () => {
   });
   assert.equal(gw.model, 'gemini-2.5-pro');
   assert.equal(gw.mode, 'mock'); // still no key
+});
+
+test('the Gemini timeout defaults to 90 s; GEMINI_TIMEOUT_MS overrides it', () => {
+  // 30 s dropped real plate photos on both passes (Run 3); keep the default at 90 s.
+  assert.equal(DEFAULT_TIMEOUT_MS, 90_000);
+  assert.equal(createGeminiGateway({ env: {} }).timeoutMs, 90_000);
+  assert.equal(createGeminiGateway({ env: { GEMINI_TIMEOUT_MS: 'not a number' } }).timeoutMs, 90_000);
+  assert.equal(createGeminiGateway({ env: { GEMINI_TIMEOUT_MS: '45000' } }).timeoutMs, 45_000);
+  assert.equal(createGeminiGateway({ env: {}, timeoutMs: 1000 }).timeoutMs, 1000);
 });
 
 test('generateText passes through the mock transport (Agent 6 interface)', async () => {

@@ -16,7 +16,8 @@ import { GoogleGenAI } from '@google/genai';
 import { GatewayError, makeApiError, normalizeProviderError } from './errors.js';
 
 export const DEFAULT_MODEL = 'gemini-3.8-flash';
-export const DEFAULT_TIMEOUT_MS = 30_000;
+/** 90 s: at 30 s, 2 of the first 4 real plate photos timed out on both passes (Run 3, docs/detection-accuracy.md). */
+export const DEFAULT_TIMEOUT_MS = 90_000;
 export const DEFAULT_MAX_RETRIES = 2;
 export const DEFAULT_RETRY_BASE_DELAY_MS = 500;
 
@@ -63,7 +64,7 @@ export interface GeminiGatewayOptions {
   apiKey?: string;
   /** Defaults to env GEMINI_MODEL, then 'gemini-3.8-flash'. */
   model?: string;
-  /** Per-request timeout. Defaults to env GEMINI_TIMEOUT_MS, then 30000. */
+  /** Per-request timeout. Defaults to env GEMINI_TIMEOUT_MS, then 90000. */
   timeoutMs?: number;
   /** Bounded retries after the first attempt. Env GEMINI_MAX_RETRIES, then 2. */
   maxRetries?: number;
@@ -87,6 +88,8 @@ export interface GeminiGateway {
   readonly mode: GatewayMode;
   /** How many provider calls were attempted (for tests/observability). */
   readonly callCount: number;
+  /** Per-request timeout in ms (env GEMINI_TIMEOUT_MS, default 90000). */
+  readonly timeoutMs: number;
   /** Raw model text for a schema-constrained request. Throws GatewayError. */
   generateStructured(req: Omit<GatewayRequest, 'kind'>): Promise<string>;
   /** Reusable plain-text generation for Agent 6. Throws GatewayError. */
@@ -121,7 +124,7 @@ class GatewayImpl implements GeminiGateway {
   readonly mode: GatewayMode;
   callCount = 0;
 
-  private readonly timeoutMs: number;
+  readonly timeoutMs: number;
   private readonly maxRetries: number;
   private readonly retryBaseDelayMs: number;
   private readonly sleep: (ms: number) => Promise<void>;

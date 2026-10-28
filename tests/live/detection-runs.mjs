@@ -54,7 +54,7 @@ const settings = {
   model: gateway.model,
   seed: process.env.GEMINI_SEED ?? 'default (42)',
   passes: process.env.GEMINI_PASSES ?? 'default (2)',
-  timeoutMs: process.env.GEMINI_TIMEOUT_MS ?? 'default (30000)',
+  timeoutMs: process.env.GEMINI_TIMEOUT_MS ?? 'default (90000)',
   maxRetries: process.env.GEMINI_MAX_RETRIES ?? 'default (2)',
   photos: photos.map((p) => path.basename(p)),
   groundTruth: path.relative(REPO, truthFile),

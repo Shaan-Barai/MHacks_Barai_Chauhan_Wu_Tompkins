@@ -2,11 +2,14 @@
 
 ## Resume here
 
-- **Run 3 (started 2026-10-28 01:42 EDT):** branch `forecast-v2` from `overnight-supabase` (`3e20815`). See "Run 3" at the bottom.
-- **Last commit:** Run 3 report on `forecast-v2` (pushed as a backup). Draft PR #25 (`overnight-supabase` → main).
-- **Next step:** Run 3 is COMPLETE. See `RUN3_REPORT.md`. Nothing is running (SAM, backend and Vite were stopped).
-- **Gemini calls this run:** 97 / 150 (Phase 2 done; no further Gemini calls planned).
+- **Run 4 (started 2026-10-28):** branch `run4` from `forecast-v2` (`79bfa6f`). See "Run 4" at the bottom.
+- **Next step:** Task 3 (forecast weather, shadow lock, report command). Migration `…17` is written, not yet applied.
+- **Gemini calls this run:** 30 / 40 (Task 1 done; Task 4 may use ≤ 10).
 - Migrations: `npx supabase db push --db-url "$SUPABASE_DB_URL"` (dry run first) inside a subshell that sources `.env`; never echo it.
+
+### Run 3 (complete)
+
+- Branch `forecast-v2`, report `RUN3_REPORT.md`, 97 / 150 Gemini calls.
 
 ### Earlier runs (kept for reference)
 
@@ -51,6 +54,8 @@
 
 | When | What | Calls | Running total |
 |---|---|---|---|
+| 18:04 | Task 1: 12 photos, 23-food menu of that dinner, 1 run | 26 | 26 |
+| 18:15 | Task 1: IMG_2706 re-run (pass 2 timed out again) | 4 | 30 |
 | 01:49 | Phase 2 detection run attempt 1 (default 30 s timeout), stopped after 4 photos: IMG_2696 and IMG_2697 each burned 6 calls on GEMINI_TIMEOUT (2 passes × 3 attempts) | 16 | 16 |
 | 02:15 | Phase 2: 3 identical detection runs, 12 photos each (90 s timeout) | 77 | 93 |
 | 02:45 | Phase 2: 23-food menu check on IMG_2700 + IMG_2702 | 4 | 97 |
@@ -542,3 +547,38 @@ Plan: `~/.claude/plans/pasted-content-id-88eb-long-unattended-sequential-pony.md
   - Pushed it and opened **draft PR #25** with MERGE_REVIEW.md as the body.
   - Pushed `forecast-v2` as a backup (no PR).
 - 04:05. Wrote `RUN3_REPORT.md`. **Run 3 done; stopping.**
+
+## Run 4: run4 (2026-10-28, unattended)
+
+Brief: tasks 1-5 + RUN4_REPORT.md. Gemini cap 40 (Task 1 ≤ 30, Task 4 ≤ 10). Push `run4` only after a clean full-history secret scan; no PR, no merge.
+
+### Checklist
+- [x] Setup: branch `run4` from `forecast-v2`, keys present (values not printed), logs moved to `docs/`
+- [x] Task 1: per-meal menu (≤ 30 Gemini calls): 30 used
+- [x] Task 2: Gemini timeout default 90 s
+- [ ] Task 3: forecast weather in backtests, shadow-mode lock, report command
+- [ ] Task 4: plate estimates for the 6 hall-main scans (≤ 10 Gemini calls)
+- [ ] Task 5: docs/camera-calibration-checklist.md
+- [ ] Secret scan, push `run4` if clean
+- [ ] RUN4_REPORT.md
+
+### Gemini call log (Run 4, cap 40)
+
+| When | What | Calls | Running total |
+|---|---|---|---|
+
+### Decisions made on my behalf
+
+1. **Logs moved to `docs/`:** the brief names `docs/PROGRESS.md`, but on `forecast-v2` it was still at the root (the move happened only on `overnight-supabase`). I moved `PROGRESS.md` and `OVERNIGHT_REPORT.md` with `git mv` and applied the same MERGE_REVIEW pointer fix (`8cb9401`), so the two branches agree.
+
+2. **Task 1, the grouping is recorded, the stations are not:** `ground_truth.csv` has no hall, meal or station. But the photo files' EXIF times put all 12 inside one 6-minute window of the 2026-10-03 dinner, so every photo shares one meal menu; no grouping was guessed. Stations are recorded nowhere, and I did not infer them from the labeled foods (that would use the answer to pick the menu).
+3. **Task 1, "that meal's menu" = the 23 foods:** the dinner menu in the repo on the night of the photos (`97e7864`, 20:14 that evening; used by the 2026-10-03 experiment). The 3 foods added at 03:04 the next morning "for the live demo" (`4f23615`) are not on the hall's sheet and nothing records them as served that night. The run used `--exclude-items 'Halal Rice,Tomatoes,Lettuce'` on today's menu text (current descriptions).
+4. **Task 1, one run plus one re-run:** Run 3 showed zero run-to-run variation with these settings, so one full run (26 calls) fit the 30-call cap. I used the remaining 4 to re-run IMG_2706, whose second pass had timed out; it timed out again.
+5. **Task 1, no code change:** production already resolves the menu per service (hall + date + meal) in `IngestionService`. The live test keeps the 26-food demo menu and its Run 3 baseline.
+6. **Task 2, `timeoutMs` exposed read-only on `GeminiGateway`:** so the test can check the effective default (env unset, invalid env, env override, explicit option).
+
+### Log
+
+- Created `run4` from `forecast-v2` (`79bfa6f`). `GEMINI_API_KEY`, `GEMINI_MODEL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_DB_URL` are each present once (values not printed).
+- 18:04–18:20. **Task 1.** SAM worker started (`.venv/bin/python vision/sam/worker.py`, :8790). 23-food run: **17 correct, 1 missed, 1 wrong; recall 94.4%, precision 94.4%** (26 calls). Errors: IMG_2703 + Sticky Rice; IMG_2706 pie missed after pass 2 timed out 3 × 90 s. IMG_2706 re-run (4 calls): identical. Written up in `docs/detection-accuracy.md` → "Per-meal menu".
+- 18:10. **Task 2.** `DEFAULT_TIMEOUT_MS` 30000 → 90000 in `vision/src/gateway.ts`; `.env.example`, `vision/README.md` and the detection doc updated; new test "the Gemini timeout defaults to 90 s" (vision 102/102).

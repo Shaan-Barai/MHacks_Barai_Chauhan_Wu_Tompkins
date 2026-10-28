@@ -50,7 +50,7 @@ Python `forecast/` package, tests, and docs. Changes to existing app code are ab
    - The README has a Supabase setup.
    - New tests cover RLS, storage, Realtime, the full pipeline, "GETs never write" and the forecast
      formulas.
-   - PROGRESS.md, OVERNIGHT_REPORT.md and docs/supabase-migration-plan.md explain everything.
+   - docs/PROGRESS.md, docs/OVERNIGHT_REPORT.md and docs/supabase-migration-plan.md explain everything.
 
 ## Risky parts to read yourself (most important first)
 
@@ -115,8 +115,8 @@ What supports opening it:
 
 Before marking it ready to merge, I'd:
 1. Read risks 1–3 above, and decide whether `production_log` should be private.
-2. Decide whether `PROGRESS.md` and `OVERNIGHT_REPORT.md` belong in the repo; they're working logs.
-   Moving them to `docs/` or dropping them from the PR are both fine.
+2. `PROGRESS.md` and `OVERNIGHT_REPORT.md` are working logs; they now live in `docs/` (moved
+   2026-10-28). Dropping them from the PR is also fine.
 3. Try the sheet reader on one real production sheet.
 4. Decide what to do with the simulated forecast data and the `hall-e2e-*` test halls in Supabase.
 

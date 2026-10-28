@@ -17,6 +17,61 @@ This page records what was measured, on what, and with which settings, because t
 
 **Recall** = correct ÷ (correct + missed): the labeled foods the pipeline found. **Precision** = correct ÷ (correct + wrong): the foods it reported that were really there.
 
+## Per-meal menu (Run 4, 2026-10-28)
+
+**Question:** in a real hall the pipeline knows which meal a photo comes from, so it should offer only that meal's foods. What happens to the score when each photo gets only its own meal's menu?
+
+### What the records say about where each photo came from
+
+| Record | Hall | Meal | Station |
+|---|---|---|---|
+| `images/ground_truth.csv` | not recorded | not recorded | not recorded |
+| Photo files (`test2/IMG_2695–2707.jpeg`, EXIF creation time) | not recorded | **all 12 taken 2026-10-03 between 19:47:57 and 19:53:55 local time: one dinner service** | not recorded |
+| Test menu (`data/src/seed/generate.ts`, `factors/`) | "the test dining hall's dinner menu" (East Quad factor files) | dinner | per food (e.g. Halal, Pizziti), but no photo is linked to a station |
+
+- **Meal: recorded.** All 12 photos come from one 6-minute window of one dinner, so they share one meal menu. No grouping had to be guessed.
+- **Station: not recorded anywhere.** A per-station menu would need a photo → station column in `ground_truth.csv` (or a station field on the capture). I did not infer stations from the labeled foods: that would use the answer to choose the menu.
+- **That dinner's menu: 23 foods.** On the night of the photos the repo's dinner menu was the 22 dishes on the hall's nutrition sheet plus Baked Sweet Potatoes: the dinner factor table (today `factors/menu_waste_factors_EastQuad.csv`) was uploaded at 20:14 that evening (`97e7864`), and the 2026-10-03 experiment used it. Halal Rice, Tomatoes and Lettuce were added at 03:04 the next morning (`4f23615`) "for the live demo". None of the three is on the hall's sheet, and nothing records them as served on 2026-10-03.
+
+### Result: each photo given its own meal's (23-food) menu
+
+| Menu offered to the pipeline | Runs | Correct | Missed | Wrong | Recall | Precision |
+|---|---|---|---|---|---|---|
+| 26-food demo menu (Run 3; the live test's menu) | 3 (identical) | 17 | 1 | 4 | 94.4% | 81.0% |
+| **23-food menu of that dinner (Run 4, current pipeline)** | **1** | **17** | **1** | **1** | **94.4%** | **94.4%** |
+| 23-food menu, 2026-10-03 experiment (older pipeline) | 2 | 36 (of 2 × 18) | 0 | 3 | 100% | 92.3% |
+
+Same 12 photos, ground truth, scoring rules and settings as the Run 3 runs (model `gemini-3.8-flash`, seed 42, temperature 0, 2 passes, `GEMINI_TIMEOUT_MS=90000`). The script was `tests/live/detection-runs.mjs --runs 1 --exclude-items 'Halal Rice,Tomatoes,Lettuce'`: in memory, with no Supabase or R2 writes. Raw output (gitignored): `images/live-test/detect-20261028T220417/runs.json`.
+
+### Per photo
+
+| Photo | Labeled | 26-food menu (Run 3, every run) | 23-food menu (Run 4) |
+|---|---|---|---|
+| IMG_2695 | Stir fry, Sticky Rice | correct | correct |
+| IMG_2696 | Cheese Pizza (any pizza) | + **Cheese Bread** (1 wrong) | correct |
+| IMG_2697 | Ham, Cauliflower, Sweet Potatoes | correct | correct |
+| IMG_2698 | Stir fry, Sticky Rice | correct | correct |
+| IMG_2699 | Sticky Rice, Stir fry | correct | correct |
+| IMG_2700 | Panzanella Salad | + **Lettuce** (1 wrong) | correct |
+| IMG_2701 | 4 Bean Stew | correct | correct |
+| IMG_2702 | Pepperoni Pizza | **Cheese Bread** instead (1 missed, 1 wrong) | correct |
+| IMG_2703 | Stir fry | + **Halal Rice** (1 wrong) | + **Sticky Rice** (1 wrong; same as the 2026-10-03 experiment) |
+| IMG_2704 | Pepperoni Pizza (any pizza) | correct | correct |
+| IMG_2706 | Chocolate Cream Pie (+ unknown, extras not wrong) | correct | **pie missed** (1 missed): Gemini's second pass timed out on all 3 attempts (90 s each), and the first pass alone reported only Cheese Pizza |
+| IMG_2707 | Cauliflower & Baked Potato | correct | correct |
+
+- **Per-meal menus help precision here:** 4 wrong → 1, at the same recall. Three of the four Run 3 errors disappear: the two involving foods not served that night, and Cheese Bread on IMG_2702.
+- **Cheese Bread also vanished from IMG_2696**, although it is on both menus. So part of the effect is that changing the menu list changes the fixed-seed answer, not only that extra foods attract detections. The runs do not separate the two.
+- **IMG_2706 is a new miss, and it looks like a timeout effect, not a menu effect.** I re-ran IMG_2706 alone (4 calls) and got the same result: pass 2 timed out 3 times, the pie was missed, and Cheese Pizza was reported. With the 26-food menu, both passes finished and the pie was found.
+- **One run, not three.** Run 3 found zero run-to-run variation with these settings, and the IMG_2706 re-run repeated exactly, but this menu was measured once. The base is still 12 photos with 18 labeled foods.
+- **IMG_2703** gets an extra rice with both menus (Halal Rice or Sticky Rice). Re-checking whether rice is on that plate is still the open labeling question.
+
+### Is "menu = the foods served at that hall/meal" the pipeline's default? Yes, already
+
+In production, `IngestionService` resolves the menu from the capture's service (hall + date + meal) with `repo.getMenuByService(serviceId)`, and rejects a service from another hall (`backend/src/services/ingestionService.ts:172`). Gemini only ever sees that service's menu items. Nothing narrows further by station, since captures carry no station. **I made no code change:** the 26-food figure comes from the **test** menu, which includes three foods the hall did not serve that night. A hall that uploads each meal's real menu gets per-meal behavior today.
+
+The live test (`tests/live/images.test.mjs`) still uses the 26-food demo menu, and its regression baseline stays the Run 3 measurement.
+
 ## Why it is lower than the "100% / 92.3%" recorded earlier
 
 The 100% / 92.3% came from the 2026-10-03 experiment (`experiments/experiment_summary.csv`, git `b62ed8c`): 36 correct, 0 missed, 3 wrong over **2 runs × 12 photos**. Since then two things changed.
@@ -75,8 +130,9 @@ The other 8 scored photos (IMG_2695, 2697, 2698, 2699, 2701, 2704, 2706, 2707) w
 
 The first attempt (default 30 s timeout) was stopped after 4 photos. IMG_2696 and IMG_2697 each failed both passes on `GEMINI_TIMEOUT` after 3 attempts (6 calls each) and would have been unscored. The 2026-10-25 live run also spent 5 calls on IMG_2696.
 
-At 90 s, every photo succeeded. A few still needed a retry: IMG_2697 used 3, 5 and 3 calls in the three runs, against 2 for a photo with no retries. A timed-out photo is reported as failed, never as an empty plate. Still, in production a 30 s timeout drops scans or falls back to a single pass. **Recommendation, not applied:** raise `GEMINI_TIMEOUT_MS` to about 60–90 s for the scan pipeline.
+At 90 s, every photo succeeded. A few still needed a retry: IMG_2697 used 3, 5 and 3 calls in the three runs, against 2 for a photo with no retries. A timed-out photo is reported as failed, never as an empty plate. Still, in production a 30 s timeout drops scans or falls back to a single pass. **Applied in Run 4:** the default `GEMINI_TIMEOUT_MS` is now 90000 (`vision/src/gateway.ts`, checked by `vision/test/gateway.test.ts`). Even 90 s is not always enough: with the 23-food menu, IMG_2706's second pass timed out on all 3 attempts, twice (see "Per-meal menu").
 
 ## Gemini calls used for this page
 
-16 (stopped first attempt) + 77 (3 runs) + 4 (23-food check) = **97**.
+Run 3: 16 (stopped first attempt) + 77 (3 runs) + 4 (23-food check) = **97**.
+Run 4: 26 (23-food per-meal run) + 4 (IMG_2706 re-run) = **30**.

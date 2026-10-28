@@ -1,6 +1,6 @@
 # Run 3 report (forecast-v2, 2026-10-28)
 
-**Secret scan: clean** (details in §2 and `PROGRESS.md`), so the pushes in Phase 8 went ahead:
+**Secret scan: clean** (details in §2 and `docs/PROGRESS.md`), so the pushes in Phase 8 went ahead:
 - **Draft PR:** https://github.com/Shaan-Barai/MHacks_Barai_Chauhan_Wu_Tompkins/pull/25 (`overnight-supabase` → `main`, description = MERGE_REVIEW.md).
 - **`forecast-v2`** is pushed as a backup branch, with no PR.
 - Nothing was merged.
@@ -37,7 +37,7 @@ Commits on `forecast-v2`: `bb99709` (Phase 1), `b3d7a33` (3), `e4eae5e` (4), `25
 
 ## 3. Decisions made on your behalf
 
-Full list with reasons: `PROGRESS.md` → Run 3 → "Decisions made on my behalf". The ones that matter most:
+Full list with reasons: `docs/PROGRESS.md` → Run 3 → "Decisions made on my behalf". The ones that matter most:
 
 1. **Detection:**
    - No "fix" to the pipeline or menu. Removing real menu foods to raise the score would be gaming it.

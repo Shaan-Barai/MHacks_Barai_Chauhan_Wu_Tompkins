@@ -369,7 +369,7 @@ Plan: `~/.claude/plans/pasted-content-id-88eb-long-unattended-sequential-pony.md
 - [x] Phase 4: importers for M-Dining data + docs/data-intake.md
 - [x] Phase 5: pixels → pounds (plate scale)
 - [x] Phase 6: forecasting models + walk-forward evaluation
-- [ ] Phase 7: docs/forecasting-methods.md
+- [x] Phase 7: docs/forecasting-methods.md
 - [ ] Phase 8: secret scan, then push/draft PR only if clean
 - [ ] RUN3_REPORT.md
 
@@ -523,3 +523,8 @@ Plan: `~/.claude/plans/pasted-content-id-88eb-long-unattended-sequential-pony.md
 
   - `./test-all.sh`: ALL PASSED (forecast 74 + 1 skipped gbm test under system python3; it passes under `.venv`).
   - **Not checked in a browser yet** (jsdom tests only).
+- 03:45. **Browser check** (Chrome, read-only local backend on :8799 + Vite on :5199, both stopped afterwards):
+  - The Forecast page "Model comparison (simulated)" table renders with its banner, with no console errors.
+  - The Statistics "Food left on plates (estimate)" card shows "—", "0 of 6 plates · 748,986 pixels wasted measured".
+  - Live API: pixels from `estimated-weight` = dashboard total (748,986).
+- 03:50. **Phase 7:** `docs/forecasting-methods.md`. Every number is tagged [SIMULATED] or [REAL]; it covers limitations and what real data will test.

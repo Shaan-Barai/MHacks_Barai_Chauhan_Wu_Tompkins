@@ -27,8 +27,19 @@ const ANY_PIZZA = new Set(['IMG_2696', 'IMG_2704']);
 const NOT_SCORED = new Set(['IMG_2705']);
 const NO_WRONG = new Set(['IMG_2706']);
 
-/** The last experiment (experiments/experiment_summary.csv, Gemini descriptions): 36 correct, 0 missed, 3 wrong. */
-export const BASELINE = { recall: 1, precision: 36 / 39 };
+/**
+ * Detection baseline for the CURRENT 26-food test dinner (data/src/seed factorDinnerItems), measured
+ * 2026-10-28 with tests/live/detection-runs.mjs: 3 identical runs (seed 42, temperature 0, 2 passes),
+ * each 17 correct, 1 missed, 4 wrong over 12 photos. See docs/detection-accuracy.md.
+ */
+export const BASELINE = { recall: 17 / 18, precision: 17 / 21, menu: '26-food dinner (2026-10-04)' };
+/**
+ * The earlier experiment (experiments/experiment_summary.csv, 2026-10-03): 36 correct, 0 missed,
+ * 3 wrong over 2 runs × 12 photos, on the OLD 23-food menu (before Halal Rice, Tomatoes and Lettuce
+ * were added) and an older pipeline (one localization pass, no target-dish counting). Not comparable
+ * with runs on the 26-food menu; kept for reference.
+ */
+export const BASELINE_23_FOOD_EXPERIMENT = { recall: 1, precision: 36 / 39, menu: '23-food dinner (2026-10-03 experiment)' };
 
 function canon(raw) {
   const name = raw.split('(')[0].trim();

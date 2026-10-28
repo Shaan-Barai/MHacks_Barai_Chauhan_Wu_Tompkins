@@ -9,9 +9,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { REPO } from '../support/stack.mjs';
-import { BASELINE, loadGroundTruth, scoreRuns } from '../support/scoring.mjs';
+import { BASELINE, BASELINE_23_FOOD_EXPERIMENT, loadGroundTruth, scoreRuns } from '../support/scoring.mjs';
 
-const TRUTH = path.join(REPO, 'ground_truth.csv');
+// The gitignored copy in images/ (restored 2026-10-25) or the old repo-root location.
+const TRUTH = [path.join(REPO, 'images', 'ground_truth.csv'), path.join(REPO, 'ground_truth.csv')].find((f) => existsSync(f)) ?? path.join(REPO, 'ground_truth.csv');
 const skip = existsSync(TRUTH) ? false : 'ground_truth.csv is not in the repo (deleted 2026-10-04); detection scoring runs only when it is present';
 
 it('reproduces experiment_summary.csv (gemini: 36 correct, 0 missed, 3 wrong; claude: 35/0/2)', { skip }, () => {
@@ -32,6 +33,11 @@ it('reproduces experiment_summary.csv (gemini: 36 correct, 0 missed, 3 wrong; cl
     );
     assert.deepEqual([score.correct, score.missed, score.wrong, score.scored], expected, source);
   }
-  assert.equal(BASELINE.recall, 1);
-  assert.equal(Math.round(BASELINE.precision * 1000) / 10, 92.3);
+  assert.equal(BASELINE_23_FOOD_EXPERIMENT.recall, 1);
+  assert.equal(Math.round(BASELINE_23_FOOD_EXPERIMENT.precision * 1000) / 10, 92.3);
+});
+
+it('the live baseline is the 26-food menu measurement (docs/detection-accuracy.md): 94.4% / 81.0%', () => {
+  assert.equal(Math.round(BASELINE.recall * 1000) / 10, 94.4);
+  assert.equal(Math.round(BASELINE.precision * 1000) / 10, 81.0);
 });

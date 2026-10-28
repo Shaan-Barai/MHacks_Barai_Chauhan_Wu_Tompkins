@@ -21,6 +21,7 @@ import type {
   AdminCaptureItem,
   CaptureListItem,
   ImpactDashboard,
+  EstimatedWeight,
   Recommendation,
   DailyImpactPoint,
   DailyWastePoint,
@@ -311,6 +312,11 @@ export async function getImageUrl(objectId: string): Promise<string> {
 
 export async function getImpactDashboard(start: IsoDate, end: IsoDate): Promise<ImpactDashboard> {
   return call<ImpactDashboard>(`/api/dashboard/impact?${q({ hallId: hallId(), start, end })}`)
+}
+
+/** plate-scale-v1 pound ESTIMATES (assumptions in `note`); pixels unchanged. */
+export async function getEstimatedWeight(start: IsoDate, end: IsoDate): Promise<EstimatedWeight> {
+  return call<EstimatedWeight>(`/api/dashboard/estimated-weight?${q({ hallId: hallId(), start, end })}`)
 }
 
 export async function getDailyImpact(start: IsoDate, end: IsoDate): Promise<DailyImpactPoint[]> {

@@ -154,7 +154,7 @@ export function buildBackend(options: BuildOptions = {}): AppDeps & { app: Retur
   // The SAM worker gets the shared X-Worker-Token when WORKER_TOKEN is set (IT_4 I10).
   const segmenter = options.segmenter ?? createSamWorkerClient(config.samWorkerUrl, undefined, config.workerToken ?? '');
   const analyzer = options.analyzer ?? (gateway.mode === 'live' ? new MaskAnalyzer(gateway, segmenter) : new MockAnalyzer());
-  const ingestion = new IngestionService(repo, images, analyzer, now, physicalLabelSuffix);
+  const ingestion = new IngestionService(repo, images, analyzer, now, physicalLabelSuffix, config.plateDiameterCm);
   const summary = new SummaryService(repo, ingestion);
   const dashboard = new DashboardService(repo, ingestion, config, gateway.mode === 'live' ? gateway : undefined);
   // Same-dish checks for the camera bridge never run on mock text (BRIDGE.md §4.4).

@@ -4,13 +4,14 @@
  * recommendation (regenerated on demand, except on the read-only site).
  */
 import { useEffect, useState } from 'react'
-import { getImpactDashboard, getRecommendation, regenerateRecommendation } from '../data/api'
+import { getEstimatedWeight, getImpactDashboard, getRecommendation, regenerateRecommendation } from '../data/api'
 import type { Recommendation } from '../data/types'
 import { useAsync } from '../lib/useAsync'
 import { CarbonByDay } from '../components/CarbonByDay'
 import { DateRangePicker, defaultRange, STATISTICS_PRESETS, type DateRange } from '../components/DateRangePicker'
 import { FoodsToTarget } from '../components/FoodsToTarget'
 import { HeadlineCards } from '../components/HeadlineCards'
+import { EstimatedPounds } from '../components/EstimatedPounds'
 import { MostWasted } from '../components/MostWasted'
 import { RecommendationCard } from '../components/RecommendationCard'
 import { Badge, EmptyState, LoadingBlock } from '../components/ui'
@@ -22,6 +23,7 @@ export function StatisticsPage({ dataRevision = 0 }: { dataRevision?: number }) 
   const deps = [range.start, range.end, dataRevision]
   const impact = useAsync(() => getImpactDashboard(range.start, range.end), deps)
   const rec = useAsync(() => getRecommendation(range.start, range.end), deps)
+  const weight = useAsync(() => getEstimatedWeight(range.start, range.end).catch(() => null), deps)
   const [regenerated, setRegenerated] = useState<Recommendation | null>(null)
   useEffect(() => setRegenerated(null), [range.start, range.end, dataRevision])
 
@@ -57,6 +59,12 @@ export function StatisticsPage({ dataRevision = 0 }: { dataRevision?: number }) 
           <FoodsToTarget rows={impact.data.targets} demoPortions={impact.data.labels.demoPortions} />
           <MostWasted rows={impact.data.mostWasted} />
         </div>
+      )}
+
+      {impact.data && !noPlates && weight.data && (
+        <section aria-label="Estimated weight" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <EstimatedPounds data={weight.data} />
+        </section>
       )}
     </div>
   )

@@ -147,3 +147,23 @@ python3 demo.py --events cap_… --only area         # per-food cm² / g / kg CO
 cd tests && SCRAP_E2E=1 npm run test:e2e:calibration   # live: calibrate a test hall → capture → totals
 ./test-all.sh --only stack,e2e-calibration         # the same, with the local stack's token
 ```
+
+## Plate scale (plate-scale-v1, Run 3): estimated pounds without a calibration frame
+
+A second, rougher path to physical units, for scans with no camera calibration. **Pixels wasted is not changed.** Pounds are shown beside it, labeled as an estimate, with the assumptions in the API (`GET /api/dashboard/estimated-weight`) and in the Statistics page tooltip.
+
+```text
+plate diameter (px)  = mean of the width and height of the AI's box around the target plate
+                       (only a plate, fully in frame, box width/height ratio ≤ 1.25)
+cm² per pixel        = (PLATE_DIAMETER_CM / plate diameter px)²       = π(D/2)² / π(d/2)²
+grams                = Pixels wasted × cm² per pixel × weight_g_per_cm2 (factors CSV, per food)
+pounds               = grams / 453.59237
+```
+
+- **Assumption 1:** every plate is `PLATE_DIAMETER_CM` (default **26.7 cm**, a 10.5" dinner plate). Halls use several plate sizes. A 9" (22.9 cm) plate estimated as 10.5" is overstated by (26.7/22.9)² ≈ 1.36×. The value in effect is stored with each scan (`plate_scale_estimate.assumed_plate_diameter_cm`), so changing the setting never rewrites old estimates.
+- **Assumption 2:** the plate's size comes from Gemini's box, not a fitted rim, so a loose box shifts the scale.
+- **Assumption 3:** food is flat on the plate, and `weight_g_per_cm2` is an average per food.
+- Bowls, cut-off plates and oval boxes get **no** scale, with the reason stored. Their pounds are "—", never 0, and coverage says how many plates have a scale.
+- The forecast uses these grams for tray waste only when scans cover ≥ 80% of a meal's diners (`forecast/data.py`, `MIN_SCAN_COVERAGE`). Camera-calibrated measurements are preferred when both exist.
+- Code: `vision/src/targetDish.ts` (`measurePlate`), `analytics/src/plateScale.ts`, `backend/src/services/impactService.ts` (`estimatedWeight`), and migration `20261028000015_plate_scale.sql`.
+- Scans analyzed before this change have no plate record. Re-analysis would add one, but costs Gemini calls.

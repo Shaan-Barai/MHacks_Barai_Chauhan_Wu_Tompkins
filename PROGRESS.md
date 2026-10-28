@@ -365,7 +365,7 @@ Plan: `~/.claude/plans/pasted-content-id-88eb-long-unattended-sequential-pony.md
 - [ ] Phase 2: detection regression (≤ 100 Gemini calls)
 - [x] Phase 3: real context data (calendar, football, weather, holidays)
 - [x] Phase 4: importers for M-Dining data + docs/data-intake.md
-- [ ] Phase 5: pixels → pounds (plate scale)
+- [x] Phase 5: pixels → pounds (plate scale)
 - [ ] Phase 6: forecasting models + walk-forward evaluation
 - [ ] Phase 7: docs/forecasting-methods.md
 - [ ] Phase 8: secret scan, then push/draft PR only if clean
@@ -412,6 +412,15 @@ Plan: `~/.claude/plans/pasted-content-id-88eb-long-unattended-sequential-pony.md
    - Date and meal come from a `YYYY-MM-DD_<meal>` file-name prefix when present.
    - `--max-gemini` counts photos sent (one request each); server-side retries can add more.
 
+15. **Plate scale despite AGENTS.md:** AGENTS.md says plate-size calibration was dropped in BIG-PLAN v2 because plates vary. The user asked for it explicitly in Run 3, so it is built as a **separate, labeled estimate** (`plate-scale-v1`). The camera calibration path stays, and is preferred where both exist.
+16. **Where the plate size comes from:** the mean of the width and height of Gemini's target-dish box. It is used only for `dishType = plate`, fully visible, with box ratio ≤ 1.25. I didn't use SAM's dish region because it is dilated and hull-filled (it would overstate the plate).
+17. **Storage:**
+   - A new private table `plate_scale_estimate` holds one row per attempt with the pixel diameter and the **assumed cm at the time** (`PLATE_DIAMETER_CM`, default 26.7 = 10.5").
+   - `food_measurement`, the `record_analysis` SQL function and SpacetimeDB are untouched. Redefining `record_analysis` overnight was judged too risky.
+   - Pounds are computed at read time.
+18. **No re-analysis for old scans:** the 6 hall-main scans have no plate record, and adding one would cost about 12 Gemini calls. Their pounds show "—".
+19. **The estimate card is on Statistics, not the Dashboard:** a Dashboard test encodes the product decision "no pixels on the Dashboard", and the card states pixels beside pounds.
+
 ### Log
 
 - 01:42. Created branch `forecast-v2` from `overnight-supabase` (`3e20815`). `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_URL`, `GEMINI_API_KEY`, `GEMINI_MODEL` and `DATABASE_PROVIDER` are each present once. The `supabase` CLI isn't on PATH; migrations go through `npx supabase` as in the README.
@@ -446,3 +455,21 @@ Plan: `~/.claude/plans/pasted-content-id-88eb-long-unattended-sequential-pony.md
   - **Live dry runs against Supabase** (samples mapped to hall-main): the swipes guard skipped the 5 intervals that hold simulated attendance, and the FSS run put all 5 sample names into review (none match real dishes). Nothing was written.
   - `docs/data-intake.md`: formats and what to ask M-Dining for.
   - `./test-all.sh`: ALL PASSED (forecast 58).
+- 02:55. **Phase 5: pixels to pounds.**
+  - **Inventory:**
+    - Camera calibration: credit-card reference area → `camera_calibration`, `area-calibrated-v1` → `food_measurement.physical.areaCm2` → grams in `analytics/src/physical.ts`.
+    - `reference_portion` is auxiliary baselines, not a scale. `attempt_calibration` is the camera calibration snapshot. `measurement_settings` holds per-hall settings.
+    - The legacy `PlateCalibration` (plate-fit-v1) is deprecated and no longer persisted.
+    - **None of these is used today: there are 0 camera calibrations in Supabase.**
+  - **Built:**
+    - `vision` `measurePlate`, plus `targetDish.plate` in every mask analysis;
+    - backend: `AnalysisResult.plate` → `plate_scale_estimate` (migration `20261028000015`, applied live, private; live RLS test 5/5) → `GET /api/dashboard/estimated-weight`;
+    - `analytics/src/plateScale.ts` (`cm2PerPixel`, `plateScaleEstimate`, `plateScaleWeights`);
+    - a Statistics page card, "Food left on plates (estimate)", with an assumptions tooltip and coverage;
+    - forecast `tray_grams` uses plate-scaled scans too, still under the ≥ 80% coverage rule;
+    - a demo.py line in the stats step;
+    - `.env.example` `PLATE_DIAMETER_CM`;
+    - a `docs/calibration.md` section.
+  - **Tests:** analytics +6 (hand-computed: 100,000 px on an 890 px plate = 90 cm² → 72 g at 0.8 g/cm² = 0.1587 lb), vision +2, backend +3 (API payload, pixels unchanged, ingestion records the assumed diameter), frontend +2, forecast +3 (hand-computed tray grams, camera-first no double count, 80% rule at 4/5 vs 4/6 diners).
+  - **Not run live:** `demo.py` (needs the local stack); its syntax and `--list` are checked by test-all.
+  - `./test-all.sh`: ALL PASSED.

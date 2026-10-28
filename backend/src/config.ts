@@ -61,6 +61,11 @@ export interface BackendConfig {
   /** SAM 2.1 segmentation worker (vision/sam/worker.py). */
   samWorkerUrl: string;
   /**
+   * Plate scale (plate-scale-v1): the diameter every scanned plate is ASSUMED to have, in cm
+   * (PLATE_DIAMETER_CM, default 26.7 = a 10.5" dinner plate). Only used for labeled pound estimates.
+   */
+  plateDiameterCm?: number;
+  /**
    * Supabase Postgres persistence (DATABASE_PROVIDER=supabase). Takes precedence
    * over SpacetimeDB. The service role key is server-side only.
    */
@@ -177,6 +182,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BackendConfig 
     },
     dataFile: env.BACKEND_DATA_FILE || undefined,
     samWorkerUrl: env.SAM_WORKER_URL || 'http://127.0.0.1:8790',
+    plateDiameterCm: plateDiameterCm(env.PLATE_DIAMETER_CM),
     supabaseDb: supabaseDb(env),
     spacetime: env.SPACETIMEDB_URI
       ? {
@@ -193,4 +199,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BackendConfig 
     demoSeed: env.DEMO_SEED === '1' || env.DEMO_SEED === 'true',
     readOnly: env.READ_ONLY === '1' || env.READ_ONLY === 'true',
   };
+}
+
+/** PLATE_DIAMETER_CM: a positive number of centimetres; unset = 26.7 (10.5"). */
+function plateDiameterCm(raw: string | undefined): number {
+  if (raw === undefined || raw.trim() === '') return 26.7;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0 || n > 100) throw new Error(`PLATE_DIAMETER_CM must be a plate diameter in cm (got '${raw}').`);
+  return n;
 }

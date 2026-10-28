@@ -24,6 +24,7 @@ import {
 } from './mockData'
 import type {
   AuthSession,
+  EstimatedWeight,
   CalibrationImages,
   CameraCalibration,
   MeasurementSettings,
@@ -282,6 +283,20 @@ export async function getImageUrl(_objectId: string): Promise<string> {
 export async function getImpactDashboard(start: IsoDate, end: IsoDate): Promise<ImpactDashboard> {
   await wait()
   return mockImpactDashboard(start, end, todayIso())
+}
+
+/** Mock: plate-scale pounds need real plate measurements, so the sample data has none (shown as "—"). */
+export async function getEstimatedWeight(start: IsoDate, end: IsoDate): Promise<EstimatedWeight> {
+  await wait()
+  const d = mockImpactDashboard(start, end, todayIso())
+  return {
+    available: true,
+    isEstimate: true,
+    method: 'plate-scale-v1',
+    note: 'Estimate: assumes every plate is the configured diameter, the plate size in pixels comes from the AI box around a fully visible plate, food is flat on the plate, and each food weighs its average grams per cm² from the factors table. Pixels wasted is the measurement.',
+    items: [],
+    totals: { pixels: d.totals.pixels, estimatedLb: null, captures: d.totals.captures, capturesWithScale: 0 },
+  }
 }
 
 export async function getDailyImpact(start: IsoDate, end: IsoDate): Promise<DailyImpactPoint[]> {

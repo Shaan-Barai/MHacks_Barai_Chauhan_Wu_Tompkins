@@ -35,6 +35,7 @@ import type {
   PlateCalibration,
   CameraCalibration,
   MeasurementSettings,
+  PlateScaleRecord,
   ScanInfo,
 } from '../types.js';
 import { isBeforeCutoff, type CaptureEventFilter, type DemoMarker, type Repository } from './repository.js';
@@ -277,6 +278,20 @@ export class SupabaseRepository implements Repository {
   async findImageObjectsByAssociation(kind: ImageObject['association']['kind'], id: string): Promise<ImageObject[]> {
     const rows = await this.select('image_object', { association_kind: kind, association_id: id }, 'object_id');
     return rows.map((r) => this.toImageObject(r));
+  }
+
+  // --- plate scale ---
+  async recordPlateScale(record: PlateScaleRecord): Promise<void> {
+    await this.upsert('plate_scale_estimate', toRow(record as unknown as Row), 'attempt_id');
+  }
+  async listPlateScales(eventIds: string[]): Promise<PlateScaleRecord[]> {
+    const out: PlateScaleRecord[] = [];
+    for (let i = 0; i < eventIds.length; i += 200) {
+      const { data, error } = await this.db.from('plate_scale_estimate').select('*').in('event_id', eventIds.slice(i, i + 200));
+      if (error) this.fail('select plate_scale_estimate', error);
+      for (const row of data ?? []) out.push({ ...(fromRow(row) as unknown as PlateScaleRecord), createdAt: new Date(String(row.created_at)).toISOString() });
+    }
+    return out;
   }
 
   // --- scans ---

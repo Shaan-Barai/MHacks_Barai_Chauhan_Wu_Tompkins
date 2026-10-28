@@ -874,6 +874,14 @@ export function createApp(deps: AppDeps): express.Express {
     }),
   );
 
+  // plate-scale-v1: ESTIMATED pounds beside Pixels wasted, with every assumption in the payload.
+  app.get(
+    '/api/dashboard/estimated-weight',
+    wrap(async (req, res) => {
+      res.json(await impact.estimatedWeight(parseWindow(req.query)));
+    }),
+  );
+
   // Per-day series for the dashboard chart: pixels, estimated kg CO2e (null without a calibrated plate), CO2 points.
   app.get(
     '/api/dashboard/impact/daily',

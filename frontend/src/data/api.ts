@@ -26,6 +26,7 @@ export const getPlates = impl.getPlates
 export const getImageUrl = impl.getImageUrl
 export const getImpactDashboard = impl.getImpactDashboard
 export const getDailyImpact = impl.getDailyImpact
+export const getEstimatedWeight = impl.getEstimatedWeight
 export const getCaptures = impl.getCaptures
 export const getCaptureImages = impl.getCaptureImages
 export const getAdminCaptures = impl.getAdminCaptures

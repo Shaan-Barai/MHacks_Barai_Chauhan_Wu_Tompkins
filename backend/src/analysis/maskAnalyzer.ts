@@ -51,6 +51,6 @@ export class MaskAnalyzer implements Analyzer {
       ...(phys.method ? { physicalMethod: phys.method } : {}),
       ...(phys.reason ? { physicalReason: phys.reason } : {}),
     });
-    return result;
+    return dish.plate ? { ...result, plate: dish.plate } : result;
   }
 }

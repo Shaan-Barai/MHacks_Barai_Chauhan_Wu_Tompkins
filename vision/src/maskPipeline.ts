@@ -84,7 +84,7 @@ import {
   type CountedRegion,
 } from './masks.js';
 import type { Segmenter, SegmenterInfo, SegmentResponse } from './samClient.js';
-import { buildDishRegion, clipToRegion, dishDilatePx } from './targetDish.js';
+import { buildDishRegion, clipToRegion, dishDilatePx, measurePlate, type PlateMeasureResult } from './targetDish.js';
 import { colorForIndex, renderOverlay, UNKNOWN_COLOR, type LabelSuffix, type OverlayBucket, type OverlayImage } from './overlay.js';
 import { AREA_METHOD, computeAreaEstimate } from './area.js';
 
@@ -164,6 +164,8 @@ export interface TargetDishInfo {
   otherDishPx: number;
   /** Target-food mask pixels removed by the dish clip (subset of otherDishPx). */
   clippedPx: number;
+  /** Plate scale input (plate-scale-v1): the plate's diameter in pixels, or why there is none. */
+  plate?: PlateMeasureResult;
 }
 
 export interface MaskAnalysisDiagnostics {
@@ -467,6 +469,7 @@ async function runStages(gateway: GeminiGateway, segmenter: Segmenter, input: Ma
     if (dishBoxes.length === 2) targetDish.passAgreementIoU = Number(boxIoU(box.pixelXyxy, dishBoxes[1]!.box.pixelXyxy).toFixed(3));
     dishBoxPx = box.pixelXyxy;
   }
+  targetDish.plate = measurePlate(targetDish.found ? targetDish : null);
 
   // Explicit empty plate only when every usable pass returned no pieces (a pass with pieces wins).
   const withPieces = usable.filter((l) => l.regions.length > 0);

@@ -27,6 +27,7 @@ const PRIVATE_TABLES = [
   'image_object', 'analysis_attempt', 'capture_count', 'segmentation_region', 'attempt_calibration',
   'capture_visibility', 'dashboard_view', 'scan_info', 'demo_marker',
   'production_log', // private since 20261028000013: reviewer names and sheet photo paths
+  'plate_scale_estimate', // 20261028000015
 ];
 /** A real column of each table, so every refusal is a permission refusal (not "no such column"). */
 const KEY_COLUMN = {
@@ -36,7 +37,7 @@ const KEY_COLUMN = {
   menu_cycle: 'hall_id', production_log: 'hall_id', attendance: 'hall_id', context_day: 'hall_id', forecast: 'hall_id',
   forecast_outcome: 'error_lb', image_object: 'object_id', analysis_attempt: 'attempt_id', capture_count: 'attempt_id',
   segmentation_region: 'region_id', attempt_calibration: 'attempt_id', capture_visibility: 'event_id', dashboard_view: 'hall_id',
-  scan_info: 'event_id', demo_marker: 'marker_id',
+  scan_info: 'event_id', demo_marker: 'marker_id', plate_scale_estimate: 'attempt_id',
 };
 const WRITE_FUNCTIONS = {
   upsert_menu: { p_menu: {} },

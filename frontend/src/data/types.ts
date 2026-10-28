@@ -633,3 +633,25 @@ export type ForecastSummary =
       dishes: ForecastDishRow[]
       upcoming: UpcomingForecast[]
     }
+
+/** GET /api/dashboard/estimated-weight (plate-scale-v1): ESTIMATED pounds beside Pixels wasted. */
+export interface EstimatedWeightItem {
+  itemId: string | null
+  displayName: string
+  pixels: number
+  pixelsWithScale: number
+  estimatedLb: number | null
+  estimatedGrams: number | null
+  captures: number
+  capturesWithScale: number
+  weightGPerCm2: number | null
+  unavailableReason?: string
+}
+export interface EstimatedWeight {
+  available: boolean
+  isEstimate: true
+  method: 'plate-scale-v1'
+  note: string
+  items: EstimatedWeightItem[]
+  totals: { pixels: number; estimatedLb: number | null; captures: number; capturesWithScale: number }
+}

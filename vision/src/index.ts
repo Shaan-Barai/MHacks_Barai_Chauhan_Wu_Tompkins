@@ -83,8 +83,11 @@ export {
   dropSpecks,
   labelComponents,
   largestComponent,
+  measurePlate,
+  PLATE_MAX_ASPECT,
+  PLATE_SCALE_VERSION,
 } from './targetDish.js';
-export type { DishRegionResult } from './targetDish.js';
+export type { DishRegionResult, PlateMeasureResult } from './targetDish.js';
 export { OVERLAY_VERSION, OTHER_DISH_COLOR, colorForIndex, composeWithLegend, fitLegendText, layoutLegend, legendLines, legendRows, renderOverlay } from './overlay.js';
 export type { LabelSuffix, LegendLayout, LegendLine, OverlayBucket, OverlayImage, RenderOverlayInput, RenderOverlayResult } from './overlay.js';
 export { createSamWorkerClient } from './samClient.js';

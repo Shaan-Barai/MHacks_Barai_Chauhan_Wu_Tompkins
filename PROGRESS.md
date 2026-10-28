@@ -51,6 +51,7 @@
 
 | When | What | Calls | Running total |
 |---|---|---|---|
+| 01:49 | Phase 2 detection run attempt 1 (default 30 s timeout), stopped after 4 photos: IMG_2696 and IMG_2697 each burned 6 calls on GEMINI_TIMEOUT (2 passes × 3 attempts) | 16 | 16 |
 | 21:35 | Live test2 run on Supabase (13 photos: classify + box passes; 1 recommendation) | 32 | 32 |
 | 10-25 20:15 | Follow-up task 4: re-analyze the 10 imported captures (cap 35) | 20 | 52 |
 
@@ -362,7 +363,7 @@ Plan: `~/.claude/plans/pasted-content-id-88eb-long-unattended-sequential-pony.md
 - [x] Setup: branch `forecast-v2`, keys present (values not printed)
 - [x] Phase 1: production_log private, hide hall-e2e-* halls, backfill simulated attendance
 - [ ] Phase 2: detection regression (≤ 100 Gemini calls)
-- [ ] Phase 3: real context data (calendar, football, weather, holidays)
+- [x] Phase 3: real context data (calendar, football, weather, holidays)
 - [ ] Phase 4: importers for M-Dining data + docs/data-intake.md
 - [ ] Phase 5: pixels → pounds (plate scale)
 - [ ] Phase 6: forecasting models + walk-forward evaluation
@@ -381,6 +382,19 @@ Plan: `~/.claude/plans/pasted-content-id-88eb-long-unattended-sequential-pony.md
 2. **production_log private:** the migration drops its anon `"dashboard read"` policy and revokes `select` from anon/authenticated. Dropping a policy changes access, not data, so I treated it as additive. The frontend never reads `production_log` directly (it goes through the backend's service role), so nothing in the UI changes.
 3. **Hiding the test halls:** I used the existing `capture_visibility` mechanism (`set_capture_visibility`, hidden = true) and added no `hall.hidden` column. The dashboard has no hall list (the hall comes from Settings, default `hall-main`), so hiding the 4 captures removes them from every dashboard number. The `hall` rows and all their data stay.
 4. **Attendance backfill scope:** I ran the existing script as is. It filled only services with no row, all 9 on `hall-main` (the hall-e2e services already had attendance).
+5. **Detection timeout (Phase 2):** the 3 variation runs use `GEMINI_TIMEOUT_MS=90000` (default 30000). At the default, 2 of the first 4 photos failed both passes on timeout and were unscored, which wasted calls and measured nothing. All 3 runs use identical settings.
+6. **Context sources (Phase 3):**
+   - The registrar's 2026-27 calendar is the Google Doc linked as "Academic Year Calendar" on ro.umich.edu/calendars (fetched as text).
+   - Football comes from the 2026-01-27 MGoBlue release table.
+   - Religious holidays: Hebcal API (Jewish) and Aladhan API (Islamic, calculated dates).
+   - **Not included, no fetchable source:** Diwali, Easter/Good Friday, Lunar New Year, Holi. timeanddate.com returned 403 and the Provost's religious-holiday Google Calendar ICS returned 404.
+   - "Between terms" break days (Dec 22–Jan 12, May 10) are derived (no classes or exams listed) and marked `derived` in the source file.
+7. **Context rows never overwrite simulated rows:** hall-main's 42 simulated days (2026-09-12..10-23) were skipped. After `python3 -m forecast.simulate remove`, re-run the importer to fill them.
+8. **Only non-test halls get context:** the only one is `hall-main`. The hall-e2e-*, hall-live-*, hall-test and hall-smoke halls are skipped.
+9. **Weather:**
+   - Open-Meteo archive for dates up to 5 days ago (observed).
+   - The forecast API for the next 16 days; its days before today are marked observed.
+   - Later dates have null weather, never a guess.
 
 ### Log
 
@@ -390,3 +404,21 @@ Plan: `~/.claude/plans/pasted-content-id-88eb-long-unattended-sequential-pony.md
   - **Hidden (not deleted):** captures `cap_e2e_musw1war`, `cap_e2e_musw2fuw`, `cap_e2e_musw3a06`, `cap_e2e_musw3m68` in halls `hall-e2e-musw1war`, `hall-e2e-musw2fuw`, `hall-e2e-musw3a06`, `hall-e2e-musw3m68` (one photo replayed by old e2e runs). Repository view (`listCaptureEvents`): before, hall-main 6 + 4 × 1 e2e; after, hall-main 6 only. `includeHidden` still returns all 10. Undo: the admin Scanned plates page, or `setCaptureVisibility(ids, false)`.
   - `backfill-attendance.mjs`: dry run found **9** services without attendance, all on hall-main (2026-10-01 to 10-04). **Created 9, labeled simulated.** A second dry run finds 0; `simulated_attendance` has 14 rows.
   - `./test-all.sh`: ALL PASSED.
+- 02:10. **Phase 3.**
+  - Migration `20261028000014_context_day_sources.sql` (additive: `source_urls`, `academic_note`, `class_day`, `study_day`, `break_day`, `first_class_day`, `weather_kind`, `imported_at`): dry run, then applied live.
+  - **Sources fetched:**
+    - Registrar Google Doc (via ro.umich.edu/calendars);
+    - mgoblue.com 2026 schedule;
+    - Hebcal JSON for 2026 and 2027;
+    - Aladhan hToG (1 Ramadan 1448 = 2027-02-08; 1 Shawwal 1448 = 2027-03-09);
+    - Open-Meteo archive and forecast.
+  - **Not reachable:** timeanddate.com (403) and the Provost religious-holiday ICS (404); skipped.
+  - `forecast/context_import.py`: re-runnable, `--dry-run`. Two real runs upserted the same 262 rows (`is_simulated = false`).
+  - Summary (hall-main, 2026-08-01..2027-05-31, excluding the 42 simulated days):
+
+    | hall | days | with weather (observed/forecast) | class days | exam days | study days | break days | home games | holiday days |
+    |---|---|---|---|---|---|---|---|---|
+    | hall-main | 262 | 61 (46/15) | 124 | 12 | 5 | 37 | 4 | 42 |
+
+    The other 4 home games (Sep 12, 19, 26; Oct 17) fall on simulated days and were not written. All 8 are in the source file and tested.
+  - 8 new unit tests (`forecast/tests/test_context_import.py`).

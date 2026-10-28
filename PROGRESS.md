@@ -528,3 +528,12 @@ Plan: `~/.claude/plans/pasted-content-id-88eb-long-unattended-sequential-pony.md
   - The Statistics "Food left on plates (estimate)" card shows "—", "0 of 6 plates · 748,986 pixels wasted measured".
   - Live API: pixels from `estimated-weight` = dashboard total (748,986).
 - 03:50. **Phase 7:** `docs/forecasting-methods.md`. Every number is tagged [SIMULATED] or [REAL]; it covers limitations and what real data will test.
+- 03:55. **Phase 8: secret scan.**
+  - **Scope:** `git log -p overnight-supabase forecast-v2`, every commit reachable from either branch (312 commits, 13.7 MB of patches), including removed lines and commit messages.
+  - **Exact match against the real `.env` values** (GEMINI_API_KEY, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_DB_URL and its password, SPACETIMEDB_TOKEN; values never printed): **0 hits.**
+  - **Patterns:** real-looking `sb_secret_`/`sb_publishable_` (20+ chars), JWTs, `AIza…` keys, Postgres URLs with a non-placeholder password, private keys, AWS keys: **0 hits.**
+  - **32 weak-pattern hits, all reviewed and harmless:**
+    - code reading keys from env (`TOKEN = os.environ.get…`, `token: process.env…`);
+    - test fixtures (`'ingest-token-for-tests-0123456789'`, `'session-secret-for-tests-0123456789'`, `'it4-fixture-token-6f1c'`, `'tok_secret_value_123'`, `'sb_secret_example'`, `'sb_secret_THIS_MUST_NOT_SHIP_0000'`, `'invalid-key-for-smoke-test'`);
+    - `.env.example` placeholders (`your-db-password`, `your-r2-secret-access-key`).
+  - **Verdict: clean.** Proceeding with the push allowed by Phase 8.

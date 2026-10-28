@@ -91,6 +91,7 @@ describe('Supabase migrations on an in-memory Postgres', () => {
     ok('anon reads capture_event', (await q('select count(*)::int n from capture_event'))[0].n === 1);
     ok('anon reads forecast', (await q('select count(*)::int n from forecast'))[0].n === 1);
     await throws('anon cannot read image_object', 'select * from image_object', /permission denied/);
+    await throws('anon cannot read production_log (reviewer names)', 'select * from production_log', /permission denied/);
     await throws('anon cannot insert', "insert into dish values ('x','x')", /permission denied|row-level security/);
     await throws('anon cannot update', "update capture_event set state='failed'", /permission denied|row-level security/);
     await throws('anon cannot delete', 'delete from meal_service', /permission denied|row-level security/);

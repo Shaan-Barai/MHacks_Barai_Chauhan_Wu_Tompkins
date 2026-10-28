@@ -21,11 +21,12 @@ const skip =
 const DASHBOARD_TABLES = [
   'hall', 'dish', 'meal_service', 'menu_item', 'menu_item_revision', 'reference_portion', 'capture_event', 'food_measurement',
   'simulated_attendance', 'portions_served', 'insight', 'camera_calibration', 'measurement_settings',
-  'menu_cycle', 'production_log', 'attendance', 'context_day', 'forecast', 'forecast_outcome',
+  'menu_cycle', 'attendance', 'context_day', 'forecast', 'forecast_outcome',
 ];
 const PRIVATE_TABLES = [
   'image_object', 'analysis_attempt', 'capture_count', 'segmentation_region', 'attempt_calibration',
   'capture_visibility', 'dashboard_view', 'scan_info', 'demo_marker',
+  'production_log', // private since 20261028000013: reviewer names and sheet photo paths
 ];
 /** A real column of each table, so every refusal is a permission refusal (not "no such column"). */
 const KEY_COLUMN = {

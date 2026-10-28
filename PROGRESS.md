@@ -2,6 +2,14 @@
 
 ## Resume here
 
+- **Run 3 (started 2026-10-28 01:42 EDT):** branch `forecast-v2` from `overnight-supabase` (`3e20815`). See "Run 3" at the bottom.
+- **Last commit:** (none yet in Run 3)
+- **Next step:** Phase 1, quick fixes.
+- **Gemini calls this run:** 0 / 150.
+- Migrations: `npx supabase db push --db-url "$SUPABASE_DB_URL"` (dry run first) inside a subshell that sources `.env`; never echo it.
+
+### Earlier runs (kept for reference)
+
 - **Branch:** `overnight-supabase` (Part B), branched from `supabase-migration` at `350a034`.
 - **Last commit:** `cee58a0` gitignore the Supabase CLI cache
 - **Next step:** follow-up complete (task 5 still waits for a real sheet photo). See `MERGE_REVIEW.md`.
@@ -345,3 +353,40 @@ The user confirmed in their own words: do tasks 2–7, task 1 is already done, a
   - **New risk found while writing the review:** `production_log` is anon-readable, so "confirmed by" names and sheet photo paths are visible with the publishable key. Flagged as risk #2 (a one-line fix if names should be private); not changed without the user's say.
   - Stopped the SAM worker (:8790) and the scratch SpacetimeDB copy (:3901). Confirmed each was the process I started; the original `~/.local/share/spacetime/data` was never served.
 - **Follow-up Gemini total: 20** (task 4). **Overall: 52.**
+
+## Run 3: forecast-v2 (2026-10-28, unattended)
+
+Plan: `~/.claude/plans/pasted-content-id-88eb-long-unattended-sequential-pony.md`.
+
+### Checklist
+- [x] Setup: branch `forecast-v2`, keys present (values not printed)
+- [x] Phase 1: production_log private, hide hall-e2e-* halls, backfill simulated attendance
+- [ ] Phase 2: detection regression (≤ 100 Gemini calls)
+- [ ] Phase 3: real context data (calendar, football, weather, holidays)
+- [ ] Phase 4: importers for M-Dining data + docs/data-intake.md
+- [ ] Phase 5: pixels → pounds (plate scale)
+- [ ] Phase 6: forecasting models + walk-forward evaluation
+- [ ] Phase 7: docs/forecasting-methods.md
+- [ ] Phase 8: secret scan, then push/draft PR only if clean
+- [ ] RUN3_REPORT.md
+
+### Gemini call log (Run 3, cap 150)
+
+| When | What | Calls | Running total |
+|---|---|---|---|
+
+### Decisions made on my behalf
+
+1. The model name `GEMINI_MODEL=gemini-3.8-flash` is recorded (a model name, not a secret). No other `.env` value was printed.
+2. **production_log private:** the migration drops its anon `"dashboard read"` policy and revokes `select` from anon/authenticated. Dropping a policy changes access, not data, so I treated it as additive. The frontend never reads `production_log` directly (it goes through the backend's service role), so nothing in the UI changes.
+3. **Hiding the test halls:** I used the existing `capture_visibility` mechanism (`set_capture_visibility`, hidden = true) and added no `hall.hidden` column. The dashboard has no hall list (the hall comes from Settings, default `hall-main`), so hiding the 4 captures removes them from every dashboard number. The `hall` rows and all their data stay.
+4. **Attendance backfill scope:** I ran the existing script as is. It filled only services with no row, all 9 on `hall-main` (the hall-e2e services already had attendance).
+
+### Log
+
+- 01:42. Created branch `forecast-v2` from `overnight-supabase` (`3e20815`). `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_URL`, `GEMINI_API_KEY`, `GEMINI_MODEL` and `DATABASE_PROVIDER` are each present once. The `supabase` CLI isn't on PATH; migrations go through `npx supabase` as in the README.
+- 01:50. **Phase 1.**
+  - Migration `20261028000013_production_log_private.sql`: dry run, then applied live. The live RLS test (`tests/system/supabase-rls.test.mjs`) now lists `production_log` as private: **5/5 pass**. The offline PGlite test checks "anon cannot read production_log": passes.
+  - **Hidden (not deleted):** captures `cap_e2e_musw1war`, `cap_e2e_musw2fuw`, `cap_e2e_musw3a06`, `cap_e2e_musw3m68` in halls `hall-e2e-musw1war`, `hall-e2e-musw2fuw`, `hall-e2e-musw3a06`, `hall-e2e-musw3m68` (one photo replayed by old e2e runs). Repository view (`listCaptureEvents`): before, hall-main 6 + 4 × 1 e2e; after, hall-main 6 only. `includeHidden` still returns all 10. Undo: the admin Scanned plates page, or `setCaptureVisibility(ids, false)`.
+  - `backfill-attendance.mjs`: dry run found **9** services without attendance, all on hall-main (2026-10-01 to 10-04). **Created 9, labeled simulated.** A second dry run finds 0; `simulated_attendance` has 14 rows.
+  - `./test-all.sh`: ALL PASSED.

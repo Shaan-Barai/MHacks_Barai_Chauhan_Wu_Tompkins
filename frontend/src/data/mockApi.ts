@@ -295,6 +295,7 @@ export async function getEstimatedWeight(start: IsoDate, end: IsoDate): Promise<
     available: true,
     isEstimate: true,
     method: 'plate-scale-v1',
+    assumedPlateDiametersCm: [],
     note: 'Estimate: assumes every plate is the configured diameter, the plate size in pixels comes from the AI box around a fully visible plate, food is flat on the plate, and each food weighs its average grams per cm² from the factors table. Pixels wasted is the measurement.',
     items: [],
     totals: { pixels: d.totals.pixels, estimatedLb: null, captures: d.totals.captures, capturesWithScale: 0 },
@@ -697,7 +698,8 @@ export async function confirmProductionRow(id: number, confirmedBy: string): Pro
   const row = mockUnconfirmed(id)
   if (!confirmedBy.trim()) throw new Error("Enter who checked this row.")
   if (row.blockingFlags.length) throw new Error('Fix the flagged values before confirming.')
-  const next = { ...row, status: 'confirmed' as const, confirmedBy: confirmedBy.trim(), confirmedAt: new Date().toISOString() }
+  // Like the real API, the name is required but never returned.
+  const next = { ...row, status: 'confirmed' as const, confirmedBy: null, confirmedAt: new Date().toISOString() }
   mockProduction = mockProduction.map((r) => (r.productionLogId === id ? next : r))
   return { ...next }
 }

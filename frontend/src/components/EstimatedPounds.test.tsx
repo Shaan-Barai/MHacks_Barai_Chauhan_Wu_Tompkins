@@ -8,6 +8,7 @@ const base: EstimatedWeight = {
   isEstimate: true,
   method: 'plate-scale-v1',
   note: 'Estimate: assumes every plate is the configured diameter.',
+  assumedPlateDiametersCm: [26.7],
   items: [],
   totals: { pixels: 150000, estimatedLb: 0.198, captures: 2, capturesWithScale: 1 },
 }
@@ -20,6 +21,7 @@ describe('EstimatedPounds', () => {
     const tip = screen.getByRole('tooltip')
     expect(tip.textContent).toMatch(/Estimate: assumes every plate/)
     expect(tip.textContent).toMatch(/Covers 1 of 2 plates/)
+    expect(tip.textContent).toMatch(/Assumes 10\.5-inch \(26\.7 cm\) plates/)
     expect(screen.getByText(/150,000 pixels wasted measured/)).toBeTruthy()
   })
 

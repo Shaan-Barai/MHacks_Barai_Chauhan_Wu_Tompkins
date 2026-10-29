@@ -46,6 +46,7 @@ test('estimated pounds sit beside unchanged pixels, labeled with their assumptio
   assert.ok(Math.abs(eggs.estimatedGrams - 90) < 1e-9);
   assert.equal(eggs.estimatedLb.toFixed(6), (90 / 453.59237).toFixed(6));
   assert.deepEqual([w.totals.captures, w.totals.capturesWithScale], [2, 1]);
+  assert.deepEqual(w.assumedPlateDiametersCm, [26.7]); // stated in the Statistics tooltip
   // Pixels wasted is unchanged by the estimate.
   assert.equal(w.totals.pixels, before);
   assert.equal((await s.api('GET', `/api/dashboard/impact?${WINDOW}`)).json.totals.pixels, before);
@@ -58,6 +59,7 @@ test('no plate scales: pixels still counted, pounds null (never 0)', async (t) =
   const res = await s.api('GET', `/api/dashboard/estimated-weight?${WINDOW}`);
   assert.equal(res.status, 200);
   assert.equal(res.json.totals.estimatedLb, null);
+  assert.deepEqual(res.json.assumedPlateDiametersCm, []);
 });
 
 test('ingestion records the plate measurement with the assumed diameter; a failed scan records none', async (t) => {

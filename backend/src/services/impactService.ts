@@ -209,7 +209,7 @@ export class ImpactService {
    * same eligible measurements as the dashboard. Captures without a recorded plate scale add
    * pixels but no pounds (coverage says how many). Formulas: analytics/src/plateScale.ts.
    */
-  async estimatedWeight(window: ImpactWindow): Promise<PlateScaleWeights & { available: boolean }> {
+  async estimatedWeight(window: ImpactWindow): Promise<PlateScaleWeights & { available: boolean; assumedPlateDiametersCm: number[] }> {
     const records = await this.gather(window);
     const selected = selectImpactMeasurements({
       services: records.map((r) => r.menu.service),
@@ -232,7 +232,9 @@ export class ImpactService {
       scales,
       (name) => findWasteFactor(name)?.weightGPerCm2 ?? null,
     );
-    return { available: this.repo.listPlateScales !== undefined, ...weights };
+    // The plate size each applied scale assumed (PLATE_DIAMETER_CM when it was recorded), so the UI can state it.
+    const assumed = [...new Set([...scales.values()].flatMap((x) => (x ? [x.plateDiameterCm] : [])))].sort((a, b) => a - b);
+    return { available: this.repo.listPlateScales !== undefined, assumedPlateDiametersCm: assumed, ...weights };
   }
 
   async dashboard(window: ImpactWindow): Promise<ImpactDashboard> {

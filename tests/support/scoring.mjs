@@ -10,6 +10,9 @@
  * - correct = detected and on the plate, missed = on the plate and not
  *   detected, wrong = detected and not on the plate
  * - runs whose count failed are excluded and reported
+ * - optional `Station` column (Run 5): any header cell named "station" is read as
+ *   the photo's station, never as a food. Blank is allowed; files without the
+ *   column work as before. Scores are then also broken down by station.
  */
 
 import { readFileSync } from 'node:fs';
@@ -67,15 +70,26 @@ function splitCsv(line) {
   return out;
 }
 
+/**
+ * photo -> Set of canonical food names. The returned Map also carries `stations`:
+ * photo -> station name, or null when the column is missing or blank.
+ */
 export function loadGroundTruth(file) {
   const truth = new Map();
+  truth.stations = new Map();
   const text = readFileSync(file, 'utf8').replace(/^﻿/, '');
+  let stationCol = -1;
   for (const line of text.split(/\r?\n/)) {
     if (!line.trim()) continue;
     const row = splitCsv(line);
-    if (row[0] === 'Image_name') continue;
+    if (row[0] === 'Image_name') {
+      stationCol = row.findIndex((h) => h.trim().toLowerCase() === 'station');
+      continue;
+    }
+    const station = stationCol > 0 ? (row[stationCol] ?? '').trim() : '';
+    truth.stations.set(row[0].trim(), station || null);
     const dishes = new Set();
-    for (const cell of row.slice(1)) {
+    for (const cell of row.slice(1).filter((_, i) => i + 1 !== stationCol)) {
       for (let part of cell.split('&')) {
         part = part.trim();
         if (part && !/^un(k)?own/i.test(part) && !/^unkown/i.test(part)) dishes.add(canon(part));
@@ -124,9 +138,25 @@ export function scoreRuns(runs, truth) {
     totals.correct += correct;
     totals.missed += missed;
     totals.wrong += wrong;
-    perPhoto.push({ photo: r.photo, scored: true, correct, missed, wrong, detected: [...dets].sort(), truth: [...t].sort() });
+    const station = truth.stations?.get(r.photo) ?? null;
+    perPhoto.push({ photo: r.photo, scored: true, ...(station ? { station } : {}), correct, missed, wrong, detected: [...dets].sort(), truth: [...t].sort() });
   }
-  const recall = totals.correct + totals.missed > 0 ? totals.correct / (totals.correct + totals.missed) : null;
-  const precision = totals.correct + totals.wrong > 0 ? totals.correct / (totals.correct + totals.wrong) : null;
-  return { ...totals, recall, precision, perPhoto };
+  const rates = (x) => ({
+    recall: x.correct + x.missed > 0 ? x.correct / (x.correct + x.missed) : null,
+    precision: x.correct + x.wrong > 0 ? x.correct / (x.correct + x.wrong) : null,
+  });
+  // By station, only when the file names at least one station; photos without one go under "(no station)".
+  let byStation;
+  if ([...(truth.stations?.values() ?? [])].some(Boolean)) {
+    byStation = {};
+    for (const p of perPhoto.filter((x) => x.scored)) {
+      const b = (byStation[p.station ?? '(no station)'] ??= { photos: 0, correct: 0, missed: 0, wrong: 0 });
+      b.photos++;
+      b.correct += p.correct;
+      b.missed += p.missed;
+      b.wrong += p.wrong;
+    }
+    for (const b of Object.values(byStation)) Object.assign(b, rates(b));
+  }
+  return { ...totals, ...rates(totals), perPhoto, ...(byStation ? { byStation } : {}) };
 }

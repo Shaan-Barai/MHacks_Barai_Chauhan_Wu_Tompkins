@@ -555,6 +555,7 @@ export interface ProductionRow {
   reviewFlags: string[]
   /** Flags that must be fixed before the row can be confirmed. */
   blockingFlags: string[]
+  /** Always null from the API: reviewer names stay in the private table (Run 5). */
   confirmedBy: string | null
   confirmedAt: string | null
   isSimulated: boolean
@@ -652,6 +653,8 @@ export interface EstimatedWeight {
   isEstimate: true
   method: 'plate-scale-v1'
   note: string
+  /** Plate diameters (cm) the applied scales assumed; empty when no plate has a scale. Optional for older backends. */
+  assumedPlateDiametersCm?: number[]
   items: EstimatedWeightItem[]
   totals: { pixels: number; estimatedLb: number | null; captures: number; capturesWithScale: number }
 }

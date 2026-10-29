@@ -11,7 +11,9 @@ export function EstimatedPounds({ data }: { data: EstimatedWeight }) {
   const t = data.totals
   const lb = t.estimatedLb
   const value = lb === null ? '—' : lb < 10 ? lb.toFixed(1) : formatNumber(Math.round(lb))
-  const tip = `${data.note} Method ${data.method}. Covers ${t.capturesWithScale} of ${t.captures} plates (only fully visible, round plates get a scale).`
+  const sizes = (data.assumedPlateDiametersCm ?? []).map((cm) => `${(cm / 2.54).toFixed(1)}-inch (${cm} cm)`)
+  const plateSize = sizes.length ? ` Assumes ${sizes.join(' or ')} plates; other plate sizes make it wrong (a 9-inch plate reads about 1.36× too heavy).` : ''
+  const tip = `${data.note}${plateSize} Method ${data.method}. Covers ${t.capturesWithScale} of ${t.captures} plates (only fully visible, round plates get a scale).`
   return (
     <Card className="flex flex-col">
       <h3 className="text-sm font-medium text-ink">

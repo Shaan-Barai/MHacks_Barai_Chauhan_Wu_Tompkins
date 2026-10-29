@@ -3,7 +3,7 @@
 ## Resume here
 
 - **Run 4 (started 2026-10-28):** branch `run4` from `forecast-v2` (`79bfa6f`). See "Run 4" at the bottom.
-- **Next step:** Task 5 (camera calibration checklist), then the secret scan, push and RUN4_REPORT.md. Migrations `…17` and `…18` are applied live.
+- **Next step:** secret scan, push `run4` if clean, RUN4_REPORT.md. Migrations `…17` and `…18` are applied live.
 - **Gemini calls this run:** 36 / 40 (no more planned).
 - Migrations: `npx supabase db push --db-url "$SUPABASE_DB_URL"` (dry run first) inside a subshell that sources `.env`; never echo it.
 
@@ -559,7 +559,7 @@ Brief: tasks 1-5 + RUN4_REPORT.md. Gemini cap 40 (Task 1 ≤ 30, Task 4 ≤ 10).
 - [x] Task 2: Gemini timeout default 90 s
 - [x] Task 3: forecast weather in backtests, shadow-mode lock, report command
 - [x] Task 4: plate estimates for the 6 hall-main scans (≤ 10 Gemini calls): 6 used
-- [ ] Task 5: docs/camera-calibration-checklist.md
+- [x] Task 5: docs/camera-calibration-checklist.md
 - [ ] Secret scan, push `run4` if clean
 - [ ] RUN4_REPORT.md
 
@@ -594,6 +594,9 @@ Brief: tasks 1-5 + RUN4_REPORT.md. Gemini cap 40 (Task 1 ≤ 30, Task 4 ≤ 10).
 13. **Task 4, provenance column:** additive migration `…18` adds `plate_scale_estimate.box_source` ('analysis' default, 'backfill-pass1'), so backfilled boxes are distinguishable from boxes recorded during the scan.
 
 
+14. **Task 5, no code change:** the commands in the checklist all exist (`laptop_capture.py --calibrate`, `npm run calibrate`, `GET /api/calibrations/:id/images`, `demo.py --only calibration`). The only thing found wrong was documentation: `calibration.md` sent you to a "Settings → Camera calibration" panel that was removed on purpose (`7c3f561`). I fixed that line to point to the overlay link and the demo step. The checklist asks for a non-payment card of the same size, number side down, because the frame is uploaded to image storage.
+
+
 ### Log
 
 - Created `run4` from `forecast-v2` (`79bfa6f`). `GEMINI_API_KEY`, `GEMINI_MODEL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_DB_URL` are each present once (values not printed).
@@ -615,3 +618,9 @@ Brief: tasks 1-5 + RUN4_REPORT.md. Gemini cap 40 (Task 1 ≤ 30, Task 4 ≤ 10).
   - `backend/scripts/backfill-plate-scale.mjs`: dry run 6 → live run, **6/6 recorded a usable plate** (diameter 768.5, 724.5, 816.6, 679.9, 736.8, 783.4 px), 6 Gemini calls.
   - Pixels before and after: all 12 attempts 1,531,798 px, 26 measurements 1,531,798 px; **identical**.
   - `GET /api/dashboard/estimated-weight` (in-process backend): 6/6 plates with scale, 748,986 px, **estimated 2.14 lb (ESTIMATE, 26.7 cm plates assumed)**. 3 foods (170,667 px) have no factor, so no pounds.
+- 20:30. **Task 5.** `docs/camera-calibration-checklist.md`.
+  - Height 43–45 cm, from the stands' documented 433/441 mm and the centre-square coverage computed from nominal fx 1360.2 px (≥ 38 cm for a 28 cm plate).
+  - Focus lock, card placement, commands, flags, and the tape-measure check (±3 cm).
+  - Expected card pixels: 38,000 at 45 cm and 41,600 at 43 cm (computed).
+  - Overlay link, `demo.py --only calibration`, and a test plate.
+  - Fixed the stale Settings-panel step in `calibration.md`.

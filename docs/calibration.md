@@ -62,8 +62,10 @@ Rules that keep the numbers honest:
    (That example is the synthetic fixture; see "Without a card" below.) Check the camera height
    against a tape measure from the lens to the tray. If it is off by more than a few cm, the card was
    not fully segmented: retake the frame.
-6. **Check the outline** in the dashboard (Settings → Camera calibration). It shows the reference
-   outline, k, the camera height and the flags.
+6. **Check the outline:** the Settings panel was removed (`7c3f561`). Instead, open the overlay link
+   from `GET /api/calibrations/<cal_id>/images` (`overlay.url`), and run `python3 demo.py --only
+   calibration` for k, the camera height and the flags. Step-by-step version for the hall:
+   [camera-calibration-checklist.md](camera-calibration-checklist.md).
 
 Any other flat object works if you know its area: `--known-area-cm2 <cm²> --reference-label "<what it is>"`.
 

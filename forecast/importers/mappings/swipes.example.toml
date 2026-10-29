@@ -1,0 +1,25 @@
+# Column mapping for a meal-swipe export (forecast/importers/swipes.py).
+# Left: our field. Right: the header text in the export (case and spacing ignored).
+# Give either `timestamp` (date and time in one column) or both `date` and `time`.
+# Leave out `count` if the export has one row per swipe. `meal` is optional
+# (without it the meal comes from the time of day, forecast/config.toml [meals]).
+[columns]
+hall = "Location"
+date = "Business Date"
+time = "Time"
+meal = "Meal Period"
+count = "Swipes"
+# swipe_id = "Transaction ID"   # per-swipe exports: repeated ids are counted once
+
+[halls]   # export location name -> our hall id
+"SIMULATED Sample Hall" = "hall-sample"
+# "East Quad Dining Hall" = "hall-main"
+
+[meals]   # export meal codes -> breakfast | lunch | dinner
+"BRK" = "breakfast"
+"DIN" = "dinner"
+
+[options]
+# date_format = "%m/%d/%Y"        # only if the dates are ambiguous
+# sheet = "Swipes"                # XLSX: which sheet (default: the first)
+max_swipes_per_interval = 1500

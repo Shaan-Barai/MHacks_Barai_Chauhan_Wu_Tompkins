@@ -23,6 +23,7 @@ import type {
   Insight,
   CameraCalibration,
   MeasurementSettings,
+  PlateScaleRecord,
   ScanInfo,
 } from '../types.js';
 import { isBeforeCutoff, type CaptureEventFilter, type DemoMarker, type Repository } from './repository.js';
@@ -49,6 +50,7 @@ interface Snapshot {
   measurementSettings?: MeasurementSettings[];
   scans?: ScanInfo[];
   demoMarkers?: DemoMarker[];
+  plateScales?: PlateScaleRecord[];
 }
 
 export class JsonFileRepository implements Repository {
@@ -68,6 +70,7 @@ export class JsonFileRepository implements Repository {
   private cameraCalibrations = new Map<string, CameraCalibration>();
   private measurementSettings = new Map<string, MeasurementSettings>(); // key: hallId
   private scans = new Map<string, ScanInfo>(); // key: eventId
+  private plateScales = new Map<string, PlateScaleRecord>(); // key: attemptId
   private demoMarkers = new Map<string, DemoMarker>(); // key: `${tableName}:${rowKey}`
 
   constructor(private readonly dataFile?: string) {
@@ -183,6 +186,16 @@ export class JsonFileRepository implements Repository {
     return [...this.imageObjects.values()]
       .filter((o) => o.association.kind === kind && o.association.id === id)
       .map((o) => structuredClone(o));
+  }
+
+  // --- plate scale ---
+  async recordPlateScale(record: PlateScaleRecord): Promise<void> {
+    this.plateScales.set(record.attemptId, structuredClone(record));
+    this.persist();
+  }
+  async listPlateScales(eventIds: string[]): Promise<PlateScaleRecord[]> {
+    const ids = new Set(eventIds);
+    return [...this.plateScales.values()].filter((p) => ids.has(p.eventId)).map((p) => structuredClone(p));
   }
 
   // --- scans ---
@@ -394,6 +407,7 @@ export class JsonFileRepository implements Repository {
       measurementSettings: [...this.measurementSettings.values()],
       scans: [...this.scans.values()],
       demoMarkers: [...this.demoMarkers.values()],
+      plateScales: [...this.plateScales.values()],
     };
     mkdirSync(dirname(this.dataFile), { recursive: true });
     const tmp = `${this.dataFile}.tmp`;
@@ -404,6 +418,7 @@ export class JsonFileRepository implements Repository {
   private load(dataFile: string): void {
     const snapshot = JSON.parse(readFileSync(dataFile, 'utf8')) as Snapshot;
     for (const m of snapshot.menus ?? []) this.menus.set(m.service.serviceId, m);
+    for (const p of snapshot.plateScales ?? []) this.plateScales.set(p.attemptId, p);
     for (const i of snapshot.archivedMenuItems ?? []) this.archiveItem(i);
     for (const r of snapshot.referencePortions ?? []) this.referencePortions.set(r.baselineId, r);
     for (const o of snapshot.imageObjects ?? []) this.imageObjects.set(o.objectId, o);

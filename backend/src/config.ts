@@ -37,7 +37,7 @@ export interface BackendConfig {
   /** Shared secret sent as X-Worker-Token to the SAM worker (WORKER_TOKEN). */
   workerToken?: string;
   objectStorage: {
-    provider: string; // 'r2' (Cloudflare R2) or 'local-dev' (offline filesystem)
+    provider: string; // 'supabase' (Supabase Storage), 'r2' (Cloudflare R2) or 'local-dev' (offline filesystem)
     container: string;
     localDir: string; // local-dev adapter root; gitignored (.local-storage/)
     allowedMimeTypes: string[];
@@ -47,18 +47,30 @@ export interface BackendConfig {
     /** Uploads never finalized after this long count as orphans. */
     orphanMaxAgeMs: number;
     /**
-     * Prepended to every object key (env R2_KEY_PREFIX), e.g. 'test/' so
+     * Prepended to every object key (env OBJECT_STORAGE_KEY_PREFIX, formerly R2_KEY_PREFIX), e.g. 'test/' so
      * tests write under one prefix they can delete afterwards. '' in normal use.
      */
     keyPrefix?: string;
     /** Cloudflare R2 credentials (provider 'r2'); server-side only. */
     r2?: { accountId: string; accessKeyId: string; secretAccessKey: string; endpoint?: string };
+    /** Supabase project (provider 'supabase'); the service role key is server-side only. */
+    supabase?: { url: string; serviceRoleKey: string };
   };
   /** Optional JSON persistence file for the offline/test repository. */
   dataFile?: string;
   /** SAM 2.1 segmentation worker (vision/sam/worker.py). */
   samWorkerUrl: string;
-  /** SpacetimeDB persistence; when unset the JSON/in-memory repository is used. */
+  /**
+   * Plate scale (plate-scale-v1): the diameter every scanned plate is ASSUMED to have, in cm
+   * (PLATE_DIAMETER_CM, default 26.7 = a 10.5" dinner plate). Only used for labeled pound estimates.
+   */
+  plateDiameterCm?: number;
+  /**
+   * Supabase Postgres persistence (DATABASE_PROVIDER=supabase). Takes precedence
+   * over SpacetimeDB. The service role key is server-side only.
+   */
+  supabaseDb?: { url: string; serviceRoleKey: string };
+  /** Legacy SpacetimeDB persistence; when neither is set the JSON/in-memory repository is used. */
   spacetime?: { uri: string; module: string; token?: string };
   attendance: { min: number; max: number; seed?: string };
   /** DEMO_SEED=1: fill ~14 days of labeled sample history at startup (idempotent). */
@@ -81,13 +93,25 @@ function int(name: string, fallback: number, env: NodeJS.ProcessEnv = process.en
   return Math.floor(n);
 }
 
+/** DATABASE_PROVIDER=supabase needs the project URL and service role key; other values keep SpacetimeDB/JSON. */
+function supabaseDb(env: NodeJS.ProcessEnv): BackendConfig['supabaseDb'] {
+  if ((env.DATABASE_PROVIDER ?? '').trim().toLowerCase() !== 'supabase') return undefined;
+  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error('DATABASE_PROVIDER=supabase needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.');
+  }
+  if (!/^https:\/\/[^/]+\/?$/.test(env.SUPABASE_URL)) {
+    throw new Error('SUPABASE_URL must be the project API address, https://<project-ref>.supabase.co (not a dashboard link).');
+  }
+  return { url: env.SUPABASE_URL, serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY };
+}
+
 /** '' or one or more `segment/` parts of letters, digits, '-' or '_' (e.g. 'test/'). */
 export function keyPrefix(raw: string | undefined): string {
   const value = (raw ?? '').trim();
   if (value === '') return '';
   const withSlash = value.endsWith('/') ? value : `${value}/`;
   if (!/^([A-Za-z0-9_-]+\/)+$/.test(withSlash)) {
-    throw new Error("R2_KEY_PREFIX must look like 'test/' (letters, digits, '-', '_', separated by '/').");
+    throw new Error("OBJECT_STORAGE_KEY_PREFIX must look like 'test/' (letters, digits, '-', '_', separated by '/').");
   }
   return withSlash;
 }
@@ -133,7 +157,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BackendConfig 
       provider: env.OBJECT_STORAGE_PROVIDER ?? 'local-dev',
       container: env.OBJECT_STORAGE_CONTAINER ?? 'scrap-images',
       localDir: env.OBJECT_STORAGE_LOCAL_DIR ?? '.local-storage',
-      keyPrefix: keyPrefix(env.R2_KEY_PREFIX),
+      keyPrefix: keyPrefix(env.OBJECT_STORAGE_KEY_PREFIX ?? env.R2_KEY_PREFIX),
       allowedMimeTypes: (env.UPLOAD_ALLOWED_MIME_TYPES ?? 'image/jpeg,image/png,image/webp')
         .split(',')
         .map((s) => s.trim())
@@ -151,9 +175,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BackendConfig 
               endpoint: env.R2_ENDPOINT || undefined,
             }
           : undefined,
+      supabase:
+        env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY
+          ? { url: env.SUPABASE_URL, serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY }
+          : undefined,
     },
     dataFile: env.BACKEND_DATA_FILE || undefined,
     samWorkerUrl: env.SAM_WORKER_URL || 'http://127.0.0.1:8790',
+    plateDiameterCm: plateDiameterCm(env.PLATE_DIAMETER_CM),
+    supabaseDb: supabaseDb(env),
     spacetime: env.SPACETIMEDB_URI
       ? {
           uri: env.SPACETIMEDB_URI,
@@ -169,4 +199,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BackendConfig 
     demoSeed: env.DEMO_SEED === '1' || env.DEMO_SEED === 'true',
     readOnly: env.READ_ONLY === '1' || env.READ_ONLY === 'true',
   };
+}
+
+/** PLATE_DIAMETER_CM: a positive number of centimetres; unset = 26.7 (10.5"). */
+function plateDiameterCm(raw: string | undefined): number {
+  if (raw === undefined || raw.trim() === '') return 26.7;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0 || n > 100) throw new Error(`PLATE_DIAMETER_CM must be a plate diameter in cm (got '${raw}').`);
+  return n;
 }

@@ -84,7 +84,7 @@ import {
   type CountedRegion,
 } from './masks.js';
 import type { Segmenter, SegmenterInfo, SegmentResponse } from './samClient.js';
-import { buildDishRegion, clipToRegion, dishDilatePx } from './targetDish.js';
+import { buildDishRegion, clipToRegion, dishDilatePx, measurePlate, type PlateMeasureResult } from './targetDish.js';
 import { colorForIndex, renderOverlay, UNKNOWN_COLOR, type LabelSuffix, type OverlayBucket, type OverlayImage } from './overlay.js';
 import { AREA_METHOD, computeAreaEstimate } from './area.js';
 
@@ -164,6 +164,8 @@ export interface TargetDishInfo {
   otherDishPx: number;
   /** Target-food mask pixels removed by the dish clip (subset of otherDishPx). */
   clippedPx: number;
+  /** Plate scale input (plate-scale-v1): the plate's diameter in pixels, or why there is none. */
+  plate?: PlateMeasureResult;
 }
 
 export interface MaskAnalysisDiagnostics {
@@ -333,6 +335,44 @@ async function segmentAll(segmenter: Segmenter, image: Uint8Array, boxes: [numbe
   return merged!;
 }
 
+/** What `measureTargetPlate` found: the plate measurement, the dish it came from, and its single Gemini call. */
+export interface TargetPlateResult {
+  plate: PlateMeasureResult;
+  dish: { found: boolean; dishType?: 'plate' | 'bowl' | 'other'; fullyVisible?: boolean; box?: RegionBox; reason?: string };
+  geminiCalls: 1;
+  promptVersion: string;
+}
+
+/**
+ * plate-scale-v1 for an already-analyzed capture (Run 4 backfill): ONLY Gemini pass 1 (the
+ * unchanged base localize prompt, the same one the full pipeline takes its dish box from),
+ * then measurePlate. No SAM, no pixel counting, nothing stored: Pixels wasted cannot change.
+ * Throws GatewayError when the call fails; an unusable answer is reported as no dish.
+ */
+export async function measureTargetPlate(
+  gateway: GeminiGateway,
+  input: Pick<MaskAnalysisInput, 'image' | 'geometry' | 'menu'>,
+): Promise<TargetPlateResult> {
+  const { widthPx: W, heightPx: H } = input.geometry;
+  const menuIds = input.menu.items.map((i) => i.itemId);
+  const imagePart = await imageInputToPart({ kind: 'bytes', bytes: input.image.bytes, mimeType: input.image.mimeType });
+  const text = await gateway.generateStructured({
+    parts: [imagePart, { text: buildLocalizePrompt(input.menu.items, input.geometry) }],
+    systemInstruction: LOCALIZE_SYSTEM_INSTRUCTION,
+    responseSchema: buildLocalizeSchema(menuIds.length),
+    temperature: 0,
+    label: 'localize-pass1',
+  });
+  const base = { geminiCalls: 1 as const, promptVersion: LOCALIZE_PROMPT_VERSION };
+  const located = validateLocalizeText(text, menuIds);
+  if (!located.ok) return { ...base, plate: measurePlate(null), dish: { found: false, reason: `invalid:${located.reason}` } };
+  if (!located.targetDish) return { ...base, plate: measurePlate(null), dish: { found: false, reason: located.targetDishReason ?? 'not_found' } };
+  const converted = geminiBoxToPixels(clampBox(located.targetDish.box2d), W, H);
+  if (!converted.ok) return { ...base, plate: measurePlate(null), dish: { found: false, reason: 'dish_box_invalid' } };
+  const dish = { found: true, dishType: located.targetDish.dishType, fullyVisible: located.targetDish.fullyVisible, box: converted.box };
+  return { ...base, plate: measurePlate(dish), dish };
+}
+
 async function runStages(gateway: GeminiGateway, segmenter: Segmenter, input: MaskAnalysisInput): Promise<Stages> {
   const buckets: Stages['buckets'] = [];
   const now = input.now ?? (() => new Date());
@@ -412,12 +452,13 @@ async function runStages(gateway: GeminiGateway, segmenter: Segmenter, input: Ma
   }
   localization.geminiCalls = prompts.length;
   const settled = await Promise.allSettled(
-    prompts.map((text) =>
+    prompts.map((text, i) =>
       gateway.generateStructured({
         parts: [imagePart, { text }],
         systemInstruction: LOCALIZE_SYSTEM_INSTRUCTION,
         responseSchema: buildLocalizeSchema(menuIds.length),
         temperature: 0,
+        label: `localize-pass${i + 1}`,
       }),
     ),
   );
@@ -467,6 +508,7 @@ async function runStages(gateway: GeminiGateway, segmenter: Segmenter, input: Ma
     if (dishBoxes.length === 2) targetDish.passAgreementIoU = Number(boxIoU(box.pixelXyxy, dishBoxes[1]!.box.pixelXyxy).toFixed(3));
     dishBoxPx = box.pixelXyxy;
   }
+  targetDish.plate = measurePlate(targetDish.found ? targetDish : null);
 
   // Explicit empty plate only when every usable pass returned no pieces (a pass with pieces wins).
   const withPieces = usable.filter((l) => l.regions.length > 0);

@@ -26,6 +26,7 @@ export const getPlates = impl.getPlates
 export const getImageUrl = impl.getImageUrl
 export const getImpactDashboard = impl.getImpactDashboard
 export const getDailyImpact = impl.getDailyImpact
+export const getEstimatedWeight = impl.getEstimatedWeight
 export const getCaptures = impl.getCaptures
 export const getCaptureImages = impl.getCaptureImages
 export const getAdminCaptures = impl.getAdminCaptures
@@ -57,6 +58,16 @@ export const getCalibration = impl.getCalibration
 export const createCalibration = impl.createCalibration
 export const getCalibrationImages = impl.getCalibrationImages
 /** Tests: make the demo backend report a read-only site. */
+// Production sheets (forecasting).
+export const getDishes = impl.getDishes
+export const getProductionLog = impl.getProductionLog
+export const readProductionSheet = impl.readProductionSheet
+export const editProductionRow = impl.editProductionRow
+export const confirmProductionRow = impl.confirmProductionRow
+export const rejectProductionRow = impl.rejectProductionRow
+export const resetMockProduction = mock.resetMockProduction
+export const getForecastSummary = impl.getForecastSummary
+export const getForecastModels = impl.getForecastModels
 export const setMockReadOnly = mock.setMockReadOnly
 /** Demo-mode passcode (mock only; the live passcode is set on the server). */
 export const MOCK_PASSCODE = mock.MOCK_PASSCODE

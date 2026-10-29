@@ -116,8 +116,15 @@ test('capture -> masks stored in object storage -> Pixels wasted on the dashboar
     ],
   );
   assert.equal(summary.labels.pixelsWasted, 'Pixels wasted');
-  assert.equal(meal.json.attendance.source, 'simulated');
+  assert.equal(meal.json.attendance, null, 'a GET never creates simulated attendance');
   assert.equal(meal.json.insight.source, 'fallback_rules', 'mock gateway text is never shown as an AI tip');
+  // The explicit POST creates the service's simulated attendance and stores the tip.
+  const made = await s.api('POST', '/api/dashboard/meal/insight', { hallId: HALL, date: '2026-10-03', meal: 'lunch' });
+  assert.equal(made.status, 201, JSON.stringify(made.json));
+  assert.equal(made.json.insight.source, 'fallback_rules');
+  const after = await s.api('GET', `/api/dashboard/meal?hallId=${HALL}&date=2026-10-03&meal=lunch`);
+  assert.equal(after.json.attendance.source, 'simulated');
+  assert.equal(after.json.insight.insightId, made.json.insight.insightId, 'the stored tip is reused');
   // SAM mask counts feed the per-portion benchmark: 65,536 px / 128 portions = 512.
   const benchmark = meal.json.portionBenchmark;
   assert.equal(benchmark.measuredDishes, 1);

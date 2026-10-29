@@ -83,7 +83,8 @@ export interface MealDetailResponse {
   date: string;
   meal: MealLabel;
   summary: PixelServiceSummary;
-  attendance: Attendance;
+  /** Persisted simulated attendance; null until an explicit step creates it (backfill seed step, seeding, PUT /api/attendance), never a GET. */
+  attendance: Attendance | null;
   /**
    * Grounded in the Pixels-wasted-per-portion benchmark (AGENTS.md 7) when a
    * rate exists; otherwise in the meal's measured Pixels wasted.
@@ -118,7 +119,10 @@ export class DashboardService {
     private readonly gateway?: TextGateway,
   ) {}
 
-  /** One persisted simulated value per service; never re-rolled per request (6.3). */
+  /**
+   * One persisted simulated value per service; never re-rolled per request (6.3).
+   * WRITES: only call from write paths (the backfill seed step, demo seeding, the meal-insight POST), never a GET.
+   */
   async ensureAttendance(menu: MenuBundle): Promise<Attendance> {
     const existing = await this.repo.getAttendance(menu.service.serviceId);
     if (existing) return existing;
@@ -265,15 +269,32 @@ export class DashboardService {
         mealLabel: meal,
       });
     }
+    // Read-only: a GET never creates attendance or stores an insight.
+    const attendance = (await this.repo.getAttendance(menu.service.serviceId)) ?? null;
+    const summary = await this.serviceSummary(menu, attendance);
+    const portionBenchmark = await this.portionBenchmark(menu);
+    const insight = await this.mealInsight(menu, summary, portionBenchmark, { generate: false });
+    return { serviceId: menu.service.serviceId, date, meal, summary, attendance, insight, portionBenchmark };
+  }
+
+  /**
+   * POST /api/dashboard/meal/insight: generate (Gemini when live) and store the meal's
+   * suggestion for its current data. The only way a meal insight is written.
+   */
+  async generateMealInsight(hallId: string, date: string, meal: MealLabel): Promise<Insight> {
+    const [menu] = await this.repo.findMenus(hallId, date, meal);
+    if (!menu) throw notFound('MENU_NOT_FOUND', 'No menu for this meal yet. Add one in Menus.', { hallId, serviceDate: date, mealLabel: meal });
     const attendance = await this.ensureAttendance(menu);
     const summary = await this.serviceSummary(menu, attendance);
     const portionBenchmark = await this.portionBenchmark(menu);
-    // Per-portion rates rank suggestions when they exist (AGENTS.md 7); without
-    // one, suggest from the meal's measured Pixels wasted so each meal gets a tip.
-    const insight = portionBenchmark.items.some((i) => i.pixelsWastedPerPortion !== null)
-      ? await this.portionInsightFor(portionBenchmark)
-      : await this.pixelInsightFor(menu, summary);
-    return { serviceId: menu.service.serviceId, date, meal, summary, attendance, insight, portionBenchmark };
+    return this.mealInsight(menu, summary, portionBenchmark, { generate: true });
+  }
+
+  /** Per-portion rates rank suggestions when they exist (AGENTS.md 7); otherwise the meal's Pixels wasted. */
+  private mealInsight(menu: MenuBundle, summary: PixelServiceSummary, benchmark: PortionBenchmark, opts: { generate: boolean }) {
+    return benchmark.items.some((i) => i.pixelsWastedPerPortion !== null)
+      ? this.portionInsightFor(benchmark, opts)
+      : this.pixelInsightFor(menu, summary, opts);
   }
 
   /** Every scanned plate for a meal with its labels, for the "Behind the scenes" view. */
@@ -309,12 +330,15 @@ export class DashboardService {
     return { serviceId: menu.service.serviceId, plates };
   }
 
-  /** Pixels-wasted suggestion, stored and reused for identical data like the portion insight. */
-  private async pixelInsightFor(menu: MenuBundle, summary: PixelServiceSummary): Promise<Insight> {
+  /**
+   * Pixels-wasted suggestion. Reads reuse the stored insight for this exact data,
+   * or compute the labeled rule-based fallback in memory (no Gemini, nothing
+   * stored). Only `generate: true` (a POST) calls Gemini and stores the result.
+   */
+  private async pixelInsightFor(menu: MenuBundle, summary: PixelServiceSummary, opts: { generate: boolean }): Promise<Insight> {
     const dataVersion = `pixel-summary-v1|${computePixelDataVersion(summary)}`;
-    const stored = (await this.repo.listInsights(menu.service.hallId)).find(
-      (i) => i.dataVersion === dataVersion && (i.source === 'gemini' || this.gateway === undefined),
-    );
+    const matches = (await this.repo.listInsights(menu.service.hallId)).filter((i) => i.dataVersion === dataVersion);
+    const stored = matches.find((i) => i.source === 'gemini') ?? (opts.generate ? undefined : matches[0]);
     if (stored) return stored;
     const captures = await this.repo.listCaptureEvents({ hallId: menu.service.hallId, serviceId: menu.service.serviceId });
     const times = captures.map((c) => c.capturedAt).filter((t) => Number.isFinite(Date.parse(t))).sort();
@@ -328,29 +352,45 @@ export class DashboardService {
         menuItems: menu.items,
         dataVersion,
       },
-      this.gateway ? { gateway: this.gateway } : {},
+      opts.generate && this.gateway ? { gateway: this.gateway } : {},
     );
-    await this.repo.upsertInsight(insight);
+    if (opts.generate) await this.repo.upsertInsight(insight);
     return insight;
   }
 
   /**
-   * Reuse the stored insight for this exact data; generate (Gemini or labeled
-   * fallback) when it changed. A stored fallback is retried with Gemini on the
-   * next read, so a transient provider failure doesn't stick.
+   * Portion-rate suggestion: reads reuse the stored insight for this exact data or
+   * compute the labeled fallback in memory; only `generate: true` (a POST) calls
+   * Gemini and stores the result.
    */
-  private async portionInsightFor(benchmark: PortionBenchmark): Promise<Insight> {
+  private async portionInsightFor(benchmark: PortionBenchmark, opts: { generate: boolean }): Promise<Insight> {
     const dataVersion = portionDataVersion(benchmark);
-    const stored = (await this.repo.listInsights(benchmark.hallId)).find(
-      (i) => i.dataVersion === dataVersion && (i.source === 'gemini' || this.gateway === undefined),
-    );
+    const matches = (await this.repo.listInsights(benchmark.hallId)).filter((i) => i.dataVersion === dataVersion);
+    const stored = matches.find((i) => i.source === 'gemini') ?? (opts.generate ? undefined : matches[0]);
     if (stored) return stored;
 
     const captures = await this.repo.listCaptureEvents({ hallId: benchmark.hallId, serviceId: benchmark.serviceId });
     const times = captures.map(c => c.capturedAt).filter(t => Number.isFinite(Date.parse(t))).map(t => new Date(t).toISOString()).sort();
     const now = new Date().toISOString();
-    const insight = await generatePortionInsight(benchmark, this.gateway, { windowStart: times[0] ?? now, windowEnd: times.at(-1) ?? now });
-    await this.repo.upsertInsight(insight);
+    const insight = await generatePortionInsight(benchmark, opts.generate ? this.gateway : undefined, { windowStart: times[0] ?? now, windowEnd: times.at(-1) ?? now });
+    if (opts.generate) await this.repo.upsertInsight(insight);
     return insight;
   }
+}
+
+/**
+ * Seed step (scripts/backfill-attendance.mjs, demo seeding): give every service
+ * that has none its one persisted simulated attendance value (AGENTS.md 6.3).
+ * Never part of a GET and never run in READ_ONLY mode.
+ */
+export async function backfillAttendance(repo: Repository, dashboard: DashboardService): Promise<number> {
+  let created = 0;
+  for (const service of await repo.listServices()) {
+    if (await repo.getAttendance(service.serviceId)) continue;
+    const menu = await repo.getMenuByService(service.serviceId);
+    if (!menu) continue;
+    await dashboard.ensureAttendance(menu);
+    created += 1;
+  }
+  return created;
 }

@@ -16,6 +16,9 @@ import {
   captureItemPhysical,
   type CapturePhysicalContext,
   generateRecommendation,
+  plateScaleWeights,
+  type PlateScale,
+  type PlateScaleWeights,
   recommendationFacts,
   RECOMMENDATION_PROMPT_VERSION,
   type TrendHalf,
@@ -76,7 +79,6 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 export const CAPTURE_LIST_DEFAULT_LIMIT = 50;
 export const CAPTURE_LIST_MAX_LIMIT = 200;
 /** A fallback is retried with Gemini after this long, so a provider blip does not stick. */
-const FALLBACK_RETRY_MS = 60_000;
 
 export function parseWindow(query: Record<string, unknown>): ImpactWindow {
   const { start, end, hallId } = query;
@@ -126,7 +128,6 @@ export interface WasteTotals {
 }
 
 export class ImpactService {
-  private readonly recommendations = new Map<string, { value: Recommendation; storedAt: number }>();
   private readonly names: ItemNameResolver;
 
   constructor(
@@ -201,6 +202,39 @@ export class ImpactService {
     const cal = cache.get(attempt.calibrationId);
     const mismatch = cal && (cal.widthPx !== event.geometry.widthPx || cal.heightPx !== event.geometry.heightPx);
     return { physicalMethod: null, unavailableReason: mismatch ? 'incompatible_geometry' : 'no_calibration' };
+  }
+
+  /**
+   * plate-scale-v1: ESTIMATED pounds per food beside the unchanged Pixels wasted, for the
+   * same eligible measurements as the dashboard. Captures without a recorded plate scale add
+   * pixels but no pounds (coverage says how many). Formulas: analytics/src/plateScale.ts.
+   */
+  async estimatedWeight(window: ImpactWindow): Promise<PlateScaleWeights & { available: boolean; assumedPlateDiametersCm: number[] }> {
+    const records = await this.gather(window);
+    const selected = selectImpactMeasurements({
+      services: records.map((r) => r.menu.service),
+      captures: records.flatMap((r) => r.captures),
+      measurements: records.flatMap((r) => r.measurements),
+      menuItems: records.flatMap((r) => r.items),
+      attemptMenuVersions: new Map(records.flatMap((r) => [...r.countedAttempts].map(([eventId, a]) => [eventId, a.menuVersion] as const))),
+      capturePhysical: new Map(records.flatMap((r) => [...r.physical])),
+    });
+    const counted = new Map(records.flatMap((r) => [...r.countedAttempts].map(([eventId, a]) => [eventId, a.attemptId] as const)));
+    const stored = this.repo.listPlateScales ? await this.repo.listPlateScales([...counted.keys()]) : [];
+    const scales = new Map<string, PlateScale | null>();
+    for (const p of stored) {
+      // Only the counted attempt's plate scale applies to its pixels.
+      if (counted.get(p.eventId) !== p.attemptId) continue;
+      scales.set(p.eventId, p.plateDiameterPx === null ? null : { plateDiameterCm: p.assumedPlateDiameterCm, plateDiameterPx: p.plateDiameterPx });
+    }
+    const weights = plateScaleWeights(
+      selected.measurements.map((m) => ({ eventId: m.eventId, itemId: m.itemId, displayName: m.displayName, pixels: m.pixels })),
+      scales,
+      (name) => findWasteFactor(name)?.weightGPerCm2 ?? null,
+    );
+    // The plate size each applied scale assumed (PLATE_DIAMETER_CM when it was recorded), so the UI can state it.
+    const assumed = [...new Set([...scales.values()].flatMap((x) => (x ? [x.plateDiameterCm] : [])))].sort((a, b) => a - b);
+    return { available: this.repo.listPlateScales !== undefined, assumedPlateDiametersCm: assumed, ...weights };
   }
 
   async dashboard(window: ImpactWindow): Promise<ImpactDashboard> {
@@ -427,14 +461,14 @@ export class ImpactService {
   }
 
   /**
-   * Grounded recommendation (D8), stored in SpacetimeDB (insight table) with
-   * its window, the exact facts it was given and their input version.
-   * - A saved Gemini recommendation for the same window and inputs is reused
-   *   (the same statistics never pay for a second Gemini call) unless
-   *   `regenerate` is set.
-   * - If Gemini fails, the last saved Gemini recommendation is returned,
-   *   marked `stale` with its own window; with none saved, the labeled
-   *   rule-based fallback (retried after a short delay).
+   * Grounded recommendation (D8), stored (insight table) with its window, the
+   * exact facts it was given and their input version.
+   * - READ (GET, `regenerate` unset): never calls Gemini and never writes. A
+   *   saved Gemini recommendation for the same window and inputs is returned;
+   *   otherwise the last saved Gemini one, marked `stale`; otherwise the
+   *   labeled rule-based fallback, computed in memory.
+   * - GENERATE (POST /api/recommendation/regenerate): asks Gemini and stores
+   *   the result (a failure stores the labeled fallback, as before).
    */
   async recommendation(window: ImpactWindow, options: { regenerate?: boolean } = {}): Promise<Recommendation> {
     const records = await this.gather(window);
@@ -445,22 +479,24 @@ export class ImpactService {
     const hallId = window.hallId ?? 'all';
     const saved = await this.savedRecommendations(hallId);
     const sameWindow = (r: Recommendation) => r.window?.start === window.start && r.window?.end === window.end;
+
     if (!options.regenerate) {
       const reuse = saved.find((r) => r.source === 'gemini' && r.inputVersion === inputVersion && sameWindow(r));
       if (reuse) return reuse;
-      const cached = this.recommendations.get(`${hallId}|${inputVersion}|${window.start}|${window.end}`);
-      if (cached && this.now() - cached.storedAt < FALLBACK_RETRY_MS) return cached.value;
+      const hasData = facts.plates.analyzed > 0 && (facts.targets.length > 0 || facts.mostWasted.length > 0);
+      const lastGemini = saved.find((r) => r.source === 'gemini');
+      if (hasData && lastGemini) return { ...lastGemini, stale: true };
+      // Rule-based text only: no provider call on a read.
+      return { ...(await generateRecommendation(null, dashboard, new Date(this.now()), halves)), window: { start: window.start, end: window.end } };
     }
 
     const generated = { ...(await generateRecommendation(this.gateway ?? null, dashboard, new Date(this.now()), halves)), window: { start: window.start, end: window.end } };
-    const hasData = facts.plates.analyzed > 0 && (facts.targets.length > 0 || facts.mostWasted.length > 0);
-    if (generated.source === 'gemini' || options.regenerate) await this.store(hallId, window, generated, facts);
+    await this.store(hallId, window, generated, facts);
     if (generated.source === 'gemini') return generated;
-
+    // Gemini failed: show the last saved Gemini recommendation, marked stale, when there is data.
+    const hasData = facts.plates.analyzed > 0 && (facts.targets.length > 0 || facts.mostWasted.length > 0);
     const lastGemini = saved.find((r) => r.source === 'gemini');
-    const value = hasData && lastGemini ? { ...lastGemini, stale: true } : generated;
-    this.recommendations.set(`${hallId}|${inputVersion}|${window.start}|${window.end}`, { value, storedAt: this.now() });
-    return value;
+    return hasData && lastGemini ? { ...lastGemini, stale: true } : generated;
   }
 
   private async store(hallId: string, window: ImpactWindow, rec: Recommendation, facts: ReturnType<typeof recommendationFacts>): Promise<void> {

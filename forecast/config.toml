@@ -1,0 +1,84 @@
+# Forecast worker settings (forecast/README.md). Costs are per POUND of food.
+#
+# Newsvendor prep buffer: recommended prep = the q-th percentile of demand,
+#   q = Cu / (Cu + Co)     ("how often prep should cover demand")
+#   Co = cost of one wasted lb = food cost + the dish's Waste Impact Score
+#        (impact_score_usd_per_kg in factors/menu_waste_factors_*.csv, / 2.2046)
+#   Cu = cost of running out per lb, derived from the service level below.
+#
+# The service levels are conservative STARTING POINTS a kitchen manager can
+# accept: running out is visible to diners and hard to fix mid-meal, so prep
+# covers demand most of the time. They are not tuned on real data (there is
+# none yet); revisit them once real production sheets exist. No assumption is
+# made that staff refill any station mid-meal (M-Dining has not confirmed one).
+#
+# Each level applies to a dish with the reference waste cost below; a dish whose
+# Waste Impact Score is higher gets a slightly lower q (wasting it costs more),
+# a lower-impact dish a slightly higher one.
+
+[service_level]
+# Entrées: the main thing a diner came for; running out means a visible
+# substitute or a rushed batch. Cover demand 95% of meals.
+entree = 0.95
+# Sides: still noticed when gone, but easier to substitute. 90%.
+side = 0.90
+# Self-serve (soup, salad bar): diners expect it to be there all meal; without
+# a confirmed mid-meal refill routine, treat it almost like a side. 85%.
+self_serve = 0.85
+# Desserts: lower priority than the meal itself, but an empty tray still draws
+# complaints. 85%.
+dessert = 0.85
+# Anything not classified yet: the side level.
+other = 0.90
+
+[costs]
+default_food_cost_usd_per_lb = 3.00
+# A typical dish's Waste Impact Score (USD/kg); the service levels above are
+# exact for a dish with this score and the default food cost.
+reference_impact_usd_per_kg = 2.40
+
+[model]
+# Days of history used for the walk-forward error spread.
+error_window_days = 42
+# Hall timezone when the hall row has none.
+default_timezone = "America/Detroit"
+
+[meals]
+# Local service hours (prep sheets and simulated swipes).
+breakfast = ["07:00", "10:30"]
+lunch = ["11:00", "14:30"]
+dinner = ["16:30", "20:30"]
+
+[factors]
+# Waste Impact Score tables, searched in order for a dish's impact_food_name.
+files = [
+  "factors/menu_waste_factors_EastQuad.csv",
+  "factors/menu_waste_factors_halal_bros.csv",
+  "factors/menu_waste_factors_500.csv",
+]
+
+[context]
+# Adjust expected diners for exam weeks, home games and holidays (context_day).
+# OFF by default: there is no real data yet to show it helps. When on, each
+# flag's effect is ESTIMATED from this hall's own history (diners on past
+# flagged days vs. the same weekday and meal without the flag); a flag with
+# fewer than `min_days` past examples gets no adjustment, and the combined
+# multiplier is clamped to [min_multiplier, max_multiplier].
+enabled = false
+min_days = 2
+min_multiplier = 0.3
+max_multiplier = 2.0
+
+[clustering]
+# Day-type clustering (forecast/unsupervised.py): k-means on each day's attendance profile + context.
+# Off by default; when on, gbm-v1 gets the day type of the same weekday last week as a feature.
+enabled = false
+k = 4
+seed = 0
+
+[anomaly]
+# Robust z-score on confirmed production_log rows (per dish and meal). Off by default; when on,
+# rows with |z| > threshold are listed for review and left out of model training (never deleted).
+enabled = false
+threshold = 3.5
+min_rows = 5

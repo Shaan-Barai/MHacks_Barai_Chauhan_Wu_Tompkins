@@ -24,6 +24,9 @@ import {
 } from './mockData'
 import type {
   AuthSession,
+  EstimatedWeight,
+  ModelComparison,
+  ModelComparisonRow,
   CalibrationImages,
   CameraCalibration,
   MeasurementSettings,
@@ -55,6 +58,13 @@ import type {
   TryImageJob,
   TryImageStatus,
   TryImageSubmitted,
+  Dish,
+  ProductionEdit,
+  ProductionLog,
+  ProductionRow,
+  ProductionStatus,
+  SheetReadResult,
+  ForecastSummary,
 } from './types'
 import { MEALS } from './types'
 
@@ -275,6 +285,21 @@ export async function getImageUrl(_objectId: string): Promise<string> {
 export async function getImpactDashboard(start: IsoDate, end: IsoDate): Promise<ImpactDashboard> {
   await wait()
   return mockImpactDashboard(start, end, todayIso())
+}
+
+/** Mock: plate-scale pounds need real plate measurements, so the sample data has none (shown as "—"). */
+export async function getEstimatedWeight(start: IsoDate, end: IsoDate): Promise<EstimatedWeight> {
+  await wait()
+  const d = mockImpactDashboard(start, end, todayIso())
+  return {
+    available: true,
+    isEstimate: true,
+    method: 'plate-scale-v1',
+    assumedPlateDiametersCm: [],
+    note: 'Estimate: assumes every plate is the configured diameter, the plate size in pixels comes from the AI box around a fully visible plate, food is flat on the plate, and each food weighs its average grams per cm² from the factors table. Pixels wasted is the measurement.',
+    items: [],
+    totals: { pixels: d.totals.pixels, estimatedLb: null, captures: d.totals.captures, capturesWithScale: 0 },
+  }
 }
 
 export async function getDailyImpact(start: IsoDate, end: IsoDate): Promise<DailyImpactPoint[]> {
@@ -585,4 +610,136 @@ export async function takePhoto(): Promise<TakePhotoResult> {
 export async function regenerateRecommendation(start: IsoDate, end: IsoDate): Promise<Recommendation> {
   await wait()
   return mockRecommendation(mockImpactDashboard(start, end, todayIso()), new Date())
+}
+
+// ---------------------------------------------------------------------------
+// Production sheets (demo data; the live API reads real sheet photos with Gemini)
+// ---------------------------------------------------------------------------
+
+const MOCK_DISHES: Dish[] = [
+  { dishId: 'mac-and-cheese', displayName: 'Mac and Cheese', category: 'Comfort', serviceStyle: 'entree', isSimulated: false },
+  { dishId: 'sticky-rice', displayName: 'Sticky Rice', category: 'Wok', serviceStyle: 'side', isSimulated: false },
+  { dishId: 'teriyaki-salmon', displayName: 'Teriyaki Salmon', category: 'Entrees', serviceStyle: 'entree', isSimulated: false },
+]
+
+const BLOCKING = ['missing_dish', 'unknown_dish', 'missing_meal', 'missing_date', 'leftover_exceeds_prepped', 'missing_prepped_amount']
+
+function mockFlags(r: ProductionRow): string[] {
+  const flags = Object.entries(r.fieldConfidence ?? {}).filter(([, c]) => c < 0.7).map(([f]) => `low_confidence:${f}`)
+  if (r.dishId === null) flags.push(r.dishNameRaw ? 'unknown_dish' : 'missing_dish')
+  if (r.preppedLb !== null && r.panLeftoverLb !== null && r.panLeftoverLb > r.preppedLb) flags.push('leftover_exceeds_prepped')
+  return flags
+}
+
+function mockRow(id: number, over: Partial<ProductionRow>): ProductionRow {
+  const row: ProductionRow = {
+    productionLogId: id, hallId: 'hall-main', serviceDate: todayIso(), mealLabel: 'lunch', dishId: 'mac-and-cheese', dishNameRaw: 'Mac and Cheese',
+    station: 'Comfort', preppedLb: 24, preppedPortions: 96, panLeftoverLb: 3.5, ranOutTime: null, source: 'sheet_photo', status: 'unconfirmed',
+    fieldConfidence: { dish: 0.95, station: 0.95, mealLabel: 0.95, serviceDate: 0.95, preppedLb: 0.95, preppedPortions: 0.95, panLeftoverLb: 0.95, ranOutTime: 0.95 },
+    reviewFlags: [], blockingFlags: [], confirmedBy: null, confirmedAt: null, isSimulated: false, ...over,
+  }
+  row.reviewFlags = mockFlags(row)
+  row.blockingFlags = row.reviewFlags.filter((f) => BLOCKING.includes(f))
+  return row
+}
+
+let mockProduction: ProductionRow[] = []
+let mockNextRow = 1
+
+/** Test hook: start from an empty production log. */
+export function resetMockProduction(): void {
+  mockProduction = []
+  mockNextRow = 1
+}
+
+export async function getDishes(): Promise<Dish[]> {
+  await wait()
+  return MOCK_DISHES
+}
+
+export async function getProductionLog(status?: ProductionStatus): Promise<ProductionLog> {
+  await wait()
+  return { available: true, rows: mockProduction.filter((r) => !status || r.status === status).map((r) => ({ ...r })) }
+}
+
+export async function readProductionSheet(input: { photo: File; serviceDate: string; mealLabel: MealLabel }): Promise<SheetReadResult> {
+  await wait()
+  if (mockReadOnly) throw new Error('This site is read-only.')
+  const rows = [
+    mockRow(mockNextRow++, { serviceDate: input.serviceDate, mealLabel: input.mealLabel }),
+    mockRow(mockNextRow++, {
+      serviceDate: input.serviceDate, mealLabel: input.mealLabel, dishId: null, dishNameRaw: 'Stiky rice?', station: 'Wok', preppedLb: 10, preppedPortions: 40, panLeftoverLb: 12,
+      fieldConfidence: { dish: 0.5, station: 0.9, mealLabel: 0.95, serviceDate: 0.95, preppedLb: 0.6, preppedPortions: 0.9, panLeftoverLb: 0.9, ranOutTime: 0.9 },
+    }),
+  ]
+  mockProduction.push(...rows)
+  return { readable: true, notes: 'Sample sheet (demo data).', rows: rows.map((r) => ({ ...r })) }
+}
+
+function mockUnconfirmed(id: number): ProductionRow {
+  const row = mockProduction.find((r) => r.productionLogId === id)
+  if (!row) throw new Error('That row does not exist.')
+  if (row.status !== 'unconfirmed') throw new Error(`This row is already ${row.status}.`)
+  return row
+}
+
+export async function editProductionRow(id: number, edit: ProductionEdit): Promise<ProductionRow> {
+  await wait()
+  const row = mockUnconfirmed(id)
+  const conf = { ...(row.fieldConfidence ?? {}) }
+  for (const k of Object.keys(edit)) conf[k === 'dishId' ? 'dish' : k] = 1
+  const next = mockRow(id, { ...row, ...edit, fieldConfidence: conf })
+  mockProduction = mockProduction.map((r) => (r.productionLogId === id ? next : r))
+  return { ...next }
+}
+
+export async function confirmProductionRow(id: number, confirmedBy: string): Promise<ProductionRow> {
+  await wait()
+  const row = mockUnconfirmed(id)
+  if (!confirmedBy.trim()) throw new Error("Enter who checked this row.")
+  if (row.blockingFlags.length) throw new Error('Fix the flagged values before confirming.')
+  // Like the real API, the name is required but never returned.
+  const next = { ...row, status: 'confirmed' as const, confirmedBy: null, confirmedAt: new Date().toISOString() }
+  mockProduction = mockProduction.map((r) => (r.productionLogId === id ? next : r))
+  return { ...next }
+}
+
+export async function rejectProductionRow(id: number): Promise<ProductionRow> {
+  await wait()
+  const next = { ...mockUnconfirmed(id), status: 'rejected' as const }
+  mockProduction = mockProduction.map((r) => (r.productionLogId === id ? next : r))
+  return { ...next }
+}
+
+/** Demo model comparison: SIMULATED numbers (the live API reads forecast_model_comparison). */
+export async function getForecastModels(): Promise<ModelComparison> {
+  await wait()
+  const row = (modelVersion: string, mode: ModelComparisonRow['mode'], wape: number, stockouts: number, leftoverLb: number, intervalCoverage: number | null): ModelComparisonRow => ({
+    runId: 'bt_demo', windowStart: '2026-09-26', windowEnd: '2026-10-23', modelVersion, mode, meals: 291, censoredMeals: 48, wape, bias: 0.01, stockouts,
+    leftoverLb, leftoverUsd: leftoverLb * 4.6, intervalCoverage, meanQ: mode === 'as_given' ? null : 0.9, comparisonLabel: 'Simulated FSS (assumed +25% over-prep)',
+    isSimulated: true, generatedAt: '2026-10-28T06:00:00.000Z',
+  })
+  return {
+    available: true, hallId: 'hall-main', runId: 'bt_demo', window: { start: '2026-09-26', end: '2026-10-23' }, generatedAt: '2026-10-28T06:00:00.000Z',
+    simulated: true, comparisonLabel: 'Simulated FSS (assumed +25% over-prep)',
+    rows: [row('baseline-v1', 'default', 0.183, 21, 3558, 0.8), row('baseline-v1', 'matched_stockouts', 0.183, 48, 2797, 0.8),
+      row('gbm-v1', 'default', 0.178, 10, 5132, 0.88), row('fss', 'as_given', 0.416, 48, 4030, null)],
+  }
+}
+
+/** Demo forecast summary: SIMULATED numbers (the live API reads the forecast worker's tables). */
+export async function getForecastSummary(start: string, end: string): Promise<ForecastSummary> {
+  await wait()
+  const base = { ranOutMeals: 2, trayWasteSources: ['simulated'], simulated: true }
+  return {
+    available: true, hallId: 'hall-main', window: { start, end }, model: 'baseline-v1', comparisonLabel: 'Simulated FSS (assumed +25% over-prep)', simulated: true,
+    totals: { ...base, meals: 24, ourWape: 0.18, fssWape: 0.41, ourStockouts: 6, fssStockouts: 2, ourWouldLeaveLb: 61.5, panLeftoverLb: 140.2, panLeftoverUsd: 712.4, trayWasteLb: 31.9, trayWasteUsd: 162.1 },
+    dishes: [
+      { ...base, dishId: 'sim-baked-boneless-ham', displayName: 'Baked Boneless Ham', serviceStyle: 'entree', meals: 12, ourWape: 0.15, fssWape: 0.38, ourStockouts: 2, fssStockouts: 1, ourWouldLeaveLb: 30.1, panLeftoverLb: 80.4, panLeftoverUsd: 425.0, trayWasteLb: 18.2, trayWasteUsd: 96.2, avgRecommendedPrepLb: 54.1, avgFssLb: 61.0, avgConsumedLb: 47.3 },
+      { ...base, dishId: 'sim-sticky-rice', displayName: 'Sticky Rice', serviceStyle: 'side', meals: 12, ourWape: 0.21, fssWape: 0.44, ourStockouts: 4, fssStockouts: 1, ourWouldLeaveLb: 31.4, panLeftoverLb: 59.8, panLeftoverUsd: 287.4, trayWasteLb: 13.7, trayWasteUsd: 65.9, avgRecommendedPrepLb: 38.0, avgFssLb: 44.5, avgConsumedLb: 36.1 },
+    ],
+    upcoming: [
+      { serviceDate: end, mealLabel: 'lunch', dishId: 'sim-sticky-rice', displayName: 'Sticky Rice', recommendedPrepLb: 38.5, lowLb: 29.0, highLb: 44.0, fssForecastLb: 46.0, expectedDiners: 690, why: 'Sticky Rice: 36.2 lb expected from same cycle day last cycle; prep covers demand 61% of the time.', simulated: true },
+    ],
+  }
 }

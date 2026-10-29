@@ -1,5 +1,5 @@
 /**
- * R2 key naming and upload idempotency (end-to-end pipeline): one normalized
+ * Object key naming (same for Supabase Storage, R2 and local-dev) and upload idempotency (end-to-end pipeline): one normalized
  * image and one raw original per capture event, deterministic keys under an
  * optional prefix, and retries that reuse the same object instead of
  * registering a duplicate.
@@ -7,7 +7,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { keyPrefix } from '../src/config.js';
+import { keyPrefix, loadConfig } from '../src/config.js';
 import { makeObjectKey } from '../src/storage/objectStorage.js';
 import { startTestServer } from './helpers.js';
 
@@ -30,12 +30,17 @@ test('keys: one folder per kind, deterministic for captures and originals', () =
   );
 });
 
-test('R2_KEY_PREFIX: empty, normalized to end in "/", or rejected', () => {
+test('OBJECT_STORAGE_KEY_PREFIX: empty, normalized to end in "/", or rejected', () => {
   assert.equal(keyPrefix(undefined), '');
   assert.equal(keyPrefix(''), '');
   assert.equal(keyPrefix('test'), 'test/');
   assert.equal(keyPrefix('test/run-1/'), 'test/run-1/');
-  for (const bad of ['../x', '/test', 'te st', 'a//b']) assert.throws(() => keyPrefix(bad), /R2_KEY_PREFIX/);
+  for (const bad of ['../x', '/test', 'te st', 'a//b']) assert.throws(() => keyPrefix(bad), /OBJECT_STORAGE_KEY_PREFIX/);
+});
+
+test('the old R2_KEY_PREFIX name still sets the prefix; the new name wins', () => {
+  assert.equal(loadConfig({ R2_KEY_PREFIX: 'old' }).objectStorage.keyPrefix, 'old/');
+  assert.equal(loadConfig({ R2_KEY_PREFIX: 'old', OBJECT_STORAGE_KEY_PREFIX: 'new' }).objectStorage.keyPrefix, 'new/');
 });
 
 test('uploads are idempotent per capture and kind; originals are their own kind', async (t) => {

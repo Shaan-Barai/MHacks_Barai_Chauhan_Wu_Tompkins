@@ -26,7 +26,7 @@
 import { randomBytes } from 'node:crypto';
 import { badRequest } from '../errors.js';
 
-export type UploadAssociationKind = 'capture' | 'original' | 'reference' | 'calibration';
+export type UploadAssociationKind = 'capture' | 'original' | 'reference' | 'calibration' | 'production_sheet';
 
 export interface UploadRequest {
   /** The association drives the object-key folder (captures/, originals/, calibrations/, references/). */
@@ -124,20 +124,22 @@ const KEY_FOLDER: Record<UploadAssociationKind, string> = {
   original: 'originals',
   reference: 'references',
   calibration: 'calibrations',
+  production_sheet: 'production-sheets',
 };
 
 /**
  * Stable, provider-independent key: `<keyPrefix><folder>/<date>/<associationId>.<ext>`.
+ * Folders: captures/, originals/, references/, calibrations/, production-sheets/.
  * A capture event has exactly one normalized image and one original, so their
  * keys are deterministic: a retried upload overwrites the same object instead
  * of leaving a duplicate. Reference and calibration photos keep a random
- * suffix (a baseline or calibration may be re-photographed).
+ * suffix (a baseline, calibration or production sheet may be re-photographed).
  */
 export function makeObjectKey(req: UploadRequest, nowMs: number): string {
   const ext = EXT_BY_MIME[req.mimeType] ?? 'bin';
   const date = new Date(nowMs).toISOString().slice(0, 10);
   const name =
-    req.associationKind === 'reference' || req.associationKind === 'calibration'
+    req.associationKind === 'reference' || req.associationKind === 'calibration' || req.associationKind === 'production_sheet'
       ? `${req.associationId}_${randomBytes(6).toString('hex')}`
       : req.associationId;
   return `${req.keyPrefix ?? ''}${KEY_FOLDER[req.associationKind]}/${date}/${name}.${ext}`;

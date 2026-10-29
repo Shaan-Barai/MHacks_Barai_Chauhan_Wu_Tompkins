@@ -13,6 +13,9 @@ import type { GeminiGateway } from '@scrap/vision';
 import type { TryImageRunner } from '../src/services/tryImageService.js';
 import type { MenuBundle, ReferencePortion } from '../src/types.js';
 import type { Repository } from '../src/repo/repository.js';
+import type { ProductionStore } from '../src/repo/productionStore.js';
+import type { ForecastSource } from '../src/services/forecastService.js';
+import { JsonFileRepository } from '../src/repo/jsonFileRepository.js';
 
 export const HALL = 'hall-main';
 export const SERVICE = 'svc_hall-main_2026-10-03_lunch';
@@ -81,6 +84,10 @@ export async function startTestServer(
     headers?: Record<string, string>;
     calibrationRunner?: CalibrationRunner;
     tryImageRunner?: TryImageRunner;
+    productionStore?: ProductionStore;
+    forecastSource?: ForecastSource;
+    /** Use this repository (e.g. a spy) instead of a fresh in-memory one. */
+    repo?: Repository;
   } = {},
 ): Promise<TestServer> {
   const fixtures: Record<string, MockFixture> = {};
@@ -100,8 +107,10 @@ export async function startTestServer(
     samWorkerUrl: 'http://127.0.0.1:1',
     ...opts.config,
   };
-  const { config: _c, headers: defaultHeaders, ...rest } = opts;
-  const backend = buildBackend({ config, analyzer: analyzer ?? new MockAnalyzer(fixtures), ...rest });
+  const { config: _c, headers: defaultHeaders, repo: given, ...rest } = opts;
+  // Tests seed through this writable repository; with readOnly the app only sees a guarded proxy of it.
+  const repo = given ?? new JsonFileRepository();
+  const backend = buildBackend({ config, repo, analyzer: analyzer ?? new MockAnalyzer(fixtures), ...rest });
   const server = backend.app.listen(0, '127.0.0.1');
   await new Promise<void>((resolve) => server.once('listening', () => resolve()));
   const baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -117,7 +126,7 @@ export async function startTestServer(
   };
 
   return {
-    repo: backend.repo,
+    repo,
     baseUrl,
     fixtures,
     close: () => new Promise((resolve) => server.close(() => resolve())),

@@ -7,6 +7,10 @@
  *   - `failed`/`needs_review`/`pending` -> a RETRY runs a new analysis
  *     attempt on the SAME event (attempts are append-only history),
  *   - `processing` -> the in-flight state is returned.
+ * reanalyze(eventId) is the one explicit exception: an operator asks for a new
+ * analysis attempt on a SUCCEEDED event (e.g. results stored by an older
+ * pipeline). It appends an attempt to the same event; older attempts and their
+ * measurements stay stored, and the latest succeeded attempt is the one counted.
  *
  * Processing states: pending -> processing -> succeeded | needs_review | failed.
  *
@@ -61,6 +65,8 @@ export class IngestionService {
     private readonly analyzer: Analyzer,
     private readonly now: () => number = () => Date.now(),
     private readonly labelSuffix?: LabelSuffixFactory,
+    /** plate-scale-v1: the assumed plate diameter recorded with each plate measurement (PLATE_DIAMETER_CM). */
+    private readonly plateDiameterCm = 26.7,
   ) {
     this.providerStatus = new ProviderStatus(now);
   }
@@ -88,10 +94,32 @@ export class IngestionService {
     }
   }
 
-  async submitCapture(submission: CaptureSubmission): Promise<IngestResult> {
+  /** Run a new analysis attempt on an existing capture with its stored image (see the header). */
+  async reanalyze(eventId: string): Promise<IngestResult> {
+    const event = await this.repo.getCaptureEvent(eventId);
+    if (!event) throw notFound('CAPTURE_NOT_FOUND', 'That capture does not exist.', { eventId });
+    if (event.state === 'processing') {
+      return { event, measurements: await this.countedMeasurements(event), deduplicated: true };
+    }
+    return this.submitCapture(
+      {
+        eventId: event.eventId,
+        hallId: event.hallId,
+        serviceId: event.serviceId,
+        capturedAt: event.capturedAt,
+        imageObjectId: event.imageObjectId,
+        geometry: event.geometry,
+        source: event.source,
+        qualityFlags: event.qualityFlags,
+      },
+      { reanalyze: true },
+    );
+  }
+
+  async submitCapture(submission: CaptureSubmission, opts: { reanalyze?: boolean } = {}): Promise<IngestResult> {
     const existing = await this.repo.getCaptureEvent(submission.eventId);
 
-    if (existing && (existing.state === 'succeeded' || existing.state === 'processing')) {
+    if (existing && (existing.state === 'processing' || (existing.state === 'succeeded' && !opts.reanalyze))) {
       // Idempotent replay: same event, no new observation, no new attempt.
       return {
         event: existing,
@@ -186,6 +214,7 @@ export class IngestionService {
 
     let attempt: AnalysisAttempt;
     let measurements: FoodMeasurement[];
+    let plate: AnalysisResult['plate'];
     try {
       const result = await this.analyzer.analyze({
         event,
@@ -197,6 +226,7 @@ export class IngestionService {
         ...(labelSuffix ? { labelSuffix } : {}),
       });
       attempt = result.attempt;
+      plate = result.plate;
       // Only the backend assigns storage references and the settings snapshot.
       // A stale analyzer's depth map reference (Depth Anything V2 removed) is never stored.
       delete (attempt as { depthObjectId?: unknown }).depthObjectId;
@@ -254,6 +284,26 @@ export class IngestionService {
     }
 
     await this.repo.recordAnalysis(attempt, measurements);
+    // plate-scale-v1: keep the plate's pixel size for labeled pound estimates. Never fails the scan.
+    if (plate && attempt.status === 'succeeded' && this.repo.recordPlateScale) {
+      try {
+        await this.repo.recordPlateScale({
+          attemptId: attempt.attemptId,
+          eventId: event.eventId,
+          method: 'plate-scale-v1',
+          dishType: plate.ok ? 'plate' : null, // ok means a fully visible, round plate
+          fullyVisible: plate.ok ? true : null,
+          plateDiameterPx: plate.ok ? plate.diameterPx : null,
+          boxWidthPx: plate.ok ? plate.boxWidthPx : null,
+          boxHeightPx: plate.ok ? plate.boxHeightPx : null,
+          assumedPlateDiameterCm: this.plateDiameterCm,
+          unavailableReason: plate.ok ? null : plate.reason,
+          createdAt: new Date(this.now()).toISOString(),
+        });
+      } catch (err) {
+        log.warn('plate scale not recorded', { eventId: event.eventId, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
     this.providerStatus.observe(attempt.status, attempt.error?.code);
 
     const finalState: ProcessingState =

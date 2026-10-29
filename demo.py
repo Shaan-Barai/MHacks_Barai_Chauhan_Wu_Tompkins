@@ -777,6 +777,19 @@ def step_stats(demo):
         print(dim(f"    Estimated CO2e / water: unavailable ({t.get('physicalUnavailableReason') or 'no calibrated plates'}); "
                   "pixels and points above are unaffected."))
 
+    # Run 3 plate-scale-v1: ESTIMATED pounds beside the unchanged pixels.
+    status, w = demo.get(f"/api/dashboard/estimated-weight?{demo.window()}")
+    if status == 200:
+        wt = w["totals"]
+        same = wt["pixels"] == t["pixels"]
+        lb = "—" if wt["estimatedLb"] is None else f"≈ {wt['estimatedLb']:.2f} lb"
+        print(f"    {bold(lb)} food left on plates, ESTIMATE ({w['method']}, from {wt['capturesWithScale']} of {wt['captures']} plates "
+              f"with a plate scale)  " + dim("assumes one plate diameter; see docs/calibration.md"))
+        demo.check("PASS" if same and w.get("isEstimate") is True else "FAIL",
+                   f"Estimated pounds are labeled estimates beside unchanged pixels ({num(wt['pixels'])} px = dashboard total: {same})")
+    else:
+        demo.check("WARN", f"/api/dashboard/estimated-weight HTTP {status} (backend older than Run 3?)")
+
     print(f"\n  {bold('Formula')}  (factors/README.md)")
     print("    base          = pixels / 1000 × weight_g_per_cm2")
     print("    impact points = base × (0.19·C + 1.50·W)     C = kg CO2e/kg, W = m³ freshwater/kg")

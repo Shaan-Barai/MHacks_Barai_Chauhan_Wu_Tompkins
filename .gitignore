@@ -32,3 +32,9 @@ __pycache__/
 
 # Private camera guide for teammates (contains the board password)
 CAMERA-GUIDE.md
+
+# Supabase CLI local cache (project ref, pooler host)
+supabase/.temp/
+
+# Forecast prep sheets (generated HTML)
+forecast/out/

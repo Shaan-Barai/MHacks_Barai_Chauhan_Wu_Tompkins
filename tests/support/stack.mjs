@@ -264,6 +264,60 @@ export async function cleanR2Prefix(prefix) {
   return keys.length;
 }
 
+// --- Supabase Storage (test/ prefixes only) ---
+
+/** True when ../.env has a project API URL and the service role key. */
+export function supabaseAvailable() {
+  return /^https:\/\/[a-z0-9]+\.supabase\.co\/?$/.test(process.env.SUPABASE_URL ?? '') && Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
+}
+
+/** objectStorage config for startBackend() writing to Supabase Storage under `keyPrefix`. */
+export function supabaseObjectStorage(keyPrefix) {
+  return {
+    provider: 'supabase',
+    container: process.env.OBJECT_STORAGE_CONTAINER || 'scrap-images',
+    keyPrefix,
+    supabase: { url: process.env.SUPABASE_URL, serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY },
+  };
+}
+
+function supabaseBucket() {
+  const { createClient } = backendRequire('@supabase/supabase-js');
+  const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  return sb.storage.from(process.env.OBJECT_STORAGE_CONTAINER || 'scrap-images');
+}
+
+/** Every object key under a test/ prefix (Storage lists one folder level at a time). */
+export async function listSupabase(prefix) {
+  if (!prefix.startsWith('test/')) throw new Error(`refusing to list outside test/: ${prefix}`);
+  const bucket = supabaseBucket();
+  const keys = [];
+  const walk = async (folder) => {
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await bucket.list(folder.replace(/\/$/, ''), { limit: 1000, offset });
+      if (error) throw error;
+      for (const entry of data) {
+        if (entry.id === null) await walk(`${folder}${entry.name}/`);
+        else keys.push(`${folder}${entry.name}`);
+      }
+      if (data.length < 1000) break;
+    }
+  };
+  await walk(prefix);
+  return keys.sort();
+}
+
+/** Delete every object under a test/ prefix; returns how many were deleted. */
+export async function cleanSupabasePrefix(prefix) {
+  const keys = await listSupabase(prefix);
+  const bucket = supabaseBucket();
+  for (let i = 0; i < keys.length; i += 100) {
+    const { error } = await bucket.remove(keys.slice(i, i + 100));
+    if (error) throw error;
+  }
+  return keys.length;
+}
+
 // --- SpacetimeDB throwaway databases (never `scrap`) ---
 
 import { spawnSync } from 'node:child_process';

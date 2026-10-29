@@ -28,12 +28,14 @@ export type {
   GatewayTextPart,
   GatewayInlineDataPart,
   GatewayRequest,
+  GatewayCallRecord,
   MockTransport,
 } from './gateway.js';
 
 export { analyzeCapture } from './analyze.js';
 
-export { analyzeCaptureWithMasks } from './maskPipeline.js';
+export { analyzeCaptureWithMasks, measureTargetPlate } from './maskPipeline.js';
+export type { TargetPlateResult } from './maskPipeline.js';
 export type { MaskAnalysisInput, MaskAnalysisResult, MaskAnalysisDiagnostics, LocalizationStats } from './maskPipeline.js';
 export { NEIGHBOR_CLIP_MIN_FRACTION } from './maskPipeline.js';
 export type { PhysicalCalibration, PhysicalStageInput, PhysicalStageResult, PhysicalUnavailable } from './maskPipeline.js';
@@ -83,8 +85,11 @@ export {
   dropSpecks,
   labelComponents,
   largestComponent,
+  measurePlate,
+  PLATE_MAX_ASPECT,
+  PLATE_SCALE_VERSION,
 } from './targetDish.js';
-export type { DishRegionResult } from './targetDish.js';
+export type { DishRegionResult, PlateMeasureResult } from './targetDish.js';
 export { OVERLAY_VERSION, OTHER_DISH_COLOR, colorForIndex, composeWithLegend, fitLegendText, layoutLegend, legendLines, legendRows, renderOverlay } from './overlay.js';
 export type { LabelSuffix, LegendLayout, LegendLine, OverlayBucket, OverlayImage, RenderOverlayInput, RenderOverlayResult } from './overlay.js';
 export { createSamWorkerClient } from './samClient.js';
@@ -138,3 +143,15 @@ export type { ClassificationResult, ClassifiedItem, UnknownFood, ValidationOutco
 
 export type * from './contracts.js';
 export { NEIGHBOR_FOOD_EXCLUDED, TARGET_DISH_UNAVAILABLE } from './contracts.js';
+export {
+  DEFAULT_MEAL_WINDOWS,
+  EXTRACTED_FIELDS,
+  LOW_CONFIDENCE,
+  PRODUCTION_SHEET_PROMPT_VERSION,
+  buildProductionSheetSchema,
+  extractProductionSheet,
+  matchDish,
+  reviewFlagsFor,
+  validateProductionSheetText,
+} from './productionSheet.js';
+export type { ExtractSheetInput, ExtractSheetResult, ExtractedField, ExtractedProductionRow, KnownDish, SheetMeal } from './productionSheet.js';

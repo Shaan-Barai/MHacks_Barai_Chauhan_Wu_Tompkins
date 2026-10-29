@@ -181,3 +181,26 @@ export {
   PIXEL_SUGGESTION_PROMPT_VERSION,
   type PixelSuggestionRequest,
 } from './pixelSuggestions.js';
+export {
+  compareForecasts,
+  summarizeForecastOutcomes,
+  type ForecastComparison,
+  type ForecastDishInfo,
+  type ForecastDishRow,
+  type ForecastOutcomeInput,
+} from './forecast.js';
+export {
+  DEFAULT_PLATE_DIAMETER_CM,
+  GRAMS_PER_LB,
+  PLATE_SCALE_METHOD,
+  PLATE_SCALE_NOTE,
+  cm2PerPixel,
+  plateScaleEstimate,
+  sumPlateScaleLb,
+  plateScaleWeights,
+  type PlateScaleWeightRow,
+  type PlateScaleWeights,
+  type PlateScale,
+  type PlateScaleEstimate,
+  type PlateScaleUnavailableReason,
+} from './plateScale.js';

@@ -50,6 +50,9 @@ import {
   validateMenuBundle,
   validateReferencePortion,
 } from '../services/validation.js';
+import type { ProductionSheetService } from '../services/productionSheetService.js';
+import type { ForecastService } from '../services/forecastService.js';
+import { backfillAttendance } from '../services/dashboardService.js';
 
 /** READ_ONLY=1 GET cache: always-fresh routes, entry cap, and the lifetime of answers with presigned URLs. */
 const READ_ONLY_UNCACHED = new Set(['/api/health', '/api/ready', '/api/auth/me']);
@@ -114,6 +117,10 @@ export interface AppDeps {
   demo?: DemoService;
   /** Public 'Try an Image' analyses (in memory only). */
   tryImage?: TryImageService;
+  /** Production sheets -> production_log (forecasting); optional in tests. */
+  production?: ProductionSheetService;
+  /** Forecast vs. actual read model (forecasting); optional in tests. */
+  forecast?: ForecastService;
 }
 
 export function createApp(deps: AppDeps): express.Express {
@@ -576,13 +583,14 @@ export function createApp(deps: AppDeps): express.Express {
         throw new HttpError(403, apiError('DEMO_SEED_DISABLED', 'Set DEMO_SEED=1 in .env to add sample history.', false));
       }
       const { hallId, endDate, days } = req.body ?? {};
-      res.status(201).json(
-        await deps.demo.seedHistory({
-          hallId: typeof hallId === 'string' && hallId ? hallId : 'hall-main',
-          endDate: typeof endDate === 'string' ? endDate : new Date().toISOString().slice(0, 10),
-          ...(typeof days === 'number' ? { days } : {}),
-        }),
-      );
+      const seeded = await deps.demo.seedHistory({
+        hallId: typeof hallId === 'string' && hallId ? hallId : 'hall-main',
+        endDate: typeof endDate === 'string' ? endDate : new Date().toISOString().slice(0, 10),
+        ...(typeof days === 'number' ? { days } : {}),
+      });
+      // Sample services get their simulated attendance here (cleared with them), not on a later GET.
+      await backfillAttendance(repo, dashboard);
+      res.status(201).json(seeded);
     }),
   );
   app.post(
@@ -673,6 +681,16 @@ export function createApp(deps: AppDeps): express.Express {
       }
       await repo.setCaptureVisibility(eventIds as string[], hidden, new Date(now()).toISOString());
       res.json({ eventIds, hidden });
+    }),
+  );
+
+  // Re-run analysis on an existing capture (e.g. results from an older pipeline). Appends an
+  // attempt to the same capture; earlier attempts stay stored. Needs the ingest token or an admin session.
+  app.post(
+    '/api/captures/:eventId/reanalyze',
+    geminiCap,
+    wrap(async (req, res) => {
+      res.json(await ingestion.reanalyze(param(req, 'eventId')));
     }),
   );
 
@@ -826,6 +844,19 @@ export function createApp(deps: AppDeps): express.Express {
     }),
   );
 
+  // Generate (Gemini when live) and store a meal's suggestion: the only write path for it.
+  app.post(
+    '/api/dashboard/meal/insight',
+    geminiCap,
+    wrap(async (req, res) => {
+      const b = (req.body ?? {}) as Record<string, unknown>;
+      if (typeof b.hallId !== 'string' || typeof b.date !== 'string' || typeof b.meal !== 'string') {
+        throw badRequest('MISSING_PARAMETER', "'hallId', 'date' and 'meal' are required.");
+      }
+      res.status(201).json({ insight: await dashboard.generateMealInsight(b.hallId, b.date, b.meal as MealLabel) });
+    }),
+  );
+
   app.get(
     '/api/dashboard/plates',
     wrap(async (req, res) => {
@@ -840,6 +871,14 @@ export function createApp(deps: AppDeps): express.Express {
     '/api/dashboard/impact',
     wrap(async (req, res) => {
       res.json(await impact.dashboard(parseWindow(req.query)));
+    }),
+  );
+
+  // plate-scale-v1: ESTIMATED pounds beside Pixels wasted, with every assumption in the payload.
+  app.get(
+    '/api/dashboard/estimated-weight',
+    wrap(async (req, res) => {
+      res.json(await impact.estimatedWeight(parseWindow(req.query)));
     }),
   );
 
@@ -922,6 +961,67 @@ export function createApp(deps: AppDeps): express.Express {
       res.json(await impact.recommendation(parseWindow(req.body ?? {}), { regenerate: true }));
     }),
   );
+
+  // ---- production sheets -> production_log (forecasting; rows start unconfirmed) ----
+  const production = (): ProductionSheetService => {
+    if (!deps.production) throw notFound('ROUTE_NOT_FOUND', 'Production logs are not available on this server.');
+    return deps.production;
+  };
+  const rowId = (req: Request): number => {
+    const id = Number(param(req, 'id'));
+    if (!Number.isInteger(id) || id < 1) throw badRequest('INVALID_PARAMETER', 'Row id must be a positive whole number.');
+    return id;
+  };
+  app.get('/api/dishes', wrap(async (_req, res) => {
+    res.json({ dishes: await production().dishes() });
+  }));
+  app.post('/api/production-sheets/extract', geminiCap, wrap(async (req, res) => {
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    if (typeof b.objectId !== 'string' || typeof b.hallId !== 'string') {
+      throw badRequest('MISSING_PARAMETER', "'objectId' (the uploaded sheet photo) and 'hallId' are required.");
+    }
+    res.json(await production().extract({
+      objectId: b.objectId,
+      hallId: b.hallId,
+      ...(typeof b.serviceDate === 'string' ? { serviceDate: b.serviceDate } : {}),
+      ...(typeof b.mealLabel === 'string' ? { mealLabel: b.mealLabel as 'breakfast' | 'lunch' | 'dinner' } : {}),
+    }));
+  }));
+  app.get('/api/production-log', wrap(async (req, res) => {
+    const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+    if (status !== undefined && !['unconfirmed', 'confirmed', 'rejected'].includes(status)) {
+      throw badRequest('INVALID_PARAMETER', "'status' must be unconfirmed, confirmed or rejected.");
+    }
+    res.json({
+      available: production().available,
+      rows: await production().list(requireQuery(req, 'hallId'), {
+        ...(status ? { status: status as 'unconfirmed' | 'confirmed' | 'rejected' } : {}),
+        ...(typeof req.query.start === 'string' ? { start: req.query.start } : {}),
+        ...(typeof req.query.end === 'string' ? { end: req.query.end } : {}),
+      }),
+    });
+  }));
+  app.patch('/api/production-log/:id', wrap(async (req, res) => {
+    res.json({ row: await production().edit(rowId(req), (req.body ?? {}) as Record<string, unknown>) });
+  }));
+  app.post('/api/production-log/:id/confirm', wrap(async (req, res) => {
+    res.json({ row: await production().confirm(rowId(req), (req.body ?? {}).confirmedBy) });
+  }));
+  app.post('/api/production-log/:id/reject', wrap(async (req, res) => {
+    res.json({ row: await production().reject(rowId(req)) });
+  }));
+
+  // ---- forecast vs. actual (forecast worker output; formulas in analytics/) ----
+  app.get('/api/forecast/models', wrap(async (req, res) => {
+    if (!deps.forecast) throw notFound('ROUTE_NOT_FOUND', 'Forecasts are not available on this server.');
+    res.json(await deps.forecast.models(requireQuery(req, 'hallId')));
+  }));
+  app.get('/api/forecast/summary', wrap(async (req, res) => {
+    if (!deps.forecast) throw notFound('ROUTE_NOT_FOUND', 'Forecasts are not available on this server.');
+    const window = parseWindow(req.query);
+    const today = typeof req.query.today === 'string' ? req.query.today : new Date(now()).toISOString().slice(0, 10);
+    res.json(await deps.forecast.summary(requireQuery(req, 'hallId'), window.start, window.end, today));
+  }));
 
   // ---- suggestions (stored Insights; generation is Agent 6's) ----
   app.get(

@@ -301,3 +301,35 @@ export function clipToRegion(bitmap: Uint8Array, region: Uint8Array): { bitmap: 
   }
   return { bitmap: out, kept, removed };
 }
+
+/**
+ * Plate scale input (Run 3, plate-scale-v1): the target dish's diameter in
+ * pixels, from Gemini's dish box, when the dish is a plate that is fully in
+ * frame and roughly round. diameter = mean of the box's width and height.
+ * Not a measurement of the food: analytics turns it into an ESTIMATED cm² per
+ * pixel with an assumed plate diameter (PLATE_DIAMETER_CM). Pixels are unchanged.
+ */
+export const PLATE_SCALE_VERSION = 'plate-scale-v1';
+/** A top-down round plate gives a nearly square box; outside this width/height ratio it is not used. */
+export const PLATE_MAX_ASPECT = 1.25;
+
+export type PlateMeasureResult =
+  | { ok: true; version: typeof PLATE_SCALE_VERSION; diameterPx: number; boxWidthPx: number; boxHeightPx: number }
+  | { ok: false; version: typeof PLATE_SCALE_VERSION; reason: 'no_dish' | 'not_a_plate' | 'not_fully_visible' | 'not_round' | 'too_small' };
+
+export function measurePlate(
+  dish: { dishType?: 'plate' | 'bowl' | 'other'; fullyVisible?: boolean; box?: { pixelXyxy: [number, number, number, number] } } | null | undefined,
+): PlateMeasureResult {
+  const v = PLATE_SCALE_VERSION;
+  if (!dish?.box) return { ok: false, version: v, reason: 'no_dish' };
+  if (dish.dishType !== 'plate') return { ok: false, version: v, reason: 'not_a_plate' };
+  if (dish.fullyVisible !== true) return { ok: false, version: v, reason: 'not_fully_visible' };
+  const [x0, y0, x1, y1] = dish.box.pixelXyxy;
+  const w = x1 - x0;
+  const h = y1 - y0;
+  if (!(w > 0 && h > 0)) return { ok: false, version: v, reason: 'too_small' };
+  if (Math.max(w, h) / Math.min(w, h) > PLATE_MAX_ASPECT) return { ok: false, version: v, reason: 'not_round' };
+  const diameterPx = (w + h) / 2;
+  if (diameterPx < 50) return { ok: false, version: v, reason: 'too_small' };
+  return { ok: true, version: v, diameterPx: Math.round(diameterPx * 10) / 10, boxWidthPx: w, boxHeightPx: h };
+}

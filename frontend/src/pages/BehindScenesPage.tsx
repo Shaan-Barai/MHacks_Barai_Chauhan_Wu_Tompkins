@@ -21,9 +21,9 @@ const TABS = [
   { id: 'try', label: 'Try an Image', path: TRY_PATH },
 ] as const
 
-function ScannedPlates() {
+function ScannedPlates({ dataRevision = 0 }: { dataRevision?: number }) {
   const [range, setRange] = useState<DateRange>(defaultRange)
-  const plates = useAsync(() => getCaptures(range.start, range.end), [range.start, range.end])
+  const plates = useAsync(() => getCaptures(range.start, range.end), [range.start, range.end, dataRevision])
   return (
     <div className="space-y-5">
       <DateRangePicker value={range} onChange={setRange} presets={DASHBOARD_PRESETS} />
@@ -35,7 +35,15 @@ function ScannedPlates() {
 }
 
 /** `path`/`onNavigate` come from the app shell; standalone use falls back to local state. */
-export function BehindScenesPage({ path, onNavigate }: { path?: string; onNavigate?: (path: string) => void }) {
+export function BehindScenesPage({
+  path,
+  onNavigate,
+  dataRevision = 0,
+}: {
+  path?: string
+  onNavigate?: (path: string) => void
+  dataRevision?: number
+}) {
   const { status, readOnly } = useAuth()
   const [localPath, setLocalPath] = useState(PLATES_PATH)
   const current = (path ?? localPath).replace(/\/+$/, '')
@@ -54,7 +62,7 @@ export function BehindScenesPage({ path, onNavigate }: { path?: string; onNaviga
     return (
       <div className="space-y-5">
         <h1 className="font-display text-3xl font-bold tracking-tight text-ink">Behind the scenes</h1>
-        <ScannedPlates />
+        <ScannedPlates dataRevision={dataRevision} />
       </div>
     )
   }
@@ -84,7 +92,7 @@ export function BehindScenesPage({ path, onNavigate }: { path?: string; onNaviga
       </div>
       <div id="behind-panel" role="tabpanel" aria-labelledby={`behind-tab-${active}`}>
         {/* Wait for the session check so a read-only site never calls Try an Image. */}
-        {active === 'plates' ? <ScannedPlates /> : status === 'checking' ? <LoadingBlock label="Loading Try an Image" /> : <TryImage />}
+        {active === 'plates' ? <ScannedPlates dataRevision={dataRevision} /> : status === 'checking' ? <LoadingBlock label="Loading Try an Image" /> : <TryImage />}
       </div>
     </div>
   )

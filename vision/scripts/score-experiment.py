@@ -38,12 +38,18 @@ def canon(raw):
 
 
 truth = {}
+station_col = -1  # optional "Station" column (Run 5): never read as a food; blank allowed
 with open(truth_path, newline='', encoding='utf-8-sig') as f:
     for row in csv.reader(f):
-        if not row or row[0] == 'Image_name':
+        if not row:
+            continue
+        if row[0] == 'Image_name':
+            station_col = next((i for i, h in enumerate(row) if h.strip().lower() == 'station'), -1)
             continue
         dishes = set()
-        for cell in row[1:]:
+        for i, cell in enumerate(row[1:], start=1):
+            if i == station_col:
+                continue
             for part in cell.split('&'):
                 part = part.strip()
                 if part and not part.lower().startswith('unkown') and not part.lower().startswith('unknown'):

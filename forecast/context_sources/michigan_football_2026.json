@@ -1,0 +1,67 @@
+{
+ "source_url": "https://mgoblue.com/news/2026/1/27/michigan-announces-2026-football-schedule",
+ "fetched_at": "2026-10-28",
+ "note": "'2026 Michigan Football Schedule' table in the Michigan Athletics release of 2026-01-27. 'at' = away; others are home games at Michigan Stadium. Oct 10 is an open week.",
+ "games": [
+  {
+   "date": "2026-09-05",
+   "opponent": "Western Michigan",
+   "home": true
+  },
+  {
+   "date": "2026-09-12",
+   "opponent": "Oklahoma",
+   "home": true
+  },
+  {
+   "date": "2026-09-19",
+   "opponent": "UTEP",
+   "home": true
+  },
+  {
+   "date": "2026-09-26",
+   "opponent": "Iowa",
+   "home": true
+  },
+  {
+   "date": "2026-10-03",
+   "opponent": "at Minnesota",
+   "home": false
+  },
+  {
+   "date": "2026-10-17",
+   "opponent": "Penn State (Homecoming)",
+   "home": true
+  },
+  {
+   "date": "2026-10-24",
+   "opponent": "Indiana",
+   "home": true
+  },
+  {
+   "date": "2026-10-31",
+   "opponent": "at Rutgers",
+   "home": false
+  },
+  {
+   "date": "2026-11-07",
+   "opponent": "Michigan State",
+   "home": true
+  },
+  {
+   "date": "2026-11-14",
+   "opponent": "at Oregon",
+   "home": false
+  },
+  {
+   "date": "2026-11-21",
+   "opponent": "UCLA",
+   "home": true
+  },
+  {
+   "date": "2026-11-28",
+   "opponent": "at Ohio State",
+   "home": false
+  }
+ ]
+}

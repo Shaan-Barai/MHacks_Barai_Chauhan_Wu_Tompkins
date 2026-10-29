@@ -1,0 +1,64 @@
+{
+ "fetched_at": "2026-10-28",
+ "note": "Short list of religious holidays that commonly change dining menus or attendance. Jewish dates from the Hebcal API (holiday begins at sundown the evening before the listed date). Islamic dates from the Aladhan Hijri-to-Gregorian API (calculated). Not included because no source could be fetched: Diwali, Good Friday/Easter, Lunar New Year, Holi (timeanddate.com returned 403; the U-M Provost religious-holiday Google Calendar ICS returned 404). Christmas falls inside the between-terms break.",
+ "holidays": [
+  {
+   "start": "2026-09-12",
+   "end": "2026-09-13",
+   "name": "Rosh Hashana",
+   "tradition": "Jewish",
+   "source_url": "https://www.hebcal.com/hebcal?v=1&cfg=json&maj=on&year=2026"
+  },
+  {
+   "start": "2026-09-21",
+   "end": "2026-09-21",
+   "name": "Yom Kippur",
+   "tradition": "Jewish",
+   "source_url": "https://www.hebcal.com/hebcal?v=1&cfg=json&maj=on&year=2026"
+  },
+  {
+   "start": "2026-09-26",
+   "end": "2026-09-27",
+   "name": "Sukkot (first days)",
+   "tradition": "Jewish",
+   "source_url": "https://www.hebcal.com/hebcal?v=1&cfg=json&maj=on&year=2026"
+  },
+  {
+   "start": "2026-12-05",
+   "end": "2026-12-12",
+   "name": "Chanukah",
+   "tradition": "Jewish",
+   "source_url": "https://www.hebcal.com/hebcal?v=1&cfg=json&maj=on&year=2026"
+  },
+  {
+   "start": "2027-02-08",
+   "end": "2027-03-08",
+   "name": "Ramadan (calculated start 1 Ramadan 1448)",
+   "tradition": "Muslim",
+   "source_url": "https://api.aladhan.com/v1/hToG/01-09-1448",
+   "note": "Aladhan's calculated Hijri conversion; the observed start can differ by a day with moon sighting."
+  },
+  {
+   "start": "2027-03-09",
+   "end": "2027-03-09",
+   "name": "Eid al-Fitr (calculated, 1 Shawwal 1448)",
+   "tradition": "Muslim",
+   "source_url": "https://api.aladhan.com/v1/hToG/01-10-1448",
+   "note": "Falls in spring break. Observed date can differ by a day."
+  },
+  {
+   "start": "2027-04-22",
+   "end": "2027-04-23",
+   "name": "Passover (first days)",
+   "tradition": "Jewish",
+   "source_url": "https://www.hebcal.com/hebcal?v=1&cfg=json&maj=on&year=2027"
+  },
+  {
+   "start": "2027-04-28",
+   "end": "2027-04-29",
+   "name": "Passover (last days)",
+   "tradition": "Jewish",
+   "source_url": "https://www.hebcal.com/hebcal?v=1&cfg=json&maj=on&year=2027"
+  }
+ ]
+}

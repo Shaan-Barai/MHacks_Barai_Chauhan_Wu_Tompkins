@@ -519,3 +519,175 @@ export interface DemoStatus {
   sampleCaptures: number
   clearedAt: string | null
 }
+
+// ---------------------------------------------------------------------------
+// Production sheets (forecasting): rows read from sheet photos, reviewed by staff
+// ---------------------------------------------------------------------------
+
+export type ProductionStatus = 'unconfirmed' | 'confirmed' | 'rejected'
+
+export interface Dish {
+  dishId: string
+  displayName: string
+  category: string | null
+  serviceStyle: string
+  isSimulated: boolean
+}
+
+export interface ProductionRow {
+  productionLogId: number
+  hallId: string
+  serviceDate: string | null
+  mealLabel: MealLabel | null
+  dishId: string | null
+  /** As written on the sheet. */
+  dishNameRaw: string | null
+  station: string | null
+  preppedLb: number | null
+  preppedPortions: number | null
+  panLeftoverLb: number | null
+  /** Hall-local HH:MM; null = did not run out. */
+  ranOutTime: string | null
+  source: 'manual' | 'sheet_photo' | 'csv' | 'demo'
+  status: ProductionStatus
+  /** 0..1 per field: dish, station, mealLabel, serviceDate, preppedLb, preppedPortions, panLeftoverLb, ranOutTime. */
+  fieldConfidence: Record<string, number> | null
+  reviewFlags: string[]
+  /** Flags that must be fixed before the row can be confirmed. */
+  blockingFlags: string[]
+  /** Always null from the API: reviewer names stay in the private table (Run 5). */
+  confirmedBy: string | null
+  confirmedAt: string | null
+  isSimulated: boolean
+}
+
+export type ProductionEdit = Partial<Pick<ProductionRow, 'dishId' | 'station' | 'mealLabel' | 'serviceDate' | 'preppedLb' | 'preppedPortions' | 'panLeftoverLb' | 'ranOutTime'>>
+
+export interface ProductionLog {
+  /** False when the server cannot read sheets (no live Gemini). */
+  available: boolean
+  rows: ProductionRow[]
+}
+
+export interface SheetReadResult {
+  readable: boolean
+  notes: string | null
+  rows: ProductionRow[]
+}
+
+// ---------------------------------------------------------------------------
+// Forecast vs. actual (forecast worker output)
+// ---------------------------------------------------------------------------
+
+export interface ForecastComparison {
+  meals: number
+  ranOutMeals: number
+  /** Weighted absolute % error, 0..1 (meals that did not run out). */
+  ourWape: number | null
+  fssWape: number | null
+  ourStockouts: number
+  fssStockouts: number | null
+  ourWouldLeaveLb: number
+  panLeftoverLb: number | null
+  panLeftoverUsd: number | null
+  trayWasteLb: number | null
+  trayWasteUsd: number | null
+  trayWasteSources: string[]
+  simulated: boolean
+}
+
+export interface ForecastDishRow extends ForecastComparison {
+  dishId: string
+  displayName: string
+  serviceStyle: string
+  avgRecommendedPrepLb: number
+  avgFssLb: number | null
+  avgConsumedLb: number
+}
+
+export interface UpcomingForecast {
+  serviceDate: string
+  mealLabel: string
+  dishId: string
+  displayName: string
+  recommendedPrepLb: number
+  lowLb: number | null
+  highLb: number | null
+  fssForecastLb: number | null
+  expectedDiners: number | null
+  why: string | null
+  simulated: boolean
+}
+
+export type ForecastSummary =
+  | { available: false; hallId: string; window: { start: string; end: string }; model: string }
+  | {
+      available: true
+      hallId: string
+      window: { start: string; end: string }
+      model: string
+      /** Name for the comparison forecast: 'FSS', or 'Simulated FSS (assumed +25% over-prep)' for the simulator's stand-in. */
+      comparisonLabel: string
+      /** Any simulated row shown: the page must show the SIMULATED DATA banner. */
+      simulated: boolean
+      totals: ForecastComparison
+      dishes: ForecastDishRow[]
+      upcoming: UpcomingForecast[]
+    }
+
+/** GET /api/dashboard/estimated-weight (plate-scale-v1): ESTIMATED pounds beside Pixels wasted. */
+export interface EstimatedWeightItem {
+  itemId: string | null
+  displayName: string
+  pixels: number
+  pixelsWithScale: number
+  estimatedLb: number | null
+  estimatedGrams: number | null
+  captures: number
+  capturesWithScale: number
+  weightGPerCm2: number | null
+  unavailableReason?: string
+}
+export interface EstimatedWeight {
+  available: boolean
+  isEstimate: true
+  method: 'plate-scale-v1'
+  note: string
+  /** Plate diameters (cm) the applied scales assumed; empty when no plate has a scale. Optional for older backends. */
+  assumedPlateDiametersCm?: number[]
+  items: EstimatedWeightItem[]
+  totals: { pixels: number; estimatedLb: number | null; captures: number; capturesWithScale: number }
+}
+
+/** GET /api/forecast/models: the latest walk-forward model comparison (forecast/backtest.py). */
+export interface ModelComparisonRow {
+  runId: string
+  windowStart: string
+  windowEnd: string
+  modelVersion: string
+  mode: 'default' | 'matched_stockouts' | 'as_given'
+  meals: number
+  censoredMeals: number
+  wape: number | null
+  bias: number | null
+  stockouts: number
+  leftoverLb: number | null
+  leftoverUsd: number | null
+  intervalCoverage: number | null
+  meanQ: number | null
+  comparisonLabel: string | null
+  isSimulated: boolean
+  generatedAt: string
+}
+export type ModelComparison =
+  | { available: false; hallId: string; rows: [] }
+  | {
+      available: true
+      hallId: string
+      runId: string
+      window: { start: string; end: string }
+      generatedAt: string
+      simulated: boolean
+      comparisonLabel: string | null
+      rows: ModelComparisonRow[]
+    }

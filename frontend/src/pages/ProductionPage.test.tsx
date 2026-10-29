@@ -57,7 +57,9 @@ describe('Production sheets', () => {
     await waitFor(() => expect(screen.queryByRole('region', { name: 'Sheet row: Stiky rice?' })).toBeNull())
     const table = screen.getByRole('table')
     expect(within(table).getByText('Sticky Rice')).toBeInTheDocument()
-    expect(within(table).getByText('Chef Ana')).toBeInTheDocument()
+    // The reviewer's name is required but never shown (it stays in the private table).
+    expect(within(table).queryByText('Chef Ana')).not.toBeInTheDocument()
+    expect(within(table).getByRole('columnheader', { name: 'Checked' })).toBeInTheDocument()
   })
 
   it('reject keeps a row out of the log', async () => {

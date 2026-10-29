@@ -107,8 +107,12 @@ test('review: flagged rows cannot be confirmed until fixed; edits recompute flag
   const ok = await s.api('POST', `/api/production-log/${b.productionLogId}/confirm`, { confirmedBy: 'Chef Ana' });
   assert.equal(ok.status, 200);
   assert.equal(ok.json.row.status, 'confirmed');
-  assert.equal(ok.json.row.confirmedBy, 'Chef Ana');
+  assert.equal(ok.json.row.confirmedBy, null, 'reviewer names never leave the private table');
   assert.ok(ok.json.row.confirmedAt);
+  const listed = await s.api('GET', `/api/production-log?hallId=${HALL}&status=confirmed`);
+  assert.ok(listed.json.rows.length > 0);
+  assert.ok(listed.json.rows.every((r: { confirmedBy: unknown }) => r.confirmedBy === null));
+  assert.ok(!JSON.stringify(listed.json).includes('Chef Ana'));
   assert.equal((await s.api('PATCH', `/api/production-log/${b.productionLogId}`, { preppedLb: 99 })).status, 409, 'confirmed rows are locked');
 
   const rej = await s.api('POST', `/api/production-log/${rows[0].productionLogId}/reject`);

@@ -105,7 +105,7 @@ export function ProductionPage() {
           <h2 className="text-lg font-semibold text-ink">To review ({toReview.length})</h2>
           {!readOnly && (
             <div className="w-64">
-              <FieldLabel htmlFor="reviewer">Your name (recorded when you confirm)</FieldLabel>
+              <FieldLabel htmlFor="reviewer">Your name or initials (kept private, never shown on the site)</FieldLabel>
               <input id="reviewer" className={inputClass} value={reviewer} onChange={(e) => setReviewer(e.target.value)} placeholder="e.g. Chef Ana" />
             </div>
           )}
@@ -131,7 +131,7 @@ export function ProductionPage() {
                 <tr className="border-b border-linen">
                   <th className="py-2 pr-3">Date</th><th className="pr-3">Meal</th><th className="pr-3">Dish</th><th className="pr-3">Station</th>
                   <th className="pr-3 text-right">Prepped (lb)</th><th className="pr-3 text-right">Portions</th><th className="pr-3 text-right">Pan leftover (lb)</th>
-                  <th className="pr-3">Ran out</th><th>Checked by</th>
+                  <th className="pr-3">Ran out</th><th>Checked</th>
                 </tr>
               </thead>
               <tbody>
@@ -145,7 +145,7 @@ export function ProductionPage() {
                     <td className="pr-3 text-right">{r.preppedPortions ?? '–'}</td>
                     <td className="pr-3 text-right">{r.panLeftoverLb ?? '–'}</td>
                     <td className="pr-3">{r.ranOutTime ?? 'No'}</td>
-                    <td>{r.confirmedBy}</td>
+                    <td>{r.confirmedAt ? r.confirmedAt.slice(0, 10) : 'Yes'}</td>
                   </tr>
                 ))}
               </tbody>

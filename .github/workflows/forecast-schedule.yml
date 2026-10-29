@@ -1,0 +1,56 @@
+name: Forecast schedule (shadow mode)
+
+# Writes baseline-v1 forecasts for every meal that has not started yet, so they
+# are stored (and locked by the database) before each service. Off until the
+# repository variable FORECAST_SCHEDULER_ENABLED is set to "true"; see
+# docs/scheduler-setup.md. GitHub runs scheduled workflows only from the default
+# branch, so this file must be on main before the schedule can fire.
+#
+# Cron is in UTC and ignores daylight saving time, so each run is early enough
+# in both EDT (UTC-4) and EST (UTC-5); forecast/scheduled_run.py computes the
+# real lock times in America/Detroit and never writes a started service.
+#   02:05 UTC  22:05 EDT / 21:05 EST the evening before   (tomorrow's meals)
+#   10:05 UTC  06:05 EDT / 05:05 EST  before breakfast (07:00)
+#   14:05 UTC  10:05 EDT / 09:05 EST  before lunch     (11:00)
+#   19:35 UTC  15:35 EDT / 14:35 EST  before dinner    (16:30)
+
+on:
+  schedule:
+    - cron: '5 2 * * *'
+    - cron: '5 10 * * *'
+    - cron: '5 14 * * *'
+    - cron: '35 19 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Plan only: write nothing'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: forecast-schedule
+  cancel-in-progress: false
+
+jobs:
+  forecast:
+    if: vars.FORECAST_SCHEDULER_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Write forecasts for services that have not started
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          HALLS: ${{ vars.FORECAST_HALLS || 'hall-main' }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '--dry-run' || '' }}
+        run: |
+          args=()
+          for h in $HALLS; do args+=(--hall "$h"); done
+          python -m forecast.scheduled_run "${args[@]}" $DRY_RUN

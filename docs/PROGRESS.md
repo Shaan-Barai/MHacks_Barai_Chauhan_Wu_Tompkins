@@ -3,8 +3,8 @@
 ## Resume here
 
 - **Run 5 (started 2026-10-29 00:40 EDT):** branch `run5` from `run4` (`6493855`). See "Run 5" at the bottom.
-- **Next step:** Task 1 Step A is running (12 photos, timing).
-- **Gemini calls this run:** see the Run 5 log (cap 60).
+- **Next step:** Run 5 is COMPLETE. See `RUN5_REPORT.md`. Nothing is running (the SAM worker was stopped).
+- **Gemini calls this run:** 53 / 60.
 - Migrations: `npx supabase db push --db-url "$SUPABASE_DB_URL"` (dry run first) inside a subshell that sources `.env`; never echo it.
 
 ### Run 4 (complete)
@@ -643,11 +643,11 @@ Brief: Task 1 timing + the pass 2 timeout (≤ 55 Gemini), Task 2 bring PR #25 u
 ### Checklist
 - [x] Setup: branch `run5` from `run4`
 - [x] Task 1: timing baseline, cause of the pass 2 timeout, fix, confirm (53 calls)
-- [ ] Task 2: merge `run5` into `overnight-supabase`, MERGE_REVIEW + PR #25 description, scan, push
+- [x] Task 2: merge `run5` into `overnight-supabase`, MERGE_REVIEW + PR #25 description, scan, push
 - [x] Task 3: scheduler, written and off
 - [x] Task 4: docs/pilot-runbook.md
 - [x] Task 5: plate size in the tooltip, optional `station` column
-- [ ] RUN5_REPORT.md
+- [x] RUN5_REPORT.md
 
 ### Gemini call log (Run 5, cap 60)
 
@@ -687,3 +687,13 @@ Brief: Task 1 timing + the pass 2 timeout (≤ 55 Gemini), Task 2 bring PR #25 u
 - **Task 5:**
   - `assumedPlateDiametersCm` was added to `GET /api/dashboard/estimated-weight`; the tooltip says "Assumes 10.5-inch (26.7 cm) plates".
   - The ground-truth loader and both scorers read an optional `Station` column, with a by-station breakdown. Without the column, the 2026-10-03 experiment still scores 36/0/3.
+- 01:25. Commits `8ed8e9b` (Task 1), `daa6a0f` (Task 5), `148ea6c` (Task 4), `7b1f00e` (Task 3), `b7d52f6` (MERGE_REVIEW).
+  - The first `./test-all.sh` failed on `stale data filenames (use the _EastQuad names): RUN4_REPORT.md:60`. That check scans tracked files only, so Run 4's report commit failed it. Fixed in `8ed8e9b`.
+  - New files were marked with `git add -N` before testing.
+- 01:35. **Task 2.** Merged `run5` into `overnight-supabase` (`2a1c972`). The only conflict was `MERGE_REVIEW.md` (doc), resolved to the run5 version. The merged tree is identical to run5. test-all: ALL PASSED.
+- 01:40. **Secret scan.**
+  - Scope: 357 commits, all branches, including messages.
+  - 0 `.env` value matches; DB password 0; strong patterns in the Run 5 diff 0.
+  - All `sb_secret_` strings are fixtures (`sb_secret_example`, `sb_secret_test`, `sb_secret_THIS_MUST_NOT_SHIP_0000`).
+  - Clean. Pushed `overnight-supabase` (8cb9401..2a1c972) and `run5`. PR #25 title and description refreshed; still a draft.
+- 01:45. SAM worker stopped. Wrote `RUN5_REPORT.md`. **Run 5 done; stopping.**

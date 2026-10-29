@@ -123,3 +123,26 @@ describe a real dining hall.**
 - **Unsupervised helpers** (`forecast/unsupervised.py`), both **off** in `config.toml`:
   - `[clustering]`: k-means day types from attendance profile + context, computed per fold from past days only;
   - `[anomaly]`: a robust z-score on confirmed production rows. Flagged rows are listed for review and left out of training, never deleted.
+
+## Honest backtests and shadow mode (Run 4)
+
+- **Weather in backtests is the forecast, never what happened.**
+  - `context_day.fc_*` (migration `20261028000017`) holds the day-ahead forecast: Open-Meteo's Previous Runs API, `_previous_day1` (each hour forecast 24 h before it; daily max temperature and total rain). It is filled by `python3 -m forecast.context_import`, and each row keeps its `fc_source_url`.
+  - Simulated days get a SIMULATED forecast (`fc_source = 'simulated'`, `python3 -m forecast.simulate fill-forecast-weather`).
+  - The observed columns (`temp_high_f`, `precip_in`) are unchanged.
+  - `PastView.forecast_weather_on(day)` is allowed up to the target day. `PastView.observed_weather_on(day)` raises `LookAheadError` for the target day or later.
+  - `gbm-v1` uses the forecast high and rain as features.
+  - `forecast/tests/test_shadow_weather.py` fails if a backtest reads the target day's observed weather, or if observed weather moves any forecast.
+- **Shadow mode.** The database stamps every `forecast` row with `created_at` (its own clock) and `locks_at` (the meal's service start in the hall's time zone; start times in `meal_service_start`, kept equal to `config.toml [meals]` by a test).
+  - From `locks_at` on, a trigger rejects updates, and deletes of real rows. Simulated rows stay removable.
+  - The worker upserts only services that have not started. For started ones it inserts missing rows and changes nothing.
+  - Rows written before the migration have `lock_tracked = false` and never count as locked.
+- **Report:** locked forecasts vs. FSS vs. actuals, at default and matched stockouts:
+
+  ```bash
+  python3 -m forecast.shadow_report --hall hall-main --start 2026-10-24 --end 2026-10-30 [--model baseline-v1] [--json]
+  ```
+
+  - Only rows created before their service started are scored. Late, pre-shadow and not-yet-started rows are counted and listed.
+  - It is labeled SIMULATED when any input it used is simulated.
+

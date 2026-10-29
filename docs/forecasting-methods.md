@@ -71,13 +71,13 @@ All models predict demand in pounds per dish per meal. They differ only in the p
 | `seasonal-naive-v1` | The dish's most recent same weekday-meal |
 | `moving-avg-4-v1` | Mean of the dish's last 4 same weekday-meals |
 | `exp-smoothing-v1` | Simple exponential smoothing (α = 0.3) over the dish's series for that meal |
-| `gbm-v1` | Gradient-boosted trees (scikit-learn `HistGradientBoostingRegressor`), retrained weekly. Features: weekday, meal, dish, expected diners, the dish's last and recent-average amounts, days since last served, and calendar flags (exam period, home football game, holiday). |
+| `gbm-v1` | Gradient-boosted trees (scikit-learn `HistGradientBoostingRegressor`), retrained weekly. Features: weekday, meal, dish, expected diners, the dish's last and recent-average amounts, days since last served, calendar flags (exam period, home football game, holiday), and the **day-ahead weather forecast** (high and rain). |
 
 **Calendar context** comes from fetched sources, each stored with its URL:
 - the U-M Registrar's 2026–27 calendar;
 - the official Michigan football schedule;
 - Hebcal and Aladhan for religious holidays;
-- Open-Meteo weather.
+- Open-Meteo weather. Models see only the **day-ahead forecast** for the day they predict (Open-Meteo Previous Runs API, each hour forecast 24 h ahead), never the observed weather. Observed and forecast weather are stored in separate columns. Over 46 real days (Aug–Oct 2026), the day-ahead high was off from the observed high by 2.8 °F on average [REAL].
 
 **Two optional helpers, off by default:**
 - k-means **day types** from each day's attendance profile and context;
@@ -87,11 +87,16 @@ All models predict demand in pounds per dish per meal. They differ only in the p
 
 We simulate forecasting one day at a time:
 
-1. For each day, every model sees only data from **before** that day. The calendar for the day itself is allowed, since it is published in advance.
+1. For each day, every model sees only data from **before** that day. The calendar for the day itself is allowed, since it is published in advance. So is the weather **forecast** issued at least 24 h before it. Its observed weather is not: asking for it raises an error, and a test fails if observed weather changes any forecast.
 2. Each model forecasts every dish served at every meal.
 3. That day's actuals then become available for later days' error ranges.
 
 A test inserts absurd values on future dates and fails if any earlier forecast changes. We confirmed it fails when future meals are deliberately exposed.
+
+**Shadow mode (live forecasts).** A backtest re-creates the past. The stronger test is to store forecasts before each meal and score them afterwards.
+- The database stamps every forecast with its creation time and the time its meal's service starts. From that moment a trigger refuses to change it.
+- `python -m forecast.shadow_report` scores only forecasts created before their service, against FSS and actuals, at default and matched stockouts.
+- No locked forecast has been scored yet: all forecasts in the database so far were written before shadow mode, or are for meals still to come.
 
 All models are scored on the **same** dish-meals: those every model could forecast.
 
@@ -122,12 +127,13 @@ The window is 2026-09-26 to 2026-10-23: 291 dish-meals, of which 48 ran out.
 | moving-avg-4-v1 | matched | 19.6% | −0.3% | 48 | 2,784 lb | 77% |
 | exp-smoothing-v1 | default | 21.7% | −1.3% | 28 | 4,288 lb | 79% |
 | exp-smoothing-v1 | matched | 21.7% | −1.3% | 48 | 3,236 lb | 79% |
-| gbm-v1 | default | 17.8% | −0.4% | 10 | 5,132 lb | 88% |
-| gbm-v1 | matched | 17.8% | −0.4% | 48 | 2,959 lb | 88% |
+| gbm-v1 | default | 18.6% | +0.5% | 15 | 4,550 lb | 89% |
+| gbm-v1 | matched | 18.6% | +0.5% | 48 | 3,045 lb | 89% |
 | Simulated FSS (+25%) | as given | 41.6% | +41.6% | 48 | 4,030 lb | — |
 
 How to read this (still simulated):
-- The forecasting models land within a few points of each other, and gradient boosting's 10–90% range is wider than intended (88%).
+- The forecasting models land within a few points of each other, and gradient boosting's 10–90% range is wider than intended (89%).
+- gbm-v1 now uses the day-ahead weather forecast (Run 4). Its WAPE moved from 17.8% to 18.6%. The simulated demand does not depend on weather, so here those features can only add noise; this says nothing about real weather effects.
 - At matched stockouts, baseline-v1 and the moving average leave the least.
 - Beating the simulated FSS is built into the simulation (it was made to over-prepare), so that comparison measures nothing.
 

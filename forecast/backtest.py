@@ -77,7 +77,8 @@ def run_models(data: HallData, end: date, s: Settings, models: list[Model], trai
     clustering = bool(s.clustering.get("enabled"))
     for m in models:
         if isinstance(m, GradientBoosting):
-            m.bind(history, data.attendance, data.context, data.cycle_start, data.cycle_weeks)
+            m.bind(history, data.attendance, data.context, data.cycle_start, data.cycle_weeks,
+                   weather_forecast=data.weather_forecast, weather_observed=data.weather_observed)
     preds: dict[str, dict[tuple, Pred]] = {m.version: {} for m in models}
     errs: dict[str, dict[str, list[tuple[date, float]]]] = {m.version: defaultdict(list) for m in models}
     window = timedelta(days=s.error_window_days)
@@ -87,7 +88,8 @@ def run_models(data: HallData, end: date, s: Settings, models: list[Model], trai
             past_att = {k: v for k, v in data.attendance.items() if k[0] < day}
             types = day_types(past_att, {d: f for d, f in data.context.items() if d < day},
                               int(s.clustering.get("k", 4)), int(s.clustering.get("seed", 0)))
-        view = PastView(history, data.attendance, data.context, day, data.cycle_start, data.cycle_weeks, day_types=types)
+        view = PastView(history, data.attendance, data.context, day, data.cycle_start, data.cycle_weeks, day_types=types,
+                        weather_forecast=data.weather_forecast, weather_observed=data.weather_observed)
         for m in models:
             if isinstance(m, GradientBoosting) and types is not None:
                 m._day_types = types

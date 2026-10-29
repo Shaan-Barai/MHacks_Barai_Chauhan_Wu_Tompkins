@@ -2,7 +2,10 @@
 
 Every model sees only a `PastView`: the history, swipes and context strictly
 BEFORE the target date (context for the target date itself is allowed: the
-academic calendar, game schedule and holidays are published in advance). It
+academic calendar, game schedule and holidays are published in advance).
+Weather is the FORECAST known before the day's first service (context_day.fc_*,
+issued at least 24 h ahead); observed weather for the target day or later is
+never visible (LookAheadError), so a backtest cannot use hindsight weather. It
 returns a point forecast of demand in pounds, or None when it has nothing to go
 on. Prep amounts and the 10-90% range come from the model's own past errors in
 the backtest (the same method for every model), so models differ only in the
@@ -42,11 +45,15 @@ class PastView:
 
     def __init__(self, history: list[Observation], attendance: dict[tuple[date, str], float],
                  context: dict[date, set[str]], cutoff: date, cycle_start: date | None = None, cycle_weeks: int = 6,
-                 day_types: dict[date, int] | None = None):
+                 day_types: dict[date, int] | None = None, weather_forecast: dict[date, dict] | None = None,
+                 weather_observed: dict[date, dict] | None = None):
         self.cutoff = cutoff
         self.history = [o for o in history if o.service_date < cutoff]
         self.attendance = {k: v for k, v in attendance.items() if k[0] < cutoff}
         self._context = {d: f for d, f in context.items() if d <= cutoff}
+        # Forecasts issued >= 24 h ahead are known before the target day starts; observed weather only after it ends.
+        self._weather_forecast = {d: w for d, w in (weather_forecast or {}).items() if d <= cutoff}
+        self._weather_observed = {d: w for d, w in (weather_observed or {}).items() if d < cutoff}
         self._day_types = {d: t for d, t in (day_types or {}).items() if d < cutoff}
         self.cycle_start = cycle_start
         self.cycle_weeks = cycle_weeks
@@ -56,6 +63,18 @@ class PastView:
         if day > self.cutoff:
             raise LookAheadError(f"context for {day} asked while forecasting {self.cutoff}")
         return self._context.get(day, set())
+
+    def forecast_weather_on(self, day: date) -> dict | None:
+        """The weather forecast for `day` as issued before it (allowed up to the target date)."""
+        if day > self.cutoff:
+            raise LookAheadError(f"weather forecast for {day} asked while forecasting {self.cutoff}")
+        return self._weather_forecast.get(day)
+
+    def observed_weather_on(self, day: date) -> dict | None:
+        """Observed weather: only for days already over. The target day's actual weather is hindsight."""
+        if day >= self.cutoff:
+            raise LookAheadError(f"observed weather for {day} asked while forecasting {self.cutoff}: use forecast_weather_on")
+        return self._weather_observed.get(day)
 
     def diners_on(self, day: date, meal: str) -> float | None:
         if day >= self.cutoff:
@@ -134,13 +153,14 @@ class ExpSmoothing(Model):
 
 
 def gbm_features(view: PastView, target: date, meal: str, dish_id: str, dish_index: dict[str, int]) -> list[float]:
-    """Features known before `target`: calendar, context for the day, lags of this dish, expected diners."""
+    """Features known before `target`: calendar, context and the weather FORECAST for the day, lags of this dish, expected diners."""
     nan = float("nan")
     same = view.series(dish_id, meal, target.isoweekday())
     allm = view.series(dish_id, meal)
     ctx = view.context_on(target)
     diners = expected_diners(view.attendance, target, meal)
     last = allm[-1].service_date if allm else None
+    wx = view.forecast_weather_on(target) or {}
     feats = [
         float(target.isoweekday()),
         float({"breakfast": 0, "lunch": 1, "dinner": 2}[meal]),
@@ -151,6 +171,8 @@ def gbm_features(view: PastView, target: date, meal: str, dish_id: str, dish_ind
         fmean(o.consumed_lb for o in allm[-4:]) if allm else nan,
         float((target - last).days) if last else nan,
         *(1.0 if k in ctx else 0.0 for k in CONTEXT_KEYS),
+        float(wx["temp_high_f"]) if wx.get("temp_high_f") is not None else nan,
+        float(wx["precip_in"]) if wx.get("precip_in") is not None else nan,
     ]
     # Day type (optional clustering): the type of the same weekday last week, which is known by now.
     dt = view.day_type(target - timedelta(days=7)) if view._day_types else None
@@ -179,17 +201,20 @@ class GradientBoosting(Model):
         self.full_history: list[Observation] | None = None
         self.full_attendance = None
         self.full_context = None
+        self._weather = ({}, {})
 
-    def bind(self, history, attendance, context, cycle_start, cycle_weeks, day_types=None):
+    def bind(self, history, attendance, context, cycle_start, cycle_weeks, day_types=None, weather_forecast=None, weather_observed=None):
         """The backtest hands over the complete record once; every use goes through a PastView cut at a date."""
         self.full_history, self.full_attendance, self.full_context = history, attendance, context
         self._cycle = (cycle_start, cycle_weeks)
         self._day_types = day_types
+        self._weather = (weather_forecast or {}, weather_observed or {})
 
     def _features_at(self, o: Observation) -> list[float]:
         key = (o.service_date, o.meal, o.dish_id)
         if key not in self._feature_cache:
-            v = PastView(self.full_history, self.full_attendance, self.full_context, o.service_date, *self._cycle, day_types=self._day_types)
+            v = PastView(self.full_history, self.full_attendance, self.full_context, o.service_date, *self._cycle, day_types=self._day_types,
+                         weather_forecast=self._weather[0], weather_observed=self._weather[1])
             self._feature_cache[key] = gbm_features(v, o.service_date, o.meal, o.dish_id, self.dish_index)
         return self._feature_cache[key]
 

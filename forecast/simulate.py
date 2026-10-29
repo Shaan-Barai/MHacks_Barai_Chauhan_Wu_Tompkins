@@ -7,6 +7,7 @@ hall; it only lets the worker, evaluation, prep sheets and dashboard run.
 
     python -m forecast.simulate generate --hall hall-main [--weeks 6] [--end 2026-10-24] [--seed sim-v1]
     python -m forecast.simulate remove   --hall hall-main     # deletes ONLY is_simulated rows
+    python -m forecast.simulate fill-forecast-weather --hall hall-main   # simulated fc_* on old simulated days
 
 generate is re-runnable: it first removes the hall's simulated rows, then
 writes a fresh set (the same seed gives the same data).
@@ -16,6 +17,10 @@ What the simulation assumes (all invented, documented so nobody mistakes it):
     -30% on weekends, -15% Friday dinner, -50% on one simulated holiday,
     -20% at dinner on simulated home-game Saturdays, +8% in the simulated
     exam week; swipes spread over 15-minute intervals with a midday peak.
+  * Weather: a random "observed" high and rain per day, and a SIMULATED
+    day-ahead forecast of it (fc_*, fc_source 'simulated'): the observed high
+    +/- up to 6 F and the rain x 0.5-1.5, so backtests have forecast weather
+    that differs from what happened. Demand does not depend on weather here.
   * True demand = diners x take rate x portion lb x random noise (sd ~18%).
   * The kitchen preps what a "Simulated FSS (assumed +25% over-prep)" forecast
     says: the average demand x 1.25 x noise (it over-preps and ignores
@@ -77,6 +82,28 @@ def simulated_tray_waste_lb(dish: str, day: date, meal: str, eaten_lb: float) ->
     """SIMULATED tray waste: a fixed 4-14% of eaten food per dish (labeled 'simulated' wherever used)."""
     share = 0.04 + 0.10 * _hash01("tray", dish)
     return round(max(0.0, eaten_lb) * share, 2)
+
+
+def simulated_forecast_weather(hall_id: str, day: date, temp_high_f: float | None, precip_in: float | None) -> dict:
+    """SIMULATED day-ahead forecast of a simulated day's weather (fc_* columns, fc_source 'simulated')."""
+    temp = None if temp_high_f is None else round(float(temp_high_f) + 12.0 * (_hash01("fc-temp", hall_id, day) - 0.5), 1)
+    rain = None if precip_in is None else float(precip_in) * (0.5 + _hash01("fc-rain", hall_id, day))
+    if rain is not None and rain == 0.0 and _hash01("fc-false-rain", hall_id, day) < 0.15:
+        rain = 0.05  # a forecast of rain that did not come
+    return {"fc_temp_high_f": temp, "fc_precip_in": None if rain is None else round(rain, 2), "fc_lead_hours": 24,
+            "fc_source": "simulated", "fc_source_url": None}
+
+
+def fill_forecast_weather(db: Supabase, hall_id: str) -> int:
+    """Give existing SIMULATED context days (written before fc_* existed) their simulated forecast. Real rows untouched."""
+    rows = db.select("context_day", {"hall_id": f"eq.{hall_id}", "is_simulated": "eq.true", "fc_source": "is.null"},
+                     "service_date,temp_high_f,precip_in")
+    now = datetime.now(timezone.utc).isoformat()
+    for r in rows:
+        patch = {**simulated_forecast_weather(hall_id, date.fromisoformat(r["service_date"]), r.get("temp_high_f"), r.get("precip_in")),
+                 "fc_fetched_at": now}
+        db.update("context_day", {"hall_id": f"eq.{hall_id}", "service_date": f"eq.{r['service_date']}", "is_simulated": "eq.true"}, patch)
+    return len(rows)
 
 
 def _menu(week: int, weekday: int, meal: str) -> list[str]:
@@ -177,10 +204,12 @@ def generate(db: Supabase, hall_id: str, end: date, weeks: int = 6, seed: str = 
         is_holiday = day == holiday
         exam = exam_start <= day <= end
         if past:
+            temp, rain = round(rng.uniform(38, 68), 1), round(max(0.0, rng.gauss(0.05, 0.12)), 2)
             context.append({
                 "hall_id": hall_id, "service_date": day.isoformat(),
                 "weather_summary": rng.choice(["sunny", "cloudy", "rain", "windy", "snow flurries"]),
-                "temp_high_f": round(rng.uniform(38, 68), 1), "precip_in": round(max(0.0, rng.gauss(0.05, 0.12)), 2),
+                "temp_high_f": temp, "precip_in": rain,
+                **simulated_forecast_weather(hall_id, day, temp, rain),
                 "exam_week": exam, "home_game": home_game, "is_holiday": is_holiday,
                 "holiday_name": "Fall Break (simulated)" if is_holiday else None,
                 "events_note": "Simulated context day", "is_simulated": True,
@@ -247,8 +276,13 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--seed", default=None, help="default: ATTENDANCE_SEED from .env, else sim-v1")
     r = sub.add_parser("remove")
     r.add_argument("--hall", default="hall-main")
+    fw = sub.add_parser("fill-forecast-weather", help="simulated day-ahead weather for old simulated context days")
+    fw.add_argument("--hall", default="hall-main")
     a = p.parse_args(argv)
     db = Supabase.from_env()
+    if a.cmd == "fill-forecast-weather":
+        print(json.dumps({"filled": fill_forecast_weather(db, a.hall), "label": "SIMULATED forecast weather on is_simulated rows only"}, indent=2))
+        return 0
     if a.cmd == "remove":
         print(json.dumps({"removed": remove(db, a.hall), "label": "only is_simulated rows were deleted"}, indent=2))
         return 0

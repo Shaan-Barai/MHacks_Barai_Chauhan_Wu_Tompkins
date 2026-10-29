@@ -3,7 +3,7 @@
 ## Resume here
 
 - **Run 4 (started 2026-10-28):** branch `run4` from `forecast-v2` (`79bfa6f`). See "Run 4" at the bottom.
-- **Next step:** Task 3 (forecast weather, shadow lock, report command). Migration `…17` is written, not yet applied.
+- **Next step:** Task 4 (plate estimates for the 6 hall-main scans). Migration `…17` is applied live.
 - **Gemini calls this run:** 30 / 40 (Task 1 done; Task 4 may use ≤ 10).
 - Migrations: `npx supabase db push --db-url "$SUPABASE_DB_URL"` (dry run first) inside a subshell that sources `.env`; never echo it.
 
@@ -556,7 +556,7 @@ Brief: tasks 1-5 + RUN4_REPORT.md. Gemini cap 40 (Task 1 ≤ 30, Task 4 ≤ 10).
 - [x] Setup: branch `run4` from `forecast-v2`, keys present (values not printed), logs moved to `docs/`
 - [x] Task 1: per-meal menu (≤ 30 Gemini calls): 30 used
 - [x] Task 2: Gemini timeout default 90 s
-- [ ] Task 3: forecast weather in backtests, shadow-mode lock, report command
+- [x] Task 3: forecast weather in backtests, shadow-mode lock, report command
 - [ ] Task 4: plate estimates for the 6 hall-main scans (≤ 10 Gemini calls)
 - [ ] Task 5: docs/camera-calibration-checklist.md
 - [ ] Secret scan, push `run4` if clean
@@ -577,8 +577,29 @@ Brief: tasks 1-5 + RUN4_REPORT.md. Gemini cap 40 (Task 1 ≤ 30, Task 4 ≤ 10).
 5. **Task 1, no code change:** production already resolves the menu per service (hall + date + meal) in `IngestionService`. The live test keeps the 26-food demo menu and its Run 3 baseline.
 6. **Task 2, `timeoutMs` exposed read-only on `GeminiGateway`:** so the test can check the effective default (env unset, invalid env, env override, explicit option).
 
+7. **Task 3, day-ahead forecasts from the Previous Runs API, not the Historical Forecast API:** Open-Meteo's docs say the Historical Forecast API is "built by stitching the first hours of each successive model run", so part of a day comes from runs issued during that day, possibly after a service started. `_previous_day1` (Previous Runs API) is each hour as forecast 24 h earlier, so the whole day was known before its first service. Daily = max hourly temperature and total rain; a day with a missing hour is left out.
+8. **Task 3, simulated days get a SIMULATED forecast:** the 42 simulated days have simulated observed weather, so I gave them a simulated day-ahead forecast (observed ± up to 6 °F, rain × 0.5–1.5; `fc_source = 'simulated'`) through `simulate.py fill-forecast-weather`. That command patches only `is_simulated` rows, filling new null columns. Real Open-Meteo forecasts went only on real rows.
+9. **Task 3, gbm-v1 now uses the forecast weather:** this changed its simulated result (WAPE 17.8% → 18.6%; simulated demand ignores weather). I stored the re-run as `bt_3aa03e8682a2`; the old run is kept.
+10. **Task 3, lock rules:**
+   - The lock time is the meal's start (`meal_service_start`: 07:00 / 11:00 / 16:30 local, equal to `config.toml`, checked by a test) in the hall's time zone.
+   - After it: updates are rejected, deletes of real rows are rejected, and simulated rows stay deletable (`simulate remove`).
+   - `created_at` is always the database clock (no backdating).
+   - Inserts after the lock are allowed but never count as locked.
+   - The 1,008 existing rows (all simulated) got `created_at = generated_at` and `lock_tracked = false`, so they are never counted as locked, even the 24 whose service is still ahead. This is conservative.
+11. **Task 3, matched stockouts for locked forecasts:** the stored prep amounts are scaled by one shared factor k until stockouts ≤ FSS's. Stored rows are not changed, and k is printed. The stored error spreads needed to shift q are not in the table.
+
+
 ### Log
 
 - Created `run4` from `forecast-v2` (`79bfa6f`). `GEMINI_API_KEY`, `GEMINI_MODEL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_DB_URL` are each present once (values not printed).
 - 18:04–18:20. **Task 1.** SAM worker started (`.venv/bin/python vision/sam/worker.py`, :8790). 23-food run: **17 correct, 1 missed, 1 wrong; recall 94.4%, precision 94.4%** (26 calls). Errors: IMG_2703 + Sticky Rice; IMG_2706 pie missed after pass 2 timed out 3 × 90 s. IMG_2706 re-run (4 calls): identical. Written up in `docs/detection-accuracy.md` → "Per-meal menu".
 - 18:10. **Task 2.** `DEFAULT_TIMEOUT_MS` 30000 → 90000 in `vision/src/gateway.ts`; `.env.example`, `vision/README.md` and the detection doc updated; new test "the Gemini timeout defaults to 90 s" (vision 102/102).
+- 18:25–19:10. **Task 3.**
+  - Migration `20261028000017_forecast_weather_and_shadow_lock.sql`: dry run, then applied live. The live RLS test passes 5/5 (`meal_service_start` is private).
+  - `simulate fill-forecast-weather`: 42 simulated days.
+  - `context_import`: 262 real rows upserted, 47 with a day-ahead forecast (2026-08-01..10-28, minus the simulated days). Real days with both values: mean |forecast − observed high| = 2.76 °F (n = 46, max 9.2).
+  - The backtest re-run stored as `bt_3aa03e8682a2`: only gbm-v1 changed, to 18.6% WAPE.
+  - `shadow_report` live on 2026-09-12..10-30: 0 locked; 396 before shadow mode, 24 not started. "nothing scored (this window's inputs are SIMULATED)".
+  - Worker dry run for 10-28..10-30: 24 before service start, 12 after.
+  - Tests: forecast +11 (`test_shadow_weather.py`; gbm included under `.venv`); PGlite +15 checks.
+  - `./test-all.sh`: ALL PASSED (forecast 85).

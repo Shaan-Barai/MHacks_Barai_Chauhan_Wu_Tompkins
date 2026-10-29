@@ -95,10 +95,14 @@ class Supabase:
                 return rows
             offset += PAGE
 
-    def insert(self, table: str, rows: list[dict], on_conflict: str | None = None, upsert: bool = False) -> None:
+    def insert(self, table: str, rows: list[dict], on_conflict: str | None = None, upsert: bool = False,
+               ignore_duplicates: bool = False) -> None:
+        """upsert: replace rows that exist; ignore_duplicates: keep rows that exist untouched."""
         prefer = "return=minimal"
         if upsert:
             prefer += ",resolution=merge-duplicates"
+        elif ignore_duplicates:
+            prefer += ",resolution=ignore-duplicates"
         params = {"on_conflict": on_conflict} if on_conflict else None
         for i in range(0, len(rows), 500):
             self._request("POST", table, params, rows[i : i + 500], {"Prefer": prefer})

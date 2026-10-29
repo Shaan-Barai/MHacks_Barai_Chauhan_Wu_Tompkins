@@ -8,7 +8,7 @@ never feed a forecast.
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from statistics import median
 
@@ -49,6 +49,15 @@ class HallData:
     tray_waste_share: dict[str, float]  # dish -> share (only with enough scan coverage)
     context: dict[date, set[str]]  # day -> context flags set (exam_week, home_game, is_holiday)
     notes: list[str]
+    # Weather FORECAST as known before the day's first service (context_day.fc_*): what backtests may use.
+    weather_forecast: dict[date, dict] = field(default_factory=dict)
+    # Observed weather (context_day temp_high_f/precip_in on observed days). A model may never read it
+    # for the day it forecasts; PastView strips it from that day on.
+    weather_observed: dict[date, dict] = field(default_factory=dict)
+
+
+def _f(v) -> float | None:
+    return float(v) if v is not None else None
 
 
 def _d(s: str) -> date:
@@ -115,10 +124,24 @@ def load_hall(db: Supabase, hall_id: str, settings: Settings | None = None) -> H
 
     share = tray_waste_shares(db, hall_id, dishes, history, attendance, s, notes)
     context: dict[date, set[str]] = {}
-    for r in db.select("context_day", {"hall_id": f"eq.{hall_id}"}, "service_date,exam_week,home_game,is_holiday"):
+    weather_forecast: dict[date, dict] = {}
+    weather_observed: dict[date, dict] = {}
+    for r in db.select("context_day", {"hall_id": f"eq.{hall_id}"},
+                       "service_date,exam_week,home_game,is_holiday,temp_high_f,precip_in,weather_kind,"
+                       "fc_temp_high_f,fc_precip_in,fc_lead_hours,fc_source,is_simulated"):
+        day = _d(r["service_date"])
         flags = {f for f in ("exam_week", "home_game", "is_holiday") if r.get(f)}
         if flags:
-            context[_d(r["service_date"])] = flags
+            context[day] = flags
+        if r.get("fc_temp_high_f") is not None or r.get("fc_precip_in") is not None:
+            weather_forecast[day] = {
+                "temp_high_f": _f(r.get("fc_temp_high_f")), "precip_in": _f(r.get("fc_precip_in")),
+                "lead_hours": r.get("fc_lead_hours"), "source": r.get("fc_source"),
+            }
+        # weather_kind 'forecast' marks upcoming days whose observed columns hold the latest forecast.
+        if r.get("weather_kind") != "forecast" and (r.get("temp_high_f") is not None or r.get("precip_in") is not None):
+            weather_observed[day] = {"temp_high_f": _f(r.get("temp_high_f")), "precip_in": _f(r.get("precip_in")),
+                                     "simulated": bool(r.get("is_simulated"))}
     return HallData(
         hall_id=hall_id,
         timezone=hall.get("timezone") or s.default_timezone,
@@ -135,6 +158,8 @@ def load_hall(db: Supabase, hall_id: str, settings: Settings | None = None) -> H
         tray_waste_share=share,
         context=context,
         notes=notes,
+        weather_forecast=weather_forecast,
+        weather_observed=weather_observed,
     )
 
 

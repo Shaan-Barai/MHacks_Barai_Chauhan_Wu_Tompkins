@@ -8,6 +8,14 @@ Inputs (each row keeps the URL of every source it used, in context_day.source_ur
 - forecast/context_sources/religious_holidays_2026_27.json      Hebcal / Aladhan
 - Open-Meteo for Ann Arbor, fetched live: the archive API for past dates and
   the forecast API (16 days) for upcoming ones. Later dates get no weather (null).
+- Weather FORECASTS as known before each day (Run 4): Open-Meteo's Previous
+  Runs API, `_previous_day1` = the value forecast 24 h before each hour, so the
+  whole day was forecast before its first service. Stored separately in
+  context_day.fc_* (fc_lead_hours = 24); backtests read only these. A day is
+  filled only once its last hour's day-ahead forecast exists (from 05:00 local
+  that day). The Historical Forecast API is not used: it stitches the first
+  hours of each successive model run, so part of a day comes from runs issued
+  during that day, after a service may have started.
 
 The calendar files are hand-copied from the fetched pages (URL and fetch date
 inside each file); this script never invents dates. Rows are written with
@@ -32,6 +40,8 @@ SOURCES = Path(__file__).resolve().parent / "context_sources"
 ANN_ARBOR = (42.2808, -83.7430)
 ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
+PREVIOUS_RUNS_URL = "https://previous-runs-api.open-meteo.com/v1/forecast"
+DAY_AHEAD_HOURS = 24
 DAILY = "temperature_2m_max,precipitation_sum,weather_code"
 TEST_HALL_PREFIXES = ("hall-e2e-", "hall-live-", "hall-detect-")
 TEST_HALLS = {"hall-test", "hall-smoke"}
@@ -160,6 +170,39 @@ def fetch_weather(start: date, end: date, today: date) -> tuple[dict[date, dict]
     return out, log
 
 
+def fetch_forecast_weather(start: date, end: date, now_local: datetime) -> tuple[dict[date, dict], list[str]]:
+    """Day-ahead forecasts (each hour forecast 24 h before it), aggregated to the local day."""
+    lat, lon = ANN_ARBOR
+    last = min(end, now_local.date() if now_local.time() >= datetime.strptime("05:00", "%H:%M").time() else now_local.date() - timedelta(days=1))
+    if last < start:
+        return {}, ["day-ahead forecasts: nothing to fetch"]
+    try:
+        data, url = _get_json(PREVIOUS_RUNS_URL, {
+            "latitude": lat, "longitude": lon, "hourly": "temperature_2m_previous_day1,precipitation_previous_day1",
+            "temperature_unit": "fahrenheit", "precipitation_unit": "inch", "timezone": "America/Detroit",
+            "start_date": start.isoformat(), "end_date": last.isoformat()})
+    except Exception as e:  # noqa: BLE001 - logged, forecast weather stays null
+        return {}, [f"day-ahead forecasts failed: {e}"]
+    out = day_ahead_daily(data, url)
+    return out, [f"day-ahead forecasts (Previous Runs API) {start}..{last}: {len(out)} days"]
+
+
+def day_ahead_daily(data: dict, url: str) -> dict[date, dict]:
+    """Hourly `_previous_day1` values -> per local day: max temperature, total precipitation. A day with
+    any missing hour is left out (a partial day would understate rain or the high)."""
+    h = data.get("hourly") or {}
+    by_day: dict[date, list[tuple]] = {}
+    for t, temp, rain in zip(h.get("time", []), h.get("temperature_2m_previous_day1", []), h.get("precipitation_previous_day1", [])):
+        by_day.setdefault(date.fromisoformat(t[:10]), []).append((temp, rain))
+    out = {}
+    for d, vals in by_day.items():
+        if len(vals) < 23 or any(t is None or r is None for t, r in vals):  # 23: the spring-forward day
+            continue
+        out[d] = {"fc_temp_high_f": round(max(t for t, _ in vals), 1), "fc_precip_in": round(max(0.0, sum(r for _, r in vals)), 2),
+                  "fc_lead_hours": DAY_AHEAD_HOURS, "fc_source": "open-meteo-previous-runs", "fc_source_url": url}
+    return out
+
+
 def _merge_daily(out: dict, data: dict, kind: str, url: str, observed_before: date | None = None) -> None:
     d = data.get("daily") or {}
     for i, day in enumerate(d.get("time", [])):
@@ -172,11 +215,16 @@ def _merge_daily(out: dict, data: dict, kind: str, url: str, observed_before: da
                    "weather_summary": wmo_summary(c), "weather_kind": k, "url": url}
 
 
-def build_rows(halls: list[str], cal: dict[date, dict], weather: dict[date, dict], now_iso: str) -> list[dict]:
+FC_KEYS = ("fc_temp_high_f", "fc_precip_in", "fc_lead_hours", "fc_source", "fc_source_url")
+
+
+def build_rows(halls: list[str], cal: dict[date, dict], weather: dict[date, dict], now_iso: str,
+               forecast_weather: dict[date, dict] | None = None) -> list[dict]:
     rows = []
     for hall in halls:
         for d, c in sorted(cal.items()):
             w = weather.get(d, {})
+            fc = (forecast_weather or {}).get(d)
             urls = dict(c["urls"])
             if w:
                 urls["weather"] = w["url"]
@@ -188,6 +236,7 @@ def build_rows(halls: list[str], cal: dict[date, dict], weather: dict[date, dict
                 "events_note": "; ".join(c["events"]) or None, "academic_note": c["academic_note"], "class_day": c["class_day"],
                 "study_day": c["study_day"], "break_day": c["break_day"], "first_class_day": c["first_class_day"],
                 "source_urls": urls, "is_simulated": False, "imported_at": now_iso, "updated_at": now_iso,
+                **{k: (fc or {}).get(k) for k in FC_KEYS}, "fc_fetched_at": now_iso if fc else None,
             })
     return rows
 
@@ -234,8 +283,11 @@ def main(argv: list[str] | None = None) -> int:
     halls = a.hall or real_halls([h["hall_id"] for h in db.select("hall", columns="hall_id")])
     cal = calendar_days(load_sources(), start, end)
     weather, wlog = fetch_weather(start, end, today)
+    now_local = datetime.combine(today, datetime.now().time()) if a.today else datetime.now()
+    fc_weather, fclog = fetch_forecast_weather(start, end, now_local)
+    wlog += fclog
     now_iso = datetime.now(timezone.utc).isoformat()
-    rows = build_rows(halls, cal, weather, now_iso)
+    rows = build_rows(halls, cal, weather, now_iso, fc_weather)
     sim = {(r["hall_id"], r["service_date"]) for r in db.select("context_day", {"is_simulated": "eq.true"}, "hall_id,service_date")}
     rows, skipped = drop_simulated(rows, sim)
     print(f"halls: {', '.join(halls)}")
@@ -252,7 +304,7 @@ def main(argv: list[str] | None = None) -> int:
         print("dry run: nothing written")
         return 0
     db.insert("context_day", rows, on_conflict="hall_id,service_date", upsert=True)
-    print(f"upserted {len(rows)} rows (is_simulated = false)")
+    print(f"upserted {len(rows)} rows (is_simulated = false); {sum(1 for r in rows if r['fc_source'])} with a day-ahead weather forecast")
     return 0
 
 

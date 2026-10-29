@@ -3,7 +3,7 @@
 ## Resume here
 
 - **Run 4 (started 2026-10-28):** branch `run4` from `forecast-v2` (`79bfa6f`). See "Run 4" at the bottom.
-- **Next step:** secret scan, push `run4` if clean, RUN4_REPORT.md. Migrations `…17` and `…18` are applied live.
+- **Next step:** Run 4 is COMPLETE. See `RUN4_REPORT.md`. Nothing is running (the SAM worker was stopped). Migrations `…17` and `…18` are applied live.
 - **Gemini calls this run:** 36 / 40 (no more planned).
 - Migrations: `npx supabase db push --db-url "$SUPABASE_DB_URL"` (dry run first) inside a subshell that sources `.env`; never echo it.
 
@@ -560,8 +560,8 @@ Brief: tasks 1-5 + RUN4_REPORT.md. Gemini cap 40 (Task 1 ≤ 30, Task 4 ≤ 10).
 - [x] Task 3: forecast weather in backtests, shadow-mode lock, report command
 - [x] Task 4: plate estimates for the 6 hall-main scans (≤ 10 Gemini calls): 6 used
 - [x] Task 5: docs/camera-calibration-checklist.md
-- [ ] Secret scan, push `run4` if clean
-- [ ] RUN4_REPORT.md
+- [x] Secret scan, push `run4` if clean
+- [x] RUN4_REPORT.md
 
 ### Gemini call log (Run 4, cap 40)
 
@@ -624,3 +624,10 @@ Brief: tasks 1-5 + RUN4_REPORT.md. Gemini cap 40 (Task 1 ≤ 30, Task 4 ≤ 10).
   - Expected card pixels: 38,000 at 45 cm and 41,600 at 43 cm (computed).
   - Overlay link, `demo.py --only calibration`, and a test plate.
   - Fixed the stale Settings-panel step in `calibration.md`.
+- 20:35. **Secret scan.**
+  - Scope: `git log -p --all` (335 commits), including commit messages.
+  - 0 matches against the real `.env` values; the DB password alone: 0.
+  - Strong patterns in the Run 4 diff: 0.
+  - 35 weak hits = the 32 from Run 3, plus 3 Run 3 log lines quoting fixtures and code (`sb_secret_example`, `sb_secret_THIS_MUST_NOT_SHIP_0000`, `TOKEN = os.environ.get`).
+  - **Verdict: clean.** SAM worker stopped.
+- 20:40. Wrote `RUN4_REPORT.md`; pushed `run4` (no PR, no merge). **Run 4 done; stopping.**

@@ -17,6 +17,91 @@ This page records what was measured, on what, and with which settings, because t
 
 **Recall** = correct ÷ (correct + missed): the labeled foods the pipeline found. **Precision** = correct ÷ (correct + wrong): the foods it reported that were really there.
 
+## Timing and the pass 2 timeout (Run 5, 2026-10-29)
+
+Same 12 photos, the 23-food menu of that dinner, `gemini-3.8-flash`, seed 42, temperature 0, 2 passes, 90 s timeout, 2 retries. In memory, with no Supabase or R2 writes (`tests/live/detection-runs.mjs`).
+
+**How the times were taken:**
+- Every Gemini attempt is timed inside the gateway (`onCall`). Each pass's time runs from its first try to the end of its last. SAM requests are timed separately. A photo's total is the wall clock of the whole ingest.
+- **The two passes are sent at the same time** (`Promise.allSettled`; measured on every photo), so a photo takes about as long as its slower pass plus about 1 s.
+- **Request settings:** no `maxOutputTokens`, and **no thinking setting (the model's default)**. JSON schema output. The image is the normalized 1024 × 1024 JPEG.
+
+### Per-pass times (seconds; timeouts listed, not averaged)
+
+| | Step A: before (model default), 12 photos | | | | Attempt 1: thinking cap 8192 on every request, 11 photos | | | |
+|---|---|---|---|---|---|---|---|---|
+| | avg | median | fastest | slowest | avg | median | fastest | slowest |
+| Pass 1 | 21.7 | 18.8 | 8.3 | 63.1 | 21.3 | 17.0 | 7.2 | 61.5 |
+| Pass 2 | 33.3 | 37.7 | 11.3 | 49.0 | 31.8 | 35.4 | 11.7 | 49.1 |
+| SAM | 0.5 | 0.5 | 0.3 | 0.7 | 0.4 | 0.4 | 0.3 | 0.7 |
+| Total | 34.7 | 38.4 | 14.9 | 50.0 | 33.3 | 36.5 | 14.7 | 50.5 |
+
+- **Timeouts:**
+  - Step A, pass 2: 1 of 12 timed out (IMG_2706, 3 tries × 90 s = 271.5 s). That photo is left out of the pass 2 and total rows.
+  - Attempt 1, pass 2: 1 of 11 timed out, IMG_2706 again (3 × 90 s).
+  - Attempt 1 stopped before IMG_2707 at its call cap.
+- **Accuracy:**
+  - Step A: 17 correct, 1 missed (the IMG_2706 pie), 1 wrong (IMG_2703 + Sticky Rice); recall 94.4%, precision 94.4%. This is identical to Run 4.
+  - Attempt 1: the same detections on the 11 photos it ran (15/1/1 over 11).
+- **What the time depends on (attempt 1, 10 photos, both passes finished):**
+  - It follows **thinking tokens**: correlation 0.87 for pass 1 and 0.74 for pass 2.
+  - It follows the number of boxes (0.43 / 0.34) and answer tokens (0.43 / 0.37) only weakly.
+  - It does **not** grow with the number of labeled foods (−0.22 / 0.00).
+  - Typical passes think 450–2,900 tokens and answer 130–1,800 tokens, with 1–27 boxes.
+- **Pass 2 takes about 1.9× as long as pass 1** (median of the per-photo ratios), even with similar token counts. For example, IMG_2701 took 10.3 s vs. 19.6 s at 868 vs. 846 thinking tokens. The two requests differ only by the one close-up line and are sent together. I did not find why.
+
+### Per photo (Step A times, plus tokens from attempt 1)
+
+| Photo | Labeled foods | Pass 1 s | Pass 2 s | SAM s | Total s | Pass 1 thinking / answer tokens, boxes | Pass 2 thinking / answer tokens, boxes |
+|---|---|---|---|---|---|---|---|
+| IMG_2695 | 2 | 14.8 | 11.3 | 0.6 | 16.2 | 790 / 1,296, 19 | 604 / 1,038, 18 |
+| IMG_2696 | 1 | 15.6 | 41.7 | 0.3 | 42.4 | 1,482 / 195, 2 | 2,686 / 195, 2 |
+| IMG_2697 | 3 | 19.7 | 39.9 | 0.6 | 41.4 | 1,332 / 1,748, 26 | 1,948 / 1,028, 23 |
+| IMG_2698 | 2 | 17.9 | 35.6 | 0.7 | 37.2 | 1,174 / 1,164, 17 | 864 / 1,814, 27 |
+| IMG_2699 | 2 | 14.4 | 27.9 | 0.5 | 29.1 | 859 / 1,036, 15 | 784 / 1,028, 15 |
+| IMG_2700 | 1 | 22.6 | 47.8 | 0.6 | 49.2 | 1,777 / 1,305, 19 | 2,111 / 1,364, 20 |
+| IMG_2701 | 1 | 11.5 | 20.9 | 0.3 | 21.6 | 868 / 198, 2 | 846 / 200, 2 |
+| IMG_2702 | 1 | 21.1 | 37.7 | 0.3 | 38.4 | 2,152 / 199, 2 | 1,348 / 197, 2 |
+| IMG_2703 | 1 | 31.2 | 49.0 | 0.4 | 50.0 | 2,892 / 775, 11 | 1,471 / 780, 11 |
+| IMG_2704 | 1 | 8.3 | 14.3 | 0.3 | 14.9 | 552 / 132, 1 | 448 / 131, 1 |
+| IMG_2706 | 1 | 63.1 | **timed out** (3 × 90) | 0.4 | 272.4 | 7,707 / 258, 3 | — (timed out) |
+| IMG_2707 | 2 | 20.5 | 40.7 | 0.5 | 41.8 | not run in attempt 1 | not run in attempt 1 |
+
+**Step A's own token and box counts were lost:** the runner crashed after scoring, before writing its results (`ReferenceError: Cannot access 'stat' before initialization`; fixed). Its times survive because each was printed as the photo finished. The token columns therefore come from attempt 1, which sent the same request plus a thinking cap that none of these photos reached (all ≤ 2,892 thinking tokens < 8192). Attempt 1's times match Step A's within a few seconds.
+
+### Cause of the IMG_2706 timeout: runaway thinking
+
+**Diagnostic:** IMG_2706 alone, both passes, a 300 s timeout and no retries (2 calls):
+
+| | Thinking tokens | Answer tokens | Boxes | Time | Finish |
+|---|---|---|---|---|---|
+| Pass 1 | 7,707 | 258 | 3 | 64.9 s | STOP |
+| Pass 2 | **28,718** | 199 | 2 | **227.6 s** | STOP |
+
+- Given 228 s, pass 2 **found the pie**: 1 correct, 0 missed, 0 wrong on that photo.
+- It is **not** runaway output (199 answer tokens), **not** too many boxes (2), and **not** the image size (1024²).
+- It **is** unbounded thinking. With the fixed seed, an identical retry thinks just as long, so all 3 tries time out.
+- **The fallback exists.** When one pass fails, the other pass's boxes are used alone. But pass 1's answer on this photo has no pie on the scanned plate, so the pie was missed only because pass 2 never finished.
+
+**Attempt 1: a general cap of 8192 thinking tokens on every request did not help.**
+- IMG_2706's pass 2 still timed out 3 × 90 s.
+- The other photos never come near 8192, so nothing else changed (same detections, similar times).
+
+**Probe: the same pass 2 request with thinking capped at 1024** (`tests/live/pass-probe.mjs`, 1 call). It answered in **14.0 s** with 172 answer tokens (no thinking tokens reported), finish STOP. It found the **Chocolate Coconut Cream Pie on the scanned plate**, plus two pieces on another dish.
+
+### Fix (applied)
+
+- **A timed-out image → JSON request is retried with thinking capped at 1024 tokens** (`vision/src/gateway.ts`; `GEMINI_TIMEOUT_RETRY_THINKING_BUDGET`, default 1024; `off` = identical retries). Tests: `vision/test/gateway.test.ts`.
+- **First attempts keep the model's default thinking**, exactly as in Step A, so the 11 photos that never time out are unchanged. Their measured results are the Step A rows above.
+- The general cap from attempt 1 is not the default. It remains available as an option (`GEMINI_THINKING_BUDGET`, unset).
+
+**Not measured end to end:** the full pipeline on IMG_2706 with this retry. That run needs 3 calls (pass 1, a pass 2 that times out, then the capped retry), and Task 1 had 2 left of its 55.
+- What is measured is that the exact retry request returns in 14 s with the pie.
+- Expected result: IMG_2706 scores 1 correct (the pie; extras on this photo are never wrong), so 18 correct, 0 missed, 1 wrong overall (recall 100%, precision 94.7%). **This is a projection, not a measurement.**
+- Expected time on IMG_2706: 90 s (the timed-out first try) + 0.5 s backoff + about 14 s, so about 105 s instead of 272 s.
+
+**Gemini calls for this section:** 26 (Step A) + 2 (diagnostic) + 24 (attempt 1) + 1 (probe) = **53**.
+
 ## Per-meal menu (Run 4, 2026-10-28)
 
 **Question:** in a real hall the pipeline knows which meal a photo comes from, so it should offer only that meal's foods. What happens to the score when each photo gets only its own meal's menu?

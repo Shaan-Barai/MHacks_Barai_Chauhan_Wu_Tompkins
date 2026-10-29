@@ -28,6 +28,7 @@ export type {
   GatewayTextPart,
   GatewayInlineDataPart,
   GatewayRequest,
+  GatewayCallRecord,
   MockTransport,
 } from './gateway.js';
 

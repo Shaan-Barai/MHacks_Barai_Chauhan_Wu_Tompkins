@@ -361,6 +361,7 @@ export async function measureTargetPlate(
     systemInstruction: LOCALIZE_SYSTEM_INSTRUCTION,
     responseSchema: buildLocalizeSchema(menuIds.length),
     temperature: 0,
+    label: 'localize-pass1',
   });
   const base = { geminiCalls: 1 as const, promptVersion: LOCALIZE_PROMPT_VERSION };
   const located = validateLocalizeText(text, menuIds);
@@ -451,12 +452,13 @@ async function runStages(gateway: GeminiGateway, segmenter: Segmenter, input: Ma
   }
   localization.geminiCalls = prompts.length;
   const settled = await Promise.allSettled(
-    prompts.map((text) =>
+    prompts.map((text, i) =>
       gateway.generateStructured({
         parts: [imagePart, { text }],
         systemInstruction: LOCALIZE_SYSTEM_INSTRUCTION,
         responseSchema: buildLocalizeSchema(menuIds.length),
         temperature: 0,
+        label: `localize-pass${i + 1}`,
       }),
     ),
   );

@@ -57,7 +57,7 @@ The same 12 real photos (`test2/`, IMG_2705 not scored), 18 labeled foods, `imag
   The report logic is tested on synthetic rows (locked, late, pre-shadow, not started; matched stockouts; SIMULATED label). The database lock is tested offline in Postgres (PGlite, 15 checks): no updates after the start, no backdating, simulated rows still removable, upserts can't revise.
 - **IMG_2706 timeout:** `GEMINI_TIMEOUT` on pass 2, 3 attempts × 90 s, twice. 90 s is the new default but is still not always enough.
 - **The gbm-v1 simulated result changed.** It now reads forecast weather: WAPE went 17.8% → 18.6%, and the 10–90% coverage is 89%. The simulated demand ignores weather, so the new features can only add noise; this says nothing about real weather. The new run is stored as `bt_3aa03e8682a2`; the old one is kept. The other models are unchanged.
-- **Small error I hit and fixed:** `./test-all.sh` failed once on `stale data filenames … docs/detection-accuracy.md:34` (I had written the old `menu_waste_factors.csv` name). I reworded it; everything passed.
+- **Small error I hit and fixed:** `./test-all.sh` failed once on `stale data filenames … docs/detection-accuracy.md:34` (I had written the dinner factor table's old, pre-`factors/` file name). I reworded it; everything passed.
 - **`demo.py` not run live** (it needs the full local stack). Nothing in Run 4 adds a dashboard feature; the shadow report is a CLI.
 
 ## 4. Decisions made on your behalf

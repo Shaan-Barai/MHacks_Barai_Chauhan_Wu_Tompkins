@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { GatewayError } from '../src/errors.js';
-import { createGeminiGateway, DEFAULT_MODEL, DEFAULT_TIMEOUT_MS } from '../src/gateway.js';
+import { createGeminiGateway, DEFAULT_MODEL, DEFAULT_TIMEOUT_RETRY_THINKING_BUDGET, DEFAULT_TIMEOUT_MS } from '../src/gateway.js';
 
 const noSleep = async () => {};
 
@@ -28,6 +28,48 @@ test('the Gemini timeout defaults to 90 s; GEMINI_TIMEOUT_MS overrides it', () =
   assert.equal(createGeminiGateway({ env: { GEMINI_TIMEOUT_MS: 'not a number' } }).timeoutMs, 90_000);
   assert.equal(createGeminiGateway({ env: { GEMINI_TIMEOUT_MS: '45000' } }).timeoutMs, 45_000);
   assert.equal(createGeminiGateway({ env: {}, timeoutMs: 1000 }).timeoutMs, 1000);
+});
+
+test('structured requests keep the model default thinking; a timed-out one is retried with thinking capped at 1024', async () => {
+  const seen: unknown[] = [];
+  let n = 0;
+  const gw = (env: Record<string, string>, failFirst = false) =>
+    createGeminiGateway({
+      env, sleep: noSleep, onCall: (c) => seen.push([c.label, c.attempt, c.settings.thinkingBudget, c.ok]),
+      mockTransport: () => {
+        if (failFirst && n++ === 0) throw Object.assign(new Error('deadline exceeded'), { name: 'AbortError' });
+        return '{}';
+      },
+    });
+  assert.equal(DEFAULT_TIMEOUT_RETRY_THINKING_BUDGET, 1024);
+  assert.equal(gw({}).structuredThinkingBudget, null);
+  assert.equal(gw({ GEMINI_THINKING_BUDGET: '2048' }).structuredThinkingBudget, 2048);
+  await gw({}).generateStructured({ parts: [{ text: 'x' }], responseSchema: {}, label: 'localize-pass1' });
+  await gw({}, true).generateStructured({ parts: [{ text: 'x' }], responseSchema: {}, label: 'localize-pass2' });
+  await gw({}).generateText('hi');
+  assert.deepEqual(seen, [
+    ['localize-pass1', 0, 'model default', true],
+    ['localize-pass2', 0, 'model default', false], // timed out
+    ['localize-pass2', 1, 1024, true], // retried with less thinking
+    ['text', 0, 0, true],
+  ]);
+  seen.length = 0;
+  n = 0;
+  await gw({ GEMINI_TIMEOUT_RETRY_THINKING_BUDGET: 'off' }, true).generateStructured({ parts: [{ text: 'x' }], responseSchema: {}, label: 'p' });
+  assert.deepEqual(seen.map((x) => (x as unknown[])[2]), ['model default', 'model default'], '"off" = identical retry');
+});
+
+test('onCall reports each attempt with its label, timing and settings, never the key', async () => {
+  const calls: import('../src/gateway.js').GatewayCallRecord[] = [];
+  let n = 0;
+  const gw = createGeminiGateway({
+    env: {}, sleep: noSleep, onCall: (c) => calls.push(c),
+    mockTransport: () => { if (n++ === 0) throw Object.assign(new Error('deadline'), { name: 'AbortError' }); return '{"ok":1}'; },
+  });
+  assert.equal(await gw.generateStructured({ parts: [{ text: 'x' }], responseSchema: {}, label: 'localize-pass2' }), '{"ok":1}');
+  assert.deepEqual(calls.map((c) => [c.label, c.attempt, c.ok, c.outputChars ?? null]), [['localize-pass2', 0, false, null], ['localize-pass2', 1, true, 8]]);
+  assert.ok(calls.every((c) => c.durationMs >= 0 && c.settings.timeoutMs === 90_000));
+  assert.ok(!JSON.stringify(calls).toLowerCase().includes('apikey'));
 });
 
 test('generateText passes through the mock transport (Agent 6 interface)', async () => {

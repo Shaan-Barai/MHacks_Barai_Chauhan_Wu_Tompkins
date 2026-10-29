@@ -85,6 +85,8 @@ bounded retries. Suggestion prompts and business logic stay in `analytics/`.
 | `GEMINI_API_KEY` | _unset_ | Server-side only. **Unset ⇒ mock mode.** |
 | `GEMINI_MODEL` | `gemini-3.8-flash` | Model id passed to `@google/genai`. |
 | `GEMINI_TIMEOUT_MS` | `90000` | Per-request timeout (AbortSignal). Raised from 30000 in Run 4: 30 s dropped real plate photos (see docs/detection-accuracy.md). |
+| `GEMINI_TIMEOUT_RETRY_THINKING_BUDGET` | `1024` | A structured request that timed out is retried with thinking capped at this; `off` = identical retries. Run 5: unbounded thinking (28,718 tokens, 228 s) caused the pass 2 timeouts; capped at 1024 the same request took 14 s. |
+| `GEMINI_THINKING_BUDGET` | unset | Optional thinking cap for every structured request; unset = the model's default (what was measured). |
 | `GEMINI_MAX_RETRIES` | `2` | Bounded retries after the first attempt (retryable errors only). |
 | `GEMINI_RETRY_BASE_DELAY_MS` | `500` | Exponential backoff base (500, 1000, …). |
 | `GEMINI_PASSES` | `2` | Localization passes per capture (`1` or `2`); equals the Gemini calls per capture. |

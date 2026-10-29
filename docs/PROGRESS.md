@@ -2,10 +2,14 @@
 
 ## Resume here
 
-- **Run 4 (started 2026-10-28):** branch `run4` from `forecast-v2` (`79bfa6f`). See "Run 4" at the bottom.
-- **Next step:** Run 4 is COMPLETE. See `RUN4_REPORT.md`. Nothing is running (the SAM worker was stopped). Migrations `…17` and `…18` are applied live.
-- **Gemini calls this run:** 36 / 40 (no more planned).
+- **Run 5 (started 2026-10-29 00:40 EDT):** branch `run5` from `run4` (`6493855`). See "Run 5" at the bottom.
+- **Next step:** Task 1 Step A is running (12 photos, timing).
+- **Gemini calls this run:** see the Run 5 log (cap 60).
 - Migrations: `npx supabase db push --db-url "$SUPABASE_DB_URL"` (dry run first) inside a subshell that sources `.env`; never echo it.
+
+### Run 4 (complete)
+
+- Branch `run4`, report `RUN4_REPORT.md`, 36 / 40 Gemini calls.
 
 ### Run 3 (complete)
 
@@ -631,3 +635,55 @@ Brief: tasks 1-5 + RUN4_REPORT.md. Gemini cap 40 (Task 1 ≤ 30, Task 4 ≤ 10).
   - 35 weak hits = the 32 from Run 3, plus 3 Run 3 log lines quoting fixtures and code (`sb_secret_example`, `sb_secret_THIS_MUST_NOT_SHIP_0000`, `TOKEN = os.environ.get`).
   - **Verdict: clean.** SAM worker stopped.
 - 20:40. Wrote `RUN4_REPORT.md`; pushed `run4` (no PR, no merge). **Run 4 done; stopping.**
+
+## Run 5: run5 (2026-10-29, unattended)
+
+Brief: Task 1 timing + the pass 2 timeout (≤ 55 Gemini), Task 2 bring PR #25 up to date, Task 3 scheduler (disabled), Task 4 pilot runbook, Task 5 cleanups, RUN5_REPORT.md. Gemini cap 60. Never touch main.
+
+### Checklist
+- [x] Setup: branch `run5` from `run4`
+- [x] Task 1: timing baseline, cause of the pass 2 timeout, fix, confirm (53 calls)
+- [ ] Task 2: merge `run5` into `overnight-supabase`, MERGE_REVIEW + PR #25 description, scan, push
+- [x] Task 3: scheduler, written and off
+- [x] Task 4: docs/pilot-runbook.md
+- [x] Task 5: plate size in the tooltip, optional `station` column
+- [ ] RUN5_REPORT.md
+
+### Gemini call log (Run 5, cap 60)
+
+| When | What | Calls | Running total |
+|---|---|---|---|
+| 00:43 | Task 1 Step A: 12 photos, 23-food menu, timing | 26 | 26 |
+| 00:55 | Task 1 Step B: IMG_2706 diagnostic, 300 s timeout, no retries | 2 | 28 |
+| 01:00 | Task 1 attempt 1: 8192 thinking cap on every request, stopped before IMG_2707 at its cap | 24 | 52 |
+| 01:15 | Task 1 probe: IMG_2706 pass 2 with thinking capped at 1024 | 1 | 53 |
+
+### Decisions made on my behalf
+
+1. **Timing is measured inside the gateway:** a new `onCall` hook reports every provider attempt (label `localize-pass1`/`localize-pass2`, retry number, wall time, answer characters, token counts from Gemini's usage metadata, finish reason, and the settings sent). It reports values, never keys. SAM is timed by wrapping its client in the runner. The total is the wall clock of the whole ingest.
+2. **`images/ground_truth.csv` is left untouched:** it is not tracked in git (your local file). The loader and both scorers now read an optional column whose header is `Station`, anywhere in the row. Add it when you're ready; blank cells are fine.
+3. **Reviewer names are no longer returned by the API (Task 4 found this):** `GET /api/production-log` needs no sign-in and returned `confirmedBy`, which `/production` showed as "Checked by" to anyone with the link. The runbook promises staff names stay private, so the API now always returns `confirmedBy: null`. The name is still required to confirm, and still stored in the private table. The column shows the date checked instead. This is a privacy fix, not a new feature.
+4. **Scheduler = GitHub Actions** running `python -m forecast.scheduled_run` (standard library only, the same worker code). Supabase pg_cron would need the worker rewritten as an Edge Function. It is off until the repository variable `FORECAST_SCHEDULER_ENABLED` is `true`. GitHub only schedules workflows from the default branch, so it also needs merging to main, which I did not do.
+5. **The scheduled run never writes a started service, not even a "late" row:** unlike `forecast.worker run`, which inserts missing rows for started services.
+6. **Step A's token data was lost to my bug, and not re-bought:** the runner crashed after scoring (`ReferenceError: Cannot access 'stat' before initialization`), before writing `runs.json`. The per-photo times were printed as each photo finished, so pass 1, pass 2, SAM, total and retries survive (0.1 s precision). The token counts, characters and box counts per pass were lost. A full re-run would have cost about 26 of the remaining 34 calls and left too few to diagnose and confirm a fix. Fixed: `stat` is now a hoisted function, and `runs.json` is written before the summary.
+7. **The cause is unbounded thinking, so the fix is a thinking cap, not a longer timeout:** IMG_2706 with a 300 s timeout and no retries gave pass 2 = 28,718 thinking tokens, 199 answer tokens, 2 boxes, 227.6 s (pass 1: 7,707 / 258 / 3 / 64.9 s). It was not runaway output, not too many boxes, and not a large image (1024²). `GEMINI_THINKING_BUDGET` (default 8192) now goes with every structured image → JSON request, including the production-sheet reader. At the measured ~125 thinking tokens/s, that bounds a pass to about 65–70 s.
+8. **Fallback:** it already exists. When a pass fails, the other pass's boxes are used alone. On IMG_2706 pass 1's answer has no pie, so the pie was missed only because pass 2 never finished. Given 300 s, pass 2 found it (1 correct, 0 missed, 0 wrong).
+9. **Step C re-ran all 12 for attempt 1:** a cap on every request could shift any answer. Attempt 1 (8192 on every request) did **not** fix IMG_2706 (still 3 × 90 s); nothing else changed. A probe of the same pass 2 request capped at 1024 answered in 14.0 s and found the pie.
+10. **The final fix is aimed at the failure:** a timed-out structured request is retried with thinking capped at 1024 (`GEMINI_TIMEOUT_RETRY_THINKING_BUDGET`). It replaces identical retries, which with the fixed seed think just as long. First attempts keep the model default, so the 11 photos that never time out stay exactly as measured in Step A. I dropped the 8192 default because it was measured to change nothing.
+11. **No end-to-end run of the final fix:** it needs 3 calls on IMG_2706, and Task 1 had 2 of its 55 left. The documentation says what is measured (the capped retry request: 14 s, pie found) and what is projected (18/0/1).
+12. **Commits per task after one `./test-all.sh` on the complete tree:** the tasks touch separate files, so each commit is a subset of a tree that passed.
+
+### Log
+
+- 00:40. Created `run5` from `run4` (`6493855`). SAM worker started (:8790).
+- 00:43–00:55. **Task 1 Step A** (26 calls): 17/1/1, recall 94.4%, precision 94.4%, the same as Run 4. Pass 1 avg 21.7 / median 18.8 / 8.3–63.1 s (n 12). Pass 2 avg 33.3 / median 37.7 / 11.3–49.0 s (n 11; IMG_2706 timed out 3 × 90 s). SAM 0.5 s. Total avg 34.7 / median 38.4 / 14.9–50.0 s (n 11). The passes run at the same time. Pass 2 ≈ 1.9 × pass 1. No correlation with the labeled food count (−0.22 / −0.05).
+- 00:55–00:59. **Step B diagnostic** (2 calls): see decision 7.
+- 01:00. Thinking cap added (`vision/src/gateway.ts`, +2 tests: vision 106). The `onCall` timing hook is tested as well.
+- 01:00–01:15. **Attempt 1** (24 calls): 8192 on every request. IMG_2706 pass 2 still timed out; the other 10 photos had the same detections and similar times. Tokens: thinking 450–2,900, answers 130–1,800, 1–27 boxes. Time correlates with thinking (0.87 / 0.74), weakly with boxes (0.43 / 0.34).
+- 01:15. **Probe** (1 call, `tests/live/pass-probe.mjs`): IMG_2706 pass 2, thinking 1024 → 14.0 s, 172 answer tokens, pie on the target plate.
+- 01:20. **Final fix:** retry-after-timeout with thinking 1024. The default is back to the model's own thinking. Vision 106. Written up in `docs/detection-accuracy.md` → "Timing and the pass 2 timeout".
+- **Task 3:** `forecast/scheduled_run.py`, `.github/workflows/forecast-schedule.yml` (gated on `vars.FORECAST_SCHEDULER_ENABLED`), `docs/scheduler-setup.md`, +5 tests. A live dry run planned 24 SIMULATED rows (lunch and dinner on 10-29 and 10-30) and wrote nothing.
+- **Task 4:** `docs/pilot-runbook.md`. Reviewer names are no longer returned by `/api/production-log`, and the `/production` "Checked" column shows the date (backend and frontend tests updated).
+- **Task 5:**
+  - `assumedPlateDiametersCm` was added to `GET /api/dashboard/estimated-weight`; the tooltip says "Assumes 10.5-inch (26.7 cm) plates".
+  - The ground-truth loader and both scorers read an optional `Station` column, with a by-station breakdown. Without the column, the 2026-10-03 experiment still scores 36/0/3.

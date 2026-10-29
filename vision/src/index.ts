@@ -33,7 +33,8 @@ export type {
 
 export { analyzeCapture } from './analyze.js';
 
-export { analyzeCaptureWithMasks } from './maskPipeline.js';
+export { analyzeCaptureWithMasks, measureTargetPlate } from './maskPipeline.js';
+export type { TargetPlateResult } from './maskPipeline.js';
 export type { MaskAnalysisInput, MaskAnalysisResult, MaskAnalysisDiagnostics, LocalizationStats } from './maskPipeline.js';
 export { NEIGHBOR_CLIP_MIN_FRACTION } from './maskPipeline.js';
 export type { PhysicalCalibration, PhysicalStageInput, PhysicalStageResult, PhysicalUnavailable } from './maskPipeline.js';

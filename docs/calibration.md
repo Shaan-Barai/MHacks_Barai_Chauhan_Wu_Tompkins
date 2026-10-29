@@ -167,3 +167,17 @@ pounds               = grams / 453.59237
 - The forecast uses these grams for tray waste only when scans cover ≥ 80% of a meal's diners (`forecast/data.py`, `MIN_SCAN_COVERAGE`). Camera-calibrated measurements are preferred when both exist.
 - Code: `vision/src/targetDish.ts` (`measurePlate`), `analytics/src/plateScale.ts`, `backend/src/services/impactService.ts` (`estimatedWeight`), and migration `20261028000015_plate_scale.sql`.
 - Scans analyzed before this change have no plate record. Re-analysis would add one, but costs Gemini calls.
+
+### Scans analyzed before plate-scale-v1 (Run 4 backfill)
+
+```bash
+cd backend && npm run build && node scripts/backfill-plate-scale.mjs --hall hall-main --dry-run    # then without --dry-run
+```
+
+- **What it does:** for each visible scan whose counted attempt has no plate row, it re-runs **only Gemini pass 1**. That is the unchanged base prompt the full pipeline takes its dish box from, run on the same stored photo with the attempt's own menu version. It then measures the plate.
+- **What it stores:** the row goes on the counted attempt with `box_source = 'backfill-pass1'` (migration `20261028000018`).
+- **What it costs and never touches:** one Gemini call per scan, capped by `--max-gemini` (default 10). No new attempt, no SAM and no measurement change, so Pixels wasted cannot move.
+- **Run 4 result (2026-10-28, 6 Gemini calls):** all 6 visible hall-main scans got a usable plate (a fully visible round plate, 680–817 px across).
+  - Pixel totals are unchanged: 1,531,798 px over all 12 stored attempts, before and after; 748,986 px counted on the dashboard.
+  - Estimated food left: about **2.1 lb in total (ESTIMATE)**, assuming every plate is 26.7 cm across.
+  - That covers 578,319 of the 748,986 px. The rest (Belgian Waffles, Margherita Flatbread, and food not on the menu) has no grams-per-cm² factor, so it gets no pounds.

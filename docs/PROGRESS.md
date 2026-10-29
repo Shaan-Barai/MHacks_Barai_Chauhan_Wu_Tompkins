@@ -3,8 +3,8 @@
 ## Resume here
 
 - **Run 4 (started 2026-10-28):** branch `run4` from `forecast-v2` (`79bfa6f`). See "Run 4" at the bottom.
-- **Next step:** Task 4 (plate estimates for the 6 hall-main scans). Migration `…17` is applied live.
-- **Gemini calls this run:** 30 / 40 (Task 1 done; Task 4 may use ≤ 10).
+- **Next step:** Task 5 (camera calibration checklist), then the secret scan, push and RUN4_REPORT.md. Migrations `…17` and `…18` are applied live.
+- **Gemini calls this run:** 36 / 40 (no more planned).
 - Migrations: `npx supabase db push --db-url "$SUPABASE_DB_URL"` (dry run first) inside a subshell that sources `.env`; never echo it.
 
 ### Run 3 (complete)
@@ -56,6 +56,7 @@
 |---|---|---|---|
 | 18:04 | Task 1: 12 photos, 23-food menu of that dinner, 1 run | 26 | 26 |
 | 18:15 | Task 1: IMG_2706 re-run (pass 2 timed out again) | 4 | 30 |
+| 20:15 | Task 4: plate backfill, pass 1 only, 6 scans | 6 | 36 |
 | 01:49 | Phase 2 detection run attempt 1 (default 30 s timeout), stopped after 4 photos: IMG_2696 and IMG_2697 each burned 6 calls on GEMINI_TIMEOUT (2 passes × 3 attempts) | 16 | 16 |
 | 02:15 | Phase 2: 3 identical detection runs, 12 photos each (90 s timeout) | 77 | 93 |
 | 02:45 | Phase 2: 23-food menu check on IMG_2700 + IMG_2702 | 4 | 97 |
@@ -557,7 +558,7 @@ Brief: tasks 1-5 + RUN4_REPORT.md. Gemini cap 40 (Task 1 ≤ 30, Task 4 ≤ 10).
 - [x] Task 1: per-meal menu (≤ 30 Gemini calls): 30 used
 - [x] Task 2: Gemini timeout default 90 s
 - [x] Task 3: forecast weather in backtests, shadow-mode lock, report command
-- [ ] Task 4: plate estimates for the 6 hall-main scans (≤ 10 Gemini calls)
+- [x] Task 4: plate estimates for the 6 hall-main scans (≤ 10 Gemini calls): 6 used
 - [ ] Task 5: docs/camera-calibration-checklist.md
 - [ ] Secret scan, push `run4` if clean
 - [ ] RUN4_REPORT.md
@@ -589,6 +590,10 @@ Brief: tasks 1-5 + RUN4_REPORT.md. Gemini cap 40 (Task 1 ≤ 30, Task 4 ≤ 10).
 11. **Task 3, matched stockouts for locked forecasts:** the stored prep amounts are scaled by one shared factor k until stockouts ≤ FSS's. Stored rows are not changed, and k is printed. The stored error spreads needed to shift q are not in the table.
 
 
+12. **Task 4, pass 1 only, no re-analysis:** a full re-analysis (2 passes = 12 calls) would exceed the 10-call cap, and it would create new attempts whose counts could differ from the stored ones. Instead `backend/scripts/backfill-plate-scale.mjs` re-runs only Gemini pass 1: the same base prompt the pipeline takes its plate box from, with seed 42, temperature 0, the attempt's own menu version and the stored photo. It attaches the plate row to the existing counted attempt. That made 6 calls, with no new attempts and no measurement changes.
+13. **Task 4, provenance column:** additive migration `…18` adds `plate_scale_estimate.box_source` ('analysis' default, 'backfill-pass1'), so backfilled boxes are distinguishable from boxes recorded during the scan.
+
+
 ### Log
 
 - Created `run4` from `forecast-v2` (`79bfa6f`). `GEMINI_API_KEY`, `GEMINI_MODEL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_DB_URL` are each present once (values not printed).
@@ -603,3 +608,10 @@ Brief: tasks 1-5 + RUN4_REPORT.md. Gemini cap 40 (Task 1 ≤ 30, Task 4 ≤ 10).
   - Worker dry run for 10-28..10-30: 24 before service start, 12 after.
   - Tests: forecast +11 (`test_shadow_weather.py`; gbm included under `.venv`); PGlite +15 checks.
   - `./test-all.sh`: ALL PASSED (forecast 85).
+- 20:12. Resumed after the laptop slept. Committed Task 3 (`8290727`).
+- 20:15. **Task 4.**
+  - `vision` `measureTargetPlate` (pass 1 + measurePlate; +2 tests).
+  - Migration `…18`: dry run, then applied live.
+  - `backend/scripts/backfill-plate-scale.mjs`: dry run 6 → live run, **6/6 recorded a usable plate** (diameter 768.5, 724.5, 816.6, 679.9, 736.8, 783.4 px), 6 Gemini calls.
+  - Pixels before and after: all 12 attempts 1,531,798 px, 26 measurements 1,531,798 px; **identical**.
+  - `GET /api/dashboard/estimated-weight` (in-process backend): 6/6 plates with scale, 748,986 px, **estimated 2.14 lb (ESTIMATE, 26.7 cm plates assumed)**. 3 foods (170,667 px) have no factor, so no pounds.

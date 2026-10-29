@@ -113,5 +113,7 @@ export interface PlateScaleRecord {
   /** The plate diameter assumed when this was recorded (PLATE_DIAMETER_CM). */
   assumedPlateDiameterCm: number;
   unavailableReason: string | null;
+  /** Where the dish box came from (migration 20261028000018). Omitted = 'analysis'. */
+  boxSource?: 'analysis' | 'backfill-pass1';
   createdAt: string;
 }

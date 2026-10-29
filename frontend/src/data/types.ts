@@ -555,6 +555,7 @@ export interface ProductionRow {
   reviewFlags: string[]
   /** Flags that must be fixed before the row can be confirmed. */
   blockingFlags: string[]
+  /** Always null from the API: reviewer names stay in the private table (Run 5). */
   confirmedBy: string | null
   confirmedAt: string | null
   isSimulated: boolean
@@ -632,4 +633,61 @@ export type ForecastSummary =
       totals: ForecastComparison
       dishes: ForecastDishRow[]
       upcoming: UpcomingForecast[]
+    }
+
+/** GET /api/dashboard/estimated-weight (plate-scale-v1): ESTIMATED pounds beside Pixels wasted. */
+export interface EstimatedWeightItem {
+  itemId: string | null
+  displayName: string
+  pixels: number
+  pixelsWithScale: number
+  estimatedLb: number | null
+  estimatedGrams: number | null
+  captures: number
+  capturesWithScale: number
+  weightGPerCm2: number | null
+  unavailableReason?: string
+}
+export interface EstimatedWeight {
+  available: boolean
+  isEstimate: true
+  method: 'plate-scale-v1'
+  note: string
+  /** Plate diameters (cm) the applied scales assumed; empty when no plate has a scale. Optional for older backends. */
+  assumedPlateDiametersCm?: number[]
+  items: EstimatedWeightItem[]
+  totals: { pixels: number; estimatedLb: number | null; captures: number; capturesWithScale: number }
+}
+
+/** GET /api/forecast/models: the latest walk-forward model comparison (forecast/backtest.py). */
+export interface ModelComparisonRow {
+  runId: string
+  windowStart: string
+  windowEnd: string
+  modelVersion: string
+  mode: 'default' | 'matched_stockouts' | 'as_given'
+  meals: number
+  censoredMeals: number
+  wape: number | null
+  bias: number | null
+  stockouts: number
+  leftoverLb: number | null
+  leftoverUsd: number | null
+  intervalCoverage: number | null
+  meanQ: number | null
+  comparisonLabel: string | null
+  isSimulated: boolean
+  generatedAt: string
+}
+export type ModelComparison =
+  | { available: false; hallId: string; rows: [] }
+  | {
+      available: true
+      hallId: string
+      runId: string
+      window: { start: string; end: string }
+      generatedAt: string
+      simulated: boolean
+      comparisonLabel: string | null
+      rows: ModelComparisonRow[]
     }

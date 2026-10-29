@@ -21,11 +21,14 @@ const skip =
 const DASHBOARD_TABLES = [
   'hall', 'dish', 'meal_service', 'menu_item', 'menu_item_revision', 'reference_portion', 'capture_event', 'food_measurement',
   'simulated_attendance', 'portions_served', 'insight', 'camera_calibration', 'measurement_settings',
-  'menu_cycle', 'production_log', 'attendance', 'context_day', 'forecast', 'forecast_outcome',
+  'menu_cycle', 'attendance', 'context_day', 'forecast', 'forecast_outcome', 'forecast_model_comparison',
 ];
 const PRIVATE_TABLES = [
   'image_object', 'analysis_attempt', 'capture_count', 'segmentation_region', 'attempt_calibration',
   'capture_visibility', 'dashboard_view', 'scan_info', 'demo_marker',
+  'production_log', // private since 20261028000013: reviewer names and sheet photo paths
+  'plate_scale_estimate', // 20261028000015
+  'meal_service_start', // 20261028000017: service start times for the forecast lock
 ];
 /** A real column of each table, so every refusal is a permission refusal (not "no such column"). */
 const KEY_COLUMN = {
@@ -35,7 +38,8 @@ const KEY_COLUMN = {
   menu_cycle: 'hall_id', production_log: 'hall_id', attendance: 'hall_id', context_day: 'hall_id', forecast: 'hall_id',
   forecast_outcome: 'error_lb', image_object: 'object_id', analysis_attempt: 'attempt_id', capture_count: 'attempt_id',
   segmentation_region: 'region_id', attempt_calibration: 'attempt_id', capture_visibility: 'event_id', dashboard_view: 'hall_id',
-  scan_info: 'event_id', demo_marker: 'marker_id',
+  scan_info: 'event_id', demo_marker: 'marker_id', plate_scale_estimate: 'attempt_id', forecast_model_comparison: 'run_id',
+  meal_service_start: 'meal_label',
 };
 const WRITE_FUNCTIONS = {
   upsert_menu: { p_menu: {} },

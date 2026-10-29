@@ -16,6 +16,9 @@ import {
   captureItemPhysical,
   type CapturePhysicalContext,
   generateRecommendation,
+  plateScaleWeights,
+  type PlateScale,
+  type PlateScaleWeights,
   recommendationFacts,
   RECOMMENDATION_PROMPT_VERSION,
   type TrendHalf,
@@ -199,6 +202,39 @@ export class ImpactService {
     const cal = cache.get(attempt.calibrationId);
     const mismatch = cal && (cal.widthPx !== event.geometry.widthPx || cal.heightPx !== event.geometry.heightPx);
     return { physicalMethod: null, unavailableReason: mismatch ? 'incompatible_geometry' : 'no_calibration' };
+  }
+
+  /**
+   * plate-scale-v1: ESTIMATED pounds per food beside the unchanged Pixels wasted, for the
+   * same eligible measurements as the dashboard. Captures without a recorded plate scale add
+   * pixels but no pounds (coverage says how many). Formulas: analytics/src/plateScale.ts.
+   */
+  async estimatedWeight(window: ImpactWindow): Promise<PlateScaleWeights & { available: boolean; assumedPlateDiametersCm: number[] }> {
+    const records = await this.gather(window);
+    const selected = selectImpactMeasurements({
+      services: records.map((r) => r.menu.service),
+      captures: records.flatMap((r) => r.captures),
+      measurements: records.flatMap((r) => r.measurements),
+      menuItems: records.flatMap((r) => r.items),
+      attemptMenuVersions: new Map(records.flatMap((r) => [...r.countedAttempts].map(([eventId, a]) => [eventId, a.menuVersion] as const))),
+      capturePhysical: new Map(records.flatMap((r) => [...r.physical])),
+    });
+    const counted = new Map(records.flatMap((r) => [...r.countedAttempts].map(([eventId, a]) => [eventId, a.attemptId] as const)));
+    const stored = this.repo.listPlateScales ? await this.repo.listPlateScales([...counted.keys()]) : [];
+    const scales = new Map<string, PlateScale | null>();
+    for (const p of stored) {
+      // Only the counted attempt's plate scale applies to its pixels.
+      if (counted.get(p.eventId) !== p.attemptId) continue;
+      scales.set(p.eventId, p.plateDiameterPx === null ? null : { plateDiameterCm: p.assumedPlateDiameterCm, plateDiameterPx: p.plateDiameterPx });
+    }
+    const weights = plateScaleWeights(
+      selected.measurements.map((m) => ({ eventId: m.eventId, itemId: m.itemId, displayName: m.displayName, pixels: m.pixels })),
+      scales,
+      (name) => findWasteFactor(name)?.weightGPerCm2 ?? null,
+    );
+    // The plate size each applied scale assumed (PLATE_DIAMETER_CM when it was recorded), so the UI can state it.
+    const assumed = [...new Set([...scales.values()].flatMap((x) => (x ? [x.plateDiameterCm] : [])))].sort((a, b) => a - b);
+    return { available: this.repo.listPlateScales !== undefined, assumedPlateDiametersCm: assumed, ...weights };
   }
 
   async dashboard(window: ImpactWindow): Promise<ImpactDashboard> {

@@ -65,6 +65,8 @@ export class IngestionService {
     private readonly analyzer: Analyzer,
     private readonly now: () => number = () => Date.now(),
     private readonly labelSuffix?: LabelSuffixFactory,
+    /** plate-scale-v1: the assumed plate diameter recorded with each plate measurement (PLATE_DIAMETER_CM). */
+    private readonly plateDiameterCm = 26.7,
   ) {
     this.providerStatus = new ProviderStatus(now);
   }
@@ -212,6 +214,7 @@ export class IngestionService {
 
     let attempt: AnalysisAttempt;
     let measurements: FoodMeasurement[];
+    let plate: AnalysisResult['plate'];
     try {
       const result = await this.analyzer.analyze({
         event,
@@ -223,6 +226,7 @@ export class IngestionService {
         ...(labelSuffix ? { labelSuffix } : {}),
       });
       attempt = result.attempt;
+      plate = result.plate;
       // Only the backend assigns storage references and the settings snapshot.
       // A stale analyzer's depth map reference (Depth Anything V2 removed) is never stored.
       delete (attempt as { depthObjectId?: unknown }).depthObjectId;
@@ -280,6 +284,26 @@ export class IngestionService {
     }
 
     await this.repo.recordAnalysis(attempt, measurements);
+    // plate-scale-v1: keep the plate's pixel size for labeled pound estimates. Never fails the scan.
+    if (plate && attempt.status === 'succeeded' && this.repo.recordPlateScale) {
+      try {
+        await this.repo.recordPlateScale({
+          attemptId: attempt.attemptId,
+          eventId: event.eventId,
+          method: 'plate-scale-v1',
+          dishType: plate.ok ? 'plate' : null, // ok means a fully visible, round plate
+          fullyVisible: plate.ok ? true : null,
+          plateDiameterPx: plate.ok ? plate.diameterPx : null,
+          boxWidthPx: plate.ok ? plate.boxWidthPx : null,
+          boxHeightPx: plate.ok ? plate.boxHeightPx : null,
+          assumedPlateDiameterCm: this.plateDiameterCm,
+          unavailableReason: plate.ok ? null : plate.reason,
+          createdAt: new Date(this.now()).toISOString(),
+        });
+      } catch (err) {
+        log.warn('plate scale not recorded', { eventId: event.eventId, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
     this.providerStatus.observe(attempt.status, attempt.error?.code);
 
     const finalState: ProcessingState =

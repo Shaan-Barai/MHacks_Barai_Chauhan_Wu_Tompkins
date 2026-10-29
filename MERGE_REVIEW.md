@@ -1,125 +1,120 @@
-# Merge review: `supabase-migration` + `overnight-supabase`
+# Merge review: `overnight-supabase` (draft PR #25)
 
-## How the two branches relate
+## How the branches relate
 
 ```
 origin/main (208c2d7)
-   └── supabase-migration   8 commits: the Supabase migration (schema, storage, backend, Realtime, import, tests)
-         └── overnight-supabase   +12 commits: forecasting (sheet reader, forecast worker, Forecast page)
-                                   and the 2026-10-25 follow-up fixes
+   └── supabase-migration     8 commits: the Supabase migration (schema, storage, backend, Realtime, import, tests)
+         └── overnight-supabase   forecasting (sheet reader, forecast worker, Forecast page) + 2026-10-25 fixes
+               └── forecast-v2 → run4 → run5   Runs 3–5 (2026-10-28/29), merged back into overnight-supabase
 ```
 
-`overnight-supabase` contains every commit of `supabase-migration`, so it is the only branch to review
-or merge. It is 0 commits behind `origin/main` and **merges cleanly** (checked with `git merge-tree`).
-Nothing has been pushed.
+`overnight-supabase` now contains everything from Runs 3–5 (`run5` was merged into it on 2026-10-29), so it is still the only branch to review. It is 0 commits behind `origin/main`, nothing has been merged to `main`, and the PR stays a draft.
 
-Size: 103 files, about 10,800 lines added and 150 removed. Most of that is new: SQL migrations, the
-Python `forecast/` package, tests, and docs. Changes to existing app code are about 3,300 lines across
-32 files in `backend/src`, `frontend/src`, `analytics/src` and `vision/src`.
+**Size:** 174 files, about 17,900 lines added and 190 removed. Most of that is new: SQL migrations, the Python `forecast/` package, tests and docs.
+
+**Supabase matches the branch.** Migrations `…01`–`…18` are all in `supabase/migrations/` here, and all are applied to the live project. Before this merge, `…13`–`…18` were live but missing from the PR.
 
 ## What the diff does, in plain English
 
-1. **Supabase becomes the database and image store** (opt-in with `DATABASE_PROVIDER=supabase` and
-   `OBJECT_STORAGE_PROVIDER=supabase`).
-   - Twelve SQL migrations create a Postgres table for each SpacetimeDB table, plus forecasting tables.
+### Supabase migration and forecasting (before Run 3)
+
+1. **Supabase becomes the database and image store** (opt-in with `DATABASE_PROVIDER=supabase` and `OBJECT_STORAGE_PROVIDER=supabase`).
+   - SQL migrations create a Postgres table for each SpacetimeDB table, plus the forecasting tables.
    - SpacetimeDB's multi-step "reducers" become Postgres functions that run as one transaction each.
-   - Row Level Security is on everywhere: the public dashboard key can only read, and only the server
-     can write.
+   - Row Level Security is on everywhere: the public dashboard key can only read, and only the server can write.
    - Images go to a private bucket and are shown through 10-minute signed links.
-   - The backend talks to all this through a new `SupabaseRepository`, which plugs into the existing
-     `Repository` interface, so the rest of the backend didn't change.
-2. **Live refresh:** the dashboard subscribes to new scans through Supabase Realtime and refetches its
-   usual API data. All the math stays where it was.
-3. **Data was copied over:** all 431 rows and 42 images from this Mac's SpacetimeDB and local image
-   folder, with exact counts and a 366-read comparison showing 0 differences.
-   - The 10 old scans were then re-analyzed with the current pipeline (appended, old rows kept), so
-     they count on the dashboard now.
-4. **Production sheets:** staff photograph the kitchen's handwritten sheet and Gemini reads it into
-   rows.
-   - Each value carries a confidence, and doubtful values are flagged.
-   - Nothing counts until a named person confirms each row on a new page.
-5. **Forecasting:** a Python worker predicts how many pounds of each dish to prep and how much buffer
-   to add, writes printable prep sheets, and scores itself against what happened and against the
-   existing FSS forecast.
-   - There's a new Forecast page.
-   - All of its data so far is **simulated** and labeled that way, including "Simulated FSS (assumed
-     +25% over-prep)".
-6. **Reading never writes:** dashboard GETs used to create attendance rows and call Gemini. Now they
-   only read; generating happens on explicit POSTs, and `READ_ONLY=1` is enforced at the database layer.
-7. **Docs and tests:**
-   - The README has a Supabase setup.
-   - New tests cover RLS, storage, Realtime, the full pipeline, "GETs never write" and the forecast
-     formulas.
-   - docs/PROGRESS.md, docs/OVERNIGHT_REPORT.md and docs/supabase-migration-plan.md explain everything.
+   - A new `SupabaseRepository` plugs into the existing `Repository` interface.
+2. **Live refresh** through Supabase Realtime. All the math stays where it was.
+3. **Data was copied over** from this Mac's SpacetimeDB and image folder: 431 rows and 42 images, with 0 differences in a 366-read comparison. The 10 old scans were re-analyzed (appended; old rows kept).
+4. **Production sheets:** staff photograph the handwritten sheet and Gemini reads it into rows. Nothing counts until a person confirms each row.
+5. **Forecasting:** a Python worker forecasts pounds per dish with a prep buffer, writes prep sheets, and scores itself against what happened and against FSS. There is a Forecast page. **All forecasting data so far is SIMULATED** and labeled that way.
+6. **Reading never writes:** dashboard GETs no longer create attendance rows or call Gemini, and `READ_ONLY=1` is enforced at the database layer.
+
+### Run 3 (2026-10-28)
+
+| Change | Migration |
+|---|---|
+| `production_log` is private: the anon key can no longer read it (it held reviewer names and sheet photo paths) | `…13` |
+| Real, sourced calendar context for hall-main: registrar calendar, football, Hebcal/Aladhan holidays, Open-Meteo weather; each row keeps its source URLs | `…14` |
+| Importers for M-Dining data (swipes, FSS export, production-sheet batches), each with a dry run and a validation report | — |
+| Plate-scale pounds (`plate-scale-v1`): an **estimate** beside Pixels wasted, assuming every plate is 26.7 cm / 10.5". Pixel totals unchanged | `…15` (private table) |
+| Five forecasting models, walk-forward backtest with a no-look-ahead test, and a "Model comparison" table on the Forecast page (**SIMULATED**) | `…16` |
+| The 4 `hall-e2e-*` test captures are **hidden, not deleted**; 9 services got simulated attendance | — |
+
+### Run 4 (2026-10-28)
+
+| Change | Migration |
+|---|---|
+| Backtests may use only weather **forecasts** known 24 h ahead (Open-Meteo Previous Runs API), stored apart from observed weather. A test fails if a backtest reads the target day's observed weather | `…17` |
+| **Shadow mode:** the database stamps every forecast with `created_at` and `locks_at` (the meal's start) and rejects changes after the lock. New `python -m forecast.shadow_report` (locked forecasts vs. FSS vs. actuals, at matched stockouts, SIMULATED label) | `…17` |
+| The default Gemini timeout went from 30 s to 90 s | — |
+| The 6 hall-main scans got plate measurements: only Gemini pass 1 was re-run on the stored photo, with no new analysis, so pixels are unchanged (6/6 usable; **≈ 2.1 lb, ESTIMATE**) | `…18` (`box_source` column) |
+| `docs/camera-calibration-checklist.md` | — |
+
+### Run 5 (2026-10-29)
+
+| Change | Migration |
+|---|---|
+| **Gemini pass 2 timeout found and fixed.** Cause: unbounded "thinking" (28,718 thinking tokens for a 199-token answer). A timed-out request is now retried with thinking capped at 1024 tokens | — |
+| **Reviewer names are no longer returned** by `GET /api/production-log`. It needs no sign-in and showed them on `/production`. They stay in the private table | — |
+| A scheduled forecast job (GitHub Actions), **written and OFF**. It writes forecasts before each meal's lock and never after. See `docs/scheduler-setup.md` | — |
+| `docs/pilot-runbook.md`: a 6-week shadow pilot at one hall | — |
+| The plate size shows in the Statistics tooltip ("Assumes 10.5-inch (26.7 cm) plates"). The ground-truth loader accepts an optional `Station` column | — |
+
+## Detection numbers: exactly what was measured (REAL photos)
+
+All from the same 12 real plate photos (`test2/`), 18 labeled foods, one dinner on 2026-10-03, labeled by the team. Model `gemini-3.8-flash`, seed 42, temperature 0, 2 passes. In memory, no database writes. Full write-up: `docs/detection-accuracy.md`.
+
+| Menu offered | Runs | Correct / missed / wrong | Recall | Precision |
+|---|---|---|---|---|
+| 26-food demo menu (3 foods not served that night) | 3, identical (Run 3) | 17 / 1 / 4 | 94.4% | 81.0% |
+| 23-food menu of that dinner | 1 (Run 4) + 1 (Run 5 Step A), identical | 17 / 1 / 1 | 94.4% | 94.4% |
+| 23-food menu, with the Run 5 timeout fix | **not measured end to end** (projected) | 18 / 0 / 1 | 100% | 94.7% |
+
+- **The projection:** the one miss (the pie on IMG_2706) happened because Gemini's second pass timed out. That exact request, retried with thinking capped at 1024, was measured: it answered in 14 s and found the pie. The full pipeline run with the fix was not done (it needs 3 calls; the budget had 2 left).
+- **The one wrong:** IMG_2703 + rice, which may be a labeling question.
+
+**Timing (Run 5 Step A, 12 photos, seconds; the two passes run at the same time):**
+
+| | avg | median | fastest | slowest |
+|---|---|---|---|---|
+| Gemini pass 1 | 21.7 | 18.8 | 8.3 | 63.1 |
+| Gemini pass 2 (11; IMG_2706 timed out 3 × 90 s) | 33.3 | 37.7 | 11.3 | 49.0 |
+| SAM | 0.5 | 0.5 | 0.3 | 0.7 |
+| Total per photo (11) | 34.7 | 38.4 | 14.9 | 50.0 |
+
+## What is SIMULATED (never present it as real)
+
+- **Everything on the Forecast page:** history, attendance, the "Simulated FSS (assumed +25% over-prep)", the model comparison, and every forecast row (`is_simulated = true` on hall-main). Remove before real use: `python3 -m forecast.simulate remove --hall hall-main`.
+- **Weather on the 42 simulated days**, including their simulated day-ahead forecasts. The 47 real days carry real Open-Meteo forecasts, with source URLs.
+- **Attendance** for the imported services: simulated, labeled.
+- **Pounds are estimates, not simulations.** They rest on an assumed plate size and average grams per cm².
 
 ## Risky parts to read yourself (most important first)
 
-1. **The Postgres write functions:** `supabase/migrations/…03_write_functions.sql`, plus `…08` and
-   `…10`, which redefine two of them. `upsert_menu`, `record_analysis`, `replace_portions_served` and
-   the others re-implement the old TypeScript reducers in SQL.
-   - They are tested offline (PGlite, 27 checks) and live (13-step repository round trip, full
-     pipeline).
-   - But this is business logic rewritten in a new language. `record_analysis`'s pixel checks and
-     `upsert_menu`'s revision archive deserve a careful read.
-2. **What the public (anon) key can read:** `…04_row_level_security.sql` lists 19 readable tables.
-   - **`production_log` is one of them, so the names people type into "confirmed by", and sheet photo
-     paths, are readable with the publishable key** that ships in the dashboard.
-   - If names shouldn't be public, move `production_log` to the private list (one line) and serve it
-     through the backend, which already does that.
-   - `capture_event` and `food_measurement` are readable too, as they were public in SpacetimeDB.
-3. **Key handling:** the service role key must stay on the server.
-   - `frontend/vite.config.ts` takes only the URL and publishable key through an allow-list and refuses
-     a secret key.
-   - A test scans the built bundle for secrets.
-   - Worth a glance, and worth rotating keys if `.env` was ever shared.
-4. **Behavior changes from "GETs never write":**
-   - The Statistics page shows the stored (or "stale") recommendation, or rule-based text, until
-     someone presses **Ask again**. It no longer calls Gemini on page load.
-   - Simulated attendance is no longer invented on first view. Run
-     `node backend/scripts/backfill-attendance.mjs` if you want it for existing services (9 imported
-     services have none).
-5. **Data now in your Supabase project:**
-   - The **simulated forecasting dataset lives on `hall-main`**, flagged `is_simulated`. Remove it
-     before real use with `python3 -m forecast.simulate remove --hall hall-main`.
-   - Four **`hall-e2e-*` halls are old test data** (one photo replayed 4 times) that came over in the
-     import.
-   - Re-analysis appended new attempts to the 10 imported captures.
-6. **Foreign keys and constraints that SpacetimeDB never had:** delete behavior cascades from a capture
-   or attempt to its children.
-   - One foreign key was dropped on purpose: demo captures use the image ID `demo:none`.
-   - Old data loaded cleanly, but new edge cases may surface as constraint errors instead of silently
-     bad rows (that's intended).
-7. **The forecast model** (`forecast/model.py`, `config.toml`): the defaults are conservative service
-   levels (entrée 0.95, side 0.90, self-serve 0.85, dessert 0.85).
-   - Results so far are on simulated data only.
-   - At matched stockouts it leaves 28% less than the simulated FSS. That is not evidence of real-world
-     gains.
-8. **Production sheet reader:** **not yet tested on a real sheet photo** (none was available), only on
-   mocked Gemini answers.
-9. **Unrelated but found:** scoring last night's live run against the restored `ground_truth.csv` gives
-   recall 94.4% and precision 81.0%, below the recorded 100% / 92.3%.
-   - Detection code wasn't touched by this work.
-   - The cause isn't investigated.
+1. **The Postgres write functions:** `…03_write_functions.sql`, plus `…08` and `…10`, which redefine two of them. They re-implement the old TypeScript reducers in SQL. They are tested offline (PGlite) and live, but this is business logic rewritten in a new language. `record_analysis` and `upsert_menu` deserve a careful read.
+2. **The shadow-mode trigger** (`…17`): it rejects updates, and deletes of real rows, once a meal starts. Simulated rows stay deletable. Check the lock times (07:00 / 11:00 / 16:30 in the hall's time zone; kept equal to `forecast/config.toml` by a test).
+3. **What the public (anon) key can read:**
+   - `production_log` is now private (`…13`), and its API no longer returns reviewer names (Run 5).
+   - `capture_event`, `food_measurement` and the forecast tables are readable, as before.
+4. **Key handling:**
+   - The service-role key stays on the server, and a test scans the built bundle for secrets.
+   - **New:** the scheduler would need the service-role key as a GitHub Actions secret (not set).
+   - Full-history secret scans before each push in Runs 3–5 were clean.
+5. **Behavior changes from "GETs never write":** the Statistics recommendation refreshes only on **Ask again**, and simulated attendance is no longer invented on first view.
+6. **Data in your Supabase project:** the simulated forecasting dataset on hall-main, 4 hidden `hall-e2e-*` test captures, appended re-analysis attempts, 6 backfilled plate rows (`box_source = 'backfill-pass1'`), and 1,008 pre-shadow forecast rows (`lock_tracked = false`).
+7. **Foreign keys and constraints that SpacetimeDB never had:** deletes cascade from a capture or attempt to its children. One foreign key was dropped on purpose (`demo:none`).
+8. **Untested on real inputs:** the production-sheet reader (no real sheet photo yet), the M-Dining importers (sample files only), and the scheduler (it has never run on GitHub).
 
-## Is it ready for a pull request?
+## Is it ready to merge?
 
-**Yes, as one draft PR from `overnight-supabase`.**
+**It is ready for review as a draft, not to merge.** `./test-all.sh` passes on this branch (backend 133, frontend 141, forecast 90, vision 106, everything else green).
 
-What supports opening it:
-- Merging is backward compatible: without `DATABASE_PROVIDER=supabase` the app still runs on
-  SpacetimeDB or the in-memory store.
-- `./test-all.sh` passes (backend 129 + 2 opt-in skips, frontend 137, forecast 36, everything else
-  green).
-- The live Supabase tests pass.
-- It merges cleanly.
+Before marking it ready:
+1. Read risks 1–3.
+2. Try the sheet reader on one real production sheet.
+3. Decide what to do with the simulated data on hall-main (remove it before a real pilot).
+4. Decide on the scheduler: merging this PR puts the workflow on `main`, but it stays off until `FORECAST_SCHEDULER_ENABLED` is set (see `docs/scheduler-setup.md`).
 
-Before marking it ready to merge, I'd:
-1. Read risks 1–3 above, and decide whether `production_log` should be private.
-2. `PROGRESS.md` and `OVERNIGHT_REPORT.md` are working logs; they now live in `docs/` (moved
-   2026-10-28). Dropping them from the PR is also fine.
-3. Try the sheet reader on one real production sheet.
-4. Decide what to do with the simulated forecast data and the `hall-e2e-*` test halls in Supabase.
-
-Keep the SpacetimeDB/R2 removal for a **separate follow-up PR**, using the ordered steps in
-[docs/supabase-migration-plan.md](docs/supabase-migration-plan.md) (re-checked on 2026-10-25). Step 0,
-importing the offsite copy, must come first.
+Keep the SpacetimeDB/R2 removal for a **separate follow-up PR**, following the ordered steps in [docs/supabase-migration-plan.md](docs/supabase-migration-plan.md). Step 0 (importing the offsite copy) must come first.

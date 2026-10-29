@@ -17,6 +17,12 @@ set, POST requests must send a matching X-Worker-Token header or get 401).
 
 Simulated inputs make simulated forecasts: is_simulated is set whenever the
 dish, its history or the attendance it used is simulated.
+
+Shadow mode (migration 20261028000017): the database locks a forecast row when
+its meal's service starts. The worker upserts only rows whose service has not
+started; for started services it inserts missing rows and leaves existing ones
+untouched. Such late rows are kept but never count as locked forecasts
+(created_at >= locks_at), so `python -m forecast.shadow_report` leaves them out.
 """
 
 from __future__ import annotations
@@ -28,6 +34,7 @@ import os
 import sys
 from datetime import date, datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from zoneinfo import ZoneInfo
 
 from .config import CONFIG_PATH, impact_score_for, load_settings
 from .data import HallData, dishes_for, load_hall
@@ -111,7 +118,24 @@ def build_forecasts(
     return rows, skipped
 
 
-def run(hall_id: str, start: date, end: date, dry_run: bool = False, db: Supabase | None = None) -> dict:
+LOCK_MARGIN = timedelta(minutes=2)  # clock skew between this machine and the database
+
+
+def service_start(day: date, meal: str, tz: str, meals: dict[str, list[str]]) -> datetime:
+    """When the meal's service starts, in UTC: the moment the database locks its forecasts."""
+    return datetime.combine(day, datetime.strptime(meals[meal][0], "%H:%M").time(), ZoneInfo(tz)).astimezone(timezone.utc)
+
+
+def split_by_lock(rows: list[dict], tz: str, meals: dict[str, list[str]], now: datetime) -> tuple[list[dict], list[dict]]:
+    """(rows whose service has not started: may be revised, rows whose service started: locked)."""
+    open_, started = [], []
+    for r in rows:
+        starts = service_start(date.fromisoformat(r["service_date"]), r["meal_label"], tz, meals)
+        (open_ if starts > now + LOCK_MARGIN else started).append(r)
+    return open_, started
+
+
+def run(hall_id: str, start: date, end: date, dry_run: bool = False, db: Supabase | None = None, now: datetime | None = None) -> dict:
     if end < start:
         raise ValueError("end is before start")
     if (end - start).days > 400:
@@ -119,8 +143,13 @@ def run(hall_id: str, start: date, end: date, dry_run: bool = False, db: Supabas
     db = db or Supabase.from_env()
     data = load_hall(db, hall_id)
     rows, skipped = build_forecasts(data, start, end)
-    if rows and not dry_run:
-        db.insert("forecast", rows, on_conflict="hall_id,service_date,meal_label,dish_id,model_version", upsert=True)
+    open_rows, started_rows = split_by_lock(rows, data.timezone, load_settings().meals, now or datetime.now(timezone.utc))
+    if not dry_run:
+        key = "hall_id,service_date,meal_label,dish_id,model_version"
+        if open_rows:
+            db.insert("forecast", open_rows, on_conflict=key, upsert=True)
+        if started_rows:  # locked once the service started: add missing rows (late, never "locked"), revise nothing
+            db.insert("forecast", started_rows, on_conflict=key, ignore_duplicates=True)
     return {
         "hallId": hall_id,
         "start": start.isoformat(),
@@ -128,6 +157,8 @@ def run(hall_id: str, start: date, end: date, dry_run: bool = False, db: Supabas
         "modelVersion": MODEL_VERSION,
         "written": 0 if dry_run else len(rows),
         "forecasts": len(rows),
+        "beforeServiceStart": len(open_rows),
+        "afterServiceStart": len(started_rows),
         "simulated": sum(1 for r in rows if r["is_simulated"]),
         "skipped": skipped,
         "notes": data.notes,

@@ -88,9 +88,32 @@ export interface AnalysisResult {
   itemMasks?: { measurementId: string; png: Uint8Array; count: Omit<MaskPixelCount, 'maskObjectId'> }[];
   /** Segmented overlay JPEG (D7); stored in object storage, referenced by attempt.overlayObjectId. */
   overlay?: { jpeg: Uint8Array; widthPx: number; heightPx: number } | null;
+  /** plate-scale-v1: the target plate's diameter in pixels, or why there is none (vision measurePlate). */
+  plate?:
+    | { ok: true; version: string; diameterPx: number; boxWidthPx: number; boxHeightPx: number }
+    | { ok: false; version: string; reason: string };
   /** IT_4 physical stage outcome (calibrated area). */
   physical?: {
     status: 'applied' | 'unavailable' | 'not_requested';
     reason?: string;
   };
+}
+
+/** One plate-scale record per analysis attempt (plate_scale_estimate). Pounds are computed at read time. */
+export interface PlateScaleRecord {
+  attemptId: string;
+  eventId: string;
+  method: 'plate-scale-v1';
+  dishType: string | null;
+  fullyVisible: boolean | null;
+  /** null when no usable plate (see unavailableReason). */
+  plateDiameterPx: number | null;
+  boxWidthPx: number | null;
+  boxHeightPx: number | null;
+  /** The plate diameter assumed when this was recorded (PLATE_DIAMETER_CM). */
+  assumedPlateDiameterCm: number;
+  unavailableReason: string | null;
+  /** Where the dish box came from (migration 20261028000018). Omitted = 'analysis'. */
+  boxSource?: 'analysis' | 'backfill-pass1';
+  createdAt: string;
 }

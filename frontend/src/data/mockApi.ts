@@ -24,6 +24,9 @@ import {
 } from './mockData'
 import type {
   AuthSession,
+  EstimatedWeight,
+  ModelComparison,
+  ModelComparisonRow,
   CalibrationImages,
   CameraCalibration,
   MeasurementSettings,
@@ -282,6 +285,21 @@ export async function getImageUrl(_objectId: string): Promise<string> {
 export async function getImpactDashboard(start: IsoDate, end: IsoDate): Promise<ImpactDashboard> {
   await wait()
   return mockImpactDashboard(start, end, todayIso())
+}
+
+/** Mock: plate-scale pounds need real plate measurements, so the sample data has none (shown as "—"). */
+export async function getEstimatedWeight(start: IsoDate, end: IsoDate): Promise<EstimatedWeight> {
+  await wait()
+  const d = mockImpactDashboard(start, end, todayIso())
+  return {
+    available: true,
+    isEstimate: true,
+    method: 'plate-scale-v1',
+    assumedPlateDiametersCm: [],
+    note: 'Estimate: assumes every plate is the configured diameter, the plate size in pixels comes from the AI box around a fully visible plate, food is flat on the plate, and each food weighs its average grams per cm² from the factors table. Pixels wasted is the measurement.',
+    items: [],
+    totals: { pixels: d.totals.pixels, estimatedLb: null, captures: d.totals.captures, capturesWithScale: 0 },
+  }
 }
 
 export async function getDailyImpact(start: IsoDate, end: IsoDate): Promise<DailyImpactPoint[]> {
@@ -680,7 +698,8 @@ export async function confirmProductionRow(id: number, confirmedBy: string): Pro
   const row = mockUnconfirmed(id)
   if (!confirmedBy.trim()) throw new Error("Enter who checked this row.")
   if (row.blockingFlags.length) throw new Error('Fix the flagged values before confirming.')
-  const next = { ...row, status: 'confirmed' as const, confirmedBy: confirmedBy.trim(), confirmedAt: new Date().toISOString() }
+  // Like the real API, the name is required but never returned.
+  const next = { ...row, status: 'confirmed' as const, confirmedBy: null, confirmedAt: new Date().toISOString() }
   mockProduction = mockProduction.map((r) => (r.productionLogId === id ? next : r))
   return { ...next }
 }
@@ -690,6 +709,22 @@ export async function rejectProductionRow(id: number): Promise<ProductionRow> {
   const next = { ...mockUnconfirmed(id), status: 'rejected' as const }
   mockProduction = mockProduction.map((r) => (r.productionLogId === id ? next : r))
   return { ...next }
+}
+
+/** Demo model comparison: SIMULATED numbers (the live API reads forecast_model_comparison). */
+export async function getForecastModels(): Promise<ModelComparison> {
+  await wait()
+  const row = (modelVersion: string, mode: ModelComparisonRow['mode'], wape: number, stockouts: number, leftoverLb: number, intervalCoverage: number | null): ModelComparisonRow => ({
+    runId: 'bt_demo', windowStart: '2026-09-26', windowEnd: '2026-10-23', modelVersion, mode, meals: 291, censoredMeals: 48, wape, bias: 0.01, stockouts,
+    leftoverLb, leftoverUsd: leftoverLb * 4.6, intervalCoverage, meanQ: mode === 'as_given' ? null : 0.9, comparisonLabel: 'Simulated FSS (assumed +25% over-prep)',
+    isSimulated: true, generatedAt: '2026-10-28T06:00:00.000Z',
+  })
+  return {
+    available: true, hallId: 'hall-main', runId: 'bt_demo', window: { start: '2026-09-26', end: '2026-10-23' }, generatedAt: '2026-10-28T06:00:00.000Z',
+    simulated: true, comparisonLabel: 'Simulated FSS (assumed +25% over-prep)',
+    rows: [row('baseline-v1', 'default', 0.183, 21, 3558, 0.8), row('baseline-v1', 'matched_stockouts', 0.183, 48, 2797, 0.8),
+      row('gbm-v1', 'default', 0.178, 10, 5132, 0.88), row('fss', 'as_given', 0.416, 48, 4030, null)],
+  }
 }
 
 /** Demo forecast summary: SIMULATED numbers (the live API reads the forecast worker's tables). */

@@ -11,7 +11,8 @@
  * (scrap-test-live-<time>); both are deleted at the end unless
  * KEEP_LIVE_DATA=1. Detections are scored against ground_truth.csv with the
  * rules of vision/scripts/score-experiment.py; a drop below the last
- * experiment (100% recall, 92.3% precision) is reported as a REGRESSION.
+ * run on the same 26-food menu (94.4% recall, 81.0% precision; docs/detection-accuracy.md)
+ * is reported as a REGRESSION.
  * A report (per-photo results + local copies of the overlays) is written to
  * images/live-test/<time>/ (gitignored).
  *
@@ -263,7 +264,7 @@ describe('live image tests: test2/ through the full pipeline', { skip: skip ?? f
   const truthFile = [process.env.GROUND_TRUTH_CSV, path.join(REPO, 'images', 'ground_truth.csv'), path.join(REPO, 'ground_truth.csv')]
     .find((f) => f && existsSync(f)) ?? path.join(REPO, 'images', 'ground_truth.csv');
   const noTruth = existsSync(truthFile) ? false : 'ground_truth.csv is not present: detection is not scored';
-  it('detection vs ground_truth.csv: no regression from 100% recall / 92.3% precision', { skip: noTruth }, () => {
+  it('detection vs ground_truth.csv: no regression from the 26-food baseline (94.4% recall / 81.0% precision)', { skip: noTruth }, () => {
     const truth = loadGroundTruth(truthFile);
     const score = scoreRuns(results.filter((r) => r.eventId), truth);
     const pct = (x) => (x === null ? 'n/a' : `${(100 * x).toFixed(1)}%`);

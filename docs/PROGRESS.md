@@ -2,6 +2,21 @@
 
 ## Resume here
 
+- **Run 5 (started 2026-10-29 00:40 EDT):** branch `run5` from `run4` (`6493855`). See "Run 5" at the bottom.
+- **Next step:** Task 1 Step A is running (12 photos, timing).
+- **Gemini calls this run:** see the Run 5 log (cap 60).
+- Migrations: `npx supabase db push --db-url "$SUPABASE_DB_URL"` (dry run first) inside a subshell that sources `.env`; never echo it.
+
+### Run 4 (complete)
+
+- Branch `run4`, report `RUN4_REPORT.md`, 36 / 40 Gemini calls.
+
+### Run 3 (complete)
+
+- Branch `forecast-v2`, report `RUN3_REPORT.md`, 97 / 150 Gemini calls.
+
+### Earlier runs (kept for reference)
+
 - **Branch:** `overnight-supabase` (Part B), branched from `supabase-migration` at `350a034`.
 - **Last commit:** `cee58a0` gitignore the Supabase CLI cache
 - **Next step:** follow-up complete (task 5 still waits for a real sheet photo). See `MERGE_REVIEW.md`.
@@ -43,6 +58,12 @@
 
 | When | What | Calls | Running total |
 |---|---|---|---|
+| 18:04 | Task 1: 12 photos, 23-food menu of that dinner, 1 run | 26 | 26 |
+| 18:15 | Task 1: IMG_2706 re-run (pass 2 timed out again) | 4 | 30 |
+| 20:15 | Task 4: plate backfill, pass 1 only, 6 scans | 6 | 36 |
+| 01:49 | Phase 2 detection run attempt 1 (default 30 s timeout), stopped after 4 photos: IMG_2696 and IMG_2697 each burned 6 calls on GEMINI_TIMEOUT (2 passes × 3 attempts) | 16 | 16 |
+| 02:15 | Phase 2: 3 identical detection runs, 12 photos each (90 s timeout) | 77 | 93 |
+| 02:45 | Phase 2: 23-food menu check on IMG_2700 + IMG_2702 | 4 | 97 |
 | 21:35 | Live test2 run on Supabase (13 photos: classify + box passes; 1 recommendation) | 32 | 32 |
 | 10-25 20:15 | Follow-up task 4: re-analyze the 10 imported captures (cap 35) | 20 | 52 |
 
@@ -345,3 +366,324 @@ The user confirmed in their own words: do tasks 2–7, task 1 is already done, a
   - **New risk found while writing the review:** `production_log` is anon-readable, so "confirmed by" names and sheet photo paths are visible with the publishable key. Flagged as risk #2 (a one-line fix if names should be private); not changed without the user's say.
   - Stopped the SAM worker (:8790) and the scratch SpacetimeDB copy (:3901). Confirmed each was the process I started; the original `~/.local/share/spacetime/data` was never served.
 - **Follow-up Gemini total: 20** (task 4). **Overall: 52.**
+
+## Run 3: forecast-v2 (2026-10-28, unattended)
+
+Plan: `~/.claude/plans/pasted-content-id-88eb-long-unattended-sequential-pony.md`.
+
+### Checklist
+- [x] Setup: branch `forecast-v2`, keys present (values not printed)
+- [x] Phase 1: production_log private, hide hall-e2e-* halls, backfill simulated attendance
+- [x] Phase 2: detection regression (≤ 100 Gemini calls)
+- [x] Phase 3: real context data (calendar, football, weather, holidays)
+- [x] Phase 4: importers for M-Dining data + docs/data-intake.md
+- [x] Phase 5: pixels → pounds (plate scale)
+- [x] Phase 6: forecasting models + walk-forward evaluation
+- [x] Phase 7: docs/forecasting-methods.md
+- [x] Phase 8: secret scan, then push/draft PR only if clean
+- [x] RUN3_REPORT.md
+
+### Gemini call log (Run 3, cap 150)
+
+| When | What | Calls | Running total |
+|---|---|---|---|
+
+### Decisions made on my behalf
+
+1. The model name `GEMINI_MODEL=gemini-3.8-flash` is recorded (a model name, not a secret). No other `.env` value was printed.
+2. **production_log private:** the migration drops its anon `"dashboard read"` policy and revokes `select` from anon/authenticated. Dropping a policy changes access, not data, so I treated it as additive. The frontend never reads `production_log` directly (it goes through the backend's service role), so nothing in the UI changes.
+3. **Hiding the test halls:** I used the existing `capture_visibility` mechanism (`set_capture_visibility`, hidden = true) and added no `hall.hidden` column. The dashboard has no hall list (the hall comes from Settings, default `hall-main`), so hiding the 4 captures removes them from every dashboard number. The `hall` rows and all their data stay.
+4. **Attendance backfill scope:** I ran the existing script as is. It filled only services with no row, all 9 on `hall-main` (the hall-e2e services already had attendance).
+5. **Detection timeout (Phase 2):** the 3 variation runs use `GEMINI_TIMEOUT_MS=90000` (default 30000). At the default, 2 of the first 4 photos failed both passes on timeout and were unscored, which wasted calls and measured nothing. All 3 runs use identical settings.
+6. **Context sources (Phase 3):**
+   - The registrar's 2026-27 calendar is the Google Doc linked as "Academic Year Calendar" on ro.umich.edu/calendars (fetched as text).
+   - Football comes from the 2026-01-27 MGoBlue release table.
+   - Religious holidays: Hebcal API (Jewish) and Aladhan API (Islamic, calculated dates).
+   - **Not included, no fetchable source:** Diwali, Easter/Good Friday, Lunar New Year, Holi. timeanddate.com returned 403 and the Provost's religious-holiday Google Calendar ICS returned 404.
+   - "Between terms" break days (Dec 22–Jan 12, May 10) are derived (no classes or exams listed) and marked `derived` in the source file.
+7. **Context rows never overwrite simulated rows:** hall-main's 42 simulated days (2026-09-12..10-23) were skipped. After `python3 -m forecast.simulate remove`, re-run the importer to fill them.
+8. **Only non-test halls get context:** the only one is `hall-main`. The hall-e2e-*, hall-live-*, hall-test and hall-smoke halls are skipped.
+9. **Weather:**
+   - Open-Meteo archive for dates up to 5 days ago (observed).
+   - The forecast API for the next 16 days; its days before today are marked observed.
+   - Later dates have null weather, never a guess.
+
+10. **Mapping files are TOML, not YAML:** Python's built-in `tomllib` reads them, so no new dependency. XLSX is read with a small standard-library reader (no openpyxl).
+11. **Importers never overwrite simulated rows:** intervals or FSS rows that already hold `is_simulated = true` rows are skipped and reported. The fix is to remove the simulated data first. Nothing is deleted by an import.
+12. **Swipe validation thresholds:**
+   - More than 1,500 swipes at a hall in 15 minutes counts as impossible (configurable per mapping).
+   - Hourly-looking exports are imported with a warning, not refused.
+   - Swipes outside every meal's hours are rejected when the file names no meal.
+13. **FSS:**
+   - Matching uses exact normalized names: dish names, menu item names linked to a dish, and mapping aliases. That is the same normalization rule as the sheet reader.
+   - Portions convert to pounds only with the dish's `portion_lb`.
+   - A duplicate row in one file: the later one wins (warned).
+   - The "FSS" label rule stays as it was: plain "FSS" only when no simulated FSS rows are in the hall's comparison.
+14. **Sheet batch:**
+   - It goes through the running backend's HTTP API (upload → finalize → extract), so it uses the exact same reader, flags and dedupe as the page.
+   - Date and meal come from a `YYYY-MM-DD_<meal>` file-name prefix when present.
+   - `--max-gemini` counts photos sent (one request each); server-side retries can add more.
+
+15. **Plate scale despite AGENTS.md:** AGENTS.md says plate-size calibration was dropped in BIG-PLAN v2 because plates vary. The user asked for it explicitly in Run 3, so it is built as a **separate, labeled estimate** (`plate-scale-v1`). The camera calibration path stays, and is preferred where both exist.
+16. **Where the plate size comes from:** the mean of the width and height of Gemini's target-dish box. It is used only for `dishType = plate`, fully visible, with box ratio ≤ 1.25. I didn't use SAM's dish region because it is dilated and hull-filled (it would overstate the plate).
+17. **Storage:**
+   - A new private table `plate_scale_estimate` holds one row per attempt with the pixel diameter and the **assumed cm at the time** (`PLATE_DIAMETER_CM`, default 26.7 = 10.5").
+   - `food_measurement`, the `record_analysis` SQL function and SpacetimeDB are untouched. Redefining `record_analysis` overnight was judged too risky.
+   - Pounds are computed at read time.
+18. **No re-analysis for old scans:** the 6 hall-main scans have no plate record, and adding one would cost about 12 Gemini calls. Their pounds show "—".
+19. **The estimate card is on Statistics, not the Dashboard:** a Dashboard test encodes the product decision "no pixels on the Dashboard", and the card states pixels beside pounds.
+
+20. **Detection: no pipeline or menu "fix".**
+   - The drop is explained by the test menu growing from 23 to 26 foods (real foods added 2026-10-04), not by a bug, and runs are deterministic.
+   - I left the menu and pipeline alone and made the live test's regression baseline the measured 26-food result (94.4% / 81.0%). The old 23-food number is kept, labeled as not comparable.
+   - The default `GEMINI_TIMEOUT_MS` (30 s) is not changed; raising it is recommended in the doc.
+
+21. **One interval method for every model:** each model's own past relative errors, the same as baseline-v1 in production. So differences in coverage and prep come from the point forecasts, not from different interval machinery. gbm-v1 does not use quantile loss.
+22. **Same meals for every row:** only dish-meals that every model (and the FSS row) can forecast are scored: 291 of the window's meals. Seasonal naive, for example, needs a prior same weekday.
+23. **Matched-stockouts target = the comparison forecast's stockouts** (simulated FSS, 48), the same for all models.
+24. **Censoring in the new models:** ran-out meals are left out of their inputs and training. baseline-v1 keeps its production rule ("at least" via the recent average).
+25. **scikit-learn installed into `.venv`** (1.9.1). This is optional: the forecast suite under system `python3` skips the gbm test, and `forecast/requirements-models.txt` lists it. The comparison runs with `.venv/bin/python`.
+26. **`forecast_model_comparison` is dashboard-readable** (no personal data), like `forecast`. The live RLS test covers it.
+
+### Log
+
+- 01:42. Created branch `forecast-v2` from `overnight-supabase` (`3e20815`). `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_URL`, `GEMINI_API_KEY`, `GEMINI_MODEL` and `DATABASE_PROVIDER` are each present once. The `supabase` CLI isn't on PATH; migrations go through `npx supabase` as in the README.
+- 01:50. **Phase 1.**
+  - Migration `20261028000013_production_log_private.sql`: dry run, then applied live. The live RLS test (`tests/system/supabase-rls.test.mjs`) now lists `production_log` as private: **5/5 pass**. The offline PGlite test checks "anon cannot read production_log": passes.
+  - **Hidden (not deleted):** captures `cap_e2e_musw1war`, `cap_e2e_musw2fuw`, `cap_e2e_musw3a06`, `cap_e2e_musw3m68` in halls `hall-e2e-musw1war`, `hall-e2e-musw2fuw`, `hall-e2e-musw3a06`, `hall-e2e-musw3m68` (one photo replayed by old e2e runs). Repository view (`listCaptureEvents`): before, hall-main 6 + 4 × 1 e2e; after, hall-main 6 only. `includeHidden` still returns all 10. Undo: the admin Scanned plates page, or `setCaptureVisibility(ids, false)`.
+  - `backfill-attendance.mjs`: dry run found **9** services without attendance, all on hall-main (2026-10-01 to 10-04). **Created 9, labeled simulated.** A second dry run finds 0; `simulated_attendance` has 14 rows.
+  - `./test-all.sh`: ALL PASSED.
+- 02:10. **Phase 3.**
+  - Migration `20261028000014_context_day_sources.sql` (additive: `source_urls`, `academic_note`, `class_day`, `study_day`, `break_day`, `first_class_day`, `weather_kind`, `imported_at`): dry run, then applied live.
+  - **Sources fetched:**
+    - Registrar Google Doc (via ro.umich.edu/calendars);
+    - mgoblue.com 2026 schedule;
+    - Hebcal JSON for 2026 and 2027;
+    - Aladhan hToG (1 Ramadan 1448 = 2027-02-08; 1 Shawwal 1448 = 2027-03-09);
+    - Open-Meteo archive and forecast.
+  - **Not reachable:** timeanddate.com (403) and the Provost religious-holiday ICS (404); skipped.
+  - `forecast/context_import.py`: re-runnable, `--dry-run`. Two real runs upserted the same 262 rows (`is_simulated = false`).
+  - Summary (hall-main, 2026-08-01..2027-05-31, excluding the 42 simulated days):
+
+    | hall | days | with weather (observed/forecast) | class days | exam days | study days | break days | home games | holiday days |
+    |---|---|---|---|---|---|---|---|---|
+    | hall-main | 262 | 61 (46/15) | 124 | 12 | 5 | 37 | 4 | 42 |
+
+    The other 4 home games (Sep 12, 19, 26; Oct 17) fall on simulated days and were not written. All 8 are in the source file and tested.
+  - 8 new unit tests (`forecast/tests/test_context_import.py`).
+- 02:25. **Phase 4.** `forecast/importers/`:
+  - `common.py`: TOML mapping, CSV/XLSX reader, date/time parsing, report.
+  - `swipes.py`, `fss.py`, `sheets_batch.py`.
+  - Mapping examples and `samples/sample_SIMULATED_*` (swipes CSV, FSS CSV, 3 grey PNG "sheets").
+  - **Tests:** 14 new (`forecast/tests/test_importers.py`), using a fake DB and a mock backend HTTP server. **0 Gemini calls.** They cover the validation report, dry run, UTC 15-minute intervals, per-swipe counting, the simulated-row guard, units, alias/menu-item matching, the review list, the FSS label switch, and the sheet batch's cap/resume/retry/dry run.
+  - **Live dry runs against Supabase** (samples mapped to hall-main): the swipes guard skipped the 5 intervals that hold simulated attendance, and the FSS run put all 5 sample names into review (none match real dishes). Nothing was written.
+  - `docs/data-intake.md`: formats and what to ask M-Dining for.
+  - `./test-all.sh`: ALL PASSED (forecast 58).
+- 02:55. **Phase 5: pixels to pounds.**
+  - **Inventory:**
+    - Camera calibration: credit-card reference area → `camera_calibration`, `area-calibrated-v1` → `food_measurement.physical.areaCm2` → grams in `analytics/src/physical.ts`.
+    - `reference_portion` is auxiliary baselines, not a scale. `attempt_calibration` is the camera calibration snapshot. `measurement_settings` holds per-hall settings.
+    - The legacy `PlateCalibration` (plate-fit-v1) is deprecated and no longer persisted.
+    - **None of these is used today: there are 0 camera calibrations in Supabase.**
+  - **Built:**
+    - `vision` `measurePlate`, plus `targetDish.plate` in every mask analysis;
+    - backend: `AnalysisResult.plate` → `plate_scale_estimate` (migration `20261028000015`, applied live, private; live RLS test 5/5) → `GET /api/dashboard/estimated-weight`;
+    - `analytics/src/plateScale.ts` (`cm2PerPixel`, `plateScaleEstimate`, `plateScaleWeights`);
+    - a Statistics page card, "Food left on plates (estimate)", with an assumptions tooltip and coverage;
+    - forecast `tray_grams` uses plate-scaled scans too, still under the ≥ 80% coverage rule;
+    - a demo.py line in the stats step;
+    - `.env.example` `PLATE_DIAMETER_CM`;
+    - a `docs/calibration.md` section.
+  - **Tests:** analytics +6 (hand-computed: 100,000 px on an 890 px plate = 90 cm² → 72 g at 0.8 g/cm² = 0.1587 lb), vision +2, backend +3 (API payload, pixels unchanged, ingestion records the assumed diameter), frontend +2, forecast +3 (hand-computed tray grams, camera-first no double count, 80% rule at 4/5 vs 4/6 diners).
+  - **Not run live:** `demo.py` (needs the local stack); its syntax and `--list` are checked by test-all.
+  - `./test-all.sh`: ALL PASSED.
+- 03:05. **Phase 2: detection regression.**
+  - **Diffed against the 2026-10-03 experiment** (`b62ed8c`):
+    - same model (gemini-3.8-flash), same ground truth (byte-identical), same scoring rules (the scorer reproduces 36/0/3);
+    - different menu: 23 → 26 foods (`4f23615`);
+    - different pipeline: two passes `fef1065`, target dish `639ce19`, fixed seed `4e0d55d`, prompt v2 → v4.
+  - **Runs:** `tests/live/detection-runs.mjs` (in-memory, no Supabase writes), 3 runs: **17/1/4 each, recall 94.4%, precision 81.0%, range 0.**
+  - **Isolation:** IMG_2700 and IMG_2702 with the 23-food menu are both correct (2/0/0).
+  - **Also found:** the default 30 s Gemini timeout made 2 of the first 4 photos fail (first attempt stopped).
+  - Wrote `docs/detection-accuracy.md`. `tests/support/scoring.mjs` BASELINE is now the 26-food measurement; `tests/system/scoring.test.mjs` reads `images/ground_truth.csv` and checks both baselines (2 pass).
+  - **Gemini Phase 2 total: 97 of 100.**
+- 03:30. **Phase 6: models and evaluation.**
+  - **New files:**
+    - `forecast/models.py`: `PastView` with `LookAheadError`, and the models baseline-v1, seasonal-naive-v1, moving-avg-4-v1, exp-smoothing-v1 and gbm-v1.
+    - `forecast/backtest.py`: walk-forward, metrics, matched stockouts, `--write`.
+    - `forecast/unsupervised.py`: k-means day types and a robust-z anomaly flag. Both are off in `config.toml`.
+  - Migration `20261028000016_forecast_model_comparison.sql` (applied live; RLS test 5/5).
+  - `GET /api/forecast/models` and a "Model comparison" section on the Forecast page with its own SIMULATED banner.
+  - **Tests:** forecast +14, including a poison test for no look-ahead. I checked that it catches a real leak: future history made visible fails it. A leak of attendance alone does not change any forecast, because models read swipes through `expected_diners`, which filters by date. Also backend +1 and frontend +2.
+  - **SIMULATED comparison** (hall-main, 2026-09-26..10-23, 291 dish-meals, 48 ran out; stored as run `bt_52fc7817e167`):
+
+    | model | mode | WAPE | bias | stockouts | leftover lb | leftover $ | 10–90% coverage | mean q |
+    |---|---|---|---|---|---|---|---|---|
+    | baseline-v1 | default | 18.3% | 1.7% | 21 | 3,558 | $16,404 | 80% | 0.900 |
+    | baseline-v1 | matched | 18.3% | 1.7% | 48 | 2,797 | $13,006 | 80% | 0.826 |
+    | seasonal-naive-v1 | default | 22.3% | -1.2% | 41 | 3,847 | $18,032 | 76% | 0.900 |
+    | seasonal-naive-v1 | matched | 22.3% | -1.2% | 48 | 3,452 | $16,255 | 76% | 0.874 |
+    | moving-avg-4-v1 | default | 19.6% | -0.3% | 36 | 3,048 | $14,529 | 77% | 0.900 |
+    | moving-avg-4-v1 | matched | 19.6% | -0.3% | 48 | 2,784 | $13,362 | 77% | 0.869 |
+    | exp-smoothing-v1 | default | 21.7% | -1.3% | 28 | 4,288 | $19,744 | 79% | 0.900 |
+    | exp-smoothing-v1 | matched | 21.7% | -1.3% | 48 | 3,236 | $15,102 | 79% | 0.809 |
+    | gbm-v1 | default | 17.8% | -0.4% | 10 | 5,132 | $22,148 | 88% | 0.900 |
+    | gbm-v1 | matched | 17.8% | -0.4% | 48 | 2,959 | $12,867 | 88% | 0.790 |
+    | Simulated FSS (+25% over-prep) | as given | 41.6% | 41.6% | 48 | 4,030 | $19,272 | — | — |
+
+  - `./test-all.sh`: ALL PASSED (forecast 74 + 1 skipped gbm test under system python3; it passes under `.venv`).
+  - **Not checked in a browser yet** (jsdom tests only).
+- 03:45. **Browser check** (Chrome, read-only local backend on :8799 + Vite on :5199, both stopped afterwards):
+  - The Forecast page "Model comparison (simulated)" table renders with its banner, with no console errors.
+  - The Statistics "Food left on plates (estimate)" card shows "—", "0 of 6 plates · 748,986 pixels wasted measured".
+  - Live API: pixels from `estimated-weight` = dashboard total (748,986).
+- 03:50. **Phase 7:** `docs/forecasting-methods.md`. Every number is tagged [SIMULATED] or [REAL]; it covers limitations and what real data will test.
+- 03:55. **Phase 8: secret scan.**
+  - **Scope:** `git log -p overnight-supabase forecast-v2`, every commit reachable from either branch (312 commits, 13.7 MB of patches), including removed lines and commit messages.
+  - **Exact match against the real `.env` values** (GEMINI_API_KEY, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_DB_URL and its password, SPACETIMEDB_TOKEN; values never printed): **0 hits.**
+  - **Patterns:** real-looking `sb_secret_`/`sb_publishable_` (20+ chars), JWTs, `AIza…` keys, Postgres URLs with a non-placeholder password, private keys, AWS keys: **0 hits.**
+  - **32 weak-pattern hits, all reviewed and harmless:**
+    - code reading keys from env (`TOKEN = os.environ.get…`, `token: process.env…`);
+    - test fixtures (`'ingest-token-for-tests-0123456789'`, `'session-secret-for-tests-0123456789'`, `'it4-fixture-token-6f1c'`, `'tok_secret_value_123'`, `'sb_secret_example'`, `'sb_secret_THIS_MUST_NOT_SHIP_0000'`, `'invalid-key-for-smoke-test'`);
+    - `.env.example` placeholders (`your-db-password`, `your-r2-secret-access-key`).
+  - **Verdict: clean.** Proceeding with the push allowed by Phase 8.
+- 04:00. **Phase 8: push.**
+  - On `overnight-supabase`: moved PROGRESS.md and OVERNIGHT_REPORT.md into `docs/` (`e61c55f`, plus `8cb9401` for MERGE_REVIEW's pointers). test-all passed after removing 4 stale gitignored `dist/` test files left by the branch switch.
+  - Pushed it and opened **draft PR #25** with MERGE_REVIEW.md as the body.
+  - Pushed `forecast-v2` as a backup (no PR).
+- 04:05. Wrote `RUN3_REPORT.md`. **Run 3 done; stopping.**
+
+## Run 4: run4 (2026-10-28, unattended)
+
+Brief: tasks 1-5 + RUN4_REPORT.md. Gemini cap 40 (Task 1 ≤ 30, Task 4 ≤ 10). Push `run4` only after a clean full-history secret scan; no PR, no merge.
+
+### Checklist
+- [x] Setup: branch `run4` from `forecast-v2`, keys present (values not printed), logs moved to `docs/`
+- [x] Task 1: per-meal menu (≤ 30 Gemini calls): 30 used
+- [x] Task 2: Gemini timeout default 90 s
+- [x] Task 3: forecast weather in backtests, shadow-mode lock, report command
+- [x] Task 4: plate estimates for the 6 hall-main scans (≤ 10 Gemini calls): 6 used
+- [x] Task 5: docs/camera-calibration-checklist.md
+- [x] Secret scan, push `run4` if clean
+- [x] RUN4_REPORT.md
+
+### Gemini call log (Run 4, cap 40)
+
+| When | What | Calls | Running total |
+|---|---|---|---|
+
+### Decisions made on my behalf
+
+1. **Logs moved to `docs/`:** the brief names `docs/PROGRESS.md`, but on `forecast-v2` it was still at the root (the move happened only on `overnight-supabase`). I moved `PROGRESS.md` and `OVERNIGHT_REPORT.md` with `git mv` and applied the same MERGE_REVIEW pointer fix (`8cb9401`), so the two branches agree.
+
+2. **Task 1, the grouping is recorded, the stations are not:** `ground_truth.csv` has no hall, meal or station. But the photo files' EXIF times put all 12 inside one 6-minute window of the 2026-10-03 dinner, so every photo shares one meal menu; no grouping was guessed. Stations are recorded nowhere, and I did not infer them from the labeled foods (that would use the answer to pick the menu).
+3. **Task 1, "that meal's menu" = the 23 foods:** the dinner menu in the repo on the night of the photos (`97e7864`, 20:14 that evening; used by the 2026-10-03 experiment). The 3 foods added at 03:04 the next morning "for the live demo" (`4f23615`) are not on the hall's sheet and nothing records them as served that night. The run used `--exclude-items 'Halal Rice,Tomatoes,Lettuce'` on today's menu text (current descriptions).
+4. **Task 1, one run plus one re-run:** Run 3 showed zero run-to-run variation with these settings, so one full run (26 calls) fit the 30-call cap. I used the remaining 4 to re-run IMG_2706, whose second pass had timed out; it timed out again.
+5. **Task 1, no code change:** production already resolves the menu per service (hall + date + meal) in `IngestionService`. The live test keeps the 26-food demo menu and its Run 3 baseline.
+6. **Task 2, `timeoutMs` exposed read-only on `GeminiGateway`:** so the test can check the effective default (env unset, invalid env, env override, explicit option).
+
+7. **Task 3, day-ahead forecasts from the Previous Runs API, not the Historical Forecast API:** Open-Meteo's docs say the Historical Forecast API is "built by stitching the first hours of each successive model run", so part of a day comes from runs issued during that day, possibly after a service started. `_previous_day1` (Previous Runs API) is each hour as forecast 24 h earlier, so the whole day was known before its first service. Daily = max hourly temperature and total rain; a day with a missing hour is left out.
+8. **Task 3, simulated days get a SIMULATED forecast:** the 42 simulated days have simulated observed weather, so I gave them a simulated day-ahead forecast (observed ± up to 6 °F, rain × 0.5–1.5; `fc_source = 'simulated'`) through `simulate.py fill-forecast-weather`. That command patches only `is_simulated` rows, filling new null columns. Real Open-Meteo forecasts went only on real rows.
+9. **Task 3, gbm-v1 now uses the forecast weather:** this changed its simulated result (WAPE 17.8% → 18.6%; simulated demand ignores weather). I stored the re-run as `bt_3aa03e8682a2`; the old run is kept.
+10. **Task 3, lock rules:**
+   - The lock time is the meal's start (`meal_service_start`: 07:00 / 11:00 / 16:30 local, equal to `config.toml`, checked by a test) in the hall's time zone.
+   - After it: updates are rejected, deletes of real rows are rejected, and simulated rows stay deletable (`simulate remove`).
+   - `created_at` is always the database clock (no backdating).
+   - Inserts after the lock are allowed but never count as locked.
+   - The 1,008 existing rows (all simulated) got `created_at = generated_at` and `lock_tracked = false`, so they are never counted as locked, even the 24 whose service is still ahead. This is conservative.
+11. **Task 3, matched stockouts for locked forecasts:** the stored prep amounts are scaled by one shared factor k until stockouts ≤ FSS's. Stored rows are not changed, and k is printed. The stored error spreads needed to shift q are not in the table.
+
+
+12. **Task 4, pass 1 only, no re-analysis:** a full re-analysis (2 passes = 12 calls) would exceed the 10-call cap, and it would create new attempts whose counts could differ from the stored ones. Instead `backend/scripts/backfill-plate-scale.mjs` re-runs only Gemini pass 1: the same base prompt the pipeline takes its plate box from, with seed 42, temperature 0, the attempt's own menu version and the stored photo. It attaches the plate row to the existing counted attempt. That made 6 calls, with no new attempts and no measurement changes.
+13. **Task 4, provenance column:** additive migration `…18` adds `plate_scale_estimate.box_source` ('analysis' default, 'backfill-pass1'), so backfilled boxes are distinguishable from boxes recorded during the scan.
+
+
+14. **Task 5, no code change:** the commands in the checklist all exist (`laptop_capture.py --calibrate`, `npm run calibrate`, `GET /api/calibrations/:id/images`, `demo.py --only calibration`). The only thing found wrong was documentation: `calibration.md` sent you to a "Settings → Camera calibration" panel that was removed on purpose (`7c3f561`). I fixed that line to point to the overlay link and the demo step. The checklist asks for a non-payment card of the same size, number side down, because the frame is uploaded to image storage.
+
+
+### Log
+
+- Created `run4` from `forecast-v2` (`79bfa6f`). `GEMINI_API_KEY`, `GEMINI_MODEL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_DB_URL` are each present once (values not printed).
+- 18:04–18:20. **Task 1.** SAM worker started (`.venv/bin/python vision/sam/worker.py`, :8790). 23-food run: **17 correct, 1 missed, 1 wrong; recall 94.4%, precision 94.4%** (26 calls). Errors: IMG_2703 + Sticky Rice; IMG_2706 pie missed after pass 2 timed out 3 × 90 s. IMG_2706 re-run (4 calls): identical. Written up in `docs/detection-accuracy.md` → "Per-meal menu".
+- 18:10. **Task 2.** `DEFAULT_TIMEOUT_MS` 30000 → 90000 in `vision/src/gateway.ts`; `.env.example`, `vision/README.md` and the detection doc updated; new test "the Gemini timeout defaults to 90 s" (vision 102/102).
+- 18:25–19:10. **Task 3.**
+  - Migration `20261028000017_forecast_weather_and_shadow_lock.sql`: dry run, then applied live. The live RLS test passes 5/5 (`meal_service_start` is private).
+  - `simulate fill-forecast-weather`: 42 simulated days.
+  - `context_import`: 262 real rows upserted, 47 with a day-ahead forecast (2026-08-01..10-28, minus the simulated days). Real days with both values: mean |forecast − observed high| = 2.76 °F (n = 46, max 9.2).
+  - The backtest re-run stored as `bt_3aa03e8682a2`: only gbm-v1 changed, to 18.6% WAPE.
+  - `shadow_report` live on 2026-09-12..10-30: 0 locked; 396 before shadow mode, 24 not started. "nothing scored (this window's inputs are SIMULATED)".
+  - Worker dry run for 10-28..10-30: 24 before service start, 12 after.
+  - Tests: forecast +11 (`test_shadow_weather.py`; gbm included under `.venv`); PGlite +15 checks.
+  - `./test-all.sh`: ALL PASSED (forecast 85).
+- 20:12. Resumed after the laptop slept. Committed Task 3 (`8290727`).
+- 20:15. **Task 4.**
+  - `vision` `measureTargetPlate` (pass 1 + measurePlate; +2 tests).
+  - Migration `…18`: dry run, then applied live.
+  - `backend/scripts/backfill-plate-scale.mjs`: dry run 6 → live run, **6/6 recorded a usable plate** (diameter 768.5, 724.5, 816.6, 679.9, 736.8, 783.4 px), 6 Gemini calls.
+  - Pixels before and after: all 12 attempts 1,531,798 px, 26 measurements 1,531,798 px; **identical**.
+  - `GET /api/dashboard/estimated-weight` (in-process backend): 6/6 plates with scale, 748,986 px, **estimated 2.14 lb (ESTIMATE, 26.7 cm plates assumed)**. 3 foods (170,667 px) have no factor, so no pounds.
+- 20:30. **Task 5.** `docs/camera-calibration-checklist.md`.
+  - Height 43–45 cm, from the stands' documented 433/441 mm and the centre-square coverage computed from nominal fx 1360.2 px (≥ 38 cm for a 28 cm plate).
+  - Focus lock, card placement, commands, flags, and the tape-measure check (±3 cm).
+  - Expected card pixels: 38,000 at 45 cm and 41,600 at 43 cm (computed).
+  - Overlay link, `demo.py --only calibration`, and a test plate.
+  - Fixed the stale Settings-panel step in `calibration.md`.
+- 20:35. **Secret scan.**
+  - Scope: `git log -p --all` (335 commits), including commit messages.
+  - 0 matches against the real `.env` values; the DB password alone: 0.
+  - Strong patterns in the Run 4 diff: 0.
+  - 35 weak hits = the 32 from Run 3, plus 3 Run 3 log lines quoting fixtures and code (`sb_secret_example`, `sb_secret_THIS_MUST_NOT_SHIP_0000`, `TOKEN = os.environ.get`).
+  - **Verdict: clean.** SAM worker stopped.
+- 20:40. Wrote `RUN4_REPORT.md`; pushed `run4` (no PR, no merge). **Run 4 done; stopping.**
+
+## Run 5: run5 (2026-10-29, unattended)
+
+Brief: Task 1 timing + the pass 2 timeout (≤ 55 Gemini), Task 2 bring PR #25 up to date, Task 3 scheduler (disabled), Task 4 pilot runbook, Task 5 cleanups, RUN5_REPORT.md. Gemini cap 60. Never touch main.
+
+### Checklist
+- [x] Setup: branch `run5` from `run4`
+- [x] Task 1: timing baseline, cause of the pass 2 timeout, fix, confirm (53 calls)
+- [ ] Task 2: merge `run5` into `overnight-supabase`, MERGE_REVIEW + PR #25 description, scan, push
+- [x] Task 3: scheduler, written and off
+- [x] Task 4: docs/pilot-runbook.md
+- [x] Task 5: plate size in the tooltip, optional `station` column
+- [ ] RUN5_REPORT.md
+
+### Gemini call log (Run 5, cap 60)
+
+| When | What | Calls | Running total |
+|---|---|---|---|
+| 00:43 | Task 1 Step A: 12 photos, 23-food menu, timing | 26 | 26 |
+| 00:55 | Task 1 Step B: IMG_2706 diagnostic, 300 s timeout, no retries | 2 | 28 |
+| 01:00 | Task 1 attempt 1: 8192 thinking cap on every request, stopped before IMG_2707 at its cap | 24 | 52 |
+| 01:15 | Task 1 probe: IMG_2706 pass 2 with thinking capped at 1024 | 1 | 53 |
+
+### Decisions made on my behalf
+
+1. **Timing is measured inside the gateway:** a new `onCall` hook reports every provider attempt (label `localize-pass1`/`localize-pass2`, retry number, wall time, answer characters, token counts from Gemini's usage metadata, finish reason, and the settings sent). It reports values, never keys. SAM is timed by wrapping its client in the runner. The total is the wall clock of the whole ingest.
+2. **`images/ground_truth.csv` is left untouched:** it is not tracked in git (your local file). The loader and both scorers now read an optional column whose header is `Station`, anywhere in the row. Add it when you're ready; blank cells are fine.
+3. **Reviewer names are no longer returned by the API (Task 4 found this):** `GET /api/production-log` needs no sign-in and returned `confirmedBy`, which `/production` showed as "Checked by" to anyone with the link. The runbook promises staff names stay private, so the API now always returns `confirmedBy: null`. The name is still required to confirm, and still stored in the private table. The column shows the date checked instead. This is a privacy fix, not a new feature.
+4. **Scheduler = GitHub Actions** running `python -m forecast.scheduled_run` (standard library only, the same worker code). Supabase pg_cron would need the worker rewritten as an Edge Function. It is off until the repository variable `FORECAST_SCHEDULER_ENABLED` is `true`. GitHub only schedules workflows from the default branch, so it also needs merging to main, which I did not do.
+5. **The scheduled run never writes a started service, not even a "late" row:** unlike `forecast.worker run`, which inserts missing rows for started services.
+6. **Step A's token data was lost to my bug, and not re-bought:** the runner crashed after scoring (`ReferenceError: Cannot access 'stat' before initialization`), before writing `runs.json`. The per-photo times were printed as each photo finished, so pass 1, pass 2, SAM, total and retries survive (0.1 s precision). The token counts, characters and box counts per pass were lost. A full re-run would have cost about 26 of the remaining 34 calls and left too few to diagnose and confirm a fix. Fixed: `stat` is now a hoisted function, and `runs.json` is written before the summary.
+7. **The cause is unbounded thinking, so the fix is a thinking cap, not a longer timeout:** IMG_2706 with a 300 s timeout and no retries gave pass 2 = 28,718 thinking tokens, 199 answer tokens, 2 boxes, 227.6 s (pass 1: 7,707 / 258 / 3 / 64.9 s). It was not runaway output, not too many boxes, and not a large image (1024²). `GEMINI_THINKING_BUDGET` (default 8192) now goes with every structured image → JSON request, including the production-sheet reader. At the measured ~125 thinking tokens/s, that bounds a pass to about 65–70 s.
+8. **Fallback:** it already exists. When a pass fails, the other pass's boxes are used alone. On IMG_2706 pass 1's answer has no pie, so the pie was missed only because pass 2 never finished. Given 300 s, pass 2 found it (1 correct, 0 missed, 0 wrong).
+9. **Step C re-ran all 12 for attempt 1:** a cap on every request could shift any answer. Attempt 1 (8192 on every request) did **not** fix IMG_2706 (still 3 × 90 s); nothing else changed. A probe of the same pass 2 request capped at 1024 answered in 14.0 s and found the pie.
+10. **The final fix is aimed at the failure:** a timed-out structured request is retried with thinking capped at 1024 (`GEMINI_TIMEOUT_RETRY_THINKING_BUDGET`). It replaces identical retries, which with the fixed seed think just as long. First attempts keep the model default, so the 11 photos that never time out stay exactly as measured in Step A. I dropped the 8192 default because it was measured to change nothing.
+11. **No end-to-end run of the final fix:** it needs 3 calls on IMG_2706, and Task 1 had 2 of its 55 left. The documentation says what is measured (the capped retry request: 14 s, pie found) and what is projected (18/0/1).
+12. **Commits per task after one `./test-all.sh` on the complete tree:** the tasks touch separate files, so each commit is a subset of a tree that passed.
+
+### Log
+
+- 00:40. Created `run5` from `run4` (`6493855`). SAM worker started (:8790).
+- 00:43–00:55. **Task 1 Step A** (26 calls): 17/1/1, recall 94.4%, precision 94.4%, the same as Run 4. Pass 1 avg 21.7 / median 18.8 / 8.3–63.1 s (n 12). Pass 2 avg 33.3 / median 37.7 / 11.3–49.0 s (n 11; IMG_2706 timed out 3 × 90 s). SAM 0.5 s. Total avg 34.7 / median 38.4 / 14.9–50.0 s (n 11). The passes run at the same time. Pass 2 ≈ 1.9 × pass 1. No correlation with the labeled food count (−0.22 / −0.05).
+- 00:55–00:59. **Step B diagnostic** (2 calls): see decision 7.
+- 01:00. Thinking cap added (`vision/src/gateway.ts`, +2 tests: vision 106). The `onCall` timing hook is tested as well.
+- 01:00–01:15. **Attempt 1** (24 calls): 8192 on every request. IMG_2706 pass 2 still timed out; the other 10 photos had the same detections and similar times. Tokens: thinking 450–2,900, answers 130–1,800, 1–27 boxes. Time correlates with thinking (0.87 / 0.74), weakly with boxes (0.43 / 0.34).
+- 01:15. **Probe** (1 call, `tests/live/pass-probe.mjs`): IMG_2706 pass 2, thinking 1024 → 14.0 s, 172 answer tokens, pie on the target plate.
+- 01:20. **Final fix:** retry-after-timeout with thinking 1024. The default is back to the model's own thinking. Vision 106. Written up in `docs/detection-accuracy.md` → "Timing and the pass 2 timeout".
+- **Task 3:** `forecast/scheduled_run.py`, `.github/workflows/forecast-schedule.yml` (gated on `vars.FORECAST_SCHEDULER_ENABLED`), `docs/scheduler-setup.md`, +5 tests. A live dry run planned 24 SIMULATED rows (lunch and dinner on 10-29 and 10-30) and wrote nothing.
+- **Task 4:** `docs/pilot-runbook.md`. Reviewer names are no longer returned by `/api/production-log`, and the `/production` "Checked" column shows the date (backend and frontend tests updated).
+- **Task 5:**
+  - `assumedPlateDiametersCm` was added to `GET /api/dashboard/estimated-weight`; the tooltip says "Assumes 10.5-inch (26.7 cm) plates".
+  - The ground-truth loader and both scorers read an optional `Station` column, with a by-station breakdown. Without the column, the 2026-10-03 experiment still scores 36/0/3.

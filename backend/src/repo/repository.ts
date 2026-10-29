@@ -32,6 +32,7 @@ import type {
   Insight,
   CameraCalibration,
   MeasurementSettings,
+  PlateScaleRecord,
   ScanInfo,
 } from '../types.js';
 
@@ -95,6 +96,11 @@ export interface Repository {
   deleteImageObject(objectId: string): Promise<boolean>;
   /** Image objects registered for one association (e.g. a capture's 'original'). */
   findImageObjectsByAssociation(kind: ImageObject['association']['kind'], id: string): Promise<ImageObject[]>;
+
+  // --- plate scale (plate-scale-v1; optional: stores without it give no pound estimates) ---
+  recordPlateScale?(record: PlateScaleRecord): Promise<void>;
+  /** Records for these capture events (any attempt). */
+  listPlateScales?(eventIds: string[]): Promise<PlateScaleRecord[]>;
 
   // --- scans (one ScanInfo per capture event) ---
   upsertScanInfo(scan: ScanInfo): Promise<void>;

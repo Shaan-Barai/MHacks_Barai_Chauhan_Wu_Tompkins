@@ -1,0 +1,17 @@
+# Column mapping for an FSS forecast export (forecast/importers/fss.py).
+[columns]
+hall = "Unit"
+date = "Prod Date"
+meal = "Meal"
+dish = "Recipe Name"
+amount = "Forecast Qty"
+unit = "UOM"            # lb, oz, kg, g, or portions (uses the dish's portion_lb); or set options.unit
+
+[halls]
+"SIMULATED Sample Hall" = "hall-sample"
+
+[aliases]   # FSS recipe name -> our dish_id (exact; reviewed by a person)
+"MAC & CHEESE (BAKED)" = "dish-mac-cheese"
+
+[options]
+# unit = "lb"

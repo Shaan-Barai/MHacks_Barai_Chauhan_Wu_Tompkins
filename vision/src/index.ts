@@ -28,12 +28,14 @@ export type {
   GatewayTextPart,
   GatewayInlineDataPart,
   GatewayRequest,
+  GatewayCallRecord,
   MockTransport,
 } from './gateway.js';
 
 export { analyzeCapture } from './analyze.js';
 
-export { analyzeCaptureWithMasks } from './maskPipeline.js';
+export { analyzeCaptureWithMasks, measureTargetPlate } from './maskPipeline.js';
+export type { TargetPlateResult } from './maskPipeline.js';
 export type { MaskAnalysisInput, MaskAnalysisResult, MaskAnalysisDiagnostics, LocalizationStats } from './maskPipeline.js';
 export { NEIGHBOR_CLIP_MIN_FRACTION } from './maskPipeline.js';
 export type { PhysicalCalibration, PhysicalStageInput, PhysicalStageResult, PhysicalUnavailable } from './maskPipeline.js';
@@ -83,8 +85,11 @@ export {
   dropSpecks,
   labelComponents,
   largestComponent,
+  measurePlate,
+  PLATE_MAX_ASPECT,
+  PLATE_SCALE_VERSION,
 } from './targetDish.js';
-export type { DishRegionResult } from './targetDish.js';
+export type { DishRegionResult, PlateMeasureResult } from './targetDish.js';
 export { OVERLAY_VERSION, OTHER_DISH_COLOR, colorForIndex, composeWithLegend, fitLegendText, layoutLegend, legendLines, legendRows, renderOverlay } from './overlay.js';
 export type { LabelSuffix, LegendLayout, LegendLine, OverlayBucket, OverlayImage, RenderOverlayInput, RenderOverlayResult } from './overlay.js';
 export { createSamWorkerClient } from './samClient.js';

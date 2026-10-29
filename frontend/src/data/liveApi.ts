@@ -21,6 +21,8 @@ import type {
   AdminCaptureItem,
   CaptureListItem,
   ImpactDashboard,
+  EstimatedWeight,
+  ModelComparison,
   Recommendation,
   DailyImpactPoint,
   DailyWastePoint,
@@ -311,6 +313,11 @@ export async function getImageUrl(objectId: string): Promise<string> {
 
 export async function getImpactDashboard(start: IsoDate, end: IsoDate): Promise<ImpactDashboard> {
   return call<ImpactDashboard>(`/api/dashboard/impact?${q({ hallId: hallId(), start, end })}`)
+}
+
+/** plate-scale-v1 pound ESTIMATES (assumptions in `note`); pixels unchanged. */
+export async function getEstimatedWeight(start: IsoDate, end: IsoDate): Promise<EstimatedWeight> {
+  return call<EstimatedWeight>(`/api/dashboard/estimated-weight?${q({ hallId: hallId(), start, end })}`)
 }
 
 export async function getDailyImpact(start: IsoDate, end: IsoDate): Promise<DailyImpactPoint[]> {
@@ -667,6 +674,10 @@ export async function confirmProductionRow(id: number, confirmedBy: string): Pro
 
 export async function rejectProductionRow(id: number): Promise<ProductionRow> {
   return unwrap(await call(`/api/production-log/${id}/reject`, { method: 'POST' }), 'row')
+}
+
+export async function getForecastModels(): Promise<ModelComparison> {
+  return call<ModelComparison>(`/api/forecast/models?${q({ hallId: hallId() })}`)
 }
 
 export async function getForecastSummary(start: string, end: string): Promise<ForecastSummary> {

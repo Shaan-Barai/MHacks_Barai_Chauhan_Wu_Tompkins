@@ -874,6 +874,14 @@ export function createApp(deps: AppDeps): express.Express {
     }),
   );
 
+  // plate-scale-v1: ESTIMATED pounds beside Pixels wasted, with every assumption in the payload.
+  app.get(
+    '/api/dashboard/estimated-weight',
+    wrap(async (req, res) => {
+      res.json(await impact.estimatedWeight(parseWindow(req.query)));
+    }),
+  );
+
   // Per-day series for the dashboard chart: pixels, estimated kg CO2e (null without a calibrated plate), CO2 points.
   app.get(
     '/api/dashboard/impact/daily',
@@ -1004,6 +1012,10 @@ export function createApp(deps: AppDeps): express.Express {
   }));
 
   // ---- forecast vs. actual (forecast worker output; formulas in analytics/) ----
+  app.get('/api/forecast/models', wrap(async (req, res) => {
+    if (!deps.forecast) throw notFound('ROUTE_NOT_FOUND', 'Forecasts are not available on this server.');
+    res.json(await deps.forecast.models(requireQuery(req, 'hallId')));
+  }));
   app.get('/api/forecast/summary', wrap(async (req, res) => {
     if (!deps.forecast) throw notFound('ROUTE_NOT_FOUND', 'Forecasts are not available on this server.');
     const window = parseWindow(req.query);

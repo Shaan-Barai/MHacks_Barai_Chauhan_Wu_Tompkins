@@ -91,12 +91,38 @@ describe('Supabase migrations on an in-memory Postgres', () => {
     ok('anon reads capture_event', (await q('select count(*)::int n from capture_event'))[0].n === 1);
     ok('anon reads forecast', (await q('select count(*)::int n from forecast'))[0].n === 1);
     await throws('anon cannot read image_object', 'select * from image_object', /permission denied/);
+    await throws('anon cannot read production_log (reviewer names)', 'select * from production_log', /permission denied/);
     await throws('anon cannot insert', "insert into dish values ('x','x')", /permission denied|row-level security/);
     await throws('anon cannot update', "update capture_event set state='failed'", /permission denied|row-level security/);
     await throws('anon cannot delete', 'delete from meal_service', /permission denied|row-level security/);
     await throws('anon cannot call write functions', 'select clear_demo_data()', /permission denied/);
     await db.exec('reset role; set role authenticated');
     await throws('authenticated cannot insert', "insert into hall values ('h9')", /permission denied|row-level security/);
+    await db.exec('reset role');
+    // Shadow mode (20261028000017): a forecast locks when its meal's service starts.
+    await db.exec(`insert into dish values ('lock-dish','Lock dish');
+      insert into forecast (hall_id, service_date, meal_label, dish_id, model_version, recommended_prep_lb, created_at, is_simulated) values
+        ('h1','2020-01-06','lunch','lock-dish','baseline-v1',10,'2000-01-01',false),
+        ('h1','2020-01-07','lunch','lock-dish','baseline-v1',10,null,true),
+        ('h1','2099-01-05','lunch','lock-dish','baseline-v1',10,'2000-01-01',false)`);
+    ok('locks_at = service start in the hall time zone (11:00 EST)', (await q("select locks_at = '2020-01-06 16:00:00+00' ok from forecast where dish_id='lock-dish' and service_date='2020-01-06'"))[0].ok);
+    ok('created_at comes from the database clock (no backdating)', (await q("select bool_and(created_at > now() - interval '1 minute') ok from forecast where dish_id='lock-dish'"))[0].ok);
+    ok('new rows are lock-tracked', (await q("select bool_and(lock_tracked) ok from forecast where dish_id='lock-dish'"))[0].ok);
+    await throws('a started service rejects updates', "update forecast set recommended_prep_lb=11 where dish_id='lock-dish' and service_date='2020-01-06'", /is locked/);
+    await throws('an upsert cannot revise a locked forecast', "insert into forecast (hall_id, service_date, meal_label, dish_id, model_version, recommended_prep_lb) values ('h1','2020-01-06','lunch','lock-dish','baseline-v1',99) on conflict (hall_id, service_date, meal_label, dish_id, model_version) do update set recommended_prep_lb = excluded.recommended_prep_lb", /is locked/);
+    await db.exec("insert into forecast (hall_id, service_date, meal_label, dish_id, model_version, recommended_prep_lb) values ('h1','2020-01-06','lunch','lock-dish','baseline-v1',99) on conflict do nothing");
+    ok('insert-if-missing leaves a locked forecast as it was', (await q("select recommended_prep_lb::float v from forecast where dish_id='lock-dish' and service_date='2020-01-06'"))[0].v === 10);
+    await throws('a real locked forecast cannot be deleted', "delete from forecast where dish_id='lock-dish' and service_date='2020-01-06'", /is locked/);
+    await db.exec("delete from forecast where dish_id='lock-dish' and service_date='2020-01-07'");
+    ok('a simulated locked forecast can be removed (simulate remove)', (await q("select count(*)::int n from forecast where dish_id='lock-dish' and service_date='2020-01-07'"))[0].n === 0);
+    await db.exec("update forecast set recommended_prep_lb=12, created_at='2000-01-01', lock_tracked=false where dish_id='lock-dish' and service_date='2099-01-05'");
+    ok('before its service a forecast can be revised; created_at and lock_tracked stay', JSON.stringify(await q("select recommended_prep_lb::float v, created_at > now() - interval '1 minute' fresh, lock_tracked t from forecast where dish_id='lock-dish' and service_date='2099-01-05'")) === '[{"v":12,"fresh":true,"t":true}]');
+    await throws('a forecast cannot move to another service', "update forecast set meal_label='dinner' where dish_id='lock-dish' and service_date='2099-01-05'", /cannot be moved/);
+    await throws('forecast precipitation cannot be negative', "insert into context_day (hall_id, service_date, fc_precip_in) values ('h1','2026-10-01',-1)", /check constraint|violates/);
+    await db.exec("insert into context_day (hall_id, service_date, temp_high_f, fc_temp_high_f, fc_lead_hours, fc_source) values ('h1','2026-10-02',60,55,24,'open-meteo-previous-runs')");
+    ok('observed and forecast weather are separate columns', JSON.stringify(await q("select temp_high_f::float o, fc_temp_high_f::float f from context_day where service_date='2026-10-02'")) === '[{"o":60,"f":55}]');
+    await db.exec('set role anon');
+    await throws('anon cannot read meal_service_start', 'select * from meal_service_start', /permission denied/);
     await db.exec('reset role');
     ok('RLS enabled on every public table', (await q("select count(*)::int n from pg_tables where schemaname='public' and not rowsecurity"))[0].n === 0);
     await db.close();

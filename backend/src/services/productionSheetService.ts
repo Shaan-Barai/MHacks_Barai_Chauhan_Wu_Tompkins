@@ -67,6 +67,9 @@ export class ProductionSheetService {
     const tz = await this.store.hallTimezone(hallId);
     return rows.map((r) => ({
       ...r,
+      // Staff names stay in the private production_log table (audit); the API, which the
+      // public site reads without signing in, never returns them. confirmedAt shows it was checked.
+      confirmedBy: null,
       ranOutTime: r.ranOutAt ? utcToLocalTime(r.ranOutAt, tz) : null,
       blockingFlags: r.reviewFlags.filter(isBlocking),
     }));

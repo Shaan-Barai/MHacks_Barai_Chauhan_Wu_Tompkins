@@ -1,0 +1,148 @@
+{
+ "source_url": "https://docs.google.com/document/d/1_5eAEDt7FyR1sB4kUM1h5o5D_nIONjledS2HttHLq0o/edit?tab=t.0",
+ "linked_from": "https://ro.umich.edu/calendars",
+ "fetched_at": "2026-10-28",
+ "note": "University of Michigan Revised Academic Calendar, Ann Arbor Campus, as published in the Registrar's Google Doc linked from ro.umich.edu/calendars ('Academic Year Calendar'). Copied verbatim into periods below; re-check before each term (the calendar says it is subject to change).",
+ "periods": [
+  {
+   "start": "2026-08-31",
+   "end": "2026-08-31",
+   "kind": "first_class_day",
+   "label": "Fall 2026 classes begin"
+  },
+  {
+   "start": "2026-09-07",
+   "end": "2026-09-07",
+   "kind": "break",
+   "label": "Labor Day (holiday)"
+  },
+  {
+   "start": "2026-10-19",
+   "end": "2026-10-20",
+   "kind": "break",
+   "label": "Fall study break"
+  },
+  {
+   "start": "2026-11-25",
+   "end": "2026-11-27",
+   "kind": "break",
+   "label": "Thanksgiving recess"
+  },
+  {
+   "start": "2026-12-11",
+   "end": "2026-12-11",
+   "kind": "last_class_day",
+   "label": "Fall 2026 classes end"
+  },
+  {
+   "start": "2026-12-12",
+   "end": "2026-12-13",
+   "kind": "study_day",
+   "label": "Fall study days"
+  },
+  {
+   "start": "2026-12-14",
+   "end": "2026-12-18",
+   "kind": "final_exams",
+   "label": "Fall examinations"
+  },
+  {
+   "start": "2026-12-21",
+   "end": "2026-12-21",
+   "kind": "final_exams",
+   "label": "Fall examinations (Dec 21)"
+  },
+  {
+   "start": "2026-12-20",
+   "end": "2026-12-20",
+   "kind": "event",
+   "label": "Fall commencement"
+  },
+  {
+   "start": "2026-12-22",
+   "end": "2027-01-12",
+   "kind": "break",
+   "label": "Between terms (after fall exams, before winter classes) (derived: the calendar lists no classes or exams on these dates)",
+   "derived": true
+  },
+  {
+   "start": "2027-01-13",
+   "end": "2027-01-13",
+   "kind": "first_class_day",
+   "label": "Winter 2027 classes begin"
+  },
+  {
+   "start": "2027-01-18",
+   "end": "2027-01-18",
+   "kind": "no_classes",
+   "label": "MLK Day (University Symposia, no regular classes)"
+  },
+  {
+   "start": "2027-03-06",
+   "end": "2027-03-14",
+   "kind": "break",
+   "label": "Spring break (vacation begins Sat Mar 6 noon; classes resume Mon Mar 15)"
+  },
+  {
+   "start": "2027-03-21",
+   "end": "2027-03-21",
+   "kind": "event",
+   "label": "University Honors Convocation"
+  },
+  {
+   "start": "2027-04-27",
+   "end": "2027-04-27",
+   "kind": "last_class_day",
+   "label": "Winter 2027 classes end"
+  },
+  {
+   "start": "2027-04-28",
+   "end": "2027-04-28",
+   "kind": "study_day",
+   "label": "Winter study day"
+  },
+  {
+   "start": "2027-04-29",
+   "end": "2027-04-30",
+   "kind": "final_exams",
+   "label": "Winter examinations"
+  },
+  {
+   "start": "2027-05-01",
+   "end": "2027-05-02",
+   "kind": "study_day",
+   "label": "Winter study days"
+  },
+  {
+   "start": "2027-05-03",
+   "end": "2027-05-06",
+   "kind": "final_exams",
+   "label": "Winter examinations"
+  },
+  {
+   "start": "2027-05-06",
+   "end": "2027-05-09",
+   "kind": "event",
+   "label": "Commencement activities"
+  },
+  {
+   "start": "2027-05-10",
+   "end": "2027-05-10",
+   "kind": "break",
+   "label": "Between terms (derived: the calendar lists no classes or exams on these dates)",
+   "derived": true
+  },
+  {
+   "start": "2027-05-11",
+   "end": "2027-05-11",
+   "kind": "first_class_day",
+   "label": "Spring-Summer 2027 classes begin"
+  },
+  {
+   "start": "2027-05-31",
+   "end": "2027-05-31",
+   "kind": "break",
+   "label": "Memorial Day (holiday)"
+  }
+ ]
+}

@@ -3,7 +3,7 @@
 ## Resume here
 
 - **Run 6 (started 2026-10-30):** branch `run6` from `run5` (`e7a016b`). See "Run 6" at the bottom.
-- **Next step:** commit tasks, secret scan, push `run6`, write RUN6_REPORT.md.
+- **Next step:** Run 6 is COMPLETE. See `RUN6_REPORT.md`. Nothing is running (SAM worker stopped). Tasks 1–2 wait for Gemini credit.
 - **Gemini requests this run:** 26 / 180 sent, **all refused (HTTP 402, prepaid credits depleted)**. Tasks 1–2 and the Gemini half of Task 3 are blocked until credits are added.
 - Migrations: `npx supabase db push --db-url "$SUPABASE_DB_URL"` (dry run first) inside a subshell that sources `.env`; never echo it.
 
@@ -723,8 +723,8 @@ Brief: Task 1 confirm the timeout fix (≤ 30 Gemini), Task 2 thinking-cap exper
 - [ ] Task 1: 12 photos with the Run 5 fix: **BLOCKED** (Gemini HTTP 402); documented, command ready
 - [ ] Task 2: thinking cap 1,024 on every request: **BLOCKED** (same); not attempted, default unchanged
 - [x] Task 3: Nutrition5k weight test, with stand-in masks (colour + depth boxes → SAM), not Gemini
-- [ ] Secret scan, push `run6`
-- [ ] RUN6_REPORT.md
+- [x] Secret scan (clean), push `run6`
+- [x] RUN6_REPORT.md
 
 ### Gemini call log (Run 6, cap 180)
 
@@ -772,3 +772,6 @@ Brief: Task 1 confirm the timeout fix (≤ 30 Gemini), Task 2 thinking-cap exper
   - depth: 24.7 g, 38%.
   - Write-up: `docs/weight-accuracy.md`.
 - 18:54 Gemini recheck (1): still 402.
+- 18:58 Commits `00ab6ce` (Task 1), `c4c3021` (Task 3). test-all: ALL PASSED (weight 10 new).
+- 19:00 **Secret scan:** 360 commits on all branches, plus messages. 0 matches for `.env` values or the DB password; pattern hits are the known fixtures, none in Run 6's changes. Clean. SAM worker stopped.
+- Wrote `RUN6_REPORT.md`; pushed `run6`. **Run 6 done; stopping.**

@@ -50,7 +50,7 @@ TEST_SERVICE="svc_${TEST_HALL}_${TODAY}_dinner"
 PACKAGES="data vision analytics capture backend frontend db/spacetimedb"
 SECRET_VARS="SCRAP_INGEST_TOKEN SCRAP_ADMIN_PASSCODE SESSION_SECRET GEMINI_API_KEY GOOGLE_API_KEY R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY SPACETIMEDB_TOKEN CLOUDFLARE_API_TOKEN"
 
-OFFLINE_SUITES="install data vision analytics capture backend frontend frontend-build db tests python forecast scripts"
+OFFLINE_SUITES="install data vision analytics capture backend frontend frontend-build db tests python forecast weight scripts"
 LIVE_SUITES="stack seed smoke e2e-flow e2e-scrap e2e-calibration demo"
 
 describe() {
@@ -67,6 +67,7 @@ describe() {
     tests)           echo "tests/: contract fixtures + cross-system integration (live E2E skipped)" ;;
     python)          echo "capture/uno-q: simulated board/laptop capture tests (unittest)" ;;
     forecast)        echo "forecast/: baseline forecast, newsvendor buffer, censoring, evaluation (unittest, no database)" ;;
+    weight)          echo "tests/weight: Nutrition5k weight test math (split, pixel area, factors, errors; unittest)" ;;
     scripts)         echo "bash -n/shellcheck deploy scripts, node --check, py_compile, JSON configs" ;;
     stack)           echo "LIVE deploy/local.sh up (starts or reuses SpacetimeDB, SAM 2.1, backend)" ;;
     seed)            echo "LIVE seed today's demo dinner for the test hall ($TEST_HALL)" ;;
@@ -339,6 +340,7 @@ for suite in $SELECTED; do
     tests)          run_suite tests node 0 in_dir "$REPO/tests" npm test && ok=1 ;;
     python)         run_suite python unittest 0 "$PYTHON" -m unittest discover -s capture/uno-q -v && ok=1 ;;
     forecast)       run_suite forecast unittest 0 "$PYTHON" -m unittest discover -s forecast/tests -t . -v && ok=1 ;;
+    weight)         run_suite weight unittest 0 "$PYTHON" -m unittest discover -s tests/weight -v && ok=1 ;;
     scripts)        run_suite scripts checks 0 suite_scripts && ok=1 ;;
     stack)
       if run_suite stack none 0 env SCRAP_RUN_DIR="$RUN_DIR" API_PORT="$API_PORT" "$REPO/deploy/local.sh" up; then

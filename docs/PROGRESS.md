@@ -2,10 +2,14 @@
 
 ## Resume here
 
-- **Run 5 (started 2026-10-29 00:40 EDT):** branch `run5` from `run4` (`6493855`). See "Run 5" at the bottom.
-- **Next step:** Run 5 is COMPLETE. See `RUN5_REPORT.md`. Nothing is running (the SAM worker was stopped).
-- **Gemini calls this run:** 53 / 60.
+- **Run 6 (started 2026-10-30):** branch `run6` from `run5` (`e7a016b`). See "Run 6" at the bottom.
+- **Next step:** commit tasks, secret scan, push `run6`, write RUN6_REPORT.md.
+- **Gemini requests this run:** 26 / 180 sent, **all refused (HTTP 402, prepaid credits depleted)**. Tasks 1–2 and the Gemini half of Task 3 are blocked until credits are added.
 - Migrations: `npx supabase db push --db-url "$SUPABASE_DB_URL"` (dry run first) inside a subshell that sources `.env`; never echo it.
+
+### Run 5 (complete)
+
+- Branch `run5`, report `RUN5_REPORT.md`, 53 / 60 Gemini calls.
 
 ### Run 4 (complete)
 
@@ -58,6 +62,9 @@
 
 | When | What | Calls | Running total |
 |---|---|---|---|
+| 18:39 | Task 1: 12 photos × 2 passes, every request refused with HTTP 402 in 0.1–0.4 s (no tokens) | 24 | 24 |
+| 18:41 | Task 1: one single-pass probe to read the provider's exact error | 1 | 25 |
+| 18:54 | Before the report: one probe to see whether credits were back (still 402) | 1 | 26 |
 | 18:04 | Task 1: 12 photos, 23-food menu of that dinner, 1 run | 26 | 26 |
 | 18:15 | Task 1: IMG_2706 re-run (pass 2 timed out again) | 4 | 30 |
 | 20:15 | Task 4: plate backfill, pass 1 only, 6 scans | 6 | 36 |
@@ -387,6 +394,9 @@ Plan: `~/.claude/plans/pasted-content-id-88eb-long-unattended-sequential-pony.md
 
 | When | What | Calls | Running total |
 |---|---|---|---|
+| 18:39 | Task 1: 12 photos × 2 passes, every request refused with HTTP 402 in 0.1–0.4 s (no tokens) | 24 | 24 |
+| 18:41 | Task 1: one single-pass probe to read the provider's exact error | 1 | 25 |
+| 18:54 | Before the report: one probe to see whether credits were back (still 402) | 1 | 26 |
 
 ### Decisions made on my behalf
 
@@ -571,6 +581,9 @@ Brief: tasks 1-5 + RUN4_REPORT.md. Gemini cap 40 (Task 1 ≤ 30, Task 4 ≤ 10).
 
 | When | What | Calls | Running total |
 |---|---|---|---|
+| 18:39 | Task 1: 12 photos × 2 passes, every request refused with HTTP 402 in 0.1–0.4 s (no tokens) | 24 | 24 |
+| 18:41 | Task 1: one single-pass probe to read the provider's exact error | 1 | 25 |
+| 18:54 | Before the report: one probe to see whether credits were back (still 402) | 1 | 26 |
 
 ### Decisions made on my behalf
 
@@ -653,6 +666,9 @@ Brief: Task 1 timing + the pass 2 timeout (≤ 55 Gemini), Task 2 bring PR #25 u
 
 | When | What | Calls | Running total |
 |---|---|---|---|
+| 18:39 | Task 1: 12 photos × 2 passes, every request refused with HTTP 402 in 0.1–0.4 s (no tokens) | 24 | 24 |
+| 18:41 | Task 1: one single-pass probe to read the provider's exact error | 1 | 25 |
+| 18:54 | Before the report: one probe to see whether credits were back (still 402) | 1 | 26 |
 | 00:43 | Task 1 Step A: 12 photos, 23-food menu, timing | 26 | 26 |
 | 00:55 | Task 1 Step B: IMG_2706 diagnostic, 300 s timeout, no retries | 2 | 28 |
 | 01:00 | Task 1 attempt 1: 8192 thinking cap on every request, stopped before IMG_2707 at its cap | 24 | 52 |
@@ -697,3 +713,62 @@ Brief: Task 1 timing + the pass 2 timeout (≤ 55 Gemini), Task 2 bring PR #25 u
   - All `sb_secret_` strings are fixtures (`sb_secret_example`, `sb_secret_test`, `sb_secret_THIS_MUST_NOT_SHIP_0000`).
   - Clean. Pushed `overnight-supabase` (8cb9401..2a1c972) and `run5`. PR #25 title and description refreshed; still a draft.
 - 01:45. SAM worker stopped. Wrote `RUN5_REPORT.md`. **Run 5 done; stopping.**
+
+## Run 6: run6 (2026-10-30, unattended)
+
+Brief: Task 1 confirm the timeout fix (≤ 30 Gemini), Task 2 thinking-cap experiment (≤ 30), Task 3 weight test on Nutrition5k (≤ 120), RUN6_REPORT.md. Gemini cap 180. Never touch main. Push `run6` only after a clean full-history secret scan; no PR, no merge.
+
+### Checklist
+- [x] Setup: branch `run6` from `run5`
+- [ ] Task 1: 12 photos with the Run 5 fix: **BLOCKED** (Gemini HTTP 402); documented, command ready
+- [ ] Task 2: thinking cap 1,024 on every request: **BLOCKED** (same); not attempted, default unchanged
+- [x] Task 3: Nutrition5k weight test, with stand-in masks (colour + depth boxes → SAM), not Gemini
+- [ ] Secret scan, push `run6`
+- [ ] RUN6_REPORT.md
+
+### Gemini call log (Run 6, cap 180)
+
+| When | What | Calls | Running total |
+|---|---|---|---|
+| 18:39 | Task 1: 12 photos × 2 passes, every request refused with HTTP 402 in 0.1–0.4 s (no tokens) | 24 | 24 |
+| 18:41 | Task 1: one single-pass probe to read the provider's exact error | 1 | 25 |
+| 18:54 | Before the report: one probe to see whether credits were back (still 402) | 1 | 26 |
+
+### Decisions made on my behalf
+
+1. **Gemini is out of prepaid credit (HTTP 402) and I did not try to fix that.** Adding credit is a billing action on your account; I don't do those. I didn't look for other keys either.
+2. **Task 1 stopped after the first refused run.** All 24 requests failed instantly with `GEMINI_BILLING`. I sent one probe to capture the provider's exact message, and one more just before the report to check whether credits had come back. They hadn't. The Run 5 projection (18/0/1) stays labeled as a projection. I added a "Run 6" subsection to `docs/detection-accuracy.md` saying it is still not measured, with the exact commands.
+3. **Task 2 not attempted:** it needs Gemini. The default is unchanged (model-default thinking, plus the 1,024 cap on a retry after a timeout), as the brief requires unless measured otherwise.
+4. **Task 3 went ahead without Gemini, with clearly labeled stand-in masks:**
+   - SAM 2.1 (default settings) got boxes from a colour + depth heuristic instead of from Gemini.
+   - I picked single-food dishes (one food ≥ 85% of the visible grams), so no classification was needed.
+   - Everything is labeled "Nutrition5k full plates, not leftovers" and "stand-in masks, not Gemini".
+   - The Gemini → SAM version is the next step once credits are back (about 116 calls).
+5. **Camera geometry:**
+   - Pixel size comes from the paper's 35.9 cm (§4.4) and Intel's published D435 RGB FOV (69.4° × 42.5°): f = 617.2 px at 640 × 480, 3.384 × 10⁻³ cm² per pixel.
+   - The paper itself states 5.957 × 10⁻³ cm² per pixel (1.76× more) without saying how it got that. I used Intel's (as the brief said) and report the effect of the paper's.
+6. **Depth units are 1e-4 m, as the dataset says:** the plate floor reads 35.4–36.9 cm, matching 35.9 cm. One very early dish I opened first (dish_1556572657, olives; not in the sample) reads about 10× smaller. That dish isn't used.
+7. **Sample:**
+   - 7 food types with a clear match in our factors CSV, 10 dishes each, seed 42. At most one dish per physical plate (scans < 300 s apart = one plate), so the same plate can't be in both halves.
+   - Split 50/50 by dish ID within each food type (seed 42). I took 10 per type (70 dishes, not exactly 60) so each type splits 5/5.
+8. **Scale grams = all visible (non-skipped) grams**, because the mask covers every visible food. Skipped: oils, dressings, sauces and seasonings under 10 g (olive oil 14 dishes, salt 9, pepper 8, mustard 1, vinegar 1).
+9. **12 of 70 dishes excluded after looking at every mask overlay, before computing any error:**
+   - all were bowls, glass dishes, a whole-plate mask, or 2 missed tomatoes;
+   - reasons are in `images/nutrition5k/out/excluded.json`;
+   - results with them included are reported too (robustness).
+10. **Stand-in thresholds were tuned by looking at overlays** (no scale grams involved). The region colour cut (0.04) sits between rim shading (≤ 0.035) and food (≥ 0.042) on 22 dishes.
+11. **New offline test suite `weight`** in `./test-all.sh` (10 unit tests for selection, split, geometry and metrics). The image code needs numpy/scipy and the SAM worker, so it isn't in the offline suites.
+12. **`demo.py` unchanged:** nothing user-visible changed in the product.
+13. **Data location:** `images/nutrition5k/` (already gitignored via `images/`), about 41 MB.
+
+### Log
+
+- Created `run6` from `run5` (`e7a016b`). SAM worker started (:8790).
+- 18:39 **Task 1** (24 requests): every request `GEMINI_BILLING`; detect run `images/live-test/detect-20261030T223952/`. 18:41 probe (1): `402 RESOURCE_EXHAUSTED: Your prepayment credits are depleted`.
+- **Task 2:** not attempted (same block).
+- **Task 3:** metadata + split lists + 70 dishes downloaded (41 MB). Stand-in masks, three iterations of the heuristic checked on overlays; 12 excluded. Results on the 31 test dishes:
+  - CSV factors: MAE 35.8 g, MAPE 45%;
+  - measured factors: 20.4 g, 33%;
+  - depth: 24.7 g, 38%.
+  - Write-up: `docs/weight-accuracy.md`.
+- 18:54 Gemini recheck (1): still 402.

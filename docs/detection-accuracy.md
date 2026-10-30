@@ -102,6 +102,30 @@ Same 12 photos, the 23-food menu of that dinner, `gemini-3.8-flash`, seed 42, te
 
 **Gemini calls for this section:** 26 (Step A) + 2 (diagnostic) + 24 (attempt 1) + 1 (probe) = **53**.
 
+### Run 6 (2026-10-30): confirmation run NOT measured, Gemini refused every request
+
+The planned confirmation (all 12 photos, same settings as Step A, with the timeout fix) and the thinking-cap experiment (1,024 on every request) could not run. Every request returned HTTP 402 immediately (0.1–0.4 s, no tokens):
+
+```text
+{"error":{"code":402,"message":"Your prepayment credits are depleted. Please go to AI Studio at https://ai.studio/projects to manage your project and billing. ...","status":"RESOURCE_EXHAUSTED"}}
+```
+
+The pipeline maps this to `GEMINI_BILLING` and fails the capture (it is never counted as zero waste). Requests sent: 24 (12 photos × 2 passes) + 1 single-pass probe to read the provider's message = 25, all refused. Raw records: `images/live-test/detect-20261030T223952/runs.json` (gitignored).
+
+| | correct | missed | wrong | recall | precision |
+|---|---|---|---|---|---|
+| Run 5 Step A (measured, before the fix) | 17 | 1 | 1 | 94.4% | 94.4% |
+| With the fix (**PROJECTED**, Run 5) | 18 | 0 | 1 | 100% | 94.7% |
+| Run 6 confirmation | — | — | — | not measured (HTTP 402) | not measured |
+
+So the projection above is still a projection, and the timing tables above are still the latest measured ones. To measure it once credits are added (about 27 calls, SAM worker running, from `tests/`):
+
+```bash
+RUN_LIVE=1 node --env-file=../.env live/detection-runs.mjs --runs 1 --max-gemini 30 --exclude-items 'Halal Rice,Tomatoes,Lettuce'
+# then the thinking-cap comparison:
+GEMINI_THINKING_BUDGET=1024 RUN_LIVE=1 node --env-file=../.env live/detection-runs.mjs --runs 1 --max-gemini 30 --exclude-items 'Halal Rice,Tomatoes,Lettuce'
+```
+
 ## Per-meal menu (Run 4, 2026-10-28)
 
 **Question:** in a real hall the pipeline knows which meal a photo comes from, so it should offer only that meal's foods. What happens to the score when each photo gets only its own meal's menu?
